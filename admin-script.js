@@ -36,7 +36,6 @@ window.getHoliday = function(y, m, d) {
   return holidays[key] || null;
 };
 
-// 요일 구하는 함수
 function getDow(dStr) {
   if(!dStr) return '';
   const d = new Date(dStr.replace(/-/g, '/'));
@@ -143,20 +142,25 @@ window.handleLogin = async function(e) { e.preventDefault(); const email = $("lo
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
 // ==========================================
-// 5. 공통 커스텀 모달 (브라우저 기본 Alert/Confirm 대체)
+// 5. 공통 커스텀 모달 (배경색 날리고 컬러 제어)
 // ==========================================
-window.openCustomConfirm = function(title, statusHtml, statusBg, statusColor, actionHtml, callback) {
+window.openCustomConfirm = function(title, statusHtml, actionHtml, callback) {
     $("confirmTarget").innerHTML = title;
     const stEl = $("confirmStatus");
     if(statusHtml) { 
-        stEl.style.display = 'inline-block'; 
+        stEl.style.display = 'block'; 
         stEl.innerHTML = statusHtml; 
-        stEl.style.background = statusBg || '#F2F4F6'; 
-        stEl.style.color = statusColor || 'var(--text-secondary)'; 
+        // 🔥 기존 팝업의 배경색, 패딩 싹 날림
+        stEl.style.background = 'transparent'; 
+        stEl.style.padding = '0'; 
     } else { 
         stEl.style.display = 'none'; 
     }
-    $("confirmAction").innerHTML = actionHtml;
+    const actEl = $("confirmAction");
+    actEl.innerHTML = actionHtml;
+    // 🔥 하단 텍스트 컬러 무조건 블랙으로 강제화 (HTML의 오렌지 속성 덮어쓰기)
+    actEl.style.color = "var(--text-display)";
+
     window.currentConfirmCallback = callback;
     $("confirmModal").classList.add('show');
 }
@@ -424,7 +428,7 @@ window.saveBlockData = async function() {
 }
 
 window.deleteBlock = function(id) {
-  openCustomConfirm("스케줄 삭제", null, null, null, "해당 스케줄을 삭제하시겠습니까?", async () => {
+  openCustomConfirm("스케줄 삭제", null, `<span style="color:var(--text-display);">해당 스케줄을 삭제하시겠습니까?</span>`, async () => {
     const { error } = await supabaseClient.from('blocks').delete().eq('id', id); 
     if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); fetchCenterData(); }
   });
@@ -433,14 +437,14 @@ window.deleteBlock = function(id) {
 window.bulkAction = function(table, type) {
   let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); 
   if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
-  openCustomConfirm("일괄 취소", null, null, null, `선택한 ${chks.length}건을 일괄 취소하시겠습니까?`, async () => {
+  openCustomConfirm("일괄 취소", null, `<span style="color:var(--text-display);">선택한 </span><span style="color:var(--primary); font-weight:800;">${chks.length}건</span><span style="color:var(--text-display);">을 일괄 취소하시겠습니까?</span>`, async () => {
     let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', chk.value)); });
     await Promise.all(promises); showToast("일괄 처리가 완료되었습니다."); fetchCenterData();
   });
 }
 
 window.cancelAction = function(table, id) {
-  openCustomConfirm("정상 취소 처리", null, null, null, "해당 예약을 정상 취소로 처리하시겠습니까?", async () => {
+  openCustomConfirm("정상 취소 처리", null, `<span style="color:var(--text-display);">해당 예약을 정상 취소로 처리하시겠습니까?</span>`, async () => {
     await supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', id); showToast("정상 취소로 처리되었습니다."); fetchCenterData();
   });
 }
@@ -448,7 +452,7 @@ window.cancelAction = function(table, id) {
 window.bulkActionOrd = function(statusValue) {
   let chks = $$$(`.chk-ord:checked`);
   if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
-  openCustomConfirm("생두 상태 일괄 변경", null, null, null, `선택한 ${chks.length}건을 <strong style="color:var(--primary);">${statusValue}</strong> 상태로 변경하시겠습니까?`, async () => {
+  openCustomConfirm("생두 상태 일괄 변경", null, `<span style="color:var(--text-display);">선택한 </span><span style="color:var(--primary); font-weight:800;">${chks.length}건</span><span style="color:var(--text-display);">을(를) </span><span style="color:var(--primary); font-weight:800;">${statusValue}</span><span style="color:var(--text-display);"> 상태로 변경하시겠습니까?</span>`, async () => {
     let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from('orders').update({ status: statusValue }).eq('id', chk.value)); });
     await Promise.all(promises); showToast(`일괄 처리가 완료되었습니다.`); fetchCenterData();
   });
@@ -927,36 +931,37 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
   if(opt === 'release') {
       const m = globalMembers.find(x => x.id === id);
       let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지';
-      confirmMsg = `<span style="color:var(--primary); font-size:15px; font-weight:800;">[${newStat}]</span> 상태로 전환하시겠습니까?`;
+      confirmMsg = `<span style="color:var(--text-display);">상태를 </span><span style="color:var(--primary); font-weight:800;">[${newStat}]</span><span style="color:var(--text-display);"> 상태로 전환하시겠습니까?</span>`;
   } else if (opt === 'pause') {
-      confirmMsg = `활동을 <span style="color:var(--primary); font-size:15px; font-weight:800;">일시정지</span>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary);">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span>`;
+      confirmMsg = `<span style="color:var(--text-display);">활동을 </span><span style="color:var(--primary); font-weight:800;">일시정지</span><span style="color:var(--text-display);">하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span></span>`;
   } else if (opt === 'resume') {
-      confirmMsg = `활동을 <span style="color:var(--primary); font-size:15px; font-weight:800;">재개</span>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary);">(이전 정지 기간을 자동 계산하여 연장합니다.)</span>`;
+      confirmMsg = `<span style="color:var(--text-display);">활동을 </span><span style="color:var(--primary); font-weight:800;">재개</span><span style="color:var(--text-display);">하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(이전 정지 기간을 자동 계산하여 연장합니다.)</span></span>`;
   } else {
       let baseDate = new Date(); baseDate.setHours(0,0,0,0); let isActive = false;
-      if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDate) { baseDate = endD; isActive = true; } }
+      if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDate) { isActive = true; } }
       if (isActive) {
-          confirmMsg = `이어서 <span style="color:var(--primary); font-size:15px; font-weight:800;">${optText}</span>을(를) 적용하시겠습니까?`;
+          confirmMsg = `<span style="color:var(--text-display);">이어서 </span><span style="color:var(--primary); font-weight:800;">${optText}</span><span style="color:var(--text-display);">을(를) 적용하시겠습니까?</span>`;
       } else {
-          confirmMsg = `오늘 날짜를 기준으로<br><span style="color:var(--primary); font-size:15px; font-weight:800;">${optText}</span>을(를) 새롭게 적용하시겠습니까?`;
+          confirmMsg = `<span style="color:var(--text-display);">오늘 날짜를 기준으로<br></span><span style="color:var(--primary); font-weight:800;">${optText}</span><span style="color:var(--text-display);">을(를) 새롭게 적용하시겠습니까?</span>`;
       }
   }
 
   let statText = "";
   if (opt === 'release' || opt === 'pause' || opt === 'resume') {
-       statText = `현재 상태: ${opt === 'resume' ? '일시정지' : (opt === 'release' ? '확인요망' : '활동 중')}`;
+       let cur = opt === 'resume' ? '일시정지' : (opt === 'release' ? '확인요망' : '활동 중');
+       statText = `<span style="color:var(--text-secondary);">현재 상태: </span><span style="color:var(--primary); font-weight:800;">${cur}</span>`;
   } else {
        if(currentEndDate && new Date(currentEndDate) >= new Date().setHours(0,0,0,0)) {
-           statText = `현재 활동 종료일: ${currentEndDate}`; 
+           statText = `<span style="color:var(--text-secondary);">현재 활동 종료일: </span><span style="color:var(--primary); font-weight:800;">${currentEndDate}</span>`; 
        } else {
-           statText = `현재 활동 종료 상태입니다.`; 
+           statText = `<span style="color:var(--text-secondary);">현재 활동 종료 상태입니다.</span>`; 
        }
   }
 
   pendingOptionData = { id, name, phone, opt, optText, baseDate: baseDateForUpdate, currentEndDate };
   
-  // 🔥 오렌지 박스 버그 삭제! null, null 넘겨서 기본 회색(토스 스타일) 적용
-  openCustomConfirm(`[${batch || '미정'}] ${name} 님`, statText, null, null, confirmMsg, async () => {
+  // 🔥 오렌지 박스 버그 삭제! null 값으로 투명(transparent) 배경 적용 및 컬러 하드코딩
+  openCustomConfirm(`[${batch || '미정'}] ${name} 님`, statText, confirmMsg, async () => {
       if(opt === 'release') {
           const m = globalMembers.find(x => x.id === id);
           let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지';
@@ -1008,9 +1013,9 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
 
 window.updateMemberEndDate = async function(id, newDate) { const { error } = await supabaseClient.from('members').update({ end_date: newDate }).eq('id', id); if (error) showToast("저장 실패"); else showToast("업데이트 되었습니다."); }
 
-// 🔥 내역 삭제 시 "종료일 자동 계산 및 복구" 탑재 완료 (새로고침 방지)
+// 🔥 내역 삭제 시 "종료일 자동 복구 및 즉각 렌더링" 탑재
 window.deleteHistory = async function(id, phone, name, action_detail) {
-    openCustomConfirm("내역 삭제", null, null, null, "해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>", async () => {
+    openCustomConfirm("내역 삭제", null, `<span style="color:var(--text-display);">해당 내역을 완전히 삭제하시겠습니까?</span><br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
         await supabaseClient.from('member_history').delete().eq('id', id);
         
         const m = globalMembers.find(x => x.phone === phone);
@@ -1031,8 +1036,8 @@ window.deleteHistory = async function(id, phone, name, action_detail) {
         }
         
         showToast("내역이 삭제되고 종료일이 복구되었습니다.");
-        window.searchMembers(); // UI 0.1초 렌더링
-        window.openHistoryModal(phone, name); // 모달 내용 최신화
+        window.searchMembers(); 
+        window.openHistoryModal(phone, name); 
     });
 };
 
