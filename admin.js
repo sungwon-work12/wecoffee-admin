@@ -272,10 +272,10 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 완벽 파싱 (뱃지 분리, 텍스트 일치, 주문번호 열 제거)
+  // 🔥 생두 주문 현황 파싱 로직 (9열, 이모지 제거, 이름 링크 제거)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
-      let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.id} ${o.center||''}`.toLowerCase().includes(qOrd); 
+      let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
       let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
       let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인') : true; 
       return matchQ && matchV && matchS; 
@@ -284,13 +284,13 @@ window.renderCenterData = function() {
   $("ordTableBody").innerHTML = fOrd.length ? fOrd.map(o=>{ 
     let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
     
-    // 원두 이름과 발주희망일 파싱 (멤버 페이지와 동일한 로직으로 정확히 잘라냄)
+    // 원두 이름과 발주희망일 파싱
     let rNm = o.item_name || "", cNm = rNm, dOptHtml = "";
     let m = rNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
     if(m) {
         cNm = m[1].trim(); 
-        let dStr = m[4]+"요일 발주";
-        dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:6px; display:inline-block;">${dStr}</div>`;
+        let dStr = m[4] + "요일 발주";
+        dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:#4e5968; background:#f2f4f6; padding:4px 8px; border-radius:6px; display:inline-block;">${dStr}</div>`;
     } else {
         let oM = rNm.match(/(.+) \[(.*?)\]/);
         if(oM) {
@@ -298,21 +298,21 @@ window.renderCenterData = function() {
             let optText = oM[2].trim();
             if(optText.includes('월')) optText = '월요일 발주';
             else if(optText.includes('목')) optText = '목요일 발주';
-            dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:6px; display:inline-block;">${optText}</div>`;
+            dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:#4e5968; background:#f2f4f6; padding:4px 8px; border-radius:6px; display:inline-block;">${optText}</div>`;
         }
     }
 
-    let cTxtPreview = o.center ? `<span style="display:inline-block; padding:2px 6px; background:#f2f4f6; color:#4e5968; border-radius:4px; font-weight:700; font-size:11px; margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
     let centerBadge = `<span style="display:inline-block; padding:4px 8px; background:#f2f4f6; color:#4e5968; border-radius:6px; font-weight:700; font-size:12px;">${o.center||'미지정'}</span>`;
+    let cTxtPreview = o.center ? `<span style="display:inline-block; padding:2px 6px; background:#f2f4f6; color:#4e5968; border-radius:4px; font-weight:700; font-size:11px; margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
     
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}[${o.vendor}] ${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
-    // 🔥 주문번호 렌더링 삭제 및 정확한 9개 컬럼 매칭
+    // 9개의 td (주문번호 삭제, 이름 텍스트화)
     return `<tr>${mPreview}
         <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
         <td data-label="주문일">${formatDt(o.created_at)}</td>
         <td data-label="수령 센터" class="tc">${centerBadge}</td>
-        <td data-label="성함(기수)"><strong style="font-weight:800;">${o.name}</strong> <span style="color:var(--text-secondary); font-size:12px;">(${o.batch||'-'})</span></td>
+        <td data-label="성함(기수)"><strong style="font-weight:800; color:var(--text-display);">${o.name}</strong> <span style="color:var(--text-secondary); font-size:12px;">(${o.batch||'-'})</span></td>
         <td data-label="연락처">${o.phone}</td>
         <td data-label="생두사 / 상품명">
             <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:4px;">
@@ -433,7 +433,7 @@ window.renderDashboard = async function() {
       let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; let evts = calEvts[ds] || []; evts.sort((a,b) => String(a.start || '').localeCompare(String(b.start || '')));
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
       let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.start||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
-      if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.start||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
+      if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
       mHtml += `<div class="dash-cal-cell ${isTd}"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
     mHtml += `</div>`; 
@@ -450,7 +450,7 @@ window.renderDashboard = async function() {
 }
 
 // ==========================================
-// 8. 생두 발주 요약 추출 시 파싱 로직
+// 8. 생두 발주 요약 추출 시 파싱 로직 (센터 추가)
 // ==========================================
 window.showOrderSummary = function() {
   let pending = gOrd.filter(o => o.status === '주문 접수');
@@ -462,10 +462,19 @@ window.showOrderSummary = function() {
       if(!grouped[key]) grouped[key] = {}; 
       
       let cNm = o.item_name; let dOpt = "";
-      let m = (o.item_name||"").match(/(.+) \[(?:희망:\s*)?(.*?)\]/);
+      let m = (o.item_name||"").match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
       if(m) { 
           cNm = m[1].trim(); 
-          dOpt = m[2].trim(); 
+          dOpt = m[4] + "요일 발주"; 
+      } else {
+          let oM = (o.item_name||"").match(/(.+) \[(.*?)\]/);
+          if(oM) {
+              cNm = oM[1].trim();
+              let optText = oM[2].trim();
+              if(optText.includes('월')) dOpt = '월요일 발주';
+              else if(optText.includes('목')) dOpt = '목요일 발주';
+              else dOpt = optText;
+          }
       }
 
       let subKey = `${cNm} ${dOpt ? '('+dOpt+')' : ''}`;
@@ -1113,7 +1122,7 @@ window.openHistoryModal = async function(phone, name) {
 window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
 
 // ==========================================
-// 11. 엑셀 다운로드 
+// 11. 엑셀 다운로드 (주문번호 제거 매칭)
 // ==========================================
 window.downloadExcel = function(type) {
   if (type === 'applications' && isInsightView) {
@@ -1129,7 +1138,7 @@ window.downloadExcel = function(type) {
 
   let data = []; let headers = []; let filename = "";
   if(type === 'applications') { data = globalApps; filename = "가입신청"; headers = ['신청일', '기수', '성함', '연락처', '관심분야', '유입경로', '진행상황', '가입여부', '상담일시', '담당자']; } else if(type === 'members') { data = globalMembers; filename = "멤버리스트"; headers = ['등록일', '상태', '기수', '성함', '연락처', '활동종료일']; } else if(type === 'reservations') { data = gRes; filename = "예약현황"; headers = ['접수일', '기수', '성함', '연락처', '예약날짜', '예약시간', '센터', '장비', '상태', '취소사유']; } else if(type === 'trainings') { data = gTrn; filename = "수업훈련"; headers = ['신청일', '기수', '성함', '연락처', '콘텐츠', '상태', '취소사유']; } 
-  else if(type === 'orders') { data = gOrd; filename = "생두주문"; headers = ['주문일', '기수', '성함', '연락처', '수령센터', '생두사', '상품명', '희망수령일', '수량', '총금액', '상태']; }
+  else if(type === 'orders') { data = gOrd; filename = "생두주문"; headers = ['주문일', '수령센터', '기수', '성함', '연락처', '생두사', '상품명', '희망수령일', '수량', '총금액', '상태']; }
   
   if(data.length === 0) { showToast('다운로드할 데이터가 없습니다.'); return; }
   
@@ -1140,8 +1149,14 @@ window.downloadExcel = function(type) {
     else if(type === 'orders') {
         let rNm=d.item_name||"", cNm=rNm, dOpt="-";
         let m = rNm.match(/(.+) \[(?:희망:\s*)?(.*?)\]/);
-        if(m) { cNm = m[1].trim(); dOpt = m[2].trim(); }
-        row = [formatDt(d.created_at), d.batch, d.name, d.phone, (d.center||'-'), d.vendor, cNm, dOpt, d.quantity, d.total_price, d.status];
+        if(m) { 
+            cNm = m[1].trim(); 
+            let optText = m[2].trim();
+            if(optText.includes('월')) dOpt = '월요일 발주';
+            else if(optText.includes('목')) dOpt = '목요일 발주';
+            else dOpt = optText;
+        }
+        row = [formatDt(d.created_at), (d.center||'-'), d.batch, d.name, d.phone, d.vendor, cNm, dOpt, d.quantity, d.total_price, d.status];
     }
     
     csvContent += row.map(item => {
