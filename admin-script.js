@@ -272,7 +272,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 파싱 로직 (센터 추가 및 배지 형태 분리)
+  // 🔥 생두 주문 현황 파싱 로직 (이름 밑줄 제거 & 뱃지 분리 가독성 극대화)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.id} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -294,14 +294,14 @@ window.renderCenterData = function() {
     }
 
     let cTxtPreview = o.center ? `<span style="font-weight:800; color:var(--primary); margin-right:6px;">[${o.center}]</span>` : '';
-    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] ${o.name} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:600;">${cTxtPreview}[${o.vendor}] ${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
+    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}[${o.vendor}] ${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
     return `<tr>${mPreview}
         <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
         <td data-label="주문일">${formatDt(o.created_at)}</td>
         <td data-label="주문번호">${o.id}</td>
         <td data-label="수령 센터" class="tc"><span style="font-weight:800; color:var(--blue);">${o.center||'미지정'}</span></td>
-        <td data-label="성함(기수)"><strong>${o.name}</strong> <span style="color:var(--text-secondary); font-size:12px;">(${o.batch||'-'})</span></td>
+        <td data-label="성함(기수)"><strong style="font-weight:800;">${o.name}</strong> <span style="color:var(--text-secondary); font-size:12px;">(${o.batch||'-'})</span></td>
         <td data-label="연락처">${o.phone}</td>
         <td data-label="생두사 / 상품명">
             <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:4px;">
@@ -309,7 +309,7 @@ window.renderCenterData = function() {
                     <a href="${o.url}" target="_blank" style="color:var(--text-display);font-weight:800;text-decoration:underline;flex-shrink:0;">${o.vendor}</a>
                     <button type="button" class="btn-copy" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">상품명 복사</button>
                 </div>
-                <span class="item-name-clamp" style="color:var(--text-secondary); font-weight:500; line-height:1.4;">${cNm}</span>
+                <span class="item-name-clamp" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cNm}</span>
                 ${dOptHtml}
             </div>
         </td>
@@ -423,7 +423,7 @@ window.renderDashboard = async function() {
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
       let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.start||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.start||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
-      mHtml += `<div class="dash-cal-cell ${isTd}"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
+      mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
     mHtml += `</div>`; 
     
@@ -969,7 +969,7 @@ function renderMemberTable(data) {
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch || '-'}] ${row.name || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${row.phone || '-'})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
     const tr = document.createElement('tr');
-    tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함"><strong>${row.name || '-'}</strong></td><td data-label="연락처">${row.phone || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${row.name}', '${row.phone}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${row.phone}', '${row.name}')">내역</button></div></div></td>`;
+    tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함"><strong style="cursor:pointer;" onclick="$('memberSearch').value='${row.name}'; window.searchMembers();">${row.name || '-'}</strong></td><td data-label="연락처">${row.phone || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${row.name}', '${row.phone}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${row.phone}', '${row.name}')">내역</button></div></div></td>`;
     tbody.appendChild(tr);
   });
 }
@@ -1125,7 +1125,6 @@ window.downloadExcel = function(type) {
     let row = [];
     if(type === 'applications') row = [formatDt(d.created_at), d.desired_batch, d.name, d.phone, d.interest_area, d.acquisition_channel, d.status, d.join_status, d.call_time, d.counselor_name]; else if(type === 'members') row = [formatDt(d.created_at), d.status, d.batch, d.name, d.phone, d.end_date]; else if(type === 'reservations') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.res_date, d.res_time, d.center, d.space_equip, d.status, d.cancel_reason]; else if(type === 'trainings') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.content, d.status, d.cancel_reason]; 
     else if(type === 'orders') {
-        // 🔥 엑셀 다운로드 시에도 예쁘게 쪼개서 다운받게 파싱
         let rNm=d.item_name||"", cNm=rNm, dOpt="-";
         let m = rNm.match(/(.+) \[(?:희망:\s*)?(.*?)\]/);
         if(m) { cNm = m[1].trim(); dOpt = m[2].trim(); }
@@ -1143,4 +1142,3 @@ window.downloadExcel = function(type) {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); 
   const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
-</script>
