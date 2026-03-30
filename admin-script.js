@@ -52,10 +52,22 @@ function formatDtWithDow(dateStr) {
   return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${dow}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; 
 }
 
-function formatDt(dateStr) { if(!dateStr) return "-"; const d = new Date(dateStr); return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function formatDt(dateStr) { 
+    if(!dateStr) return "-"; 
+    const d = new Date(dateStr); 
+    return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; 
+}
+
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
-function copyTxt(txt) { let t = document.createElement("textarea"); t.value = txt; t.style.position = "fixed"; t.style.top = "-9999px"; document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); showToast("상품명이 복사되었습니다."); }
-function showToast(msg) { const toast = $("toast"); toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500); }
+function copyTxt(txt) { 
+    let t = document.createElement("textarea"); t.value = txt; t.style.position = "fixed"; t.style.top = "-9999px"; 
+    document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); 
+    showToast("상품명이 복사되었습니다."); 
+}
+function showToast(msg) { 
+    const toast = $("toast"); toast.innerText = msg; toast.classList.add('show'); 
+    setTimeout(() => toast.classList.remove('show'), 2500); 
+}
 
 window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   const API_KEY = 'AIzaSyAjtrSlv56VPhtqMYGsQd0L4q1AlZTW1Ng';
@@ -100,7 +112,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
-  // 로스팅룸 -> 로스팅존 대치 (HTML의 select 요소 초기화)
+  // 로스팅존 필터 텍스트 초기화 방어코드
   if($("dashSpaceFilter")) {
       $("dashSpaceFilter").innerHTML = `<option value="전체">전체 공간</option><option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
   }
@@ -150,16 +162,8 @@ window.handleLogout = async function() { await supabaseClient.auth.signOut(); sh
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback) {
     $("confirmTarget").innerHTML = title;
     const stEl = $("confirmStatus");
-    if(statusHtml) { 
-        stEl.style.display = 'block'; 
-        stEl.innerHTML = statusHtml; 
-        stEl.style.background = 'transparent'; 
-        stEl.style.padding = '0'; 
-    } else { 
-        stEl.style.display = 'none'; 
-    }
-    const actEl = $("confirmAction");
-    actEl.innerHTML = actionHtml;
+    if(statusHtml) { stEl.style.display = 'block'; stEl.innerHTML = statusHtml; stEl.style.background = 'transparent'; stEl.style.padding = '0'; } else { stEl.style.display = 'none'; }
+    $("confirmAction").innerHTML = actionHtml;
     window.currentConfirmCallback = callback;
     $("confirmModal").classList.add('show');
 }
@@ -186,7 +190,7 @@ window.fetchCenterData = async function() {
     ]);
     gRes = res.data||[]; gTrn = trn.data||[]; gOrd = ord.data||[]; gBlk = blk.data||[]; gNotice = noti.data||[];
     
-    // 로스팅룸 텍스트 치환 방어 코드
+    // 🔥 로스팅룸을 로스팅존으로 파싱
     gRes.forEach(r => { if(r.space_equip) r.space_equip = r.space_equip.replace(/로스팅룸/g, '로스팅존'); });
     gBlk.forEach(b => { if(b.space_equip) b.space_equip = b.space_equip.replace(/로스팅룸/g, '로스팅존'); });
     gTrn.forEach(t => { if(t.content) t.content = t.content.replace(/로스팅룸/g, '로스팅존'); });
@@ -232,7 +236,6 @@ window.renderCenterData = function() {
   const now = new Date();
   updateDailyInOutBanner();
 
-  // 예약 파트
   let qRes = ($("searchRes")?.value || "").toLowerCase(); 
   let fRes = gRes.filter(r => { let rDate = new Date(r.res_date || r.created_at); return (rDate >= oneMonthAgo) && (currentGlobalCenter === '전체' || r.center === currentGlobalCenter) && (`${r.name} ${r.phone}`.toLowerCase().includes(qRes)); });
   
@@ -252,7 +255,6 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${r.status.includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${r.name}</strong></td><td data-label="연락처">${r.phone}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
   
-  // 수업 파트
   let qTrn = ($("searchTrn")?.value || "").toLowerCase(); let fTrnList = gTrn.filter(t => { let tDate = new Date(t.created_at); return (tDate >= oneMonthAgo) && (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)); });
   
   $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ 
@@ -270,7 +272,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 파트 (센터명 표시 및 희망 발주일 파싱 분리)
+  // 🔥 생두 주문 현황 파싱 로직 (센터 추가 및 배지 형태 분리)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.id} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -281,29 +283,42 @@ window.renderCenterData = function() {
   
   $("ordTableBody").innerHTML = fOrd.length ? fOrd.map(o=>{ 
     let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
-    let cTxt = o.center ? `<span style="font-weight:800; color:var(--primary); margin-right:6px;">[${o.center}]</span>` : '';
     
-    // 파싱 로직
-    let rNm = o.item_name || "", cNm = rNm, oMt = "";
-    let m = rNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
-    if(m){
-        cNm = m[1].trim(); let oY = new Date(o.created_at).getFullYear(), cM = parseInt(m[2],10)-1, cD = parseInt(m[3],10), dStr = m[4]+"요일";
-        let cTObj = new Date(oY, cM, cD, 10, 0, 0);
-        if(new Date(o.created_at).getMonth() === 11 && cM === 0) cTObj.setFullYear(oY + 1);
-        
-        if(new Date() < cTObj) oMt = `<div style="font-size:12px; color:var(--primary); font-weight:700; margin-top:4px;">↳ ${dStr} 발주 마감 (진행 대기)</div>`;
-        else oMt = `<div style="font-size:12px; color:var(--success); font-weight:700; margin-top:4px;">↳ ${dStr} 발주 완료</div>`;
-    } else {
-        let oM = rNm.match(/(.+) \[(.*?)\]/);
-        if(oM) cNm = oM[1].trim();
+    // 아이템 파싱
+    let rNm = o.item_name || "", cNm = rNm, dOptHtml = "";
+    let m = rNm.match(/(.+) \[(?:희망:\s*)?(.*?)\]/);
+    if(m) {
+        cNm = m[1].trim();
+        let optText = m[2].trim();
+        dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:4px; display:inline-block;">🎯 희망: ${optText}</div>`;
     }
 
-    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] ${o.name} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:600;">${cTxt}[${o.vendor}] ${cNm}</div>${oMt}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
+    let cTxtPreview = o.center ? `<span style="font-weight:800; color:var(--primary); margin-right:6px;">[${o.center}]</span>` : '';
+    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] ${o.name} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:600;">${cTxtPreview}[${o.vendor}] ${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
-    return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td><td data-label="주문일">${formatDt(o.created_at)}</td><td data-label="주문번호">${o.id}</td><td data-label="기수">${o.batch||'-'}</td><td data-label="성함"><strong style="cursor:pointer; text-decoration:underline;" onclick="$('searchOrd').value='${o.name}'; window.renderCenterData();">${o.name}</strong></td><td data-label="연락처">${o.phone}</td><td data-label="생두사 / 상품명"><div style="display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:4px;"><div style="display:flex; align-items:center; gap:8px;">${cTxt}<a href="${o.url}" target="_blank" style="color:var(--text-display);font-weight:800;text-decoration:underline;flex-shrink:0;">${o.vendor}</a><button type="button" class="btn-copy" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">상품명 복사</button></div><span class="item-name-clamp" style="color:var(--text-secondary); font-weight:500; line-height:1.4;">${cNm}</span>${oMt}</div></td><td data-label="수량">${o.quantity}</td><td data-label="금액"><input type="text" class="input-search" value="${o.total_price||''}" placeholder="예: 45,000" style="width:100%;padding:8px;text-align:right;font-size:13px;font-weight:600;" onblur="window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td><td data-label="상태 관리"><div class="action-wrap"><select class="status-select ${badgeClass}" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td></tr>` 
+    return `<tr>${mPreview}
+        <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
+        <td data-label="주문일">${formatDt(o.created_at)}</td>
+        <td data-label="주문번호">${o.id}</td>
+        <td data-label="수령 센터" class="tc"><span style="font-weight:800; color:var(--blue);">${o.center||'미지정'}</span></td>
+        <td data-label="성함(기수)"><strong>${o.name}</strong> <span style="color:var(--text-secondary); font-size:12px;">(${o.batch||'-'})</span></td>
+        <td data-label="연락처">${o.phone}</td>
+        <td data-label="생두사 / 상품명">
+            <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:4px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <a href="${o.url}" target="_blank" style="color:var(--text-display);font-weight:800;text-decoration:underline;flex-shrink:0;">${o.vendor}</a>
+                    <button type="button" class="btn-copy" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">상품명 복사</button>
+                </div>
+                <span class="item-name-clamp" style="color:var(--text-secondary); font-weight:500; line-height:1.4;">${cNm}</span>
+                ${dOptHtml}
+            </div>
+        </td>
+        <td data-label="수량">${o.quantity}</td>
+        <td data-label="금액"><input type="text" class="input-search" value="${o.total_price||''}" placeholder="예: 45,000" style="width:100%;padding:8px;text-align:right;font-size:13px;font-weight:600;" onblur="window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
+        <td data-label="상태 관리"><div class="action-wrap"><select class="status-select ${badgeClass}" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
+    </tr>` 
   }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
 
-  // 스케줄 블록 파트
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter);
   $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
     let max = b.capacity || '-'; let current = 0; if(max !== '-') current = gTrn.filter(t => String(t.content||'').includes(b.start_time) && !t.status.includes('취소')).length; let capDisplay = max === '-' ? '-' : `<strong>${max - current}</strong> / ${max}`; 
@@ -408,7 +423,7 @@ window.renderDashboard = async function() {
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
       let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.start||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.start||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
-      mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
+      mHtml += `<div class="dash-cal-cell ${isTd}"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
     mHtml += `</div>`; 
     
@@ -423,7 +438,9 @@ window.renderDashboard = async function() {
   }
 }
 
-// 🔥 발주 요약 추출 시 파싱 로직 분리 (센터, 아이템, 수령일)
+// ==========================================
+// 8. 생두 발주 요약 추출 시 파싱 로직 (센터 추가)
+// ==========================================
 window.showOrderSummary = function() {
   let pending = gOrd.filter(o => o.status === '주문 접수');
   if(pending.length === 0) { showToast("현재 발주 대기 중인 내역이 없습니다."); return; }
@@ -434,13 +451,15 @@ window.showOrderSummary = function() {
       if(!grouped[key]) grouped[key] = {}; 
       
       let cNm = o.item_name; let dOpt = "";
-      let m = (o.item_name||"").match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
-      if(m) { cNm = m[1].trim(); dOpt = `${m[2]}/${m[3]}(${m[4]}) 마감발주`; }
-      else { let oM = (o.item_name||"").match(/(.+) \[(.*?)\]/); if(oM) { cNm = oM[1].trim(); dOpt = oM[2]; } }
+      let m = (o.item_name||"").match(/(.+) \[(?:희망:\s*)?(.*?)\]/);
+      if(m) { 
+          cNm = m[1].trim(); 
+          dOpt = m[2].trim(); 
+      }
 
       let subKey = `${cNm} ${dOpt ? '('+dOpt+')' : ''}`;
       if(!grouped[key][subKey]) grouped[key][subKey] = []; 
-      grouped[key][subKey].push(`[${o.center||'센터미정'}] ${o.name}(${o.quantity})`); 
+      grouped[key][subKey].push(`[${o.center||'미지정'}] ${o.name}(${o.quantity})`); 
   });
 
   currentSummaryData = [];
@@ -459,6 +478,7 @@ window.showOrderSummary = function() {
   }
   html += `</div>`; $("summaryModalBody").innerHTML = html; $("summaryModal").classList.add('show');
 }
+
 window.closeSummaryModal = function() { $("summaryModal").classList.remove('show'); }
 window.downloadSummaryExcel = function() {
   if(currentSummaryData.length === 0) return; let csvContent = '\uFEFF생두사,상품명(희망발주일),발주요약내용(센터/이름/수량)\n';
@@ -682,7 +702,7 @@ window.renderAppDashboard = async function() {
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
       let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
-      mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
+      mHtml += `<div class="dash-cal-cell ${isTd}"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
     mHtml += `</div>`; 
     
@@ -1082,7 +1102,7 @@ window.openHistoryModal = async function(phone, name) {
 window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
 
 // ==========================================
-// 11. 엑셀 다운로드 
+// 11. 엑셀 다운로드 (생두 요약 파싱 추가 적용)
 // ==========================================
 window.downloadExcel = function(type) {
   if (type === 'applications' && isInsightView) {
@@ -1105,11 +1125,10 @@ window.downloadExcel = function(type) {
     let row = [];
     if(type === 'applications') row = [formatDt(d.created_at), d.desired_batch, d.name, d.phone, d.interest_area, d.acquisition_channel, d.status, d.join_status, d.call_time, d.counselor_name]; else if(type === 'members') row = [formatDt(d.created_at), d.status, d.batch, d.name, d.phone, d.end_date]; else if(type === 'reservations') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.res_date, d.res_time, d.center, d.space_equip, d.status, d.cancel_reason]; else if(type === 'trainings') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.content, d.status, d.cancel_reason]; 
     else if(type === 'orders') {
-        // 🔥 엑셀 다운로드 시 생두 데이터 파싱 처리
+        // 🔥 엑셀 다운로드 시에도 예쁘게 쪼개서 다운받게 파싱
         let rNm=d.item_name||"", cNm=rNm, dOpt="-";
-        let m = rNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
-        if(m) { cNm = m[1].trim(); dOpt = `${m[2]}/${m[3]}(${m[4]}) 마감발주`; }
-        else { let oM = rNm.match(/(.+) \[(.*?)\]/); if(oM) { cNm = oM[1].trim(); dOpt = oM[2]; } }
+        let m = rNm.match(/(.+) \[(?:희망:\s*)?(.*?)\]/);
+        if(m) { cNm = m[1].trim(); dOpt = m[2].trim(); }
         row = [formatDt(d.created_at), d.id, d.batch, d.name, d.phone, (d.center||'-'), d.vendor, cNm, dOpt, d.quantity, d.total_price, d.status];
     }
     
@@ -1124,3 +1143,4 @@ window.downloadExcel = function(type) {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); 
   const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
+</script>
