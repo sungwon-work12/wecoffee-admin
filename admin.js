@@ -269,7 +269,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 파싱 로직 (10열 분리 및 뱃지 스타일 반영)
+  // 생두 주문 현황 필터링 및 10열 렌더링
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -278,53 +278,50 @@ window.renderCenterData = function() {
       return matchQ && matchV && matchS; 
   });
   
-  $("ordTableBody").innerHTML = fOrd.length ? fOrd.map(o=>{ 
-    let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
-    
-    // 원두 이름과 발주희망일 파싱
-    let rNm = o.item_name || "", cNm = rNm, dOptHtml = "";
-    let m = rNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
-    if(m) {
-        cNm = m[1].trim(); 
-        let dStr = m[4] + "요일 발주";
-        dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:#4e5968; background:#f2f4f6; padding:4px 8px; border-radius:6px; display:inline-block;">${dStr}</div>`;
-    } else {
-        let oM = rNm.match(/(.+) \[(.*?)\]/);
-        if(oM) {
-            cNm = oM[1].trim();
-            let optText = oM[2].trim();
-            if(optText.includes('월')) optText = '월요일 발주';
-            else if(optText.includes('목')) optText = '목요일 발주';
-            else dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:#4e5968; background:#f2f4f6; padding:4px 8px; border-radius:6px; display:inline-block;">${optText}</div>`;
-        }
-    }
+  $("ordTableBody").innerHTML = fOrd.length ? fOrd.map(o => { 
+      let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
+      
+      let rNm = o.item_name || "", cNm = rNm, dOptHtml = "";
+      let m = rNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
+      if (m) {
+          cNm = m[1].trim(); 
+          let dStr = m[4] + "요일 발주";
+          dOptHtml = `<span style="font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:2px 6px; border-radius:4px; flex-shrink:0;">${dStr}</span>`;
+      } else {
+          let oM = rNm.match(/(.+) \[(.*?)\]/);
+          if (oM) {
+              cNm = oM[1].trim();
+              let optText = oM[2].trim();
+              if (optText.includes('월')) optText = '월요일 발주';
+              else if (optText.includes('목')) optText = '목요일 발주';
+              if(optText) dOptHtml = `<span style="font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:2px 6px; border-radius:4px; flex-shrink:0;">${optText}</span>`;
+          }
+      }
 
-    let centerBadge = `<span class="center-badge">${o.center||'미지정'}</span>`;
-    let cTxtPreview = o.center ? `<span class="center-badge" style="margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
-    
-    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}[${o.vendor}] ${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
+      let centerBadge = `<span class="center-badge">${o.center||'미지정'}</span>`;
+      let cTxtPreview = o.center ? `<span class="center-badge" style="margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
+      
+      let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}[${o.vendor}] ${cNm}</div><div style="margin-top:4px;">${dOptHtml}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
-    return `<tr>${mPreview}
-        <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
-        <td data-label="주문 일시" style="white-space: nowrap;">${formatDt(o.created_at)}</td>
-        <td data-label="수령 센터" class="tc">${centerBadge}</td>
-        <td data-label="기수" class="tc">${o.batch||'-'}</td>
-        <td data-label="성함"><strong style="font-weight:800; color:var(--text-display);">${o.name}</strong></td>
-        <td data-label="연락처">${o.phone}</td>
-        <td data-label="생두사 / 상품명">
-            <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:4px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="color:var(--text-display);font-weight:800;flex-shrink:0;">${o.vendor}</span>
-                    <button type="button" class="btn-copy" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
-                </div>
-                <span class="item-name-clamp" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cNm}</span>
-                ${dOptHtml}
-            </div>
-        </td>
-        <td data-label="수량">${o.quantity}</td>
-        <td data-label="금액"><input type="text" class="input-search" value="${o.total_price||''}" placeholder="예: 45,000" style="width:100%;padding:8px;text-align:right;font-size:13px;font-weight:600;" onblur="window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
-        <td data-label="상태 관리"><div class="action-wrap"><select class="status-select ${badgeClass}" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
-    </tr>` 
+      return `<tr>${mPreview}
+          <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
+          <td data-label="주문 일시" style="white-space: nowrap;">${formatDt(o.created_at)}</td>
+          <td data-label="수령 센터" class="tc">${centerBadge}</td>
+          <td data-label="기수" class="tc">${o.batch||'-'}</td>
+          <td data-label="성함"><strong style="font-weight:800; color:var(--text-display);">${o.name}</strong></td>
+          <td data-label="연락처">${o.phone}</td>
+          <td data-label="생두사 / 상품명 / 발주옵션">
+              <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; width:100%; line-height:1.4;">
+                  <span style="color:var(--text-secondary); font-weight:800; flex-shrink:0;">[${o.vendor}]</span>
+                  <span style="color:var(--text-display); font-weight:600; word-break:keep-all;">${cNm}</span>
+                  ${dOptHtml}
+                  <button type="button" class="btn-copy" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
+              </div>
+          </td>
+          <td data-label="수량" class="tc">${o.quantity}</td>
+          <td data-label="금액"><input type="text" class="input-search" value="${o.total_price||''}" placeholder="예: 45,000" style="width:100%;padding:8px;text-align:right;font-size:13px;font-weight:600;" onblur="window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
+          <td data-label="상태 관리"><div class="action-wrap"><select class="status-select ${badgeClass}" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
+      </tr>` 
   }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
 
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter);
@@ -1021,14 +1018,14 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
 
   let statText = "";
   if (opt === 'release' || opt === 'pause' || opt === 'resume') {
-       let cur = opt === 'resume' ? '일시정지' : (opt === 'release' ? '확인요망' : '활동 중');
-       statText = `<span style="color:var(--text-secondary);">현재 상태: </span><span style="color:var(--primary); font-weight:800;">${cur}</span>`;
+        let cur = opt === 'resume' ? '일시정지' : (opt === 'release' ? '확인요망' : '활동 중');
+        statText = `<span style="color:var(--text-secondary);">현재 상태: </span><span style="color:var(--primary); font-weight:800;">${cur}</span>`;
   } else {
-       if(currentEndDate && new Date(currentEndDate) >= new Date().setHours(0,0,0,0)) {
-           statText = `<span style="color:var(--text-secondary);">현재 활동 종료일: </span><span style="color:var(--primary); font-weight:800;">${currentEndDate}</span>`; 
-       } else {
-           statText = `<span style="color:var(--text-secondary);">현재 활동 종료 상태입니다.</span>`; 
-       }
+        if(currentEndDate && new Date(currentEndDate) >= new Date().setHours(0,0,0,0)) {
+            statText = `<span style="color:var(--text-secondary);">현재 활동 종료일: </span><span style="color:var(--primary); font-weight:800;">${currentEndDate}</span>`; 
+        } else {
+            statText = `<span style="color:var(--text-secondary);">현재 활동 종료 상태입니다.</span>`; 
+        }
   }
 
   pendingOptionData = { id, name, phone, opt, optText, baseDate: baseDateForUpdate, currentEndDate };
