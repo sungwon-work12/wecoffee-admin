@@ -112,6 +112,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
+  // 로스팅존 필터 텍스트 초기화 방어코드
   if($("dashSpaceFilter")) {
       $("dashSpaceFilter").innerHTML = `<option value="전체">전체 공간</option><option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
   }
@@ -271,7 +272,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 파싱 로직 (주문번호 제거, 10열 구조, 기수/성함 분리, 아웃라인 뱃지, 이모지 제거, 링크 제거)
+  // 🔥 생두 주문 현황 파싱 로직 (9열, 이모지 제거, 이름 링크 제거)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -283,7 +284,7 @@ window.renderCenterData = function() {
   $("ordTableBody").innerHTML = fOrd.length ? fOrd.map(o=>{ 
     let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
     
-    // 원두 이름과 발주희망일 파싱 (이모지 제거, 회색 뱃지)
+    // 원두 이름과 발주희망일 파싱
     let rNm = o.item_name || "", cNm = rNm, dOptHtml = "";
     let m = rNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
     if(m) {
@@ -301,24 +302,23 @@ window.renderCenterData = function() {
         }
     }
 
-    let centerBadge = `<span class="badge-outline">${o.center||'미지정'}</span>`;
-    let cTxtPreview = o.center ? `<span class="badge-outline" style="margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
+    let centerBadge = `<span style="display:inline-block; padding:4px 8px; background:#f2f4f6; color:#4e5968; border-radius:6px; font-weight:700; font-size:12px;">${o.center||'미지정'}</span>`;
+    let cTxtPreview = o.center ? `<span style="display:inline-block; padding:2px 6px; background:#f2f4f6; color:#4e5968; border-radius:4px; font-weight:700; font-size:11px; margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
     
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}[${o.vendor}] ${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
-    // 10개의 td 출력 (주문번호 없음, 기수/성함 분리, 고스트 복사 버튼, 주문날짜 줄바꿈 방지)
+    // 9개의 td (주문번호 삭제, 이름 텍스트화)
     return `<tr>${mPreview}
         <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
-        <td data-label="주문일" style="white-space: nowrap;">${formatDt(o.created_at)}</td>
+        <td data-label="주문일">${formatDt(o.created_at)}</td>
         <td data-label="수령 센터" class="tc">${centerBadge}</td>
-        <td data-label="기수" class="tc"><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">${o.batch||'-'}</span></td>
-        <td data-label="성함"><strong style="font-weight:800; color:var(--text-display);">${o.name}</strong></td>
+        <td data-label="성함(기수)"><strong style="font-weight:800; color:var(--text-display);">${o.name}</strong> <span style="color:var(--text-secondary); font-size:12px;">(${o.batch||'-'})</span></td>
         <td data-label="연락처">${o.phone}</td>
         <td data-label="생두사 / 상품명">
             <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:4px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <span style="color:var(--text-display);font-weight:800;flex-shrink:0;">${o.vendor}</span>
-                    <button type="button" class="ghost-btn" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
+                    <button type="button" class="btn-copy" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
                 </div>
                 <span class="item-name-clamp" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cNm}</span>
                 ${dOptHtml}
@@ -328,7 +328,7 @@ window.renderCenterData = function() {
         <td data-label="금액"><input type="text" class="input-search" value="${o.total_price||''}" placeholder="예: 45,000" style="width:100%;padding:8px;text-align:right;font-size:13px;font-weight:600;" onblur="window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
         <td data-label="상태 관리"><div class="action-wrap"><select class="status-select ${badgeClass}" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
     </tr>` 
-  }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
+  }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
 
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter);
   $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
