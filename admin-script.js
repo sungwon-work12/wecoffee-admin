@@ -269,7 +269,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 완벽 파싱 (뱃지 분리, 텍스트 일치)
+  // 🔥 생두 주문 현황 파싱 로직 (센터 뱃지 분리, 요일 파싱 간소화, 하이퍼링크 제거)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.id} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -281,31 +281,35 @@ window.renderCenterData = function() {
   $("ordTableBody").innerHTML = fOrd.length ? fOrd.map(o=>{ 
     let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
     
-    // 원두 이름과 발주희망일 파싱 (멤버 페이지와 동일한 로직으로 정확히 잘라냄)
+    // 원두 이름과 발주희망일 파싱
     let rNm = o.item_name || "", cNm = rNm, dOptHtml = "";
     let m = rNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
     if(m) {
         cNm = m[1].trim(); 
-        let dStr = m[4]+"요일";
-        dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:4px; display:inline-block;">🎯 ${m[2]}/${m[3]}(${m[4]}) 마감발주</div>`;
+        let dStr = m[4]+"요일 발주";
+        dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:6px; display:inline-block;">${dStr}</div>`;
     } else {
         let oM = rNm.match(/(.+) \[(.*?)\]/);
         if(oM) {
             cNm = oM[1].trim();
-            dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:4px; display:inline-block;">🎯 희망: ${oM[2].trim()}</div>`;
+            let optText = oM[2].trim();
+            if(optText.includes('월')) optText = '월요일 발주';
+            else if(optText.includes('목')) optText = '목요일 발주';
+            dOptHtml = `<div style="margin-top:6px; font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:6px; display:inline-block;">${optText}</div>`;
         }
     }
 
-    let cTxtPreview = o.center ? `<span style="font-weight:800; color:var(--primary); margin-right:6px;">[${o.center}]</span>` : '';
+    let cTxtPreview = o.center ? `<span style="display:inline-block; padding:2px 6px; background:#f2f4f6; color:#4e5968; border-radius:4px; font-weight:700; font-size:11px; margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
+    let centerBadge = `<span style="display:inline-block; padding:4px 8px; background:#f2f4f6; color:#4e5968; border-radius:6px; font-weight:700; font-size:12px;">${o.center||'미지정'}</span>`;
+    
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}[${o.vendor}] ${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
-    // 밑줄 제거(링크 X) 및 정확한 10개 컬럼 렌더링
     return `<tr>${mPreview}
         <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
         <td data-label="주문일">${formatDt(o.created_at)}</td>
         <td data-label="주문번호">${o.id}</td>
-        <td data-label="수령 센터" class="tc"><span style="font-weight:800; color:var(--blue);">${o.center||'미지정'}</span></td>
-        <td data-label="성함(기수)"><strong style="font-weight:800;">${o.name}</strong></td>
+        <td data-label="수령 센터" class="tc">${centerBadge}</td>
+        <td data-label="성함(기수)"><strong>${o.name}</strong></td>
         <td data-label="연락처">${o.phone}</td>
         <td data-label="생두사 / 상품명">
             <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%; gap:4px;">
@@ -455,10 +459,19 @@ window.showOrderSummary = function() {
       if(!grouped[key]) grouped[key] = {}; 
       
       let cNm = o.item_name; let dOpt = "";
-      let m = (o.item_name||"").match(/(.+) \[(?:희망:\s*)?(.*?)\]/);
+      let m = (o.item_name||"").match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
       if(m) { 
           cNm = m[1].trim(); 
-          dOpt = m[2].trim(); 
+          dOpt = m[4] + "요일 발주"; 
+      } else {
+          let oM = (o.item_name||"").match(/(.+) \[(.*?)\]/);
+          if(oM) {
+              cNm = oM[1].trim();
+              let optText = oM[2].trim();
+              if(optText.includes('월')) dOpt = '월요일 발주';
+              else if(optText.includes('목')) dOpt = '목요일 발주';
+              else dOpt = optText;
+          }
       }
 
       let subKey = `${cNm} ${dOpt ? '('+dOpt+')' : ''}`;
@@ -1131,7 +1144,13 @@ window.downloadExcel = function(type) {
     else if(type === 'orders') {
         let rNm=d.item_name||"", cNm=rNm, dOpt="-";
         let m = rNm.match(/(.+) \[(?:희망:\s*)?(.*?)\]/);
-        if(m) { cNm = m[1].trim(); dOpt = m[2].trim(); }
+        if(m) { 
+            cNm = m[1].trim(); 
+            let optText = m[2].trim();
+            if(optText.includes('월')) dOpt = '월요일 발주';
+            else if(optText.includes('목')) dOpt = '목요일 발주';
+            else dOpt = optText;
+        }
         row = [formatDt(d.created_at), d.id, d.batch, d.name, d.phone, (d.center||'-'), d.vendor, cNm, dOpt, d.quantity, d.total_price, d.status];
     }
     
