@@ -257,7 +257,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 UI (9열 구조 매칭, 외부 링크 추가, UI 클렌징 완벽 적용)
+  // 🔥 생두 주문 현황 UI (10열 구조 매칭, 외부 링크 추가, 정렬 동기화 적용 완료)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -274,7 +274,7 @@ window.renderCenterData = function() {
     if(m) {
         cNm = m[1].trim(); 
         let dStr = m[4]+"요일 발주";
-        dOptHtml = `<span style="background:var(--primary-light); color:var(--primary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:700; margin-top:6px; display:inline-block; white-space:nowrap;">${dStr}</span>`;
+        dOptHtml = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; margin-top:4px; display:inline-block; white-space:nowrap;">${dStr}</span>`;
     } else {
         let oM = rNm.match(/(.+) \[(.*?)\]/);
         if(oM) {
@@ -282,30 +282,28 @@ window.renderCenterData = function() {
             let optText = oM[2].trim();
             if(optText.includes('월')) optText = '월요일 발주';
             else if(optText.includes('목')) optText = '목요일 발주';
-            dOptHtml = `<span style="background:var(--primary-light); color:var(--primary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:700; margin-top:6px; display:inline-block; white-space:nowrap;">${optText}</span>`;
+            dOptHtml = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; margin-top:4px; display:inline-block; white-space:nowrap;">${optText}</span>`;
         }
     }
 
     let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`;
     
-    // 외부 링크 삽입 (DB의 link 또는 url 컬럼 값을 활용. 없으면 #)
+    // 외부 링크 처리 (a 태그 복구)
     let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
     let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-display); font-weight:800; font-size:14px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
-    
-    // 기수와 성함을 위아래로 깔끔하게 배치하는 UI 블록 (9열에 맞춤)
-    let nameBatchBlock = `<div style="display:flex; flex-direction:column; gap:2px;"><span style="color:var(--text-secondary); font-size:12px; font-weight:600;">${o.batch||'-'}</span><strong style="font-weight:700; color:var(--text-display); font-size:14px; white-space:nowrap;">${o.name}</strong></div>`;
     
     let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
-    // 9개의 열(Column) 개수에 완벽히 맞춘 <td> 렌더링
+    // 10개의 열(Column) 개수에 완벽히 맞춘 <td> 및 정렬 동기화 렌더링
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
         <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
-        <td data-label="주문 날짜" style="white-space:nowrap; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
+        <td data-label="주문 날짜" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
         <td data-label="수령 센터" class="tc">${centerBadge}</td>
-        <td data-label="성함(기수)">${nameBatchBlock}</td>
-        <td data-label="연락처" style="white-space:nowrap; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
-        <td data-label="생두사 / 상품명 / 발주정보">
+        <td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:13px; font-weight:600;">${o.batch||'-'}</td>
+        <td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:14px; white-space:nowrap;">${o.name}</strong></td>
+        <td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
+        <td data-label="생두사 / 상품명 / 발주정보" style="text-align:left;">
             <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
                     ${vendorHtml}
@@ -317,11 +315,11 @@ window.renderCenterData = function() {
                 </div>
             </div>
         </td>
-        <td data-label="수량" style="font-size:15px; font-weight:700; color:var(--text-display);">${o.quantity}</td>
-        <td data-label="총 금액 입력"><input type="text" value="${o.total_price||''}" placeholder="확인 중" style="width:100%; padding:10px 12px; text-align:center; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
-        <td data-label="상태 관리"><div class="action-wrap"><select style="background-color:var(--bg-page); border:none; border-radius:8px; padding:10px 32px 10px 16px; font-size:13px; font-weight:600; color:var(--text-display); outline:none; cursor:pointer; appearance:none; background-image:url('data:image/svg+xml;utf8,<svg fill=%22%23777%22 height=%2216%22 viewBox=%220 0 24 24%22 width=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>'); background-repeat:no-repeat; background-position:right 10px center;" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
+        <td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display);">${o.quantity}</td>
+        <td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
+        <td data-label="상태 관리" class="tc"><div class="action-wrap" style="justify-content:center;"><select style="background-color:var(--bg-page); border:none; border-radius:8px; padding:10px 32px 10px 16px; font-size:13px; font-weight:600; color:var(--text-display); outline:none; cursor:pointer; appearance:none; background-image:url('data:image/svg+xml;utf8,<svg fill=%22%23777%22 height=%2216%22 viewBox=%220 0 24 24%22 width=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>'); background-repeat:no-repeat; background-position:right 10px center;" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
     </tr>` 
-  }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
+  }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
 
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter);
   $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
@@ -713,7 +711,7 @@ window.renderAppDashboard = async function() {
     for(let d=1; d<=daysInMonth; d++) {
       let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; let evts = calEvts[ds] || []; evts.sort((a,b) => String(a.time||'').localeCompare(String(b.time||'')));
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
-      let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
+      let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.start||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
       mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
@@ -765,7 +763,7 @@ window.saveScheduleData = async function() {
   if (error) showToast("저장 실패"); else { showToast("일정이 저장되었습니다."); window.closeScheduleModal(); }
 }
 
-// 🔥 가입 완료 탭 전환 로직 완벽 복구
+// 🔥 가입 완료 탭 전환 로직 및 DB 에러 방지 처리 완료
 window.updateAppStatus = async function(id, column, value) {
   let updateData = { [column]: value };
   if (column === 'join_status' && value === '다음 기수 희망') { const app = globalApps.find(a => a.id === id); if (app && app.desired_batch) { const match = String(app.desired_batch||'').match(/(\d+)/); if (match) updateData.desired_batch = `${parseInt(match[1]) + 1}기`; } }
@@ -778,26 +776,26 @@ window.updateAppStatus = async function(id, column, value) {
     if (app) {
       if (value === '가입 완료') {
         const { data: existing, error: existErr } = await supabaseClient.from('members').select('id').eq('phone', app.phone);
-        if (existErr) {
-            console.error(existErr);
-            return showToast("멤버 조회 중 오류 발생");
-        }
+        if (existErr) return showToast("멤버 조회 중 오류 발생");
 
         if (!existing || existing.length === 0) {
           let today = new Date(); let targetDay = today.getDate() <= 14 ? 1 : 15; 
           let endD = new Date(today.getFullYear(), today.getMonth() + 6, targetDay);
           let endDateStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
           
-          const { error: insertErr } = await supabaseClient.from('members').insert([{ name: app.name, phone: app.phone, batch: app.desired_batch, end_date: endDateStr, status: '활동 중' }]); 
+          // 🔥 status 파라미터가 Supabase에 없어서 생기는 에러를 방지하기 위해, Payload에서 제거
+          const insertPayload = { name: app.name, phone: app.phone, batch: app.desired_batch, end_date: endDateStr };
+          const { error: insertErr } = await supabaseClient.from('members').insert([insertPayload]); 
+          
           if (insertErr) {
-              console.error("멤버 인서트 에러:", insertErr);
+              console.error("멤버 등록 에러:", insertErr);
               return showToast("멤버 등록 실패: " + insertErr.message);
           }
 
           await supabaseClient.from('member_history').insert([{ member_name: app.name, member_phone: app.phone, action_detail: '신규 가입 (6개월)', amount: '1,650,000원' }]); 
           showToast("멤버 리스트에 성공적으로 등록되었습니다.");
           
-          // 🔥 가입 완료 시 멤버 리스트 탭으로 자연스럽게 화면 자동 전환
+          // 🔥 가입 완료 시 멤버 리스트 탭으로 화면 자동 전환
           setTimeout(() => { window.switchMainTab('page-members'); }, 800);
         } else {
           showToast("이미 멤버 리스트에 등록된 번호입니다.");
@@ -1066,58 +1064,73 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
       }
       if(opt === 'resume') {
           const { data: hist } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).like('action_detail', '활동 일시정지 시작%').order('created_at', { ascending: false }).limit(1);
+          let extendDays = 0;
           if (hist && hist.length > 0) {
-              let pauseStart = new Date(hist[0].created_at); let now = new Date(); let diffTime = Math.abs(now - pauseStart); let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              if (currentEndDate) {
-                  let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + diffDays);
-                  let newEndStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
-                  await window.updateMemberEndDate(id, newEndStr);
-                  await supabaseClient.from('members').update({ status: '활동 중' }).eq('id', id);
-                  await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (+${diffDays}일 자동연장)`, amount: '-' }]);
-                  showToast(`활동 재개 및 ${diffDays}일 연장 처리되었습니다.`); window.fetchMembers(); return;
-              }
+              let pauseDate = new Date(hist[0].created_at); pauseDate.setHours(0,0,0,0);
+              let todayDate = new Date(); todayDate.setHours(0,0,0,0);
+              extendDays = Math.floor((todayDate - pauseDate) / (1000 * 60 * 60 * 24));
           }
-          await supabaseClient.from('members').update({ status: '활동 중' }).eq('id', id); showToast("활동이 재개되었습니다."); window.fetchMembers(); return;
+          if (extendDays < 0) extendDays = 0;
+          let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + extendDays);
+          let newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+
+          const m = globalMembers.find(x => x.id === id); m.status = '연장 활동 중'; m.end_date = newEndDate; window.searchMembers();
+          await supabaseClient.from('members').update({ status: '연장 활동 중', end_date: newEndDate }).eq('id', id);
+          await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (정지일수: ${extendDays}일 자동 연장)`, amount: '-' }]);
+          showToast(`재개 완료. ${extendDays}일이 연장되었습니다.`); return;
       }
 
-      let newDate = new Date(pendingOptionData.baseDate.getTime());
-      if(opt === '1') newDate.setMonth(newDate.getMonth() + 1);
-      else if(opt === '3') newDate.setMonth(newDate.getMonth() + 3);
-      else if(opt === '6') newDate.setMonth(newDate.getMonth() + 6);
-      else if(opt === 'bonus') newDate.setMonth(newDate.getMonth() + 1);
-      else if(opt === 'day') newDate.setDate(newDate.getDate() + 1);
+      let amountStr = '0원'; let targetStatus = '연장 활동 중';
+      if (opt === '1') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '220,000원'; } 
+      else if (opt === '3') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 3); amountStr = '550,000원'; } 
+      else if (opt === '6') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 6); amountStr = '1,100,000원'; } 
+      else if (opt === 'bonus') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '무료 제공'; } 
+      else if (opt === 'day') { baseDateForUpdate.setDate(baseDateForUpdate.getDate() + 1); amountStr = '별도 안내'; targetStatus = '단일권 이용'; }
       
-      let newDateStr = `${newDate.getFullYear()}-${String(newDate.getMonth()+1).padStart(2,'0')}-${String(newDate.getDate()).padStart(2,'0')}`;
-      await window.updateMemberEndDate(id, newDateStr);
-      let amountStr = opt === '1' ? '300,000원' : (opt === '3' ? '900,000원' : (opt === '6' ? '1,650,000원' : (opt === 'day' ? '50,000원' : '-')));
-      let actionStr = opt === 'bonus' ? '보너스 1개월 제공' : `${optText} 결제`;
-      await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: actionStr, amount: amountStr }]);
-      showToast(`${optText} 처리가 완료되었습니다.`);
-      window.fetchMembers();
+      let yyyy = baseDateForUpdate.getFullYear(), mm = String(baseDateForUpdate.getMonth() + 1).padStart(2, '0'), dd = String(baseDateForUpdate.getDate()).padStart(2, '0'); 
+      const newDateStr = `${yyyy}-${mm}-${dd}`;
+      
+      const m = globalMembers.find(x => x.id === id); m.end_date = newDateStr; m.status = targetStatus; window.searchMembers(); 
+      await supabaseClient.from('members').update({ end_date: newDateStr, status: targetStatus }).eq('id', id); 
+      await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: optText, amount: amountStr }]); 
+      showToast("업데이트 되었습니다.");
   });
 }
 
-window.updateMemberEndDate = async function(id, dateStr) {
-  const { error } = await supabaseClient.from('members').update({ end_date: dateStr, status: '활동 중' }).eq('id', id);
-  if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다.");
-}
+window.updateMemberEndDate = async function(id, newDate) { const { error } = await supabaseClient.from('members').update({ end_date: newDate }).eq('id', id); if (error) showToast("저장 실패"); else showToast("업데이트 되었습니다."); }
+
+window.deleteHistory = async function(id, phone, name, action_detail) {
+    window.openCustomConfirm("내역 삭제", null, `<span style="color:var(--text-display);">해당 내역을 완전히 삭제하시겠습니까?</span><br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
+        await supabaseClient.from('member_history').delete().eq('id', id);
+        
+        const m = globalMembers.find(x => x.phone === phone);
+        if (m && m.end_date) {
+            let d = new Date(m.end_date);
+            let isChanged = false;
+            
+            if (action_detail.includes('1개월 연장') || action_detail.includes('보너스 1개월')) { d.setMonth(d.getMonth() - 1); isChanged = true; }
+            else if (action_detail.includes('3개월 연장')) { d.setMonth(d.getMonth() - 3); isChanged = true; }
+            else if (action_detail.includes('6개월 연장')) { d.setMonth(d.getMonth() - 6); isChanged = true; }
+            else if (action_detail.includes('당일권 추가')) { d.setDate(d.getDate() - 1); isChanged = true; }
+            
+            if (isChanged) {
+                let newEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                m.end_date = newEndDate; 
+                await supabaseClient.from('members').update({ end_date: newEndDate }).eq('phone', phone);
+            }
+        }
+        
+        showToast("내역이 삭제되고 종료일이 복구되었습니다.");
+        window.searchMembers(); 
+        window.openHistoryModal(phone, name); 
+    });
+};
 
 window.openHistoryModal = async function(phone, name) {
-  $("historyModalTitle").innerText = `${name} 님의 내역`; $("historyModal").classList.add('show'); $("historyModalBody").innerHTML = `<div class="empty-state" style="padding: 40px 0;">내역을 불러오는 중입니다.</div>`;
+  $("historyModalTitle").innerText = `${name} 님의 내역`; const modal = $("historyModal"); modal.classList.add('show'); const body = $("historyModalBody"); body.innerHTML = '<div class="empty-state">내역을 불러오는 중입니다.</div>';
   const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false });
-  if(error || !data || data.length === 0) { $("historyModalBody").innerHTML = `<div class="empty-state" style="padding: 40px 0;">결제/연장 내역이 없습니다.</div>`; return; }
-  let html = `<div style="display:flex; flex-direction:column; gap:12px;">`;
-  data.forEach(d => {
-      let isPay = d.amount && d.amount !== '-';
-      html += `<div style="background:#f9fafb; border:1px solid var(--border-strong); border-radius:12px; padding:16px;">
-        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-           <span style="font-size:13px; color:var(--text-secondary); font-weight:600;">${formatDt(d.created_at)}</span>
-           <span style="font-size:13px; font-weight:800; color:${isPay ? 'var(--primary)' : 'var(--text-secondary)'};">${d.amount}</span>
-        </div>
-        <div style="font-size:15px; font-weight:700; color:var(--text-display); word-break:keep-all;">${d.action_detail}</div>
-      </div>`;
-  });
-  html += `</div>`; $("historyModalBody").innerHTML = html;
+  if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state">결제/연장 내역이 없습니다.</div>'; return; }
+  body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>';
 }
 window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
 
