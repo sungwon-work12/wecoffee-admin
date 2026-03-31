@@ -79,7 +79,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 };
 
 // ==========================================
-// 3. 인증 및 로직 즉각 실행 (빈 화면 에러 방지)
+// 3. 인증 및 로직 즉각 실행
 // ==========================================
 function initializeApp() {
   supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -192,7 +192,7 @@ window.fetchCenterData = async function() {
   } catch(e) { console.error("데이터 로드 에러:", e); }
 }
 
-// 🔥 각 탭별 글로우 펄스 애니메이션 적용 함수
+// 🔥 글로우 펄스 애니메이션 적용 로직
 function updateSmartBadges() { 
   let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || o.status === '입금 대기' || o.status === '입금 확인').length; 
   let tabOrd = $("ordTabBtn"); 
@@ -228,7 +228,7 @@ function updateDailyInOutBanner() {
   if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html;
 }
 
-// 🔥 금액 입력 시 실시간으로 파란색 뱃지(입금 대기) 렌더링 동기화
+// 🔥 금액 입력 시 실시간으로 파란색 뱃지 동기화
 window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   let formatted = val ? comma(val) + '원' : '';
   let updates = { total_price: formatted };
@@ -265,7 +265,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 생두명 원클릭 복사 호버 UX (버튼 삭제 & 1줄 고정)
+// 🔥 생두 주문 테이블 렌더링 (버튼 제거 & 텍스트 1열 1줄 복사 UX)
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -280,18 +280,19 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
     
         let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`;
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
-        let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:12px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
+        let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer; flex-shrink:0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        // 토스 스타일 원클릭 복사 UI
-        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사">
-            <span class="copyable-text">${cNm}</span>
-            <span class="copyable-hint">복사</span>
+        // 🔥 토스 스타일: 1줄 가로 배치 (flex-direction: row) & 클릭 복사
+        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사" style="flex:1; min-width:0; overflow:hidden;">
+            <div style="display:flex; align-items:center; width:100%;">
+                <span class="copyable-text" style="font-size:14px;">${cNm}</span>
+                <span class="copyable-hint">복사</span>
+            </div>
         </div>`;
 
         let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
         let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     
-        // 칼정렬: 수량(중앙), 총 금액(우측), 상태 관리(중앙)
         return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
             <td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td>
             <td data-label="주문 날짜" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
@@ -299,9 +300,9 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
             <td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td>
             <td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td>
             <td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
-            <td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 320px; overflow:hidden;">
-                <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%; overflow:hidden;">
-                    <div style="margin-bottom:2px;">${vendorHtml}</div>
+            <td data-label="생두사 / 상품명" style="text-align:left; max-width: 320px; overflow:hidden;">
+                <div style="display:flex; align-items:center; gap:8px; width:100%; overflow:hidden;">
+                    ${vendorHtml}
                     ${copyableHtml}
                 </div>
             </td>
@@ -556,7 +557,6 @@ window.updateTable = async function(table, column, id, value, selectEl) {
         showToast("저장 실패"); 
     } else { 
         showToast("업데이트 되었습니다."); 
-        // 화면 리프레시 없이 select 요소의 색상을 실시간으로 휙 바꿔주는 UX 개선
         if(table === 'orders' && column === 'status') {
             let order = gOrd.find(o => o.id === id);
             if(order) order.status = value;
