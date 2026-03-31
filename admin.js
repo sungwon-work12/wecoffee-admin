@@ -257,7 +257,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 파싱 및 UI 개선 (완벽한 9열 매칭 및 외부 링크 복원 완료)
+  // 🔥 생두 주문 현황 UI (9열 구조 매칭, 외부 링크 추가, UI 클렌징 완벽 적용)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -765,6 +765,7 @@ window.saveScheduleData = async function() {
   if (error) showToast("저장 실패"); else { showToast("일정이 저장되었습니다."); window.closeScheduleModal(); }
 }
 
+// 🔥 가입 완료 탭 전환 로직 완벽 복구
 window.updateAppStatus = async function(id, column, value) {
   let updateData = { [column]: value };
   if (column === 'join_status' && value === '다음 기수 희망') { const app = globalApps.find(a => a.id === id); if (app && app.desired_batch) { const match = String(app.desired_batch||'').match(/(\d+)/); if (match) updateData.desired_batch = `${parseInt(match[1]) + 1}기`; } }
@@ -796,6 +797,7 @@ window.updateAppStatus = async function(id, column, value) {
           await supabaseClient.from('member_history').insert([{ member_name: app.name, member_phone: app.phone, action_detail: '신규 가입 (6개월)', amount: '1,650,000원' }]); 
           showToast("멤버 리스트에 성공적으로 등록되었습니다.");
           
+          // 🔥 가입 완료 시 멤버 리스트 탭으로 자연스럽게 화면 자동 전환
           setTimeout(() => { window.switchMainTab('page-members'); }, 800);
         } else {
           showToast("이미 멤버 리스트에 등록된 번호입니다.");
@@ -1064,73 +1066,58 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
       }
       if(opt === 'resume') {
           const { data: hist } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).like('action_detail', '활동 일시정지 시작%').order('created_at', { ascending: false }).limit(1);
-          let extendDays = 0;
           if (hist && hist.length > 0) {
-              let pauseDate = new Date(hist[0].created_at); pauseDate.setHours(0,0,0,0);
-              let todayDate = new Date(); todayDate.setHours(0,0,0,0);
-              extendDays = Math.floor((todayDate - pauseDate) / (1000 * 60 * 60 * 24));
+              let pauseStart = new Date(hist[0].created_at); let now = new Date(); let diffTime = Math.abs(now - pauseStart); let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              if (currentEndDate) {
+                  let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + diffDays);
+                  let newEndStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+                  await window.updateMemberEndDate(id, newEndStr);
+                  await supabaseClient.from('members').update({ status: '활동 중' }).eq('id', id);
+                  await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (+${diffDays}일 자동연장)`, amount: '-' }]);
+                  showToast(`활동 재개 및 ${diffDays}일 연장 처리되었습니다.`); window.fetchMembers(); return;
+              }
           }
-          if (extendDays < 0) extendDays = 0;
-          let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + extendDays);
-          let newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
-
-          const m = globalMembers.find(x => x.id === id); m.status = '연장 활동 중'; m.end_date = newEndDate; window.searchMembers();
-          await supabaseClient.from('members').update({ status: '연장 활동 중', end_date: newEndDate }).eq('id', id);
-          await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (정지일수: ${extendDays}일 자동 연장)`, amount: '-' }]);
-          showToast(`재개 완료. ${extendDays}일이 연장되었습니다.`); return;
+          await supabaseClient.from('members').update({ status: '활동 중' }).eq('id', id); showToast("활동이 재개되었습니다."); window.fetchMembers(); return;
       }
 
-      let amountStr = '0원'; let targetStatus = '연장 활동 중';
-      if (opt === '1') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '220,000원'; } 
-      else if (opt === '3') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 3); amountStr = '550,000원'; } 
-      else if (opt === '6') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 6); amountStr = '1,100,000원'; } 
-      else if (opt === 'bonus') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '무료 제공'; } 
-      else if (opt === 'day') { baseDateForUpdate.setDate(baseDateForUpdate.getDate() + 1); amountStr = '별도 안내'; targetStatus = '단일권 이용'; }
+      let newDate = new Date(pendingOptionData.baseDate.getTime());
+      if(opt === '1') newDate.setMonth(newDate.getMonth() + 1);
+      else if(opt === '3') newDate.setMonth(newDate.getMonth() + 3);
+      else if(opt === '6') newDate.setMonth(newDate.getMonth() + 6);
+      else if(opt === 'bonus') newDate.setMonth(newDate.getMonth() + 1);
+      else if(opt === 'day') newDate.setDate(newDate.getDate() + 1);
       
-      let yyyy = baseDateForUpdate.getFullYear(), mm = String(baseDateForUpdate.getMonth() + 1).padStart(2, '0'), dd = String(baseDateForUpdate.getDate()).padStart(2, '0'); 
-      const newDateStr = `${yyyy}-${mm}-${dd}`;
-      
-      const m = globalMembers.find(x => x.id === id); m.end_date = newDateStr; m.status = targetStatus; window.searchMembers(); 
-      await supabaseClient.from('members').update({ end_date: newDateStr, status: targetStatus }).eq('id', id); 
-      await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: optText, amount: amountStr }]); 
-      showToast("업데이트 되었습니다.");
+      let newDateStr = `${newDate.getFullYear()}-${String(newDate.getMonth()+1).padStart(2,'0')}-${String(newDate.getDate()).padStart(2,'0')}`;
+      await window.updateMemberEndDate(id, newDateStr);
+      let amountStr = opt === '1' ? '300,000원' : (opt === '3' ? '900,000원' : (opt === '6' ? '1,650,000원' : (opt === 'day' ? '50,000원' : '-')));
+      let actionStr = opt === 'bonus' ? '보너스 1개월 제공' : `${optText} 결제`;
+      await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: actionStr, amount: amountStr }]);
+      showToast(`${optText} 처리가 완료되었습니다.`);
+      window.fetchMembers();
   });
 }
 
-window.updateMemberEndDate = async function(id, newDate) { const { error } = await supabaseClient.from('members').update({ end_date: newDate }).eq('id', id); if (error) showToast("저장 실패"); else showToast("업데이트 되었습니다."); }
-
-window.deleteHistory = async function(id, phone, name, action_detail) {
-    window.openCustomConfirm("내역 삭제", null, `<span style="color:var(--text-display);">해당 내역을 완전히 삭제하시겠습니까?</span><br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
-        await supabaseClient.from('member_history').delete().eq('id', id);
-        
-        const m = globalMembers.find(x => x.phone === phone);
-        if (m && m.end_date) {
-            let d = new Date(m.end_date);
-            let isChanged = false;
-            
-            if (action_detail.includes('1개월 연장') || action_detail.includes('보너스 1개월')) { d.setMonth(d.getMonth() - 1); isChanged = true; }
-            else if (action_detail.includes('3개월 연장')) { d.setMonth(d.getMonth() - 3); isChanged = true; }
-            else if (action_detail.includes('6개월 연장')) { d.setMonth(d.getMonth() - 6); isChanged = true; }
-            else if (action_detail.includes('당일권 추가')) { d.setDate(d.getDate() - 1); isChanged = true; }
-            
-            if (isChanged) {
-                let newEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                m.end_date = newEndDate; 
-                await supabaseClient.from('members').update({ end_date: newEndDate }).eq('phone', phone);
-            }
-        }
-        
-        showToast("내역이 삭제되고 종료일이 복구되었습니다.");
-        window.searchMembers(); 
-        window.openHistoryModal(phone, name); 
-    });
-};
+window.updateMemberEndDate = async function(id, dateStr) {
+  const { error } = await supabaseClient.from('members').update({ end_date: dateStr, status: '활동 중' }).eq('id', id);
+  if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다.");
+}
 
 window.openHistoryModal = async function(phone, name) {
-  $("historyModalTitle").innerText = `${name} 님의 내역`; const modal = $("historyModal"); modal.classList.add('show'); const body = $("historyModalBody"); body.innerHTML = '<div class="empty-state">내역을 불러오는 중입니다.</div>';
+  $("historyModalTitle").innerText = `${name} 님의 내역`; $("historyModal").classList.add('show'); $("historyModalBody").innerHTML = `<div class="empty-state" style="padding: 40px 0;">내역을 불러오는 중입니다.</div>`;
   const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false });
-  if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state">결제/연장 내역이 없습니다.</div>'; return; }
-  body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>';
+  if(error || !data || data.length === 0) { $("historyModalBody").innerHTML = `<div class="empty-state" style="padding: 40px 0;">결제/연장 내역이 없습니다.</div>`; return; }
+  let html = `<div style="display:flex; flex-direction:column; gap:12px;">`;
+  data.forEach(d => {
+      let isPay = d.amount && d.amount !== '-';
+      html += `<div style="background:#f9fafb; border:1px solid var(--border-strong); border-radius:12px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+           <span style="font-size:13px; color:var(--text-secondary); font-weight:600;">${formatDt(d.created_at)}</span>
+           <span style="font-size:13px; font-weight:800; color:${isPay ? 'var(--primary)' : 'var(--text-secondary)'};">${d.amount}</span>
+        </div>
+        <div style="font-size:15px; font-weight:700; color:var(--text-display); word-break:keep-all;">${d.action_detail}</div>
+      </div>`;
+  });
+  html += `</div>`; $("historyModalBody").innerHTML = html;
 }
 window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
 
