@@ -79,7 +79,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 };
 
 // ==========================================
-// 3. 인증 및 로직 즉각 실행 (빈 화면 에러 100% 방지)
+// 3. 인증 및 로직 즉각 실행 (빈 화면 에러 방지)
 // ==========================================
 function initializeApp() {
   supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -106,12 +106,8 @@ function initializeApp() {
   }
 }
 
-// 스크립트 로드 타이밍 문제 해결
-if (document.readyState === 'loading') {
-    document.addEventListener("DOMContentLoaded", initializeApp);
-} else {
-    initializeApp();
-}
+if (document.readyState === 'loading') { document.addEventListener("DOMContentLoaded", initializeApp); } 
+else { initializeApp(); }
 
 supabaseClient.channel('admin-realtime')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, handleRealtime)
@@ -196,9 +192,22 @@ window.fetchCenterData = async function() {
   } catch(e) { console.error("데이터 로드 에러:", e); }
 }
 
-function updateSmartBadges() { let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || o.status === '입금 대기' || o.status === '입금 확인').length; let tab = $("ordTabBtn"); if(pendingOrders > 0 && tab) tab.classList.add('tab-pulse'); else if (tab) tab.classList.remove('tab-pulse'); }
+// 🔥 각 서브탭에 미처리/신규 알림 펄스 애니메이션 적용 복원
+function updateSmartBadges() { 
+  let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || o.status === '입금 대기' || o.status === '입금 확인').length; 
+  let tabOrd = $("ordTabBtn"); 
+  if(pendingOrders > 0 && tabOrd) tabOrd.classList.add('tab-pulse'); 
+  else if (tabOrd) tabOrd.classList.remove('tab-pulse'); 
 
-// 🔥 각 요일별, 테이블별로 전체 선택이 명확히 작동하도록 타겟 지정
+  let pendingRes = gRes.filter(r => r.status === '예약완료').length;
+  let tabRes = $("resTabBtn");
+  if(pendingRes > 0 && tabRes) tabRes.classList.add('tab-pulse'); else if(tabRes) tabRes.classList.remove('tab-pulse');
+  
+  let pendingTrn = gTrn.filter(t => t.status === '접수완료').length;
+  let tabTrn = $("trnTabBtn");
+  if(pendingTrn > 0 && tabTrn) tabTrn.classList.add('tab-pulse'); else if(tabTrn) tabTrn.classList.remove('tab-pulse');
+}
+
 window.toggleAll = function(source, className) { $$$("." + className).forEach(chk => { if(!chk.disabled) chk.checked = source.checked; }); }
 
 function updateDailyInOutBanner() {
@@ -219,7 +228,7 @@ function updateDailyInOutBanner() {
   if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html;
 }
 
-// 🔥 금액 입력 시 실시간으로 파란색 뱃지(입금 대기)로 동기화되는 로직 추가
+// 🔥 금액 입력 시 실시간으로 파란색 뱃지(입금 대기)로 동기화되는 로직 및 중앙 정렬 클래스 적용
 window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   let formatted = val ? comma(val) + '원' : '';
   let updates = { total_price: formatted };
@@ -230,7 +239,6 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
       newStatus = '입금 대기';
   }
   
-  // UX 향상을 위한 실시간 화면 DOM 즉시 업데이트 (새로고침 없이 뱃지 변환)
   let order = gOrd.find(o => o.id === id);
   if(order) {
       order.total_price = formatted;
@@ -257,10 +265,9 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 생두 주문 테이블 렌더링 함수 (상태 뱃지 컬러링, 완벽한 10열 정렬, 생두명 자동 줄바꿈 적용)
+// 🔥 생두 주문 테이블 렌더링 함수 (클릭 복사 UI 및 정렬 동기화 적용)
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
-        // 🔥 클래스(badgeClass)를 활용해 토스 스타일 컬러링 매칭
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
         
         let cNm = o.item_name || "";
@@ -275,6 +282,14 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:12px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
+        // 상품명 1줄 복사 UI
+        let copyableHtml = `<div class="copyable-wrap" style="width:100%;" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사">
+            <div style="display:flex; align-items:center;">
+                <span class="copyable-text" style="font-size:15px;">${cNm}</span>
+                <span class="copyable-hint">복사</span>
+            </div>
+        </div>`;
+
         let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
         let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     
@@ -288,15 +303,12 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
             <td data-label="생두사 / 상품명" style="text-align:left;">
                 <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">
                     <div style="margin-bottom:4px;">${vendorHtml}</div>
-                    <div style="display:flex; align-items:flex-start; gap:8px; width: 100%;">
-                        <span style="color:var(--text-primary); font-weight:700; font-size:15px; line-height:1.4; word-break:keep-all; flex:1;">${cNm}</span>
-                        <button type="button" class="btn-copy" style="background:#f2f4f6; color:var(--text-secondary); border:none; padding:4px 8px; font-size:11px; cursor:pointer; border-radius:4px; white-space:nowrap; flex-shrink:0; margin-top:2px;" onmouseover="this.style.color='var(--text-display)';" onmouseout="this.style.color='var(--text-secondary)';" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
-                    </div>
+                    ${copyableHtml}
                 </div>
             </td>
             <td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td>
-            <td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="확인 중" style="width:100px; padding:10px 12px; text-align:left; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td>
-            <td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.updateTable('orders','status','${o.id}',this.value, this)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
+            <td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td>
+            <td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.updateTable('orders','status','${o.id}',this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
         </tr>` 
     }).join("") : `<tr><td colspan="10" class="empty-state">해당 요일의 주문 내역이 없습니다.</td></tr>`;
 }
@@ -342,7 +354,6 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 필터링 및 월/목 상하 분리 렌더링
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -352,7 +363,7 @@ window.renderCenterData = function() {
   });
   
   let thuOrders = fOrd.filter(o => o.item_name && o.item_name.includes('목'));
-  let monOrders = fOrd.filter(o => !(o.item_name && o.item_name.includes('목'))); // 목요일 제외는 전부 월요일 취급
+  let monOrders = fOrd.filter(o => !(o.item_name && o.item_name.includes('목'))); 
   
   renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon');
   renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
@@ -367,7 +378,7 @@ window.renderCenterData = function() {
   }).join("") : `<tr><td colspan="7" class="empty-state">내역 없음</td></tr>`;
 }
 
-// 🔥 공지사항 렌더링 (HTML 태그 삽입 허용 적용)
+// 🔥 공지사항 렌더링
 window.renderNoticeData = function() {
   let fNoti = [...gNotice];
   fNoti.sort((a,b) => {
@@ -467,7 +478,7 @@ window.renderDashboard = async function() {
     
     window.centerCalEvts = calEvts;
     let mobStrip = `<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-center">`;
-    Object.keys(calEvts).sort().forEach(ds => { let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : ''; mobStrip += `<div class="m-cal-date" id="m-date-center-${ds}" onclick="window.renderMCalCenter('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`; });
+    Object.keys(calEvts).sort().forEach(ds => { let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : ''; mobStrip += `<div class="m-cal-date" id="m-date-app-${ds}" onclick="window.renderMCalApp('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`; });
     mobStrip += `</div><div id="m-cal-list-center" class="m-cal-list"></div></div>`;
 
     if($("appDashContent")) $("appDashContent").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
@@ -540,14 +551,12 @@ window.downloadSummaryExcel = function() {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `발주요약_${new Date().toISOString().slice(0,10)}.csv`; link.click();
 }
 
-// 🔥 테이블 상태 변경 시 실시간 UI 동기화 기능 추가
 window.updateTable = async function(table, column, id, value, selectEl) { 
     const { error } = await supabaseClient.from(table).update({ [column]: value }).eq('id', id); 
     if(error) {
         showToast("저장 실패"); 
     } else { 
         showToast("업데이트 되었습니다."); 
-        // 화면 리프레시 없이 select 요소의 색상을 실시간으로 휙 바꿔주는 UX 개선
         if(table === 'orders' && column === 'status') {
             let order = gOrd.find(o => o.id === id);
             if(order) order.status = value;
@@ -645,7 +654,6 @@ window.handleNoticeMediaUpload = async function(event) {
   }
 }
 
-// 🔥 에러 없이 모달이 무조건 열리도록 안전하게 예외처리 
 window.openNoticeModal = function() {
   try { initQuill(); } catch(e) { console.error("에디터 로드 지연", e); }
   $("noticeId").value = ''; $("noticeTitle").value = ''; 
@@ -697,7 +705,6 @@ window.cancelAction = function(table, id) {
 }
 
 window.bulkActionOrd = function(statusValue) {
-  // 월요일, 목요일 폼 구분 없이 모든 체크 항목(.chk-ord:checked)을 한방에 처리
   let chks = $$$(`.chk-ord:checked`);
   if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
   window.openCustomConfirm("생두 상태 일괄 변경", null, `<span style="color:var(--text-display);">선택한 </span><span style="color:var(--primary); font-weight:800;">${chks.length}건</span><span style="color:var(--text-display);">을(를) </span><span style="color:var(--primary); font-weight:800;">${statusValue}</span><span style="color:var(--text-display);"> 상태로 변경하시겠습니까?</span>`, async () => {
