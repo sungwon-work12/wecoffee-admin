@@ -90,7 +90,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 };
 
 // ==========================================
-// 3. 인증 및 탭 전환 제어 (베이스 원본 구조 100% 유지)
+// 3. 인증 및 탭 전환 제어
 // ==========================================
 document.addEventListener("DOMContentLoaded", function() {
   supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -112,7 +112,6 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
-  // 로스팅존 필터 텍스트 초기화 방어코드
   if($("dashSpaceFilter")) {
       $("dashSpaceFilter").innerHTML = `<option value="전체">전체 공간</option><option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
   }
@@ -272,7 +271,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 UI (Toss Style 적용됨 - 에러 없이 렌더링되도록 처리)
+  // 🔥 생두 주문 현황 파싱 및 UI 개선 (테이블 열 개수 완벽 매칭 및 CSS 클렌징 적용)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -289,7 +288,7 @@ window.renderCenterData = function() {
     if(m) {
         cNm = m[1].trim(); 
         let dStr = m[4]+"요일 발주";
-        dOptHtml = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; margin-top:6px; display:inline-block;">${dStr}</span>`;
+        dOptHtml = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; margin-top:4px; display:inline-block; white-space:nowrap;">${dStr}</span>`;
     } else {
         let oM = rNm.match(/(.+) \[(.*?)\]/);
         if(oM) {
@@ -297,28 +296,31 @@ window.renderCenterData = function() {
             let optText = oM[2].trim();
             if(optText.includes('월')) optText = '월요일 발주';
             else if(optText.includes('목')) optText = '목요일 발주';
-            dOptHtml = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; margin-top:6px; display:inline-block;">${optText}</span>`;
+            dOptHtml = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; margin-top:4px; display:inline-block; white-space:nowrap;">${optText}</span>`;
         }
     }
 
-    let centerBadge = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600;">${o.center||'미지정'}</span>`;
-    let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
+    let centerBadge = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; white-space:nowrap;">${o.center||'미지정'}</span>`;
     
+    // 기수와 성함을 위아래로 깔끔하게 배치하는 UI 블록
+    let nameBatchBlock = `<div style="display:flex; flex-direction:column; gap:2px;"><span style="color:var(--text-secondary); font-size:12px; font-weight:600;">${o.batch||'-'}</span><strong style="font-weight:700; color:var(--text-display); font-size:14px; white-space:nowrap;">${o.name}</strong></div>`;
+    
+    let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
+    // 9개의 열(Column) 개수에 완벽히 맞춘 <td> 렌더링
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
         <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
         <td data-label="주문일" style="white-space:nowrap; color:var(--text-secondary); font-size:13px;">${formatDt(o.created_at)}</td>
         <td data-label="수령 센터" class="tc">${centerBadge}</td>
-        <td data-label="기수" class="tc"><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">${o.batch||'-'}</span></td>
-        <td data-label="성함"><strong style="font-weight:700; color:var(--text-display); font-size:14px;">${o.name}</strong></td>
+        <td data-label="성함(기수)">${nameBatchBlock}</td>
         <td data-label="연락처" style="white-space:nowrap; color:var(--text-secondary); font-size:13px;">${o.phone}</td>
         <td data-label="생두사 / 상품명">
             <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">
                 <div style="font-size:12px; color:var(--text-secondary); font-weight:600; margin-bottom:4px;">${o.vendor}</div>
-                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:4px;">
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
                     <span class="item-name-clamp" style="color:var(--text-display); font-weight:700; font-size:15px; line-height:1.4;">${cNm}</span>
-                    <button type="button" class="btn-copy" style="background:transparent; color:var(--text-tertiary); border:none; padding:2px 4px; font-size:11px; cursor:pointer;" onmouseover="this.style.color='var(--text-display)';" onmouseout="this.style.color='var(--text-tertiary)';" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
+                    <button type="button" class="btn-copy" style="background:#f2f4f6; color:var(--text-secondary); border:none; padding:4px 8px; font-size:11px; cursor:pointer; border-radius:4px; white-space:nowrap;" onmouseover="this.style.color='var(--text-display)';" onmouseout="this.style.color='var(--text-secondary)';" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
                 </div>
                 ${dOptHtml}
             </div>
@@ -327,7 +329,7 @@ window.renderCenterData = function() {
         <td data-label="금액"><input type="text" value="${o.total_price||''}" placeholder="예: 45,000" style="width:100%; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:var(--bg-page); border:none; border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.background='var(--border)';" onblur="this.style.background='var(--bg-page)'; window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
         <td data-label="상태 관리"><div class="action-wrap"><select style="background-color:var(--bg-page); border:none; border-radius:8px; padding:10px 32px 10px 12px; font-size:13px; font-weight:600; color:var(--text-display); outline:none; cursor:pointer; appearance:none; background-image:url('data:image/svg+xml;utf8,<svg fill=%22%23777%22 height=%2216%22 viewBox=%220 0 24 24%22 width=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>'); background-repeat:no-repeat; background-position:right 10px center;" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
     </tr>` 
-  }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
+  }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
 
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter);
   $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
@@ -721,7 +723,7 @@ window.renderAppDashboard = async function() {
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
       let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
-      mHtml += `<div class="dash-cal-cell ${isTd}"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
+      mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
     mHtml += `</div>`; 
     
