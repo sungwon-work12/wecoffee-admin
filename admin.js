@@ -106,7 +106,7 @@ function initializeApp() {
   }
 }
 
-// 스크립트가 비동기로 늦게 불려와도 무조건 즉시 실행되도록 보장
+// 스크립트 로드 타이밍 문제 해결
 if (document.readyState === 'loading') {
     document.addEventListener("DOMContentLoaded", initializeApp);
 } else {
@@ -225,7 +225,7 @@ window.handlePriceInput = async function(id, val, currentStatus) {
   if (error) showToast("저장 실패"); else { showToast("업데이트 되었습니다."); window.fetchCenterData(); }
 }
 
-// 🔥 생두 주문 테이블 렌더링 함수 (한 줄 고정 및 정렬 동기화 완벽 적용)
+// 🔥 생두 주문 테이블 렌더링 함수
 function renderOrderTableHTML(fOrd, tableId) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -255,9 +255,9 @@ function renderOrderTableHTML(fOrd, tableId) {
             <td data-label="생두사 / 상품명" style="text-align:left;">
                 <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">
                     <div style="margin-bottom:4px;">${vendorHtml}</div>
-                    <div style="display:flex; align-items:center; gap:8px; width: 100%;">
-                        <span style="color:var(--text-primary); font-weight:700; font-size:15px; line-height:1.4; word-break:keep-all;">${cNm}</span>
-                        <button type="button" class="btn-copy" style="background:#f2f4f6; color:var(--text-secondary); border:none; padding:4px 8px; font-size:11px; cursor:pointer; border-radius:4px; white-space:nowrap; flex-shrink:0;" onmouseover="this.style.color='var(--text-display)';" onmouseout="this.style.color='var(--text-secondary)';" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
+                    <div style="display:flex; align-items:flex-start; gap:8px; width: 100%;">
+                        <span style="color:var(--text-primary); font-weight:700; font-size:15px; line-height:1.4; word-break:keep-all; flex:1;">${cNm}</span>
+                        <button type="button" class="btn-copy" style="background:#f2f4f6; color:var(--text-secondary); border:none; padding:4px 8px; font-size:11px; cursor:pointer; border-radius:4px; white-space:nowrap; flex-shrink:0; margin-top:2px;" onmouseover="this.style.color='var(--text-display)';" onmouseout="this.style.color='var(--text-secondary)';" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
                     </div>
                 </div>
             </td>
@@ -309,7 +309,6 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 필터링 및 월/목 분리 렌더링
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -443,7 +442,7 @@ window.renderDashboard = async function() {
   }
 }
 
-// 🔥 발주 요약 모달 재설계 (생두사 -> 요일 -> 상품명), 요일 텍스트 자르기 완벽 적용
+// 🔥 발주 요약 모달 그룹화 (생두명에 붙던 요일 텍스트 강제 제거 적용)
 window.showOrderSummary = function() {
   let pending = gOrd.filter(o => o.status === '주문 접수');
   if(pending.length === 0) { showToast("현재 발주 대기 중인 내역이 없습니다."); return; }
@@ -543,7 +542,7 @@ function initQuill() {
                     ['clean']
                 ]
             },
-            placeholder: '내용을 자유롭게 적어주세요. (윈도우: Win + . / 맥: Cmd + Ctrl + Space 로 이모지 🎨 입력)'
+            placeholder: '내용을 자유롭게 적어주세요. (윈도우: Win + . / 맥: Cmd + Ctrl + Space 로 이모지 입력)'
         });
     }
 }
@@ -586,14 +585,19 @@ window.handleNoticeMediaUpload = async function(event) {
   }
 }
 
+// 🔥 에러 없이 모달이 무조건 열리도록 안전하게 예외처리 
 window.openNoticeModal = function() {
-  initQuill();
-  $("noticeId").value = ''; $("noticeTitle").value = ''; quillEditor.root.innerHTML = ''; $("noticePinned").checked = false; $("noticeStatus").value = '발행'; $("noticeModalTitle").innerText = "새 공지사항 등록"; $("noticeModal").classList.add('show');
+  try { initQuill(); } catch(e) { console.error("에디터 로드 지연", e); }
+  $("noticeId").value = ''; $("noticeTitle").value = ''; 
+  if(quillEditor) { quillEditor.root.innerHTML = ''; }
+  $("noticePinned").checked = false; $("noticeStatus").value = '발행'; $("noticeModalTitle").innerText = "새 공지사항 등록"; $("noticeModal").classList.add('show');
 }
 window.editNotice = function(id) {
   let n = gNotice.find(x => x.id === id); if(!n) return;
-  initQuill();
-  $("noticeId").value = n.id; $("noticeTitle").value = n.title; quillEditor.root.innerHTML = n.content || ''; $("noticePinned").checked = n.is_pinned; $("noticeStatus").value = n.status || '발행'; $("noticeModalTitle").innerText = "공지사항 수정"; $("noticeModal").classList.add('show');
+  try { initQuill(); } catch(e) { console.error("에디터 로드 지연", e); }
+  $("noticeId").value = n.id; $("noticeTitle").value = n.title; 
+  if(quillEditor) { quillEditor.root.innerHTML = n.content || ''; }
+  $("noticePinned").checked = n.is_pinned; $("noticeStatus").value = n.status || '발행'; $("noticeModalTitle").innerText = "공지사항 수정"; $("noticeModal").classList.add('show');
 }
 window.closeNoticeModal = function() { $("noticeModal").classList.remove('show'); }
 
@@ -1212,7 +1216,7 @@ window.openHistoryModal = async function(phone, name) {
 window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
 
 // ==========================================
-// 11. 엑셀 다운로드 
+// 11. 엑셀 다운로드
 // ==========================================
 window.downloadExcel = function(type) {
   if (type === 'applications' && isInsightView) {
