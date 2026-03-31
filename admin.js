@@ -21,6 +21,8 @@ let currentInsightData = {};
 
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
+let quillEditor = null; // 스마트 에디터 인스턴스
+
 // ==========================================
 // 2. 유틸리티 함수
 // ==========================================
@@ -77,9 +79,9 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 };
 
 // ==========================================
-// 3. 인증 및 탭 전환 제어
+// 3. 인증 및 로직 즉각 실행 (빈 화면 에러 100% 방지)
 // ==========================================
-document.addEventListener("DOMContentLoaded", function() {
+function initializeApp() {
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
       var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
@@ -102,7 +104,14 @@ document.addEventListener("DOMContentLoaded", function() {
   if($("dashSpaceFilter")) {
       $("dashSpaceFilter").innerHTML = `<option value="전체">전체 공간</option><option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
   }
-});
+}
+
+// 스크립트가 비동기로 늦게 불려와도 무조건 즉시 실행되도록 보장
+if (document.readyState === 'loading') {
+    document.addEventListener("DOMContentLoaded", initializeApp);
+} else {
+    initializeApp();
+}
 
 supabaseClient.channel('admin-realtime')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, handleRealtime)
@@ -216,7 +225,7 @@ window.handlePriceInput = async function(id, val, currentStatus) {
   if (error) showToast("저장 실패"); else { showToast("업데이트 되었습니다."); window.fetchCenterData(); }
 }
 
-// 🔥 생두 주문 테이블 렌더링 함수 (월/목 분리 및 한줄 고정)
+// 🔥 생두 주문 테이블 렌더링 함수 (한 줄 고정 및 정렬 동기화 완벽 적용)
 function renderOrderTableHTML(fOrd, tableId) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -233,7 +242,6 @@ function renderOrderTableHTML(fOrd, tableId) {
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:12px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        let nameBatchBlock = `<div style="display:flex; flex-direction:column; gap:2px;"><span style="color:var(--text-secondary); font-size:12px; font-weight:600;">${o.batch||'-'}</span><strong style="font-weight:700; color:var(--text-display); font-size:14px; white-space:nowrap;">${o.name}</strong></div>`;
         let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
         let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     
@@ -247,9 +255,9 @@ function renderOrderTableHTML(fOrd, tableId) {
             <td data-label="생두사 / 상품명" style="text-align:left;">
                 <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">
                     <div style="margin-bottom:4px;">${vendorHtml}</div>
-                    <div style="display:flex; align-items:flex-start; gap:8px; width: 100%;">
-                        <span style="color:var(--text-primary); font-weight:700; font-size:15px; line-height:1.4; word-break:keep-all; flex:1;">${cNm}</span>
-                        <button type="button" class="btn-copy" style="background:#f2f4f6; color:var(--text-secondary); border:none; padding:4px 8px; font-size:11px; cursor:pointer; border-radius:4px; white-space:nowrap; flex-shrink:0; margin-top:2px;" onmouseover="this.style.color='var(--text-display)';" onmouseout="this.style.color='var(--text-secondary)';" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
+                    <div style="display:flex; align-items:center; gap:8px; width: 100%;">
+                        <span style="color:var(--text-primary); font-weight:700; font-size:15px; line-height:1.4; word-break:keep-all;">${cNm}</span>
+                        <button type="button" class="btn-copy" style="background:#f2f4f6; color:var(--text-secondary); border:none; padding:4px 8px; font-size:11px; cursor:pointer; border-radius:4px; white-space:nowrap; flex-shrink:0;" onmouseover="this.style.color='var(--text-display)';" onmouseout="this.style.color='var(--text-secondary)';" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
                     </div>
                 </div>
             </td>
@@ -301,7 +309,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 필터링 및 월/목 상하 분리 렌더링
+  // 🔥 생두 주문 현황 필터링 및 월/목 분리 렌더링
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -326,7 +334,7 @@ window.renderCenterData = function() {
   }).join("") : `<tr><td colspan="7" class="empty-state">내역 없음</td></tr>`;
 }
 
-// 🔥 공지사항 렌더링 (HTML 태그 삽입 허용 적용)
+// 🔥 공지사항 렌더링
 window.renderNoticeData = function() {
   let fNoti = [...gNotice];
   fNoti.sort((a,b) => {
@@ -426,16 +434,16 @@ window.renderDashboard = async function() {
     
     window.centerCalEvts = calEvts;
     let mobStrip = `<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-center">`;
-    Object.keys(calEvts).sort().forEach(ds => { let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : ''; mobStrip += `<div class="m-cal-date" id="m-date-app-${ds}" onclick="window.renderMCalCenter('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`; });
+    Object.keys(calEvts).sort().forEach(ds => { let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : ''; mobStrip += `<div class="m-cal-date" id="m-date-center-${ds}" onclick="window.renderMCalCenter('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`; });
     mobStrip += `</div><div id="m-cal-list-center" class="m-cal-list"></div></div>`;
 
-    $("dash-content").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
+    if($("appDashContent")) $("appDashContent").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
     let td = new Date(); let todayStr = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;
     window.renderMCalCenter(calEvts[todayStr] ? todayStr : Object.keys(calEvts).sort()[0]);
   }
 }
 
-// 🔥 발주 요약 모달 그룹화 로직 완벽 변경 (생두사 -> 발주일 -> 상품명, 중복 텍스트 컷팅 적용 완료)
+// 🔥 발주 요약 모달 재설계 (생두사 -> 요일 -> 상품명), 요일 텍스트 자르기 완벽 적용
 window.showOrderSummary = function() {
   let pending = gOrd.filter(o => o.status === '주문 접수');
   if(pending.length === 0) { showToast("현재 발주 대기 중인 내역이 없습니다."); return; }
@@ -522,75 +530,85 @@ window.deleteBlock = function(id) {
   });
 }
 
-// 🔥 스마트 에디터 사진/영상 업로드 처리 로직
+// 🔥 스마트 에디터 인스턴스 초기화 함수
+function initQuill() {
+    if(!quillEditor && $('editor-container')) {
+        quillEditor = new Quill('#editor-container', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'align': [] }],
+                    ['clean']
+                ]
+            },
+            placeholder: '내용을 자유롭게 적어주세요. (윈도우: Win + . / 맥: Cmd + Ctrl + Space 로 이모지 🎨 입력)'
+        });
+    }
+}
+
+// 🔥 스마트 에디터 사진/영상 업로드 처리 (본문에 직접 삽입)
 window.handleNoticeMediaUpload = async function(event) {
   const files = event.target.files;
   if (!files || files.length === 0) return;
   
   const overlay = $("mediaUploadOverlay");
-  overlay.style.display = "flex"; // 로딩 스피너 온
+  overlay.style.display = "flex"; 
 
   try {
-      let contentEditor = $("noticeContent");
-      let currentCursorPos = contentEditor.selectionStart;
-      let textToInsert = "";
+      if(!quillEditor) initQuill();
+      let range = quillEditor.getSelection(true);
 
       for (let i = 0; i < files.length; i++) {
           const file = files[i];
           const fileExt = file.name.split('.').pop();
           const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-          const filePath = `${fileName}`;
-
-          // Supabase Storage 업로드 (notice_media 버킷)
-          const { error: uploadError } = await supabaseClient.storage.from('notice_media').upload(filePath, file);
           
-          if (uploadError) {
-              console.error("업로드 에러:", uploadError);
-              showToast(`${file.name} 업로드 실패`);
-              continue;
-          }
+          const { error: uploadError } = await supabaseClient.storage.from('notice_media').upload(fileName, file);
+          if (uploadError) { showToast(`${file.name} 업로드 실패`); continue; }
 
-          // Public URL 획득
-          const { data: { publicUrl } } = supabaseClient.storage.from('notice_media').getPublicUrl(filePath);
+          const { data: { publicUrl } } = supabaseClient.storage.from('notice_media').getPublicUrl(fileName);
 
-          // HTML 태그 조합
           if (file.type.startsWith('image/')) {
-              textToInsert += `\n<img src="${publicUrl}" style="max-width:100%; border-radius:8px; margin:8px 0;" alt="notice_image">\n`;
+              quillEditor.insertEmbed(range.index, 'image', publicUrl);
           } else if (file.type.startsWith('video/')) {
-              textToInsert += `\n<video src="${publicUrl}" controls style="max-width:100%; border-radius:8px; margin:8px 0;"></video>\n`;
+              quillEditor.insertEmbed(range.index, 'video', publicUrl);
           }
+          range.index++;
       }
-
-      // 커서 위치에 텍스트 삽입
-      const textBefore = contentEditor.value.substring(0, currentCursorPos);
-      const textAfter = contentEditor.value.substring(currentCursorPos, contentEditor.value.length);
-      contentEditor.value = textBefore + textToInsert + textAfter;
-      
       showToast("미디어가 성공적으로 첨부되었습니다.");
   } catch (e) {
-      console.error(e);
       showToast("미디어 첨부 중 오류가 발생했습니다.");
   } finally {
-      overlay.style.display = "none"; // 로딩 스피너 오프
-      $("noticeMediaUpload").value = ''; // 초기화
+      overlay.style.display = "none"; 
+      $("noticeMediaUpload").value = ''; 
   }
 }
 
 window.openNoticeModal = function() {
-  $("noticeId").value = ''; $("noticeTitle").value = ''; $("noticeContent").value = ''; $("noticePinned").checked = false; $("noticeStatus").value = '발행'; $("noticeModalTitle").innerText = "새 공지사항 등록"; $("noticeModal").classList.add('show');
+  initQuill();
+  $("noticeId").value = ''; $("noticeTitle").value = ''; quillEditor.root.innerHTML = ''; $("noticePinned").checked = false; $("noticeStatus").value = '발행'; $("noticeModalTitle").innerText = "새 공지사항 등록"; $("noticeModal").classList.add('show');
 }
 window.editNotice = function(id) {
   let n = gNotice.find(x => x.id === id); if(!n) return;
-  $("noticeId").value = n.id; $("noticeTitle").value = n.title; $("noticeContent").value = n.content; $("noticePinned").checked = n.is_pinned; $("noticeStatus").value = n.status || '발행'; $("noticeModalTitle").innerText = "공지사항 수정"; $("noticeModal").classList.add('show');
+  initQuill();
+  $("noticeId").value = n.id; $("noticeTitle").value = n.title; quillEditor.root.innerHTML = n.content || ''; $("noticePinned").checked = n.is_pinned; $("noticeStatus").value = n.status || '발행'; $("noticeModalTitle").innerText = "공지사항 수정"; $("noticeModal").classList.add('show');
 }
 window.closeNoticeModal = function() { $("noticeModal").classList.remove('show'); }
 
 window.saveNoticeData = async function() {
-  let id = $("noticeId").value; let payload = { title: $("noticeTitle").value.trim(), content: $("noticeContent").value.trim(), is_pinned: $("noticePinned").checked, status: $("noticeStatus").value };
-  if(!payload.title) return showToast("제목을 입력해주세요."); if(!payload.content) return showToast("내용을 입력해주세요.");
+  let id = $("noticeId").value; 
+  let htmlContent = quillEditor ? quillEditor.root.innerHTML : '';
+  let payload = { title: $("noticeTitle").value.trim(), content: htmlContent, is_pinned: $("noticePinned").checked, status: $("noticeStatus").value };
+  
+  if(!payload.title) return showToast("제목을 입력해주세요."); 
+  if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요.");
+  
   let error; if(id) { const res = await supabaseClient.from('notices').update(payload).eq('id', id); error = res.error; } else { const res = await supabaseClient.from('notices').insert([payload]); error = res.error; }
   if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); }
 }
+
 window.deleteNotice = function(id) {
   window.openCustomConfirm("공지사항 삭제", null, `<span style="color:var(--text-display);">이 공지사항을 완전히 삭제하시겠습니까?</span>`, async () => {
     const { error } = await supabaseClient.from('notices').delete().eq('id', id);
@@ -1110,7 +1128,6 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
       if(opt === 'release') {
           const m = globalMembers.find(x => x.id === id); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지';
           m.status = newStat; window.searchMembers(); 
-          // DB 상태 업데이트 생략 프론트 전용
           showToast(`상태가 [${newStat}](으)로 변경되었습니다.`); return; 
       }
       if(opt === 'pause') {
@@ -1153,9 +1170,11 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
   });
 }
 
-window.updateMemberEndDate = async function(id, newDate) { const { error } = await supabaseClient.from('members').update({ end_date: newDate }).eq('id', id); if (error) showToast("저장 실패"); else showToast("업데이트 되었습니다."); }
+window.updateMemberEndDate = async function(id, dateStr) {
+  const { error } = await supabaseClient.from('members').update({ end_date: dateStr }).eq('id', id);
+  if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다.");
+}
 
-// 🔥 내역 삭제 기능 100% 복구 완료
 window.deleteHistory = async function(id, phone, name, action_detail) {
     window.openCustomConfirm("내역 삭제", null, `<span style="color:var(--text-display);">해당 내역을 완전히 삭제하시겠습니까?</span><br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
         await supabaseClient.from('member_history').delete().eq('id', id);
@@ -1188,13 +1207,12 @@ window.openHistoryModal = async function(phone, name) {
   const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false });
   if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state">결제/연장 내역이 없습니다.</div>'; return; }
   
-  // 🔥 복구된 삭제 버튼 삽입
   body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>';
 }
 window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
 
 // ==========================================
-// 11. 엑셀 다운로드
+// 11. 엑셀 다운로드 
 // ==========================================
 window.downloadExcel = function(type) {
   if (type === 'applications' && isInsightView) {
