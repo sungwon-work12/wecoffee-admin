@@ -19,7 +19,6 @@ let appDashMonthOffset = 0;
 let currentSummaryData = []; 
 let currentInsightData = {}; 
 
-// 🔥 로스팅룸 -> 로스팅존 통일
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
 // ==========================================
@@ -88,7 +87,6 @@ document.addEventListener("DOMContentLoaded", function() {
       let savedMain = localStorage.getItem('wecoffee_main_tab') || 'page-center';
       let savedSub = localStorage.getItem('wecoffee_sub_tab') || 'sub-res';
       
-      // 🔥 기존 개별 탭을 저장해둔 유저도 통합 탭(sub-trn-blk)으로 자동 이동 처리
       if(savedSub === 'sub-trn' || savedSub === 'sub-blk') savedSub = 'sub-trn-blk';
 
       let mainEl = document.querySelector(`.gnb-item[onclick*="${savedMain}"]`);
@@ -100,6 +98,10 @@ document.addEventListener("DOMContentLoaded", function() {
       var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; 
     }
   });
+
+  if($("dashSpaceFilter")) {
+      $("dashSpaceFilter").innerHTML = `<option value="전체">전체 공간</option><option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
+  }
 });
 
 supabaseClient.channel('admin-realtime')
@@ -146,16 +148,8 @@ window.handleLogout = async function() { await supabaseClient.auth.signOut(); sh
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback) {
     $("confirmTarget").innerHTML = title;
     const stEl = $("confirmStatus");
-    if(statusHtml) { 
-        stEl.style.display = 'block'; 
-        stEl.innerHTML = statusHtml; 
-        stEl.style.background = 'transparent'; 
-        stEl.style.padding = '0'; 
-    } else { 
-        stEl.style.display = 'none'; 
-    }
-    const actEl = $("confirmAction");
-    actEl.innerHTML = actionHtml;
+    if(statusHtml) { stEl.style.display = 'block'; stEl.innerHTML = statusHtml; stEl.style.background = 'transparent'; stEl.style.padding = '0'; } else { stEl.style.display = 'none'; }
+    $("confirmAction").innerHTML = actionHtml;
     window.currentConfirmCallback = callback;
     $("confirmModal").classList.add('show');
 }
@@ -182,7 +176,6 @@ window.fetchCenterData = async function() {
     ]);
     gRes = res.data||[]; gTrn = trn.data||[]; gOrd = ord.data||[]; gBlk = blk.data||[]; gNotice = noti.data||[];
     
-    // 🔥 로스팅룸을 로스팅존으로 파싱
     gRes.forEach(r => { if(r.space_equip) r.space_equip = r.space_equip.replace(/로스팅룸/g, '로스팅존'); });
     gBlk.forEach(b => { if(b.space_equip) b.space_equip = b.space_equip.replace(/로스팅룸/g, '로스팅존'); });
     gTrn.forEach(t => { if(t.content) t.content = t.content.replace(/로스팅룸/g, '로스팅존'); });
@@ -264,7 +257,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 UI (9열 통합, 토스 스타일 UI, 외부 링크 추가 완벽 적용)
+  // 🔥 생두 주문 현황 파싱 및 UI 개선 (완벽한 9열 매칭 및 외부 링크 복원 완료)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -295,23 +288,24 @@ window.renderCenterData = function() {
 
     let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`;
     
-    // 외부 링크 삽입 (DB의 link 또는 url 컬럼 값을 활용)
+    // 외부 링크 삽입 (DB의 link 또는 url 컬럼 값을 활용. 없으면 #)
     let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
     let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-display); font-weight:800; font-size:14px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
     
     // 기수와 성함을 위아래로 깔끔하게 배치하는 UI 블록 (9열에 맞춤)
-    let nameBatchBlock = `<div style="display:flex; align-items:center; gap:6px;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">(${o.batch||'-'})</span></div>`;
+    let nameBatchBlock = `<div style="display:flex; flex-direction:column; gap:2px;"><span style="color:var(--text-secondary); font-size:12px; font-weight:600;">${o.batch||'-'}</span><strong style="font-weight:700; color:var(--text-display); font-size:14px; white-space:nowrap;">${o.name}</strong></div>`;
     
     let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
+    // 9개의 열(Column) 개수에 완벽히 맞춘 <td> 렌더링
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
         <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
-        <td data-label="주문일" style="white-space:nowrap; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
+        <td data-label="주문 날짜" style="white-space:nowrap; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
         <td data-label="수령 센터" class="tc">${centerBadge}</td>
         <td data-label="성함(기수)">${nameBatchBlock}</td>
         <td data-label="연락처" style="white-space:nowrap; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
-        <td data-label="생두사 / 상품명">
+        <td data-label="생두사 / 상품명 / 발주정보">
             <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
                     ${vendorHtml}
@@ -324,8 +318,8 @@ window.renderCenterData = function() {
             </div>
         </td>
         <td data-label="수량" style="font-size:15px; font-weight:700; color:var(--text-display);">${o.quantity}</td>
-        <td data-label="금액"><input type="text" value="${o.total_price||''}" placeholder="확인 중" style="width:100%; padding:10px 12px; text-align:center; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
-        <td data-label="상태 관리"><div class="action-wrap"><select style="background-color:var(--bg-page); border:none; border-radius:8px; padding:10px 32px 10px 16px; font-size:14px; font-weight:600; color:var(--text-display); outline:none; cursor:pointer; appearance:none; background-image:url('data:image/svg+xml;utf8,<svg fill=%22%23777%22 height=%2216%22 viewBox=%220 0 24 24%22 width=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>'); background-repeat:no-repeat; background-position:right 10px center;" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
+        <td data-label="총 금액 입력"><input type="text" value="${o.total_price||''}" placeholder="확인 중" style="width:100%; padding:10px 12px; text-align:center; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
+        <td data-label="상태 관리"><div class="action-wrap"><select style="background-color:var(--bg-page); border:none; border-radius:8px; padding:10px 32px 10px 16px; font-size:13px; font-weight:600; color:var(--text-display); outline:none; cursor:pointer; appearance:none; background-image:url('data:image/svg+xml;utf8,<svg fill=%22%23777%22 height=%2216%22 viewBox=%220 0 24 24%22 width=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>'); background-repeat:no-repeat; background-position:right 10px center;" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
     </tr>` 
   }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
 
@@ -449,7 +443,7 @@ window.renderDashboard = async function() {
 }
 
 // ==========================================
-// 8. 생두, 스케줄 조작 및 공지사항 저장 로직
+// 8. 생두 발주 요약 추출 시 파싱 로직
 // ==========================================
 window.showOrderSummary = function() {
   let pending = gOrd.filter(o => o.status === '주문 접수');
@@ -459,8 +453,26 @@ window.showOrderSummary = function() {
   pending.forEach(o => { 
       let key = o.vendor;
       if(!grouped[key]) grouped[key] = {}; 
-      if(!grouped[key][o.item_name]) grouped[key][o.item_name] = []; 
-      grouped[key][o.item_name].push(`[${o.batch||'-'}] ${o.name}(${o.quantity})`); 
+      
+      let cNm = o.item_name; let dOpt = "";
+      let m = (o.item_name||"").match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
+      if(m) { 
+          cNm = m[1].trim(); 
+          dOpt = m[4] + "요일 발주"; 
+      } else {
+          let oM = (o.item_name||"").match(/(.+) \[(.*?)\]/);
+          if(oM) {
+              cNm = oM[1].trim();
+              let optText = oM[2].trim();
+              if(optText.includes('월')) dOpt = '월요일 발주';
+              else if(optText.includes('목')) dOpt = '목요일 발주';
+              else dOpt = optText;
+          }
+      }
+
+      let subKey = `${cNm} ${dOpt ? '('+dOpt+')' : ''}`;
+      if(!grouped[key][subKey]) grouped[key][subKey] = []; 
+      grouped[key][subKey].push(`[${o.center||'미지정'}] ${o.name}(${o.quantity})`); 
   });
 
   currentSummaryData = [];
@@ -479,9 +491,10 @@ window.showOrderSummary = function() {
   }
   html += `</div>`; $("summaryModalBody").innerHTML = html; $("summaryModal").classList.add('show');
 }
+
 window.closeSummaryModal = function() { $("summaryModal").classList.remove('show'); }
 window.downloadSummaryExcel = function() {
-  if(currentSummaryData.length === 0) return; let csvContent = '\uFEFF생두사,상품명,발주요약내용\n';
+  if(currentSummaryData.length === 0) return; let csvContent = '\uFEFF생두사,상품명(희망발주일),발주요약내용(센터/이름/수량)\n';
   currentSummaryData.forEach(d => { csvContent += `"${d.vendor}","${String(d.item).replace(/"/g, '""')}","${String(d.details).replace(/"/g, '""')}"\n`; });
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `발주요약_${new Date().toISOString().slice(0,10)}.csv`; link.click();
 }
@@ -508,55 +521,21 @@ window.deleteBlock = function(id) {
   });
 }
 
-// 🔥 신규 공지사항 액션 함수
 window.openNoticeModal = function() {
-  $("noticeId").value = '';
-  $("noticeTitle").value = '';
-  $("noticeContent").value = '';
-  $("noticePinned").checked = false;
-  $("noticeStatus").value = '발행';
-  $("noticeModalTitle").innerText = "새 공지사항 등록";
-  $("noticeModal").classList.add('show');
+  $("noticeId").value = ''; $("noticeTitle").value = ''; $("noticeContent").value = ''; $("noticePinned").checked = false; $("noticeStatus").value = '발행'; $("noticeModalTitle").innerText = "새 공지사항 등록"; $("noticeModal").classList.add('show');
 }
-
 window.editNotice = function(id) {
-  let n = gNotice.find(x => x.id === id);
-  if(!n) return;
-  $("noticeId").value = n.id;
-  $("noticeTitle").value = n.title;
-  $("noticeContent").value = n.content;
-  $("noticePinned").checked = n.is_pinned;
-  $("noticeStatus").value = n.status || '발행';
-  $("noticeModalTitle").innerText = "공지사항 수정";
-  $("noticeModal").classList.add('show');
+  let n = gNotice.find(x => x.id === id); if(!n) return;
+  $("noticeId").value = n.id; $("noticeTitle").value = n.title; $("noticeContent").value = n.content; $("noticePinned").checked = n.is_pinned; $("noticeStatus").value = n.status || '발행'; $("noticeModalTitle").innerText = "공지사항 수정"; $("noticeModal").classList.add('show');
 }
-
 window.closeNoticeModal = function() { $("noticeModal").classList.remove('show'); }
 
 window.saveNoticeData = async function() {
-  let id = $("noticeId").value;
-  let payload = {
-    title: $("noticeTitle").value.trim(),
-    content: $("noticeContent").value.trim(),
-    is_pinned: $("noticePinned").checked,
-    status: $("noticeStatus").value
-  };
-  if(!payload.title) return showToast("제목을 입력해주세요.");
-  if(!payload.content) return showToast("내용을 입력해주세요.");
-
-  let error;
-  if(id) {
-    const res = await supabaseClient.from('notices').update(payload).eq('id', id);
-    error = res.error;
-  } else {
-    const res = await supabaseClient.from('notices').insert([payload]);
-    error = res.error;
-  }
-
-  if(error) showToast("저장 실패");
-  else { showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); }
+  let id = $("noticeId").value; let payload = { title: $("noticeTitle").value.trim(), content: $("noticeContent").value.trim(), is_pinned: $("noticePinned").checked, status: $("noticeStatus").value };
+  if(!payload.title) return showToast("제목을 입력해주세요."); if(!payload.content) return showToast("내용을 입력해주세요.");
+  let error; if(id) { const res = await supabaseClient.from('notices').update(payload).eq('id', id); error = res.error; } else { const res = await supabaseClient.from('notices').insert([payload]); error = res.error; }
+  if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); }
 }
-
 window.deleteNotice = function(id) {
   window.openCustomConfirm("공지사항 삭제", null, `<span style="color:var(--text-display);">이 공지사항을 완전히 삭제하시겠습니까?</span>`, async () => {
     const { error } = await supabaseClient.from('notices').delete().eq('id', id);
@@ -789,33 +768,45 @@ window.saveScheduleData = async function() {
 window.updateAppStatus = async function(id, column, value) {
   let updateData = { [column]: value };
   if (column === 'join_status' && value === '다음 기수 희망') { const app = globalApps.find(a => a.id === id); if (app && app.desired_batch) { const match = String(app.desired_batch||'').match(/(\d+)/); if (match) updateData.desired_batch = `${parseInt(match[1]) + 1}기`; } }
-  const { error } = await supabaseClient.from('applications').update(updateData).eq('id', id); if (error) return showToast("저장 실패"); 
+  
+  const { error } = await supabaseClient.from('applications').update(updateData).eq('id', id); 
+  if (error) return showToast("상태 업데이트 실패: " + error.message); 
   
   if (column === 'join_status') {
     const app = globalApps.find(a => a.id === id);
     if (app) {
       if (value === '가입 완료') {
-        const { data: existing } = await supabaseClient.from('members').select('id').eq('phone', app.phone);
+        const { data: existing, error: existErr } = await supabaseClient.from('members').select('id').eq('phone', app.phone);
+        if (existErr) {
+            console.error(existErr);
+            return showToast("멤버 조회 중 오류 발생");
+        }
+
         if (!existing || existing.length === 0) {
           let today = new Date(); let targetDay = today.getDate() <= 14 ? 1 : 15; 
           let endD = new Date(today.getFullYear(), today.getMonth() + 6, targetDay);
           let endDateStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
           
-          await supabaseClient.from('members').insert([{ name: app.name, phone: app.phone, batch: app.desired_batch, end_date: endDateStr, status: '활동 중' }]); 
+          const { error: insertErr } = await supabaseClient.from('members').insert([{ name: app.name, phone: app.phone, batch: app.desired_batch, end_date: endDateStr, status: '활동 중' }]); 
+          if (insertErr) {
+              console.error("멤버 인서트 에러:", insertErr);
+              return showToast("멤버 등록 실패: " + insertErr.message);
+          }
+
           await supabaseClient.from('member_history').insert([{ member_name: app.name, member_phone: app.phone, action_detail: '신규 가입 (6개월)', amount: '1,650,000원' }]); 
-          showToast("멤버 리스트 등록 완료");
+          showToast("멤버 리스트에 성공적으로 등록되었습니다.");
           
-          // 🔥 가입 완료 처리 시 멤버 리스트 탭으로 자동 이동
-          setTimeout(() => {
-              window.switchMainTab('page-members');
-          }, 600);
+          setTimeout(() => { window.switchMainTab('page-members'); }, 800);
         } else {
           showToast("이미 멤버 리스트에 등록된 번호입니다.");
         }
-      } else if (value !== '다음 기수 희망') { await supabaseClient.from('members').delete().eq('phone', app.phone); }
+      } else if (value !== '다음 기수 희망') { 
+          await supabaseClient.from('members').delete().eq('phone', app.phone); 
+      }
     }
   }
-  showToast("상태가 변경되었습니다."); window.fetchApplications();
+  if(value !== '가입 완료') showToast("상태가 변경되었습니다.");
+  window.fetchApplications();
 }
 
 function getFrequency(arr) { return Object.entries(arr.reduce((acc, val) => { if(val) acc[val] = (acc[val] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1]); }
@@ -1072,14 +1063,14 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
           showToast("활동이 일시정지되었습니다."); return;
       }
       if(opt === 'resume') {
-          const { data: hist } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).like('action_detail', '활동 일시정지 시작%').order('created_at', {ascending: false}).limit(1);
+          const { data: hist } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).like('action_detail', '활동 일시정지 시작%').order('created_at', { ascending: false }).limit(1);
           let extendDays = 0;
-          if(hist && hist.length > 0) {
+          if (hist && hist.length > 0) {
               let pauseDate = new Date(hist[0].created_at); pauseDate.setHours(0,0,0,0);
               let todayDate = new Date(); todayDate.setHours(0,0,0,0);
               extendDays = Math.floor((todayDate - pauseDate) / (1000 * 60 * 60 * 24));
           }
-          if(extendDays < 0) extendDays = 0;
+          if (extendDays < 0) extendDays = 0;
           let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + extendDays);
           let newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
 
