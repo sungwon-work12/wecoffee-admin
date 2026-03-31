@@ -192,7 +192,7 @@ window.fetchCenterData = async function() {
   } catch(e) { console.error("데이터 로드 에러:", e); }
 }
 
-// 🔥 미처리/신규 데이터가 있으면 탭 버튼에 토스 스타일 펄스 알림 띄우기
+// 🔥 각 탭별 글로우 펄스 애니메이션 적용 함수
 function updateSmartBadges() { 
   let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || o.status === '입금 대기' || o.status === '입금 확인').length; 
   let tabOrd = $("ordTabBtn"); 
@@ -228,6 +228,7 @@ function updateDailyInOutBanner() {
   if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html;
 }
 
+// 🔥 금액 입력 시 실시간으로 파란색 뱃지(입금 대기) 렌더링 동기화
 window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   let formatted = val ? comma(val) + '원' : '';
   let updates = { total_price: formatted };
@@ -264,7 +265,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 생두명 원클릭 복사 호버 UX (버튼 삭제 & 1줄 고정 적용 완료)
+// 🔥 생두명 원클릭 복사 호버 UX (버튼 삭제 & 1줄 고정)
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -281,17 +282,16 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:12px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        let copyableHtml = `<div class="copyable-wrap" style="width:100%;" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사">
-            <div style="display:flex; align-items:center; width:100%; overflow:hidden;">
-                <span class="copyable-text">${cNm}</span>
-                <span class="copyable-hint">복사</span>
-            </div>
+        // 토스 스타일 원클릭 복사 UI
+        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사">
+            <span class="copyable-text">${cNm}</span>
+            <span class="copyable-hint">복사</span>
         </div>`;
 
         let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
         let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     
-        // 🔥 칼정렬: 수량(중앙), 총 금액(우측), 상태 관리(중앙) 맞춤
+        // 칼정렬: 수량(중앙), 총 금액(우측), 상태 관리(중앙)
         return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
             <td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td>
             <td data-label="주문 날짜" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
@@ -548,6 +548,32 @@ window.downloadSummaryExcel = function() {
   if(currentSummaryData.length === 0) return; let csvContent = '\uFEFF생두사,발주일,상품명,발주요약내용(센터/이름/수량)\n';
   currentSummaryData.forEach(d => { csvContent += `"${d.vendor}","${d.day}","${String(d.item).replace(/"/g, '""')}","${String(d.details).replace(/"/g, '""')}"\n`; });
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `발주요약_${new Date().toISOString().slice(0,10)}.csv`; link.click();
+}
+
+window.updateTable = async function(table, column, id, value, selectEl) { 
+    const { error } = await supabaseClient.from(table).update({ [column]: value }).eq('id', id); 
+    if(error) {
+        showToast("저장 실패"); 
+    } else { 
+        showToast("업데이트 되었습니다."); 
+        // 화면 리프레시 없이 select 요소의 색상을 실시간으로 휙 바꿔주는 UX 개선
+        if(table === 'orders' && column === 'status') {
+            let order = gOrd.find(o => o.id === id);
+            if(order) order.status = value;
+            if(selectEl) {
+                let badgeClass = value==='주문 취소'?'st-ghosted':value==='센터 도착'?'st-completed':value==='입금 확인'?'st-confirmed':value==='입금 대기'?'st-arranging':'st-wait';
+                selectEl.className = 'status-select ' + badgeClass;
+                let row = selectEl.closest('tr');
+                if(row) {
+                    let badgeEl = row.querySelector('.m-prev-top .status-badge');
+                    if(badgeEl) {
+                        badgeEl.className = 'status-badge ' + badgeClass;
+                        badgeEl.innerText = value;
+                    }
+                }
+            }
+        }
+    } 
 }
 
 window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length === 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
@@ -1006,4 +1032,286 @@ window.renderStatistics = function(data) {
         </div>
         <div class="funnel-arrow">➔</div>
         <div class="funnel-step">
-           <div style="font-size:13px; color:var(--
+           <div style="font-size:13px; color:var(--text-secondary); margin-bottom:6px; font-weight:600;">상담 확정/완료</div>
+           <div style="font-size:20px; font-weight:800; color:var(--text-display); margin-bottom:4px;">${counseled}명</div>
+           <div style="font-size:12px; color:var(--primary); font-weight:700; background:#fff; padding:2px 8px; border-radius:4px; border:1px solid #f2f4f6;">${total > 0 ? Math.round(counseled/total*100) : 0}% 전환</div>
+        </div>
+        <div class="funnel-arrow">➔</div>
+        <div class="funnel-step success">
+           <div style="font-size:13px; margin-bottom:6px; font-weight:600;">가입 완료</div>
+           <div style="font-size:20px; font-weight:800; margin-bottom:4px;">${joined}명</div>
+           <div style="font-size:12px; color:var(--primary); font-weight:700; background:#fff; padding:2px 8px; border-radius:4px;">${counseled > 0 ? Math.round(joined/counseled*100) : 0}% 전환</div>
+        </div>
+      </div>
+    </div>
+  `;
+  $("statsFunnel").innerHTML = funnelHtml; $("statsFunnel").style.display = 'block';
+
+  let sortedChannels = Object.entries(channelMap).sort((a,b) => b[1].total - a[1].total);
+  let treeChartHtml = '';
+  
+  sortedChannels.forEach((item, index) => {
+     let chName = item[0]; let chTotal = item[1].total; let details = item[1].details;
+     let opacity = index === 0 ? 1 : (index === 1 ? 0.8 : (index === 2 ? 0.6 : 0.4));
+     let percent = total > 0 ? Math.round((chTotal / total) * 100) : 0;
+     
+     treeChartHtml += `<div style="margin-bottom: 16px;">`;
+     treeChartHtml += `<div style="font-size:14px; font-weight:800; color:var(--text-display); margin-bottom:4px; display:flex; justify-content:space-between;"><span>${index+1}. ${chName}</span><span>${chTotal}건 (${percent}%)</span></div>`;
+     treeChartHtml += `<div style="background:var(--border-strong); height:8px; border-radius:4px; overflow:hidden; margin-bottom:8px;"><div style="width: ${percent}%; background:rgba(255, 121, 0, ${opacity}); height:100%;"></div></div>`;
+     
+     let sortedDetails = Object.entries(details).sort((a,b) => b[1] - a[1]);
+     if (sortedDetails.length > 0) {
+         sortedDetails.forEach(det => {
+            let dName = det[0]; let dCount = det[1]; let dPercent = Math.round((dCount / chTotal) * 100);
+            treeChartHtml += `<div style="display:flex; align-items:center; margin-bottom:6px; padding-left:12px;">
+              <div style="color:var(--text-tertiary); margin-right:8px; font-size:12px; font-weight:800;">ㄴ</div>
+              <div style="flex:1;">
+                <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;"><span>${dName}</span><span>${dCount}건</span></div>
+                <div style="background:var(--border); height:4px; border-radius:2px; overflow:hidden;"><div style="width: ${dPercent}%; background:rgba(255, 121, 0, ${opacity * 0.4}); height:100%;"></div></div>
+              </div>
+            </div>`;
+         });
+     }
+     treeChartHtml += `</div>`;
+  });
+
+  let chartsHtml = `
+    <div class="stat-card" style="padding:24px; text-align:left; align-items:flex-start;"><div style="font-size:16px; font-weight:800; margin-bottom:24px; width:100%;">전체 유입 경로 순위 (상세 속성 트리)</div><div style="width:100%;">${treeChartHtml}</div></div>
+    <div class="stat-card" style="padding:24px; text-align:left; align-items:flex-start;"><div style="font-size:16px; font-weight:800; margin-bottom:24px; width:100%;">관심 분야 (목적)</div><div style="width:100%;">${getFrequency(data.map(d => String(d.interest_area||''))).map((c, i) => generateBarHTML(c[0], c[1], total, i === 0 ? 1 : (i === 1 ? 0.8 : (i === 2 ? 0.6 : 0.4)))).join('')}</div></div>
+  `;
+  container.innerHTML = chartsHtml;
+
+  window.currentInsightData = { total, joined, instaCount: channelMap['인스타그램']?channelMap['인스타그램'].total:0, adCount: channelMap['모집 광고']?channelMap['모집 광고'].total:0, leadTime1M: safeDataForSummary.adNow, leadTime3M: safeDataForSummary.leadTime3M };
+}
+
+// ==========================================
+// 10. 멤버 리스트 관리
+// ==========================================
+window.fetchMembers = async function() { 
+  const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); 
+  if (error) return; 
+  globalMembers = data; 
+  let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); });
+  let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort().reverse().map(b=>`<option value="${b}">${b}</option>`).join("");
+  if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml;
+  window.searchMembers(); 
+}
+
+window.searchMembers = function() {
+  const query = $("memberSearch").value.trim().toLowerCase(); 
+  const statusFilter = $("memberStatusFilter") ? $("memberStatusFilter").value : 'all';
+  const batchFilter = $("memberBatchFilter") ? $("memberBatchFilter").value : 'all';
+  const today = new Date(); today.setHours(0,0,0,0);
+  
+  const filtered = globalMembers.filter(m => {
+    let isExpired = true; 
+    let isPaused = m.status === '활동 일시정지';
+    if (m.end_date && m.end_date.length === 10) { let endD = new Date(m.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; }
+    
+    let statusText = m.status || '활동 중'; 
+    if (statusText === '패널티 정지') statusText = '패널티 정지';
+    else if (statusText === '활동 일시정지') statusText = '활동 일시정지';
+    else if (isExpired) statusText = '활동 종료';
+    
+    let matchQuery = `${m.batch||''} ${m.name||''} ${m.phone||''} ${statusText}`.toLowerCase().includes(query);
+    let matchBatch = batchFilter === 'all' || m.batch === batchFilter;
+    
+    let matchStatus = false;
+    if (statusFilter === 'all') matchStatus = true;
+    else if (statusFilter === '활동 중 (전체)') matchStatus = ['활동 중', '연장 활동 중', '단일권 이용'].includes(statusText);
+    else matchStatus = statusText === statusFilter;
+    
+    return matchQuery && matchStatus && matchBatch;
+  });
+  renderMemberTable(filtered);
+}
+
+function renderMemberTable(data) {
+  const tbody = $("memberTableBody"); tbody.innerHTML = ''; if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="empty-state">내역이 없습니다.</td></tr>`; return; }
+  const today = new Date(); today.setHours(0,0,0,0);
+  data.forEach(row => {
+    let yy = '', mm = '', dd = ''; let isExpired = true; let isPaused = row.status === '활동 일시정지';
+    if (row.end_date && row.end_date.length === 10) { [yy, mm, dd] = row.end_date.split('-'); let endD = new Date(row.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; }
+    if (isExpired && !isPaused && row.status !== '패널티 정지') { yy = ''; mm = ''; dd = ''; } 
+    
+    let currentStat = row.status || '활동 중';
+    let statusBadge = "";
+    if (currentStat === '패널티 정지') statusBadge = `<span class="status-badge badge-red">패널티 정지</span>`; 
+    else if (isPaused) statusBadge = `<span class="status-badge badge-gray">일시정지</span>`;
+    else if (isExpired) statusBadge = `<span class="status-badge badge-ended" style="background:#fff0f0;color:var(--error);">활동 종료</span>`;
+    else statusBadge = `<span class="status-badge badge-active" style="background:#e8f5e9;color:var(--success);">${currentStat}</span>`;
+    
+    let yearOpts = '<option value="">년도</option>'; for(let i = 2024; i <= 2030; i++) yearOpts += `<option value="${i}" ${yy == i ? 'selected' : ''}>${i}년</option>`; let monthOpts = '<option value="">월</option>'; for(let i = 1; i <= 12; i++) { let val = String(i).padStart(2, '0'); monthOpts += `<option value="${val}" ${mm == val ? 'selected' : ''}>${i}월</option>`; } let dayOpts = '<option value="">일</option>'; for(let i = 1; i <= 31; i++) { let val = String(i).padStart(2, '0'); dayOpts += `<option value="${val}" ${dd == val ? 'selected' : ''}>${i}일</option>`; }
+    
+    let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch || '-'}] ${row.name || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${row.phone || '-'})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함"><strong style="cursor:pointer;" onclick="$('memberSearch').value='${row.name}'; window.searchMembers();">${row.name || '-'}</strong></td><td data-label="연락처">${row.phone || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${row.name}', '${row.phone}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${row.phone}', '${row.name}')">내역</button></div></div></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+document.addEventListener('change', function(e) {
+  if (e.target.classList.contains('date-sel') && !e.target.classList.contains('option-btn')) { const group = e.target.closest('.date-select-group'); const y = group.querySelector('.year').value, m = group.querySelector('.month').value, d = group.querySelector('.day').value; if (y && m && d) window.updateMemberEndDate(group.dataset.id, `${y}-${m}-${d}`).then(() => window.fetchMembers()); }
+});
+
+window.handleMemberOption = function(id, batch, name, phone, currentEndDate, selectEl) {
+  const opt = selectEl.value; const optText = selectEl.options[selectEl.selectedIndex].text; selectEl.value = ''; if(!opt) return;
+  
+  let confirmMsg = "";
+  let baseDateForUpdate = new Date(); baseDateForUpdate.setHours(0,0,0,0);
+  if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDateForUpdate) { baseDateForUpdate = endD; } }
+
+  if(opt === 'release') {
+      const m = globalMembers.find(x => x.id === id); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지';
+      confirmMsg = `<span style="color:var(--text-display);">상태를 </span><span style="color:var(--primary); font-weight:800;">[${newStat}]</span><span style="color:var(--text-display);"> 상태로 전환하시겠습니까?</span>`;
+  } else if (opt === 'pause') {
+      confirmMsg = `<span style="color:var(--text-display);">활동을 </span><span style="color:var(--primary); font-weight:800;">일시정지</span><span style="color:var(--text-display);">하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span></span>`;
+  } else if (opt === 'resume') {
+      confirmMsg = `<span style="color:var(--text-display);">활동을 </span><span style="color:var(--primary); font-weight:800;">재개</span><span style="color:var(--text-display);">하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(이전 정지 기간을 자동 계산하여 연장합니다.)</span></span>`;
+  } else {
+      let baseDate = new Date(); baseDate.setHours(0,0,0,0); let isActive = false;
+      if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDate) { isActive = true; } }
+      if (isActive) {
+          confirmMsg = `<span style="color:var(--text-display);">이어서 </span><span style="color:var(--primary); font-weight:800;">${optText}</span><span style="color:var(--text-display);">을(를) 적용하시겠습니까?</span>`;
+      } else {
+          confirmMsg = `<span style="color:var(--text-display);">오늘 날짜를 기준으로<br></span><span style="color:var(--primary); font-weight:800;">${optText}</span><span style="color:var(--text-display);">을(를) 새롭게 적용하시겠습니까?</span>`;
+      }
+  }
+
+  let statText = "";
+  if (opt === 'release' || opt === 'pause' || opt === 'resume') {
+       let cur = opt === 'resume' ? '일시정지' : (opt === 'release' ? '확인요망' : '활동 중');
+       statText = `<span style="color:var(--text-secondary);">현재 상태: </span><span style="color:var(--primary); font-weight:800;">${cur}</span>`;
+  } else {
+       if(currentEndDate && new Date(currentEndDate) >= new Date().setHours(0,0,0,0)) {
+           statText = `<span style="color:var(--text-secondary);">현재 활동 종료일: </span><span style="color:var(--primary); font-weight:800;">${currentEndDate}</span>`; 
+       } else {
+           statText = `<span style="color:var(--text-secondary);">현재 활동 종료 상태입니다.</span>`; 
+       }
+  }
+
+  pendingOptionData = { id, name, phone, opt, optText, baseDate: baseDateForUpdate, currentEndDate };
+  
+  window.openCustomConfirm(`[${batch || '미정'}] ${name} 님`, statText, confirmMsg, async () => {
+      if(opt === 'release') {
+          const m = globalMembers.find(x => x.id === id); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지';
+          m.status = newStat; window.searchMembers(); 
+          showToast(`상태가 [${newStat}](으)로 변경되었습니다.`); return; 
+      }
+      if(opt === 'pause') {
+          const m = globalMembers.find(x => x.id === id); m.status = '활동 일시정지'; window.searchMembers();
+          await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: '활동 일시정지 시작', amount: '-' }]);
+          showToast("활동이 일시정지되었습니다."); return;
+      }
+      if(opt === 'resume') {
+          const { data: hist } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).like('action_detail', '활동 일시정지 시작%').order('created_at', { ascending: false }).limit(1);
+          let extendDays = 0;
+          if (hist && hist.length > 0) {
+              let pauseDate = new Date(hist[0].created_at); pauseDate.setHours(0,0,0,0);
+              let todayDate = new Date(); todayDate.setHours(0,0,0,0);
+              extendDays = Math.floor((todayDate - pauseDate) / (1000 * 60 * 60 * 24));
+          }
+          if (extendDays < 0) extendDays = 0;
+          let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + extendDays);
+          let newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+
+          const m = globalMembers.find(x => x.id === id); m.status = '연장 활동 중'; m.end_date = newEndDate; window.searchMembers();
+          await supabaseClient.from('members').update({ end_date: newEndDate }).eq('id', id);
+          await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (정지일수: ${extendDays}일 자동 연장)`, amount: '-' }]);
+          showToast(`재개 완료. ${extendDays}일이 연장되었습니다.`); return;
+      }
+
+      let amountStr = '0원'; let targetStatus = '연장 활동 중';
+      if (opt === '1') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '220,000원'; } 
+      else if (opt === '3') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 3); amountStr = '550,000원'; } 
+      else if (opt === '6') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 6); amountStr = '1,100,000원'; } 
+      else if (opt === 'bonus') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '무료 제공'; } 
+      else if (opt === 'day') { baseDateForUpdate.setDate(baseDateForUpdate.getDate() + 1); amountStr = '별도 안내'; targetStatus = '단일권 이용'; }
+      
+      let yyyy = baseDateForUpdate.getFullYear(), mm = String(baseDateForUpdate.getMonth() + 1).padStart(2, '0'), dd = String(baseDateForUpdate.getDate()).padStart(2, '0'); 
+      const newDateStr = `${yyyy}-${mm}-${dd}`;
+      
+      const m = globalMembers.find(x => x.id === id); m.end_date = newDateStr; m.status = targetStatus; window.searchMembers(); 
+      await supabaseClient.from('members').update({ end_date: newDateStr }).eq('id', id); 
+      await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: optText, amount: amountStr }]); 
+      showToast("업데이트 되었습니다.");
+  });
+}
+
+window.updateMemberEndDate = async function(id, dateStr) {
+  const { error } = await supabaseClient.from('members').update({ end_date: dateStr }).eq('id', id);
+  if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다.");
+}
+
+window.deleteHistory = async function(id, phone, name, action_detail) {
+    window.openCustomConfirm("내역 삭제", null, `<span style="color:var(--text-display);">해당 내역을 완전히 삭제하시겠습니까?</span><br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
+        await supabaseClient.from('member_history').delete().eq('id', id);
+        
+        const m = globalMembers.find(x => x.phone === phone);
+        if (m && m.end_date) {
+            let d = new Date(m.end_date);
+            let isChanged = false;
+            
+            if (action_detail.includes('1개월 연장') || action_detail.includes('보너스 1개월')) { d.setMonth(d.getMonth() - 1); isChanged = true; }
+            else if (action_detail.includes('3개월 연장')) { d.setMonth(d.getMonth() - 3); isChanged = true; }
+            else if (action_detail.includes('6개월 연장')) { d.setMonth(d.getMonth() - 6); isChanged = true; }
+            else if (action_detail.includes('당일권 추가')) { d.setDate(d.getDate() - 1); isChanged = true; }
+            
+            if (isChanged) {
+                let newEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                m.end_date = newEndDate; 
+                await supabaseClient.from('members').update({ end_date: newEndDate }).eq('phone', phone);
+            }
+        }
+        
+        showToast("내역이 삭제되고 종료일이 복구되었습니다.");
+        window.searchMembers(); 
+        window.openHistoryModal(phone, name); 
+    });
+};
+
+window.openHistoryModal = async function(phone, name) {
+  $("historyModalTitle").innerText = `${name} 님의 내역`; const modal = $("historyModal"); modal.classList.add('show'); const body = $("historyModalBody"); body.innerHTML = '<div class="empty-state">내역을 불러오는 중입니다.</div>';
+  const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false });
+  if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state">결제/연장 내역이 없습니다.</div>'; return; }
+  
+  body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>';
+}
+window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
+
+// ==========================================
+// 11. 엑셀 다운로드 
+// ==========================================
+window.downloadExcel = function(type) {
+  if (type === 'applications' && isInsightView) {
+    const d = window.currentInsightData || {};
+    let csv = "\uFEFF항목,수치,비고\n";
+    csv += `총 신청 건수,${d.total||0}건,-\n`;
+    csv += `최종 가입 완료,${d.joined||0}건,(전환율 ${d.total > 0 ? Math.round(d.joined/d.total*100) : 0}%)\n`;
+    csv += `인스타그램 총 유입,${d.instaCount||0}건,-\n`;
+    csv += `모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`; link.click();
+    return;
+  }
+
+  let data = []; let headers = []; let filename = "";
+  if(type === 'applications') { data = globalApps; filename = "가입신청"; headers = ['신청일', '기수', '성함', '연락처', '관심분야', '유입경로', '진행상황', '가입여부', '상담일시', '담당자']; } else if(type === 'members') { data = globalMembers; filename = "멤버리스트"; headers = ['등록일', '상태', '기수', '성함', '연락처', '활동종료일']; } else if(type === 'reservations') { data = gRes; filename = "예약현황"; headers = ['접수일', '기수', '성함', '연락처', '예약날짜', '예약시간', '센터', '장비', '상태', '취소사유']; } else if(type === 'trainings') { data = gTrn; filename = "수업훈련"; headers = ['신청일', '기수', '성함', '연락처', '콘텐츠', '상태', '취소사유']; } else if(type === 'orders') { data = gOrd; filename = "생두주문"; headers = ['주문일', '주문번호', '기수', '성함', '연락처', '생두사', '상품명', '수량', '총금액', '상태']; }
+  if(data.length === 0) { showToast('다운로드할 데이터가 없습니다.'); return; }
+  
+  let csvContent = '\uFEFF' + headers.join(',') + '\n';
+  data.forEach(d => {
+    let row = [];
+    if(type === 'applications') row = [formatDt(d.created_at), d.desired_batch, d.name, d.phone, d.interest_area, d.acquisition_channel, d.status, d.join_status, d.call_time, d.counselor_name]; else if(type === 'members') row = [formatDt(d.created_at), d.status, d.batch, d.name, d.phone, d.end_date]; else if(type === 'reservations') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.res_date, d.res_time, d.center, d.space_equip, d.status, d.cancel_reason]; else if(type === 'trainings') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.content, d.status, d.cancel_reason]; else if(type === 'orders') row = [formatDt(d.created_at), d.id, d.batch, d.name, d.phone, d.vendor, d.item_name, d.quantity, d.total_price, d.status];
+    
+    csvContent += row.map(item => {
+        let text = String(item || '');
+        text = text.replace(/"/g, '""'); 
+        text = text.replace(/\n/g, ' '); 
+        return `"${text}"`;
+    }).join(',') + '\n';
+  });
+  
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); 
+  const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+}
