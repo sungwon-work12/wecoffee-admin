@@ -21,7 +21,7 @@ let currentInsightData = {};
 
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
-let quillEditor = null;
+let quillEditor = null; // 스마트 에디터 인스턴스
 
 // ==========================================
 // 2. 유틸리티 함수
@@ -192,7 +192,6 @@ window.fetchCenterData = async function() {
   } catch(e) { console.error("데이터 로드 에러:", e); }
 }
 
-// 🔥 미처리 데이터 연동 펄스 효과
 function updateSmartBadges() { 
   let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || (o.status||'').includes('대기')).length; 
   if(pendingOrders > 0) $("ordTabBtn").classList.add('tab-pulse'); else $("ordTabBtn").classList.remove('tab-pulse'); 
@@ -260,7 +259,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 생두명 가로 1열 배치 및 버튼 삭제. 원클릭 1줄 복사 호버 UX.
+// 🔥 생두명 1줄 고정 배치 + 원클릭 복사
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -275,14 +274,11 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
     
         let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`;
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
-        
-        // 생두사
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer; flex-shrink:0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        // 상품명 원클릭 복사
-        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사" style="flex:1; min-width:0; overflow:hidden;">
+        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사" style="flex:1; min-width:0;">
             <div style="display:flex; align-items:center; width:100%;">
-                <span class="copyable-text" style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cNm}</span>
+                <span class="copyable-text" style="font-size:14px; white-space:nowrap;">${cNm}</span>
                 <span class="copyable-hint">복사</span>
             </div>
         </div>`;
@@ -297,7 +293,7 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
             <td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td>
             <td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td>
             <td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
-            <td data-label="생두사 / 상품명" style="text-align:left; max-width: 340px;">
+            <td data-label="생두사 / 상품명" style="text-align:left; white-space:nowrap;">
                 <div style="display:flex; align-items:center; width:100%; gap:12px;">
                     ${vendorHtml}
                     <span style="color:var(--border-strong); font-size:12px;">|</span>
@@ -482,7 +478,7 @@ window.renderDashboard = async function() {
 
     if($("appDashContent")) $("appDashContent").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
     let td = new Date(); let todayStr = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;
-    window.renderMCalCenter(calEvts[todayStr] ? todayStr : Object.keys(calEvts).sort()[0]);
+    window.renderMCalApp(calEvts[todayStr] ? todayStr : Object.keys(calEvts).sort()[0]);
   }
 }
 
@@ -781,12 +777,21 @@ window.applyFilterApp = function() {
 const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 
+// 🔥 유입 경로 텍스트 클렌징 (불필요한 서술어 삭제)
 window.renderAppTable = function(data) {
   const tbody = $("appTableBody"); tbody.innerHTML = '';
   if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`; return; }
   data.forEach(row => {
     const interestFull = row.interest_detail ? `${row.interest_area} <div class="sub-text">(${row.interest_detail})</div>` : (row.interest_area || '-');
-    let routeDisplay = row.acquisition_channel || '-'; if (row.brand_awareness_duration && row.brand_awareness_duration !== '정보없음') routeDisplay += ` <div class="sub-text">(${row.brand_awareness_duration})</div>`; else if (row.acquisition_detail) routeDisplay += ` <div class="sub-text">(${row.acquisition_detail})</div>`;
+    
+    // 유입 경로 텍스트 정제 정규식
+    let rawAcq = row.acquisition_channel || '-';
+    let cleanAcq = rawAcq.replace(/(을|를)?\s*보고 왔어요/g, '').replace(/으로 왔어요/g, '').replace(/위커피\s*/g, '').trim();
+    if(cleanAcq === '인스타그램그램') cleanAcq = '인스타그램';
+    
+    let routeDisplay = cleanAcq; 
+    if (row.brand_awareness_duration && row.brand_awareness_duration !== '정보없음') routeDisplay += ` <div class="sub-text">(${row.brand_awareness_duration})</div>`; else if (row.acquisition_detail) routeDisplay += ` <div class="sub-text">(${row.acquisition_detail})</div>`;
+    
     const cStat = statusClassMap[row.status] || 'st-wait'; const cJoin = joinClassMap[row.join_status || ''] || 'jn-none'; const dis = row.status === '상담 완료' ? '' : 'disabled'; 
     
     let timeBadgeHtml = '';
