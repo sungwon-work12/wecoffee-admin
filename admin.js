@@ -368,7 +368,7 @@ window.renderNoticeData = function() {
 }
 
 // ==========================================
-// 7. 센터 캘린더 대시보드 렌더링
+// 7. 센터 캘린더 대시보드 렌더링 (에러 변수 제거)
 // ==========================================
 window.renderMCalCenter = function(selDate) {
     $$$("#dash-content .m-cal-date").forEach(el => el.classList.remove('active'));
@@ -438,7 +438,7 @@ window.renderDashboard = async function() {
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
       let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.start||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
-      mHtml += `<div class="dash-cal-cell ${isTd}"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
+      mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
     mHtml += `</div>`; 
     
@@ -726,7 +726,7 @@ window.renderAppDashboard = async function() {
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
       let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
-      mHtml += `<div class="dash-cal-cell ${isTd}"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
+      mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
     mHtml += `</div>`; 
     
