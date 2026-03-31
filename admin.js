@@ -117,7 +117,6 @@ function initAuthAndUI() {
   }
 }
 
-// 스크립트가 늦게 로드되더라도 무조건 실행되게 하는 방어 로직
 if (document.readyState === 'loading') {
   document.addEventListener("DOMContentLoaded", initAuthAndUI);
 } else {
@@ -368,7 +367,7 @@ window.renderNoticeData = function() {
 }
 
 // ==========================================
-// 7. 센터 캘린더 대시보드 렌더링 (에러 변수 제거)
+// 7. 센터 캘린더 대시보드 렌더링
 // ==========================================
 window.renderMCalCenter = function(selDate) {
     $$$("#dash-content .m-cal-date").forEach(el => el.classList.remove('active'));
