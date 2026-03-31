@@ -21,7 +21,7 @@ let currentInsightData = {};
 
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
-let quillEditor = null; // 스마트 에디터 인스턴스
+let quillEditor = null;
 
 // ==========================================
 // 2. 유틸리티 함수
@@ -192,20 +192,16 @@ window.fetchCenterData = async function() {
   } catch(e) { console.error("데이터 로드 에러:", e); }
 }
 
-// 🔥 글로우 펄스 애니메이션 적용 로직
+// 🔥 미처리 데이터 연동 펄스 효과
 function updateSmartBadges() { 
-  let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || o.status === '입금 대기' || o.status === '입금 확인').length; 
-  let tabOrd = $("ordTabBtn"); 
-  if(pendingOrders > 0 && tabOrd) tabOrd.classList.add('tab-pulse'); 
-  else if (tabOrd) tabOrd.classList.remove('tab-pulse'); 
+  let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || (o.status||'').includes('대기')).length; 
+  if(pendingOrders > 0) $("ordTabBtn").classList.add('tab-pulse'); else $("ordTabBtn").classList.remove('tab-pulse'); 
 
-  let pendingRes = gRes.filter(r => r.status === '예약완료').length;
-  let tabRes = $("resTabBtn");
-  if(pendingRes > 0 && tabRes) tabRes.classList.add('tab-pulse'); else if(tabRes) tabRes.classList.remove('tab-pulse');
+  let pendingRes = gRes.filter(r => (r.status||'') === '예약완료').length;
+  if(pendingRes > 0) $("resTabBtn").classList.add('tab-pulse'); else $("resTabBtn").classList.remove('tab-pulse');
   
-  let pendingTrn = gTrn.filter(t => t.status === '접수완료').length;
-  let tabTrn = $("trnTabBtn");
-  if(pendingTrn > 0 && tabTrn) tabTrn.classList.add('tab-pulse'); else if(tabTrn) tabTrn.classList.remove('tab-pulse');
+  let pendingTrn = gTrn.filter(t => (t.status||'') === '접수완료').length;
+  if(pendingTrn > 0) $("trnTabBtn").classList.add('tab-pulse'); else $("trnTabBtn").classList.remove('tab-pulse');
 }
 
 window.toggleAll = function(source, className) { $$$("." + className).forEach(chk => { if(!chk.disabled) chk.checked = source.checked; }); }
@@ -228,7 +224,6 @@ function updateDailyInOutBanner() {
   if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html;
 }
 
-// 🔥 금액 입력 시 실시간으로 파란색 뱃지 동기화
 window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   let formatted = val ? comma(val) + '원' : '';
   let updates = { total_price: formatted };
@@ -265,7 +260,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 생두 주문 테이블 렌더링 (버튼 제거 & 텍스트 1열 1줄 복사 UX)
+// 🔥 생두명 가로 1열 배치 및 버튼 삭제. 원클릭 1줄 복사 호버 UX.
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -280,12 +275,14 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
     
         let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`;
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
+        
+        // 생두사
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer; flex-shrink:0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        // 🔥 토스 스타일: 1줄 가로 배치 (flex-direction: row) & 클릭 복사
+        // 상품명 원클릭 복사
         let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사" style="flex:1; min-width:0; overflow:hidden;">
             <div style="display:flex; align-items:center; width:100%;">
-                <span class="copyable-text" style="font-size:14px;">${cNm}</span>
+                <span class="copyable-text" style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cNm}</span>
                 <span class="copyable-hint">복사</span>
             </div>
         </div>`;
@@ -300,9 +297,10 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
             <td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td>
             <td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td>
             <td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
-            <td data-label="생두사 / 상품명" style="text-align:left; max-width: 320px; overflow:hidden;">
-                <div style="display:flex; align-items:center; gap:8px; width:100%; overflow:hidden;">
+            <td data-label="생두사 / 상품명" style="text-align:left; max-width: 340px;">
+                <div style="display:flex; align-items:center; width:100%; gap:12px;">
                     ${vendorHtml}
+                    <span style="color:var(--border-strong); font-size:12px;">|</span>
                     ${copyableHtml}
                 </div>
             </td>
