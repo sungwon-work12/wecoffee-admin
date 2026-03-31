@@ -1,3 +1,9 @@
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+  document.write('<script src="https://cdn.jsdelivr.net/gh/sungwon-work12/wecoffee-admin@master/admin-script.js?v=' + new Date().getTime() + '"><\/script>');
+</script>
+
 // ==========================================
 // 1. 시스템 초기화 및 글로벌 변수 세팅
 // ==========================================
@@ -19,6 +25,7 @@ let appDashMonthOffset = 0;
 let currentSummaryData = []; 
 let currentInsightData = {}; 
 
+// 🔥 로스팅룸 -> 로스팅존 통일
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
 // ==========================================
@@ -111,6 +118,7 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
+  // 로스팅존 필터 텍스트 초기화 방어코드
   if($("dashSpaceFilter")) {
       $("dashSpaceFilter").innerHTML = `<option value="전체">전체 공간</option><option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
   }
@@ -188,6 +196,7 @@ window.fetchCenterData = async function() {
     ]);
     gRes = res.data||[]; gTrn = trn.data||[]; gOrd = ord.data||[]; gBlk = blk.data||[]; gNotice = noti.data||[];
     
+    // 🔥 로스팅룸을 로스팅존으로 파싱
     gRes.forEach(r => { if(r.space_equip) r.space_equip = r.space_equip.replace(/로스팅룸/g, '로스팅존'); });
     gBlk.forEach(b => { if(b.space_equip) b.space_equip = b.space_equip.replace(/로스팅룸/g, '로스팅존'); });
     gTrn.forEach(t => { if(t.content) t.content = t.content.replace(/로스팅룸/g, '로스팅존'); });
@@ -269,7 +278,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 파싱 로직 (UI 개선 적용 완료)
+  // 🔥 생두 주문 현황 UI 클렌징 (Toss Style)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -285,8 +294,8 @@ window.renderCenterData = function() {
     let m = rNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
     if(m) {
         cNm = m[1].trim(); 
-        let dStr = m[4] + "요일 발주";
-        dOptHtml = `<span style="font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:3px 6px; border-radius:4px; white-space:nowrap;">${dStr}</span>`;
+        let dStr = m[4]+"요일 발주";
+        dOptHtml = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; margin-top:6px; display:inline-block;">${dStr}</span>`;
     } else {
         let oM = rNm.match(/(.+) \[(.*?)\]/);
         if(oM) {
@@ -294,34 +303,35 @@ window.renderCenterData = function() {
             let optText = oM[2].trim();
             if(optText.includes('월')) optText = '월요일 발주';
             else if(optText.includes('목')) optText = '목요일 발주';
-            else dOptHtml = optText;
-            if(dOptHtml) dOptHtml = `<span style="font-size:12px; font-weight:700; color:var(--primary); background:var(--primary-light); padding:3px 6px; border-radius:4px; white-space:nowrap;">${dOptHtml}</span>`;
+            dOptHtml = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600; margin-top:6px; display:inline-block;">${optText}</span>`;
         }
     }
 
-    let centerBadge = `<span class="center-badge">${o.center||'미지정'}</span>`;
-    let cTxtPreview = o.center ? `<span class="center-badge" style="margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
+    let centerBadge = `<span style="background:var(--border); color:var(--text-secondary); padding:4px 8px; border-radius:6px; font-size:12px; font-weight:600;">${o.center||'미지정'}</span>`;
+    let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle;">${o.center}</span>` : '';
     
-    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}[${o.vendor}] ${cNm} ${dOptHtml}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
+    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
-    return `<tr>${mPreview}
+    return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
         <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
-        <td data-label="주문 일시" style="white-space: nowrap;">${formatDt(o.created_at)}</td>
+        <td data-label="주문일" style="white-space:nowrap; color:var(--text-secondary); font-size:13px;">${formatDt(o.created_at)}</td>
         <td data-label="수령 센터" class="tc">${centerBadge}</td>
-        <td data-label="기수" class="tc" style="font-weight:600; color:var(--text-secondary);">${o.batch||'-'}</td>
-        <td data-label="성함"><strong style="font-weight:800; color:var(--text-display);">${o.name}</strong></td>
-        <td data-label="연락처" style="white-space: nowrap;">${o.phone}</td>
-        <td data-label="생두 정보">
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; word-break:keep-all;">
-                <span style="color:var(--text-secondary); font-weight:800; flex-shrink:0;">[${o.vendor}]</span>
-                <span style="color:var(--text-display); font-weight:600;">${cNm}</span>
+        <td data-label="기수" class="tc"><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">${o.batch||'-'}</span></td>
+        <td data-label="성함"><strong style="font-weight:700; color:var(--text-display); font-size:14px;">${o.name}</strong></td>
+        <td data-label="연락처" style="white-space:nowrap; color:var(--text-secondary); font-size:13px;">${o.phone}</td>
+        <td data-label="생두사 / 상품명">
+            <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">
+                <div style="font-size:12px; color:var(--text-secondary); font-weight:600; margin-bottom:4px;">${o.vendor}</div>
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:4px;">
+                    <span class="item-name-clamp" style="color:var(--text-display); font-weight:700; font-size:15px; line-height:1.4;">${cNm}</span>
+                    <button type="button" class="btn-copy" style="background:transparent; color:var(--text-tertiary); border:none; padding:2px 4px; font-size:11px; cursor:pointer;" onmouseover="this.style.color='var(--text-display)';" onmouseout="this.style.color='var(--text-tertiary)';" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
+                </div>
                 ${dOptHtml}
-                <button type="button" class="btn-copy" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')">복사</button>
             </div>
         </td>
-        <td data-label="수량" class="tc" style="font-weight:800;">${o.quantity}</td>
-        <td data-label="금액"><input type="text" class="input-search" value="${o.total_price||''}" placeholder="예: 45,000" style="width:100%;padding:8px;text-align:right;font-size:13px;font-weight:600;box-sizing:border-box;" onblur="window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
-        <td data-label="상태 관리"><div class="action-wrap"><select class="status-select ${badgeClass}" style="width:100%; box-sizing:border-box;" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
+        <td data-label="수량" style="font-size:14px; font-weight:600; color:var(--text-display);">${o.quantity}</td>
+        <td data-label="금액"><input type="text" value="${o.total_price||''}" placeholder="예: 45,000" style="width:100%; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:var(--bg-page); border:none; border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.background='var(--border)';" onblur="this.style.background='var(--bg-page)'; window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
+        <td data-label="상태 관리"><div class="action-wrap"><select style="background-color:var(--bg-page); border:none; border-radius:8px; padding:10px 32px 10px 12px; font-size:13px; font-weight:600; color:var(--text-display); outline:none; cursor:pointer; appearance:none; background-image:url('data:image/svg+xml;utf8,<svg fill=%22%23777%22 height=%2216%22 viewBox=%220 0 24 24%22 width=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>'); background-repeat:no-repeat; background-position:right 10px center;" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
     </tr>` 
   }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
 
@@ -429,7 +439,7 @@ window.renderDashboard = async function() {
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
       let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.start||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
-      mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
+      mHtml += `<div class="dash-cal-cell ${isTd}"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
     mHtml += `</div>`; 
     
@@ -717,7 +727,7 @@ window.renderAppDashboard = async function() {
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
       let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
-      mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
+      mHtml += `<div class="dash-cal-cell ${isTd}"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
     mHtml += `</div>`; 
     
@@ -1045,123 +1055,59 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
           showToast("활동이 일시정지되었습니다."); return;
       }
       if(opt === 'resume') {
-          const { data: hist } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).like('action_detail', '활동 일시정지 시작%').order('created_at', {ascending: false}).limit(1);
-          let extendDays = 0;
-          if(hist && hist.length > 0) {
-              let pauseDate = new Date(hist[0].created_at); pauseDate.setHours(0,0,0,0);
-              let todayDate = new Date(); todayDate.setHours(0,0,0,0);
-              extendDays = Math.floor((todayDate - pauseDate) / (1000 * 60 * 60 * 24));
+          const { data: hist } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).like('action_detail', '활동 일시정지 시작%').order('created_at', { ascending: false }).limit(1);
+          if (hist && hist.length > 0) {
+              let pauseStart = new Date(hist[0].created_at); let now = new Date(); let diffTime = Math.abs(now - pauseStart); let diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              if (currentEndDate) {
+                  let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + diffDays);
+                  let newEndStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+                  await window.updateMemberEndDate(id, newEndStr);
+                  await supabaseClient.from('members').update({ status: '활동 중' }).eq('id', id);
+                  await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (+${diffDays}일 자동연장)`, amount: '-' }]);
+                  showToast(`활동 재개 및 ${diffDays}일 연장 처리되었습니다.`); window.fetchMembers(); return;
+              }
           }
-          if(extendDays < 0) extendDays = 0;
-          let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + extendDays);
-          let newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
-
-          const m = globalMembers.find(x => x.id === id); m.status = '연장 활동 중'; m.end_date = newEndDate; window.searchMembers();
-          await supabaseClient.from('members').update({ status: '연장 활동 중', end_date: newEndDate }).eq('id', id);
-          await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (정지일수: ${extendDays}일 자동 연장)`, amount: '-' }]);
-          showToast(`재개 완료. ${extendDays}일이 연장되었습니다.`); return;
+          await supabaseClient.from('members').update({ status: '활동 중' }).eq('id', id); showToast("활동이 재개되었습니다."); window.fetchMembers(); return;
       }
 
-      let amountStr = '0원'; let targetStatus = '연장 활동 중';
-      if (opt === '1') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '220,000원'; } 
-      else if (opt === '3') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 3); amountStr = '550,000원'; } 
-      else if (opt === '6') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 6); amountStr = '1,100,000원'; } 
-      else if (opt === 'bonus') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '무료 제공'; } 
-      else if (opt === 'day') { baseDateForUpdate.setDate(baseDateForUpdate.getDate() + 1); amountStr = '별도 안내'; targetStatus = '단일권 이용'; }
+      let newDate = new Date(pendingOptionData.baseDate.getTime());
+      if(opt === '1') newDate.setMonth(newDate.getMonth() + 1);
+      else if(opt === '3') newDate.setMonth(newDate.getMonth() + 3);
+      else if(opt === '6') newDate.setMonth(newDate.getMonth() + 6);
+      else if(opt === 'bonus') newDate.setMonth(newDate.getMonth() + 1);
+      else if(opt === 'day') newDate.setDate(newDate.getDate() + 1);
       
-      let yyyy = baseDateForUpdate.getFullYear(), mm = String(baseDateForUpdate.getMonth() + 1).padStart(2, '0'), dd = String(baseDateForUpdate.getDate()).padStart(2, '0'); 
-      const newDateStr = `${yyyy}-${mm}-${dd}`;
-      
-      const m = globalMembers.find(x => x.id === id); m.end_date = newDateStr; m.status = targetStatus; window.searchMembers(); 
-      await supabaseClient.from('members').update({ end_date: newDateStr, status: targetStatus }).eq('id', id); 
-      await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: optText, amount: amountStr }]); 
-      showToast("업데이트 되었습니다.");
+      let newDateStr = `${newDate.getFullYear()}-${String(newDate.getMonth()+1).padStart(2,'0')}-${String(newDate.getDate()).padStart(2,'0')}`;
+      await window.updateMemberEndDate(id, newDateStr);
+      let amountStr = opt === '1' ? '300,000원' : (opt === '3' ? '900,000원' : (opt === '6' ? '1,650,000원' : (opt === 'day' ? '50,000원' : '-')));
+      let actionStr = opt === 'bonus' ? '보너스 1개월 제공' : `${optText} 결제`;
+      await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: actionStr, amount: amountStr }]);
+      showToast(`${optText} 처리가 완료되었습니다.`);
+      window.fetchMembers();
   });
 }
 
-window.updateMemberEndDate = async function(id, newDate) { const { error } = await supabaseClient.from('members').update({ end_date: newDate }).eq('id', id); if (error) showToast("저장 실패"); else showToast("업데이트 되었습니다."); }
-
-window.deleteHistory = async function(id, phone, name, action_detail) {
-    window.openCustomConfirm("내역 삭제", null, `<span style="color:var(--text-display);">해당 내역을 완전히 삭제하시겠습니까?</span><br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
-        await supabaseClient.from('member_history').delete().eq('id', id);
-        
-        const m = globalMembers.find(x => x.phone === phone);
-        if (m && m.end_date) {
-            let d = new Date(m.end_date);
-            let isChanged = false;
-            
-            if (action_detail.includes('1개월 연장') || action_detail.includes('보너스 1개월')) { d.setMonth(d.getMonth() - 1); isChanged = true; }
-            else if (action_detail.includes('3개월 연장')) { d.setMonth(d.getMonth() - 3); isChanged = true; }
-            else if (action_detail.includes('6개월 연장')) { d.setMonth(d.getMonth() - 6); isChanged = true; }
-            else if (action_detail.includes('당일권 추가')) { d.setDate(d.getDate() - 1); isChanged = true; }
-            
-            if (isChanged) {
-                let newEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                m.end_date = newEndDate; 
-                await supabaseClient.from('members').update({ end_date: newEndDate }).eq('phone', phone);
-            }
-        }
-        
-        showToast("내역이 삭제되고 종료일이 복구되었습니다.");
-        window.searchMembers(); 
-        window.openHistoryModal(phone, name); 
-    });
-};
+window.updateMemberEndDate = async function(id, dateStr) {
+  const { error } = await supabaseClient.from('members').update({ end_date: dateStr, status: '활동 중' }).eq('id', id);
+  if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다.");
+}
 
 window.openHistoryModal = async function(phone, name) {
-  $("historyModalTitle").innerText = `${name} 님의 내역`; const modal = $("historyModal"); modal.classList.add('show'); const body = $("historyModalBody"); body.innerHTML = '<div class="empty-state">내역을 불러오는 중입니다.</div>';
+  $("historyModalTitle").innerText = `${name} 님의 내역`; $("historyModal").classList.add('show'); $("historyModalBody").innerHTML = `<div class="empty-state" style="padding: 40px 0;">내역을 불러오는 중입니다.</div>`;
   const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false });
-  if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state">결제/연장 내역이 없습니다.</div>'; return; }
-  body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>';
+  if(error || !data || data.length === 0) { $("historyModalBody").innerHTML = `<div class="empty-state" style="padding: 40px 0;">결제/연장 내역이 없습니다.</div>`; return; }
+  let html = `<div style="display:flex; flex-direction:column; gap:12px;">`;
+  data.forEach(d => {
+      let isPay = d.amount && d.amount !== '-';
+      html += `<div style="background:#f9fafb; border:1px solid var(--border-strong); border-radius:12px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+           <span style="font-size:13px; color:var(--text-secondary); font-weight:600;">${formatDt(d.created_at)}</span>
+           <span style="font-size:13px; font-weight:800; color:${isPay ? 'var(--primary)' : 'var(--text-secondary)'};">${d.amount}</span>
+        </div>
+        <div style="font-size:15px; font-weight:700; color:var(--text-display); word-break:keep-all;">${d.action_detail}</div>
+      </div>`;
+  });
+  html += `</div>`; $("historyModalBody").innerHTML = html;
 }
 window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
-
-// ==========================================
-// 11. 엑셀 다운로드 (주문번호 제거 매칭)
-// ==========================================
-window.downloadExcel = function(type) {
-  if (type === 'applications' && isInsightView) {
-    const d = window.currentInsightData || {};
-    let csv = "\uFEFF항목,수치,비고\n";
-    csv += `총 신청 건수,${d.total||0}건,-\n`;
-    csv += `최종 가입 완료,${d.joined||0}건,(전환율 ${d.total > 0 ? Math.round(d.joined/d.total*100) : 0}%)\n`;
-    csv += `인스타그램 총 유입,${d.instaCount||0}건,-\n`;
-    csv += `모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`; link.click();
-    return;
-  }
-
-  let data = []; let headers = []; let filename = "";
-  if(type === 'applications') { data = globalApps; filename = "가입신청"; headers = ['신청일', '기수', '성함', '연락처', '관심분야', '유입경로', '진행상황', '가입여부', '상담일시', '담당자']; } else if(type === 'members') { data = globalMembers; filename = "멤버리스트"; headers = ['등록일', '상태', '기수', '성함', '연락처', '활동종료일']; } else if(type === 'reservations') { data = gRes; filename = "예약현황"; headers = ['접수일', '기수', '성함', '연락처', '예약날짜', '예약시간', '센터', '장비', '상태', '취소사유']; } else if(type === 'trainings') { data = gTrn; filename = "수업훈련"; headers = ['신청일', '기수', '성함', '연락처', '콘텐츠', '상태', '취소사유']; } 
-  else if(type === 'orders') { data = gOrd; filename = "생두주문"; headers = ['주문일', '수령센터', '기수', '성함', '연락처', '생두사', '상품명', '희망수령일', '수량', '총금액', '상태']; }
-  
-  if(data.length === 0) { showToast('다운로드할 데이터가 없습니다.'); return; }
-  
-  let csvContent = '\uFEFF' + headers.join(',') + '\n';
-  data.forEach(d => {
-    let row = [];
-    if(type === 'applications') row = [formatDt(d.created_at), d.desired_batch, d.name, d.phone, d.interest_area, d.acquisition_channel, d.status, d.join_status, d.call_time, d.counselor_name]; else if(type === 'members') row = [formatDt(d.created_at), d.status, d.batch, d.name, d.phone, d.end_date]; else if(type === 'reservations') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.res_date, d.res_time, d.center, d.space_equip, d.status, d.cancel_reason]; else if(type === 'trainings') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.content, d.status, d.cancel_reason]; 
-    else if(type === 'orders') {
-        let rNm=d.item_name||"", cNm=rNm, dOpt="-";
-        let m = rNm.match(/(.+) \[(?:희망:\s*)?(.*?)\]/);
-        if(m) { 
-            cNm = m[1].trim(); 
-            let optText = m[2].trim();
-            if(optText.includes('월')) dOpt = '월요일 발주';
-            else if(optText.includes('목')) dOpt = '목요일 발주';
-            else dOpt = optText;
-        }
-        row = [formatDt(d.created_at), (d.center||'-'), d.batch, d.name, d.phone, d.vendor, cNm, dOpt, d.quantity, d.total_price, d.status];
-    }
-    
-    csvContent += row.map(item => {
-        let text = String(item || '');
-        text = text.replace(/"/g, '""'); 
-        text = text.replace(/\n/g, ' '); 
-        return `"${text}"`;
-    }).join(',') + '\n';
-  });
-  
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); 
-  const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
-}
+</script>
