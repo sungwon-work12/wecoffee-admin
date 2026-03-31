@@ -1,9 +1,3 @@
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<script>
-  document.write('<script src="https://cdn.jsdelivr.net/gh/sungwon-work12/wecoffee-admin@master/admin-script.js?v=' + new Date().getTime() + '"><\/script>');
-</script>
-
 // ==========================================
 // 1. 시스템 초기화 및 글로벌 변수 세팅
 // ==========================================
@@ -96,9 +90,9 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 };
 
 // ==========================================
-// 3. 인증 및 탭 전환 제어
+// 3. 인증 및 탭 전환 제어 (안전장치 추가)
 // ==========================================
-document.addEventListener("DOMContentLoaded", function() {
+function initAuthAndUI() {
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
       var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
@@ -118,11 +112,17 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   });
 
-  // 로스팅존 필터 텍스트 초기화 방어코드
   if($("dashSpaceFilter")) {
       $("dashSpaceFilter").innerHTML = `<option value="전체">전체 공간</option><option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
   }
-});
+}
+
+// 스크립트가 늦게 로드되더라도 무조건 실행되게 하는 방어 로직
+if (document.readyState === 'loading') {
+  document.addEventListener("DOMContentLoaded", initAuthAndUI);
+} else {
+  initAuthAndUI();
+}
 
 supabaseClient.channel('admin-realtime')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, handleRealtime)
@@ -196,7 +196,6 @@ window.fetchCenterData = async function() {
     ]);
     gRes = res.data||[]; gTrn = trn.data||[]; gOrd = ord.data||[]; gBlk = blk.data||[]; gNotice = noti.data||[];
     
-    // 🔥 로스팅룸을 로스팅존으로 파싱
     gRes.forEach(r => { if(r.space_equip) r.space_equip = r.space_equip.replace(/로스팅룸/g, '로스팅존'); });
     gBlk.forEach(b => { if(b.space_equip) b.space_equip = b.space_equip.replace(/로스팅룸/g, '로스팅존'); });
     gTrn.forEach(t => { if(t.content) t.content = t.content.replace(/로스팅룸/g, '로스팅존'); });
@@ -278,7 +277,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 UI 클렌징 (Toss Style)
+  // 🔥 생두 주문 현황 UI (Toss Style 적용됨)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -1110,4 +1109,3 @@ window.openHistoryModal = async function(phone, name) {
   html += `</div>`; $("historyModalBody").innerHTML = html;
 }
 window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
-</script>
