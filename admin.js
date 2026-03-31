@@ -192,7 +192,7 @@ window.fetchCenterData = async function() {
   } catch(e) { console.error("데이터 로드 에러:", e); }
 }
 
-// 🔥 각 서브탭에 미처리/신규 알림 펄스 애니메이션 적용 복원
+// 🔥 각 서브탭에 미처리/신규 알림 글로우 펄스 동기화 적용
 function updateSmartBadges() { 
   let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || o.status === '입금 대기' || o.status === '입금 확인').length; 
   let tabOrd = $("ordTabBtn"); 
@@ -228,7 +228,7 @@ function updateDailyInOutBanner() {
   if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html;
 }
 
-// 🔥 금액 입력 시 실시간으로 파란색 뱃지(입금 대기)로 동기화되는 로직 및 중앙 정렬 클래스 적용
+// 🔥 금액 입력 시 실시간 뱃지 동기화
 window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   let formatted = val ? comma(val) + '원' : '';
   let updates = { total_price: formatted };
@@ -265,7 +265,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 생두 주문 테이블 렌더링 함수 (클릭 복사 UI 및 정렬 동기화 적용)
+// 🔥 생두 주문 테이블 렌더링 함수 (원클릭 복사 호버 디자인 적용, 버튼 삭제, 텍스트 정렬)
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -282,10 +282,10 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:12px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        // 상품명 1줄 복사 UI
+        // 🔥 거추장스러운 복사 버튼을 없애고 텍스트 클릭 시 복사되도록 토스식 호버 UI 적용
         let copyableHtml = `<div class="copyable-wrap" style="width:100%;" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사">
-            <div style="display:flex; align-items:center;">
-                <span class="copyable-text" style="font-size:15px;">${cNm}</span>
+            <div style="display:flex; align-items:center; width:100%;">
+                <span class="copyable-text">${cNm}</span>
                 <span class="copyable-hint">복사</span>
             </div>
         </div>`;
@@ -300,7 +300,7 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
             <td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td>
             <td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td>
             <td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
-            <td data-label="생두사 / 상품명" style="text-align:left;">
+            <td data-label="생두사 / 상품명" style="text-align:left; width: 100%;">
                 <div style="display:flex; flex-direction:column; align-items:flex-start; width:100%;">
                     <div style="margin-bottom:4px;">${vendorHtml}</div>
                     ${copyableHtml}
@@ -378,7 +378,6 @@ window.renderCenterData = function() {
   }).join("") : `<tr><td colspan="7" class="empty-state">내역 없음</td></tr>`;
 }
 
-// 🔥 공지사항 렌더링
 window.renderNoticeData = function() {
   let fNoti = [...gNotice];
   fNoti.sort((a,b) => {
@@ -401,9 +400,6 @@ window.renderNoticeData = function() {
   }).join("") : `<tr><td colspan="5" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`;
 }
 
-// ==========================================
-// 7. 센터 캘린더 대시보드 렌더링
-// ==========================================
 window.renderMCalCenter = function(selDate) {
     $$$("#dash-content .m-cal-date").forEach(el => el.classList.remove('active'));
     let target = document.getElementById(`m-date-center-${selDate}`);
@@ -478,7 +474,7 @@ window.renderDashboard = async function() {
     
     window.centerCalEvts = calEvts;
     let mobStrip = `<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-center">`;
-    Object.keys(calEvts).sort().forEach(ds => { let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : ''; mobStrip += `<div class="m-cal-date" id="m-date-app-${ds}" onclick="window.renderMCalApp('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`; });
+    Object.keys(calEvts).sort().forEach(ds => { let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : ''; mobStrip += `<div class="m-cal-date" id="m-date-center-${ds}" onclick="window.renderMCalCenter('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`; });
     mobStrip += `</div><div id="m-cal-list-center" class="m-cal-list"></div></div>`;
 
     if($("appDashContent")) $("appDashContent").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
@@ -487,7 +483,6 @@ window.renderDashboard = async function() {
   }
 }
 
-// 🔥 발주 요약 모달 그룹화 (생두명에 붙던 요일 텍스트 강제 제거 적용)
 window.showOrderSummary = function() {
   let pending = gOrd.filter(o => o.status === '주문 접수');
   if(pending.length === 0) { showToast("현재 발주 대기 중인 내역이 없습니다."); return; }
@@ -597,7 +592,6 @@ window.deleteBlock = function(id) {
   });
 }
 
-// 🔥 스마트 에디터 인스턴스 초기화 함수
 function initQuill() {
     if(!quillEditor && $('editor-container')) {
         quillEditor = new Quill('#editor-container', {
@@ -610,12 +604,11 @@ function initQuill() {
                     ['clean']
                 ]
             },
-            placeholder: '내용을 자유롭게 적어주세요. (윈도우: Win + . / 맥: Cmd + Ctrl + Space 로 이모지 🎨 입력)'
+            placeholder: '내용을 자유롭게 적어주세요. (윈도우: Win + . / 맥: Cmd + Ctrl + Space 로 이모지 입력)'
         });
     }
 }
 
-// 🔥 스마트 에디터 사진/영상 업로드 처리 (본문에 직접 삽입)
 window.handleNoticeMediaUpload = async function(event) {
   const files = event.target.files;
   if (!files || files.length === 0) return;
@@ -688,7 +681,6 @@ window.deleteNotice = function(id) {
   });
 }
 
-// 🔥 [일괄 처리 로직] 체크박스 클래스 기반 처리 유지
 window.bulkAction = function(table, type) {
   let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); 
   if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
@@ -713,9 +705,6 @@ window.bulkActionOrd = function(statusValue) {
   });
 }
 
-// ==========================================
-// 9. 가입 상담 신청 관리 및 통계 대시보드
-// ==========================================
 window.renderMCalApp = function(selDate) {
     $$$("#appDashContent .m-cal-date").forEach(el => el.classList.remove('active'));
     let target = document.getElementById(`m-date-app-${selDate}`);
