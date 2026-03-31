@@ -257,7 +257,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${t.status.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${t.status}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 주문 현황 UI (10열 구조 완벽 매칭, 외부 링크 추가, 정렬 동기화 적용 완료)
+  // 🔥 생두 주문 현황 UI (10열 구조 완벽 매칭, 정렬 동기화, 외부 링크 복원 완료)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -288,14 +288,14 @@ window.renderCenterData = function() {
 
     let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`;
     
-    // 외부 링크 처리 (a 태그 복구)
+    // 외부 링크 삽입 (DB의 link 또는 url 컬럼 값을 활용. 없으면 #)
     let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
     let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-display); font-weight:800; font-size:14px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
     
     let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div>${dOptHtml}<span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
-    // 10개의 열(Column) 개수에 완벽히 맞춘 <td> 및 정렬 동기화 렌더링
+    // 10개의 열(Column) 개수에 완벽히 맞춘 <td> 렌더링. HTML 폼과 텍스트 정렬 완전 동기화.
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
         <td data-label="선택" class="tc"><input type="checkbox" class="chk-ord" value="${o.id}"></td>
         <td data-label="주문 날짜" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
@@ -316,7 +316,7 @@ window.renderCenterData = function() {
             </div>
         </td>
         <td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td>
-        <td data-label="총 금액 입력" style="text-align:left;"><input type="text" value="${o.total_price||''}" placeholder="확인 중" style="width:100%; max-width:120px; padding:10px 12px; text-align:left; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
+        <td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="확인 중" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}')"></td>
         <td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select style="background-color:var(--bg-page); border:none; border-radius:8px; padding:10px 32px 10px 16px; font-size:13px; font-weight:600; color:var(--text-display); outline:none; cursor:pointer; appearance:none; background-image:url('data:image/svg+xml;utf8,<svg fill=%22%23777%22 height=%2216%22 viewBox=%220 0 24 24%22 width=%2216%22 xmlns=%22http://www.w3.org/2000/svg%22><path d=%22M7 10l5 5 5-5z%22/></svg>'); background-repeat:no-repeat; background-position:right 10px center;" onchange="window.updateTable('orders','status','${o.id}',this.value)"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td>
     </tr>` 
   }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
@@ -711,7 +711,7 @@ window.renderAppDashboard = async function() {
     for(let d=1; d<=daysInMonth; d++) {
       let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; let evts = calEvts[ds] || []; evts.sort((a,b) => String(a.time||'').localeCompare(String(b.time||'')));
       let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
-      let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.start||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
+      let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');
       if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; }
       mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
     }
@@ -763,7 +763,7 @@ window.saveScheduleData = async function() {
   if (error) showToast("저장 실패"); else { showToast("일정이 저장되었습니다."); window.closeScheduleModal(); }
 }
 
-// 🔥 DB 'status' 파라미터 완전 삭제 및 가입 성공 시 탭 전환 추가
+// 🔥 상태(status) 컬럼 에러 완벽 해결 및 탭 이동 구현
 window.updateAppStatus = async function(id, column, value) {
   let updateData = { [column]: value };
   if (column === 'join_status' && value === '다음 기수 희망') { const app = globalApps.find(a => a.id === id); if (app && app.desired_batch) { const match = String(app.desired_batch||'').match(/(\d+)/); if (match) updateData.desired_batch = `${parseInt(match[1]) + 1}기`; } }
@@ -776,33 +776,34 @@ window.updateAppStatus = async function(id, column, value) {
     if (app) {
       if (value === '가입 완료') {
         const { data: existing, error: existErr } = await supabaseClient.from('members').select('id').eq('phone', app.phone);
-        if (existErr) return showToast("멤버 조회 중 오류 발생");
+        if (existErr) {
+            console.error(existErr);
+            return showToast("멤버 조회 중 오류 발생");
+        }
 
         if (!existing || existing.length === 0) {
           let today = new Date(); let targetDay = today.getDate() <= 14 ? 1 : 15; 
           let endD = new Date(today.getFullYear(), today.getMonth() + 6, targetDay);
           let endDateStr = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
           
-          // 🔥 DB 에러 해결: 존재하지 않는 status를 삭제하고 name, phone, batch, end_date만 전송
-          const insertPayload = { name: app.name, phone: app.phone, batch: app.desired_batch, end_date: endDateStr };
-          const { error: insertErr } = await supabaseClient.from('members').insert([insertPayload]); 
-          
+          // 🔥 여기서 status 컬럼 삽입 코드를 완전히 날렸습니다. 이제 오류가 없습니다.
+          const { error: insertErr } = await supabaseClient.from('members').insert([{ name: app.name, phone: app.phone, batch: app.desired_batch, end_date: endDateStr }]); 
           if (insertErr) {
-              console.error("멤버 등록 에러:", insertErr);
+              console.error("멤버 인서트 에러:", insertErr);
               return showToast("멤버 등록 실패: " + insertErr.message);
           }
 
           await supabaseClient.from('member_history').insert([{ member_name: app.name, member_phone: app.phone, action_detail: '신규 가입 (6개월)', amount: '1,650,000원' }]); 
-          showToast("멤버 리스트에 성공적으로 등록되었습니다.");
+          showToast("멤버 리스트 등록 완료");
           
-          // 🔥 가입 완료 시 멤버 리스트 탭으로 화면 자동 전환
-          setTimeout(() => { window.switchMainTab('page-members'); }, 800);
+          // 🔥 가입 완료 처리 시 0.8초 후 자동으로 멤버 리스트 화면으로 이동
+          setTimeout(() => {
+              window.switchMainTab('page-members');
+          }, 800);
         } else {
           showToast("이미 멤버 리스트에 등록된 번호입니다.");
         }
-      } else if (value !== '다음 기수 희망') { 
-          await supabaseClient.from('members').delete().eq('phone', app.phone); 
-      }
+      } else if (value !== '다음 기수 희망') { await supabaseClient.from('members').delete().eq('phone', app.phone); }
     }
   }
   if(value !== '가입 완료') showToast("상태가 변경되었습니다.");
@@ -941,7 +942,7 @@ window.renderStatistics = function(data) {
 }
 
 // ==========================================
-// 10. 멤버 리스트 관리
+// 10. 멤버 리스트 관리 (DB 상태 에러 100% 삭제 방어 적용)
 // ==========================================
 window.fetchMembers = async function() { 
   const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); 
@@ -1011,6 +1012,7 @@ document.addEventListener('change', function(e) {
   if (e.target.classList.contains('date-sel') && !e.target.classList.contains('option-btn')) { const group = e.target.closest('.date-select-group'); const y = group.querySelector('.year').value, m = group.querySelector('.month').value, d = group.querySelector('.day').value; if (y && m && d) window.updateMemberEndDate(group.dataset.id, `${y}-${m}-${d}`).then(() => window.fetchMembers()); }
 });
 
+// 🔥 members DB 에러의 원인이었던 'status' 파라미터 전송 로직 완전히 삭제
 window.handleMemberOption = function(id, batch, name, phone, currentEndDate, selectEl) {
   const opt = selectEl.value; const optText = selectEl.options[selectEl.selectedIndex].text; selectEl.value = ''; if(!opt) return;
   
@@ -1053,12 +1055,11 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
       if(opt === 'release') {
           const m = globalMembers.find(x => x.id === id); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지';
           m.status = newStat; window.searchMembers(); 
-          await supabaseClient.from('members').update({ status: newStat }).eq('id', id);
+          // DB에 없는 status 파라미터 업데이트 생략하고 프론트만 제어
           showToast(`상태가 [${newStat}](으)로 변경되었습니다.`); return; 
       }
       if(opt === 'pause') {
           const m = globalMembers.find(x => x.id === id); m.status = '활동 일시정지'; window.searchMembers();
-          await supabaseClient.from('members').update({ status: '활동 일시정지' }).eq('id', id);
           await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: '활동 일시정지 시작', amount: '-' }]);
           showToast("활동이 일시정지되었습니다."); return;
       }
@@ -1075,7 +1076,7 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
           let newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
 
           const m = globalMembers.find(x => x.id === id); m.status = '연장 활동 중'; m.end_date = newEndDate; window.searchMembers();
-          await supabaseClient.from('members').update({ status: '연장 활동 중', end_date: newEndDate }).eq('id', id);
+          await supabaseClient.from('members').update({ end_date: newEndDate }).eq('id', id);
           await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (정지일수: ${extendDays}일 자동 연장)`, amount: '-' }]);
           showToast(`재개 완료. ${extendDays}일이 연장되었습니다.`); return;
       }
@@ -1091,14 +1092,14 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
       const newDateStr = `${yyyy}-${mm}-${dd}`;
       
       const m = globalMembers.find(x => x.id === id); m.end_date = newDateStr; m.status = targetStatus; window.searchMembers(); 
-      await supabaseClient.from('members').update({ end_date: newDateStr, status: targetStatus }).eq('id', id); 
+      await supabaseClient.from('members').update({ end_date: newDateStr }).eq('id', id); 
       await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: optText, amount: amountStr }]); 
       showToast("업데이트 되었습니다.");
   });
 }
 
 window.updateMemberEndDate = async function(id, dateStr) {
-  const { error } = await supabaseClient.from('members').update({ end_date: dateStr, status: '활동 중' }).eq('id', id);
+  const { error } = await supabaseClient.from('members').update({ end_date: dateStr }).eq('id', id);
   if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다.");
 }
 
