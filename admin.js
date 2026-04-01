@@ -21,7 +21,7 @@ let currentInsightData = {};
 
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
-let quillEditor = null;
+let quillEditor = null; // 스마트 에디터 인스턴스
 
 // ==========================================
 // 2. 유틸리티 함수
@@ -79,7 +79,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 };
 
 // ==========================================
-// 3. 인증 및 로직 즉각 실행
+// 3. 인증 및 탭 전환 제어
 // ==========================================
 function initializeApp() {
   supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -135,7 +135,7 @@ window.switchMainTab = function(pageId, element) {
   if(pageId === 'page-members') window.fetchMembers();
 }
 
-// 🔥 공지사항 탭 이동 시 글로벌 센터 필터 숨김 로직 추가
+// 🔥 서브 탭 변경 시 '공지사항 관리'일 경우 글로벌 필터 숨김 로직
 window.switchSubTab = function(subId, element) {
   $$$(".sub-page").forEach(p => p.classList.remove('active')); $(subId).classList.add('active');
   $$$(".sub-item").forEach(item => item.classList.remove('active')); 
@@ -202,13 +202,17 @@ window.fetchCenterData = async function() {
 
 function updateSmartBadges() { 
   let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || (o.status||'').includes('대기')).length; 
-  if(pendingOrders > 0) $("ordTabBtn").classList.add('tab-pulse'); else $("ordTabBtn").classList.remove('tab-pulse'); 
+  let tabOrd = $("ordTabBtn"); 
+  if(pendingOrders > 0 && tabOrd) tabOrd.classList.add('tab-pulse'); 
+  else if (tabOrd) tabOrd.classList.remove('tab-pulse'); 
 
   let pendingRes = gRes.filter(r => (r.status||'') === '예약완료').length;
-  if(pendingRes > 0) $("resTabBtn").classList.add('tab-pulse'); else $("resTabBtn").classList.remove('tab-pulse');
+  let tabRes = $("resTabBtn");
+  if(pendingRes > 0 && tabRes) tabRes.classList.add('tab-pulse'); else if(tabRes) tabRes.classList.remove('tab-pulse');
   
   let pendingTrn = gTrn.filter(t => (t.status||'') === '접수완료').length;
-  if(pendingTrn > 0) $("trnTabBtn").classList.add('tab-pulse'); else $("trnTabBtn").classList.remove('tab-pulse');
+  let tabTrn = $("trnTabBtn");
+  if(pendingTrn > 0 && tabTrn) tabTrn.classList.add('tab-pulse'); else if(tabTrn) tabTrn.classList.remove('tab-pulse');
 }
 
 window.toggleAll = function(source, className) { $$$("." + className).forEach(chk => { if(!chk.disabled) chk.checked = source.checked; }); }
@@ -267,7 +271,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 방안 B: 말줄임 + 툴팁 호버 + 원클릭 복사
+// 🔥 생두명 말줄임 툴팁 UX + 버튼 완전 삭제
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -284,24 +288,26 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer; flex-shrink:0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        // 툴팁(data-full-text) 추가 및 복사 힌트 적용
-        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${cNm}">
-            <span class="copyable-text">${cNm}</span>
-            <span class="copyable-hint">복사</span>
+        // 🔥 툴팁 연동 (data-full-text 속성 추가)
+        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사" style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; width:100%; overflow:hidden;">
+                <span class="copyable-text">${cNm}</span>
+                <span class="copyable-hint">복사</span>
+            </div>
         </div>`;
 
         let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
         let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     
-        return `<tr>${mPreview}
+        return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
             <td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td>
             <td data-label="주문 날짜" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
             <td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td>
             <td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td>
             <td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td>
             <td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
-            <td data-label="생두사 / 상품명" style="text-align:left; max-width: 280px;">
-                <div style="display:flex; align-items:center; width:100%; gap:8px;">
+            <td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 320px; overflow:hidden;">
+                <div style="display:flex; align-items:center; width:100%; overflow:visible; gap:12px;">
                     ${vendorHtml}
                     <span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>
                     ${copyableHtml}
@@ -786,7 +792,7 @@ window.applyFilterApp = function() {
 const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 
-// 🔥 5번 요청사항: 유입 경로 서술어 정규식 클렌징 완벽 적용
+// 🔥 텍스트 클렌징 및 렌더링
 window.renderAppTable = function(data) {
   const tbody = $("appTableBody"); tbody.innerHTML = '';
   if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`; return; }
