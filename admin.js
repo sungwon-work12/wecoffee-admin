@@ -126,7 +126,7 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
-// 🔥 팝업 멘트 동적 변경 및 다이렉트 닫기 연동
+// 🔥 팝업 멘트 동적 변경 및 다이렉트 복사 처리 픽스
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btnText = '적용하기') {
     $("confirmTarget").innerHTML = title;
     if(statusHtml) { $("confirmStateBox").style.display = 'block'; $("confirmSimpleBox").style.display = 'none'; $("confirmStatus").innerHTML = statusHtml; $("confirmActionState").innerHTML = actionHtml; } 
@@ -137,7 +137,6 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btn
     $("confirmModal").classList.add('show');
 }
 window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); window.currentConfirmCallback = null; }
-
 $("confirmBtn").onclick = async function() { 
     if (window.currentConfirmCallback) {
         const isCopyAction = ($("confirmBtn").innerText === '복사하기');
@@ -148,7 +147,7 @@ $("confirmBtn").onclick = async function() {
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId) $(modalId).classList.remove('show'); }
 
 // ==========================================
-// 공지사항 함수 (에디터 렌더링 생명주기 픽스)
+// 공지사항 함수 (에디터 로드 100% 렌더링 보장 픽스 및 타입 안정성 강화)
 // ==========================================
 function initQuill() {
     if(!quillEditor && $('editor-container')) {
@@ -161,7 +160,7 @@ window.openNoticeModal = function() {
   $("noticeId").value = ''; $("noticeTitle").value = ''; $("noticePinned").checked = false; $("noticeStatus").value = '발행'; $("noticeModalTitle").innerText = "새 공지사항 등록"; 
 }
 window.editNotice = function(id) { 
-  let n = gNotice.find(x => x.id === id); if(!n) return; 
+  let n = gNotice.find(x => String(x.id) === String(id)); if(!n) return; 
   $("noticeModal").classList.add('show'); 
   setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = n.content || ''; } catch(e) { console.error("에디터 에러", e); } }, 50);
   $("noticeId").value = n.id; $("noticeTitle").value = n.title; $("noticePinned").checked = n.is_pinned; $("noticeStatus").value = n.status || '발행'; $("noticeModalTitle").innerText = "공지사항 수정"; 
@@ -170,6 +169,7 @@ window.closeNoticeModal = function() { $("noticeModal").classList.remove('show')
 window.saveNoticeData = async function() { let id = $("noticeId").value; let htmlContent = quillEditor ? quillEditor.root.innerHTML : ''; let payload = { title: $("noticeTitle").value.trim(), content: htmlContent, is_pinned: $("noticePinned").checked, status: $("noticeStatus").value }; if(!payload.title) return showToast("제목을 입력해주세요."); if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); let error; if(id) { const res = await supabaseClient.from('notices').update(payload).eq('id', id); error = res.error; } else { const res = await supabaseClient.from('notices').insert([payload]); error = res.error; } if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); } }
 window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
 window.handleNoticeMediaUpload = async function(event) { const files = event.target.files; if (!files || files.length === 0) return; const overlay = $("mediaUploadOverlay"); overlay.style.display = "flex"; try { if(!quillEditor) initQuill(); let range = quillEditor.getSelection(true); if(!range) range = { index: quillEditor.getLength() }; for (let i = 0; i < files.length; i++) { const file = files[i]; const fileExt = file.name.split('.').pop(); const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`; const { error: uploadError } = await supabaseClient.storage.from('notice_media').upload(fileName, file); if (uploadError) { showToast(`${file.name} 업로드 실패`); continue; } const { data: { publicUrl } } = supabaseClient.storage.from('notice_media').getPublicUrl(fileName); if (file.type.startsWith('image/')) { quillEditor.insertEmbed(range.index, 'image', publicUrl); } else if (file.type.startsWith('video/')) { quillEditor.insertEmbed(range.index, 'video', publicUrl); } range.index++; } showToast("미디어가 첨부되었습니다."); } catch (e) { showToast("업로드 중 오류 발생"); } finally { overlay.style.display = "none"; $("noticeMediaUpload").value = ''; } }
+
 
 // ==========================================
 // 5. 센터 관리 데이터 로드 및 UI 렌더링
@@ -225,7 +225,7 @@ function updateDailyInOutBanner() {
 window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   let formatted = val ? comma(val) + '원' : ''; let updates = { total_price: formatted }; let newStatus = currentStatus;
   if (val && currentStatus === '주문 접수') { updates.status = '입금 대기'; newStatus = '입금 대기'; }
-  let order = gOrd.find(o => o.id === id); if(order) { order.total_price = formatted; order.status = newStatus; }
+  let order = gOrd.find(o => String(o.id) === String(id)); if(order) { order.total_price = formatted; order.status = newStatus; }
   inputEl.value = formatted;
   if(newStatus !== currentStatus) {
       let row = inputEl.closest('tr'); let selectEl = row.querySelector('.status-select');
@@ -397,7 +397,7 @@ window.updateTable = async function(table, column, id, value, selectEl) {
     if(error) { showToast("저장 실패"); } else { 
         showToast("업데이트 되었습니다."); 
         if(table === 'orders' && column === 'status') {
-            let order = gOrd.find(o => o.id === id); if(order) order.status = value;
+            let order = gOrd.find(o => String(o.id) === String(id)); if(order) order.status = value;
             if(selectEl) {
                 let badgeClass = value==='주문 취소'?'st-ghosted':value==='센터 도착'?'st-completed':value==='입금 확인'?'st-confirmed':value==='입금 대기'?'st-arranging':'st-wait';
                 selectEl.className = 'status-select ' + badgeClass; let row = selectEl.closest('tr');
@@ -441,7 +441,6 @@ window.renderAppDailyBanner = function(data) {
   if($("appDailyBanner")) $("appDailyBanner").innerHTML = html;
 }
 
-// 🔥 CRM 실시간 동기화 탑재
 window.fetchApplications = async function() {
   try {
     const { data, error } = await supabaseClient.from('applications').select('*').order('created_at', { ascending: false });
@@ -450,7 +449,6 @@ window.fetchApplications = async function() {
     let optionsHTML = '<option value="all">전체 기수 보기</option>'; batches.forEach(b => optionsHTML += `<option value="${b}">${b}</option>`);
     $("batchFilterApp").innerHTML = optionsHTML; window.applyFilterApp(); 
     
-    // 실시간 모달 리렌더링
     if ($("crmModal").classList.contains('show') && $("crmAppId").value) {
         window.renderCrmInner($("crmAppId").value);
     }
@@ -467,7 +465,7 @@ window.applyFilterApp = function() {
 const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 
-// 🔥 유입 경로 핵심 키워드 파싱 함수
+// 🔥 유입 경로 파싱 로직
 function parseAcquisitionChannel(rawText) {
     if(!rawText) return '-';
     let txt = String(rawText).toLowerCase();
@@ -486,13 +484,11 @@ window.copySurveyLink = function(id, name, e) {
     copyTxt(url);
 };
 
-window.closeCrmModal = function() {
-    $("crmModal").classList.remove('show');
-};
+window.closeCrmModal = function() { $("crmModal").classList.remove('show'); };
 
-// 🔥 CRM 모달 렌더링 독립 (라이브 싱크용)
+// 🔥 CRM 팝업 및 실시간 동기화
 window.renderCrmInner = function(id) {
-    const app = globalApps.find(a => a.id === id); if(!app) return;
+    const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     $("crmName").innerText = app.name || '이름 없음';
     $("crmProfile").innerText = `[${app.desired_batch||'기수 미정'}] | ${app.phone||'-'} | ${app.acquisition_channel||'-'}`;
     $("crmTimeBadge").innerText = app.call_time && app.call_time !== 'null' ? app.call_time : '상담시간 미정';
@@ -566,13 +562,13 @@ window.saveScheduleData = async function() {
     if (error) { showToast("저장 실패"); } else { 
         showToast("상담 일정이 확정되었습니다."); window.closeScheduleModal(); window.fetchApplications(); 
         
-        const app = globalApps.find(a => a.id === currentScheduleAppId);
+        const app = globalApps.find(a => String(a.id) === String(currentScheduleAppId));
         setTimeout(() => {
             window.openCustomConfirm(
               "일정 확정 완료", 
               null, 
               `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, 
-              () => { window.copySurveyLink(currentScheduleAppId, app.name); window.closeConfirmModal(); }, 
+              () => { window.copySurveyLink(currentScheduleAppId, app.name); }, 
               "복사하기"
             );
         }, 300);
@@ -582,7 +578,7 @@ window.saveScheduleData = async function() {
 window.updateAppStatus = async function(id, column, value) {
     if (column === 'join_status' && value === '가입 완료') {
         window.openCustomConfirm("가입 완료 (멤버 전환)", null, `해당 고객을 멤버 리스트로 이관하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary);">오늘 기준으로 6개월 활동 종료일이 자동 세팅됩니다.</span>`, async () => {
-            const app = globalApps.find(a => a.id === id); if (!app) return;
+            const app = globalApps.find(a => String(a.id) === String(id)); if (!app) return;
             const d = new Date(); d.setMonth(d.getMonth() + 6);
             const endDateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
             const { error: insertErr } = await supabaseClient.from('members').insert([{ name: app.name, phone: app.phone, batch: app.desired_batch, status: '활동 중', end_date: endDateStr }]);
@@ -594,7 +590,7 @@ window.updateAppStatus = async function(id, column, value) {
     }
     
     if (column === 'join_status' && value === '다음 기수 희망') {
-        const app = globalApps.find(a => a.id === id); let nextBatch = app.desired_batch;
+        const app = globalApps.find(a => String(a.id) === String(id)); let nextBatch = app.desired_batch;
         if (nextBatch && nextBatch.includes('기')) { let num = parseInt(nextBatch.replace(/[^0-9]/g, '')); if (!isNaN(num)) { nextBatch = (num + 1) + '기'; } }
         window.openCustomConfirm("다음 기수 희망", null, `해당 고객의 희망 기수를 <b>[${nextBatch}]</b>로 자동 변경하시겠습니까?`, async () => {
             await supabaseClient.from('applications').update({ join_status: '다음 기수 희망', desired_batch: nextBatch }).eq('id', id);
@@ -751,7 +747,7 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
   if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDateForUpdate) { baseDateForUpdate = endD; } }
 
   if(opt === 'release') {
-      const m = globalMembers.find(x => x.id === id); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; confirmMsg = `상태를 <b>[${newStat}]</b> 상태로 전환하시겠습니까?`;
+      const m = globalMembers.find(x => String(x.id) === String(id)); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; confirmMsg = `상태를 <b>[${newStat}]</b> 상태로 전환하시겠습니까?`;
   } else if (opt === 'pause') {
       confirmMsg = `활동을 <b>일시정지</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span>`;
   } else if (opt === 'resume') {
@@ -768,19 +764,19 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
   pendingOptionData = { id, name, phone, opt, optText, baseDate: baseDateForUpdate, currentEndDate };
   
   window.openCustomConfirm(`[${batch || '미정'}] ${name} 님`, statText, confirmMsg, async () => {
-      if(opt === 'release') { const m = globalMembers.find(x => x.id === id); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; m.status = newStat; window.searchMembers(); showToast(`상태가 [${newStat}](으)로 변경되었습니다.`); return; }
-      if(opt === 'pause') { const m = globalMembers.find(x => x.id === id); m.status = '활동 일시정지'; window.searchMembers(); await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: '활동 일시정지 시작', amount: '-' }]); showToast("활동이 일시정지되었습니다."); return; }
+      if(opt === 'release') { const m = globalMembers.find(x => String(x.id) === String(id)); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; m.status = newStat; window.searchMembers(); showToast(`상태가 [${newStat}](으)로 변경되었습니다.`); return; }
+      if(opt === 'pause') { const m = globalMembers.find(x => String(x.id) === String(id)); m.status = '활동 일시정지'; window.searchMembers(); await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: '활동 일시정지 시작', amount: '-' }]); showToast("활동이 일시정지되었습니다."); return; }
       if(opt === 'resume') {
           const { data: hist } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).like('action_detail', '활동 일시정지 시작%').order('created_at', { ascending: false }).limit(1);
           let extendDays = 0; if (hist && hist.length > 0) { let pauseDate = new Date(hist[0].created_at); pauseDate.setHours(0,0,0,0); let todayDate = new Date(); todayDate.setHours(0,0,0,0); extendDays = Math.floor((todayDate - pauseDate) / (1000 * 60 * 60 * 24)); }
           if (extendDays < 0) extendDays = 0; let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + extendDays); let newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
-          const m = globalMembers.find(x => x.id === id); m.status = '연장 활동 중'; m.end_date = newEndDate; window.searchMembers(); await supabaseClient.from('members').update({ end_date: newEndDate }).eq('id', id); await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (정지일수: ${extendDays}일 자동 연장)`, amount: '-' }]); showToast(`재개 완료. ${extendDays}일이 연장되었습니다.`); return;
+          const m = globalMembers.find(x => String(x.id) === String(id)); m.status = '연장 활동 중'; m.end_date = newEndDate; window.searchMembers(); await supabaseClient.from('members').update({ end_date: newEndDate }).eq('id', id); await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (정지일수: ${extendDays}일 자동 연장)`, amount: '-' }]); showToast(`재개 완료. ${extendDays}일이 연장되었습니다.`); return;
       }
 
       let amountStr = '0원'; let targetStatus = '연장 활동 중';
       if (opt === '1') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '220,000원'; } else if (opt === '3') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 3); amountStr = '550,000원'; } else if (opt === '6') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 6); amountStr = '1,100,000원'; } else if (opt === 'bonus') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '무료 제공'; } else if (opt === 'day') { baseDateForUpdate.setDate(baseDateForUpdate.getDate() + 1); amountStr = '별도 안내'; targetStatus = '단일권 이용'; }
       let yyyy = baseDateForUpdate.getFullYear(), mm = String(baseDateForUpdate.getMonth() + 1).padStart(2, '0'), dd = String(baseDateForUpdate.getDate()).padStart(2, '0'); const newDateStr = `${yyyy}-${mm}-${dd}`;
-      const m = globalMembers.find(x => x.id === id); m.end_date = newDateStr; m.status = targetStatus; window.searchMembers(); await supabaseClient.from('members').update({ end_date: newDateStr }).eq('id', id); await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: optText, amount: amountStr }]); showToast("업데이트 되었습니다.");
+      const m = globalMembers.find(x => String(x.id) === String(id)); m.end_date = newDateStr; m.status = targetStatus; window.searchMembers(); await supabaseClient.from('members').update({ end_date: newDateStr }).eq('id', id); await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: optText, amount: amountStr }]); showToast("업데이트 되었습니다.");
   });
 }
 
@@ -792,7 +788,7 @@ window.updateMemberEndDate = async function(id, dateStr) {
 window.deleteHistory = async function(id, phone, name, action_detail) {
     window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
         await supabaseClient.from('member_history').delete().eq('id', id);
-        const m = globalMembers.find(x => x.phone === phone);
+        const m = globalMembers.find(x => String(x.phone) === String(phone));
         if (m && m.end_date) {
             let d = new Date(m.end_date); let isChanged = false;
             if (action_detail.includes('1개월 연장') || action_detail.includes('보너스 1개월')) { d.setMonth(d.getMonth() - 1); isChanged = true; } else if (action_detail.includes('3개월 연장')) { d.setMonth(d.getMonth() - 3); isChanged = true; } else if (action_detail.includes('6개월 연장')) { d.setMonth(d.getMonth() - 6); isChanged = true; } else if (action_detail.includes('당일권 추가')) { d.setDate(d.getDate() - 1); isChanged = true; }
