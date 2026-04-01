@@ -21,7 +21,7 @@ let currentInsightData = {};
 
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
-let quillEditor = null;
+let quillEditor = null; // 스마트 에디터 인스턴스
 
 // ==========================================
 // 2. 유틸리티 함수 (공공데이터포털 공휴일 API 연동 및 하드코딩 Fallback)
@@ -184,7 +184,7 @@ window.handleLogin = async function(e) { e.preventDefault(); const email = $("lo
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
 // ==========================================
-// 4. 공통 커스텀 모달 (🔥 UI 분리 로직 적용 완료)
+// 4. 공통 커스텀 모달 (🔥 UI 조건부 렌더링 - 텍스트 수정 포함)
 // ==========================================
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback) {
     $("confirmTarget").innerHTML = title;
@@ -302,6 +302,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
+// 🔥 생두명 80px 고정너비로 일직선 칼정렬 + min-width: 0 추가로 말줄임 안전장치 확보
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -316,10 +317,11 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
     
         let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`;
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
+        
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사" style="flex:1; min-width:0;">
-            <div style="display:flex; align-items:center; width:100%; overflow:hidden;">
+        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사">
+            <div style="display:flex; align-items:center; width:100%; min-width: 0;">
                 <span class="copyable-text">${cNm}</span>
                 <span class="copyable-hint">복사</span>
             </div>
@@ -336,7 +338,7 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
             <td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td>
             <td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
             <td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 320px; overflow:visible;">
-                <div style="display:flex; align-items:center; width:100%; overflow:visible; gap:12px;">
+                <div style="display:flex; align-items:center; width:100%; min-width: 0; gap:12px;">
                     <div style="width: 80px; flex-shrink: 0; text-align: left;">${vendorHtml}</div>
                     <span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>
                     ${copyableHtml}
@@ -480,7 +482,7 @@ window.renderDashboard = async function() {
   const focusDate = new Date(dYear, dMonth, 1); const yyyy = focusDate.getFullYear(); const mm = focusDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay() || 7; 
   if (currentDashView === 'month' && $("dashMonthTitle")) $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`;
 
-  // API 로드 대기
+  // API 로드 대기 후 달력 렌더링
   await window.fetchHolidays(yyyy);
 
   let fSpc = $("dashSpaceFilter").value; let fBtc = $("dashBatchFilter").value;
@@ -750,6 +752,7 @@ window.deleteNotice = function(id) {
   });
 }
 
+// 🔥 취소 함수 (단일/일괄 공통). 취소(정상) 처리 시 팝업 텍스트 변경
 window.bulkAction = function(table, type) {
   let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); 
   if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
@@ -760,7 +763,7 @@ window.bulkAction = function(table, type) {
 }
 
 window.cancelAction = function(table, id) {
-  window.openCustomConfirm("정상 취소 처리", null, `해당 예약을 정상 취소로 처리하시겠습니까?`, async () => {
+  window.openCustomConfirm("정상 취소 처리", null, `해당 내역을 정상 취소로 처리하시겠습니까?`, async () => {
     await supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', id); showToast("정상 취소로 처리되었습니다."); window.fetchCenterData();
   });
 }
