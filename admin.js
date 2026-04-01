@@ -21,7 +21,7 @@ let currentInsightData = {};
 
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
-let quillEditor = null; // 스마트 에디터 인스턴스
+let quillEditor = null;
 
 // ==========================================
 // 2. 유틸리티 함수
@@ -135,7 +135,7 @@ window.switchMainTab = function(pageId, element) {
   if(pageId === 'page-members') window.fetchMembers();
 }
 
-// 🔥 서브 탭 변경 시 '공지사항 관리'일 경우 글로벌 필터 숨김 로직
+// 🔥 4번 요청사항: 공지사항 탭 이동 시 글로벌 필터 숨김
 window.switchSubTab = function(subId, element) {
   $$$(".sub-page").forEach(p => p.classList.remove('active')); $(subId).classList.add('active');
   $$$(".sub-item").forEach(item => item.classList.remove('active')); 
@@ -202,17 +202,13 @@ window.fetchCenterData = async function() {
 
 function updateSmartBadges() { 
   let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || (o.status||'').includes('대기')).length; 
-  let tabOrd = $("ordTabBtn"); 
-  if(pendingOrders > 0 && tabOrd) tabOrd.classList.add('tab-pulse'); 
-  else if (tabOrd) tabOrd.classList.remove('tab-pulse'); 
+  if(pendingOrders > 0) $("ordTabBtn").classList.add('tab-pulse'); else $("ordTabBtn").classList.remove('tab-pulse'); 
 
   let pendingRes = gRes.filter(r => (r.status||'') === '예약완료').length;
-  let tabRes = $("resTabBtn");
-  if(pendingRes > 0 && tabRes) tabRes.classList.add('tab-pulse'); else if(tabRes) tabRes.classList.remove('tab-pulse');
+  if(pendingRes > 0) $("resTabBtn").classList.add('tab-pulse'); else $("resTabBtn").classList.remove('tab-pulse');
   
   let pendingTrn = gTrn.filter(t => (t.status||'') === '접수완료').length;
-  let tabTrn = $("trnTabBtn");
-  if(pendingTrn > 0 && tabTrn) tabTrn.classList.add('tab-pulse'); else if(tabTrn) tabTrn.classList.remove('tab-pulse');
+  if(pendingTrn > 0) $("trnTabBtn").classList.add('tab-pulse'); else $("trnTabBtn").classList.remove('tab-pulse');
 }
 
 window.toggleAll = function(source, className) { $$$("." + className).forEach(chk => { if(!chk.disabled) chk.checked = source.checked; }); }
@@ -271,7 +267,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 생두명 말줄임 툴팁 UX + 버튼 완전 삭제
+// 🔥 생두명 1열 고정, 툴팁 연동(data-full-text), 복사 버튼 삭제 완벽 복원
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -288,10 +284,9 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer; flex-shrink:0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        // 🔥 툴팁 연동 (data-full-text 속성 추가)
         let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사" style="flex:1; min-width:0;">
             <div style="display:flex; align-items:center; width:100%; overflow:hidden;">
-                <span class="copyable-text">${cNm}</span>
+                <span class="copyable-text" style="font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${cNm}</span>
                 <span class="copyable-hint">복사</span>
             </div>
         </div>`;
@@ -363,7 +358,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${displayStatus.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 필터링 - 센터 탭 연동 복구 완료
+  // 🔥 생두 데이터 글로벌 센터 필터링 로직 수정
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
@@ -792,14 +787,14 @@ window.applyFilterApp = function() {
 const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 
-// 🔥 텍스트 클렌징 및 렌더링
+// 🔥 5번 요청사항: 유입 경로 텍스트 군더더기 클렌징
 window.renderAppTable = function(data) {
   const tbody = $("appTableBody"); tbody.innerHTML = '';
   if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`; return; }
   data.forEach(row => {
     const interestFull = row.interest_detail ? `${row.interest_area} <div class="sub-text">(${row.interest_detail})</div>` : (row.interest_area || '-');
     
-    // DB의 문장형 텍스트를 핵심 키워드로 클렌징
+    // 서술어 자르고 핵심 키워드만 남김
     let rawAcq = row.acquisition_channel || '-';
     let cleanAcq = rawAcq.replace(/위커피\s*/g, '').replace(/(을|를)?\s*보고\s*왔어요/g, '').replace(/으로\s*왔어요/g, '').replace(/에서\s*왔어요/g, '').trim();
     if(cleanAcq === '인스타그램그램') cleanAcq = '인스타그램';
