@@ -81,6 +81,16 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 // ==========================================
 function initializeApp() {
   window.fetchHolidays(new Date().getFullYear());
+
+  // 🔥 플랫피커(Flatpickr) 세련된 달력/시간 모달 + 직접 타이핑 허용 설정
+  if (typeof flatpickr !== 'undefined') {
+    flatpickr("#schedInputDate", { locale: "ko", dateFormat: "Y-m-d", allowInput: true, onChange: function(s, ds) { window.updateSchedDow(ds); } });
+    flatpickr("#schedInputTime", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, allowInput: true });
+    flatpickr("#blkDate", { locale: "ko", dateFormat: "Y-m-d", allowInput: true, onChange: function(s, ds) { window.updateBlkDow(ds); } });
+    flatpickr("#blkStart", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, allowInput: true });
+    flatpickr("#blkEnd", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, allowInput: true });
+  }
+
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
       var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
@@ -132,16 +142,29 @@ window.handleLogin = async function(e) { e.preventDefault(); const email = $("lo
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
 // ==========================================
-// 4. 공통 커스텀 모달
+// 4. 공통 커스텀 모달 (버튼 문구 변경 지원)
 // ==========================================
-window.openCustomConfirm = function(title, statusHtml, actionHtml, callback) {
+window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btnText = '적용하기') {
     $("confirmTarget").innerHTML = title;
     if(statusHtml) { $("confirmStateBox").style.display = 'block'; $("confirmSimpleBox").style.display = 'none'; $("confirmStatus").innerHTML = statusHtml; $("confirmActionState").innerHTML = actionHtml; } 
     else { $("confirmStateBox").style.display = 'none'; $("confirmSimpleBox").style.display = 'block'; $("confirmActionSimple").innerHTML = actionHtml; }
-    window.currentConfirmCallback = callback; $("confirmModal").classList.add('show');
+    
+    $("confirmBtn").innerText = btnText;
+    window.currentConfirmCallback = callback; 
+    $("confirmModal").classList.add('show');
 }
 window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); window.currentConfirmCallback = null; }
-$("confirmBtn").onclick = async function() { if (window.currentConfirmCallback) await window.currentConfirmCallback(); window.closeConfirmModal(); };
+
+// 🔥 복사 기능이 보안에 막히지 않고 다이렉트로 뚫고 나가도록 픽스
+$("confirmBtn").onclick = async function() { 
+    if (window.currentConfirmCallback) {
+        // 복사하기 콜백일 경우 비동기 처리 없이 동기적으로 즉시 실행시킴
+        const isCopyAction = ($("confirmBtn").innerText === '복사하기');
+        if(isCopyAction) { window.currentConfirmCallback(); } 
+        else { await window.currentConfirmCallback(); }
+    }
+    window.closeConfirmModal(); 
+};
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId) $(modalId).classList.remove('show'); }
 
 // ==========================================
@@ -383,7 +406,7 @@ window.updateTable = async function(table, column, id, value, selectEl) {
     } 
 }
 
-// 🔥 달력 요일 자동 계산 함수 (스케줄 블록 및 상담 팝업 공통)
+// 🔥 달력 요일 자동 계산 (Flatpickr 연동 함수)
 window.updateBlkDow = function(val) {
     if(!val) { $("blkDowDisplay").innerText = ''; return; }
     const d = new Date(val); if(!isNaN(d)) { $("blkDowDisplay").innerText = '(' + ['일','월','화','수','목','금','토'][d.getDay()] + ')'; }
@@ -395,15 +418,23 @@ window.updateSchedDow = function(val) {
 
 window.openBlockModal = function() { 
     currentBlockId = null; $("blockModalTitle").innerText = "수업 및 훈련 등 등록"; $("blkId").value = ""; $("blkCategory").value = "기본 수업"; 
-    $("blkDate").value = ""; $("blkDowDisplay").innerText = ""; $("blkStart").value = ""; $("blkEnd").value = ""; 
-    $("blkCenter").value = "마포 센터"; $("blkSpace").value = ""; $("blkReason").value = ""; $("blkCapacity").value = ""; 
+    
+    if($("blkDate")._flatpickr) $("blkDate")._flatpickr.clear();
+    if($("blkStart")._flatpickr) $("blkStart")._flatpickr.clear();
+    if($("blkEnd")._flatpickr) $("blkEnd")._flatpickr.clear();
+
+    $("blkDowDisplay").innerText = ""; $("blkCenter").value = "마포 센터"; $("blkSpace").value = ""; $("blkReason").value = ""; $("blkCapacity").value = ""; 
     $("blockModal").classList.add('show'); 
 }
 window.editBlock = function(id) { 
     currentBlockId = id; const b = gBlk.find(x => x.id === id); if(!b) return; 
     $("blockModalTitle").innerText = "스케줄 내역 수정"; $("blkId").value = b.id; $("blkCategory").value = b.category; 
-    $("blkDate").value = b.block_date; window.updateBlkDow(b.block_date);
-    $("blkStart").value = b.start_time; $("blkEnd").value = b.end_time; 
+    
+    if($("blkDate")._flatpickr) $("blkDate")._flatpickr.setDate(b.block_date);
+    if($("blkStart")._flatpickr) $("blkStart")._flatpickr.setDate(b.start_time);
+    if($("blkEnd")._flatpickr) $("blkEnd")._flatpickr.setDate(b.end_time);
+    window.updateBlkDow(b.block_date);
+
     $("blkCenter").value = b.center; $("blkSpace").value = b.space_equip; $("blkReason").value = b.reason; $("blkCapacity").value = b.capacity || ""; 
     $("blockModal").classList.add('show'); 
 }
@@ -522,12 +553,12 @@ window.applyFilterApp = function() {
 const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 
+// 🔥 올바른 도메인이 세팅된 클립보드 복사 로직
 window.copySurveyLink = function(id, name, e) {
     if(e) e.stopPropagation();
-    const baseUrl = 'https://wecoffee.com/survey'; 
+    const baseUrl = 'https://www.wecoffee.co.kr/survey'; 
     const url = `${baseUrl}?uid=${id}&name=${encodeURIComponent(name)}`;
     copyTxt(url);
-    showToast("고객 전용 설문 링크가 복사되었습니다.\n(카톡/문자에 붙여넣기 하세요)");
 };
 
 window.openCrmModal = function(id) {
@@ -581,7 +612,10 @@ window.handleStatusChange = function(id, newStatus, callTime, counselorName) {
 
 window.openScheduleModal = function(id, time, name) {
     currentScheduleAppId = id;
-    $("schedInputDate").value = ""; $("schedDowDisplay").innerText = ""; $("schedInputTime").value = "";
+    if($("schedInputDate")._flatpickr) $("schedInputDate")._flatpickr.clear();
+    if($("schedInputTime")._flatpickr) $("schedInputTime")._flatpickr.clear();
+    
+    $("schedDowDisplay").innerText = ""; 
     $("schedInputName").value = (name && name !== 'null' && name !== 'undefined') ? name : '';
     $("scheduleModal").classList.add('show');
 };
@@ -601,11 +635,16 @@ window.saveScheduleData = async function() {
     const { error } = await supabaseClient.from('applications').update({ status: '상담 일정 확정', call_time: formattedCallTime, counselor_name: name }).eq('id', currentScheduleAppId);
     if (error) { showToast("저장 실패"); } else { 
         showToast("상담 일정이 확정되었습니다."); window.closeScheduleModal(); window.fetchApplications(); 
+        
         const app = globalApps.find(a => a.id === currentScheduleAppId);
         setTimeout(() => {
-            window.openCustomConfirm("일정 확정 완료", null, `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, () => {
-                window.copySurveyLink(currentScheduleAppId, app.name);
-            });
+            window.openCustomConfirm(
+              "일정 확정 완료", 
+              null, 
+              `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, 
+              () => { window.copySurveyLink(currentScheduleAppId, app.name); }, 
+              "복사하기"
+            );
         }, 500);
     }
 };
@@ -662,7 +701,8 @@ window.renderAppTable = function(data) {
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span><span class="status-badge ${cStat}" style="margin:0 !important;">${row.status}</span></div><div class="m-prev-title">[${row.desired_batch || '-'}] ${row.name || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${row.phone || '-'})</span></div><div class="m-prev-desc">${row.interest_area || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
     const tr = document.createElement('tr');
-    tr.innerHTML = `${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch || '-'}</td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${row.phone || '-'}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="상담 진행 상황"><div class="action-wrap"><select class="status-select ${cStat}" onchange="window.handleStatusChange('${row.id}', this.value, '${String(row.call_time || '')}', '${String(row.counselor_name || '')}')"><option value="대기" ${row.status === '대기' ? 'selected' : ''}>대기</option><option value="상담 일정 조율 중" ${row.status === '상담 일정 조율 중' ? 'selected' : ''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status === '상담 일정 확정' ? 'selected' : ''}>상담 일정 확정</option><option value="설문 완료" ${row.status === '설문 완료' ? 'selected' : ''}>설문 완료 (확정)</option><option value="상담 완료" ${row.status === '상담 완료' ? 'selected' : ''}>상담 완료</option><option value="연락 두절" ${row.status === '연락 두절' ? 'selected' : ''}>연락 두절</option></select>${timeBadgeHtml}</div></td><td data-label="가입 여부"><div class="action-wrap"><select class="status-select ${cJoin}" onchange="window.updateAppStatus('${row.id}', 'join_status', this.value)" ${dis}><option value="" ${!row.join_status ? 'selected' : ''}>선택 전</option><option value="고민 중" ${row.join_status === '고민 중' ? 'selected' : ''}>고민 중</option><option value="가입 완료" ${row.join_status === '가입 완료' ? 'selected' : ''}>가입 완료</option><option value="미가입" ${row.join_status === '미가입' ? 'selected' : ''}>미가입</option><option value="다음 기수 희망" ${row.join_status === '다음 기수 희망' ? 'selected' : ''}>다음 기수 희망</option></select></div></td>`;
+    // 🔥 레이아웃 붕괴 픽스 (flex-column 적용)
+    tr.innerHTML = `${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch || '-'}</td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${row.phone || '-'}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="상담 진행 상황"><div style="display:flex; flex-direction:column; gap:6px; align-items:flex-start;"><select class="status-select ${cStat}" onchange="window.handleStatusChange('${row.id}', this.value, '${String(row.call_time || '')}', '${String(row.counselor_name || '')}')"><option value="대기" ${row.status === '대기' ? 'selected' : ''}>대기</option><option value="상담 일정 조율 중" ${row.status === '상담 일정 조율 중' ? 'selected' : ''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status === '상담 일정 확정' ? 'selected' : ''}>상담 일정 확정</option><option value="설문 완료" ${row.status === '설문 완료' ? 'selected' : ''}>설문 완료 (확정)</option><option value="상담 완료" ${row.status === '상담 완료' ? 'selected' : ''}>상담 완료</option><option value="연락 두절" ${row.status === '연락 두절' ? 'selected' : ''}>연락 두절</option></select>${timeBadgeHtml}</div></td><td data-label="가입 여부"><div class="action-wrap"><select class="status-select ${cJoin}" onchange="window.updateAppStatus('${row.id}', 'join_status', this.value)" ${dis}><option value="" ${!row.join_status ? 'selected' : ''}>선택 전</option><option value="고민 중" ${row.join_status === '고민 중' ? 'selected' : ''}>고민 중</option><option value="가입 완료" ${row.join_status === '가입 완료' ? 'selected' : ''}>가입 완료</option><option value="미가입" ${row.join_status === '미가입' ? 'selected' : ''}>미가입</option><option value="다음 기수 희망" ${row.join_status === '다음 기수 희망' ? 'selected' : ''}>다음 기수 희망</option></select></div></td>`;
     tbody.appendChild(tr);
   });
 }
