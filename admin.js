@@ -32,7 +32,6 @@ window.formatSmartDate = function(el) {
     if(v.length === 4) el.value = `${y}-${v.slice(0,2)}-${v.slice(2,4)}`;
     else if(v.length === 6) el.value = `20${v.slice(0,2)}-${v.slice(2,4)}-${v.slice(4,6)}`;
     else if(v.length === 8) el.value = `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`;
-    if(el._flatpickr) el._flatpickr.setDate(el.value, true);
 };
 
 window.formatSmartTime = function(el) {
@@ -41,7 +40,6 @@ window.formatSmartTime = function(el) {
     if(t.length === 1 || t.length === 2) el.value = `${t.padStart(2,'0')}:00`;
     else if(t.length === 3) el.value = `0${t.slice(0,1)}:${t.slice(1,3)}`;
     else if(t.length === 4) el.value = `${t.slice(0,2)}:${t.slice(2,4)}`;
-    if(el._flatpickr) el._flatpickr.setDate(el.value, true);
 };
 
 window.updateBlkDow = function(val) {
@@ -70,9 +68,7 @@ window.getHoliday = function(y, m, d) {
   let key = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   if (window.holidaysCache[key]) return window.holidaysCache[key];
   const fallbackHolidays = {
-    '2024-01-01': '신정', '2024-02-09': '설날 연휴', '2024-02-10': '설날', '2024-02-11': '설날 연휴', '2024-02-12': '대체공휴일', '2024-03-01': '삼일절', '2024-04-10': '국회의원선거', '2024-05-05': '어린이날', '2024-05-06': '대체공휴일', '2024-05-15': '부처님오신날', '2024-06-06': '현충일', '2024-08-15': '광복절', '2024-09-16': '추석 연휴', '2024-09-17': '추석', '2024-09-18': '추석 연휴', '2024-10-03': '개천절', '2024-10-09': '한글날', '2024-12-25': '기독탄신일',
-    '2025-01-01': '신정', '2025-01-28': '설날 연휴', '2025-01-29': '설날', '2025-01-30': '설날 연휴', '2025-03-01': '삼일절', '2025-03-03': '대체공휴일', '2025-05-05': '어린이날', '2025-05-06': '대체공휴일', '2025-05-05': '부처님오신날', '2025-06-06': '현충일', '2025-08-15': '광복절', '2025-10-03': '개천절', '2025-10-05': '추석 연휴', '2025-10-06': '추석', '2025-10-07': '추석 연휴', '2025-10-08': '대체공휴일', '2025-10-09': '한글날', '2025-12-25': '기독탄신일',
-    '2026-01-01': '신정', '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴', '2026-03-01': '삼일절', '2026-03-02': '대체공휴일', '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일', '2026-06-03': '지방선거', '2026-06-06': '현충일', '2026-08-15': '광복절', '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴', '2026-10-03': '개천절', '2026-10-09': '한글날', '2026-12-25': '기독탄신일'
+    '2024-01-01': '신정', '2024-02-09': '설날 연휴', '2024-02-10': '설날', '2024-02-11': '설날 연휴', '2024-02-12': '대체공휴일', '2024-03-01': '삼일절', '2024-04-10': '국회의원선거', '2024-05-05': '어린이날', '2024-05-06': '대체공휴일', '2024-05-15': '부처님오신날', '2024-06-06': '현충일', '2024-08-15': '광복절', '2024-09-16': '추석 연휴', '2024-09-17': '추석', '2024-09-18': '추석 연휴', '2024-10-03': '개천절', '2024-10-09': '한글날', '2024-12-25': '기독탄신일'
   };
   return fallbackHolidays[key] || null;
 };
@@ -108,11 +104,6 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 // ==========================================
 function initializeApp() {
   window.fetchHolidays(new Date().getFullYear());
-  
-  if (typeof flatpickr !== 'undefined') {
-      flatpickr(".flatpickr-date", { locale: "ko", dateFormat: "Y-m-d", allowInput: true, onChange: function(s, ds, inst) { if(inst.element.id === 'schedInputDate') window.updateSchedDow(ds); else if(inst.element.id === 'blkDate') window.updateBlkDow(ds); } });
-      flatpickr(".flatpickr-time", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, allowInput: true });
-  }
 
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
@@ -183,7 +174,7 @@ $("confirmBtn").onclick = async function() {
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId) $(modalId).classList.remove('show'); }
 
 // ==========================================
-// 공지사항 함수 (에디터 로드 완벽 복구)
+// 공지사항 함수 (에디터 로드 100% 렌더링 보장 픽스)
 // ==========================================
 function initQuill() {
     if(!quillEditor && $('editor-container')) {
@@ -497,14 +488,152 @@ window.applyFilterApp = function() {
 const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 
+// 🔥 유입 경로 핵심 키워드 파싱 함수
+function parseAcquisitionChannel(rawText) {
+    if(!rawText) return '-';
+    let txt = String(rawText).toLowerCase();
+    if(txt.includes('광고') || txt.includes('스폰서드')) return '광고';
+    if(txt.includes('인스타')) return '인스타그램';
+    if(txt.includes('블로그')) return '네이버 블로그';
+    if(txt.includes('블랙워터')) return '블랙워터';
+    if(txt.includes('지인')) return '지인 추천';
+    return rawText.split('(')[0].trim(); // 기타 남은 텍스트는 앞부분만 깔끔하게 노출
+}
+
+// 🔥 클립보드 복사 함수 연동
+window.copySurveyLink = function(id, name, e) {
+    if(e) e.stopPropagation();
+    const baseUrl = 'https://www.wecoffee.co.kr/survey'; 
+    const url = `${baseUrl}?uid=${id}&name=${encodeURIComponent(name)}`;
+    copyTxt(url);
+};
+
+// 🔥 CRM 닫기 함수 연결
+window.closeCrmModal = function() {
+    $("crmModal").classList.remove('show');
+};
+
+// 🔥 타일형 다이렉트 상태 저장 함수
+window.saveCrmStatusDirect = function(selected) {
+    const id = $("crmAppId").value;
+    if(!id || !selected) return;
+    if(selected === '상담 완료' || selected === '연락 두절') {
+        window.updateAppStatus(id, 'status', selected);
+    } else {
+        window.updateAppStatus(id, 'join_status', selected);
+        window.updateAppStatus(id, 'status', '상담 완료');
+    }
+    window.closeCrmModal();
+}
+
+window.openCrmModal = function(id) {
+    const app = globalApps.find(a => a.id === id); if(!app) return;
+    $("crmAppId").value = app.id;
+    $("crmName").innerText = app.name || '이름 없음';
+    $("crmProfile").innerText = `[${app.desired_batch||'기수 미정'}] | ${app.phone||'-'} | ${app.acquisition_channel||'-'}`;
+    $("crmTimeBadge").innerText = app.call_time && app.call_time !== 'null' ? app.call_time : '상담시간 미정';
+
+    const job = app.survey_job; const edu = app.survey_edu; const goal = app.survey_goal; const brand = app.survey_brand;
+
+    if (job || edu) {
+        $("crmSurveyResult").innerHTML = `
+            <div class="crm-box"><div class="crm-label">1. 직업 상태</div><div class="crm-answer">${job || '<span class="crm-empty">미작성</span>'}</div></div>
+            <div class="crm-box"><div class="crm-label">2. 과거 교육 피드백</div><div class="crm-answer">${edu || '<span class="crm-empty">미작성</span>'}</div></div>
+            <div class="crm-box"><div class="crm-label">3. 달성 목표 (니즈)</div><div class="crm-answer">${goal || '<span class="crm-empty">미작성</span>'}</div></div>
+            <div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${brand || '<span class="crm-empty">미작성</span>'}</div></div>`;
+    } else {
+        $("crmSurveyResult").innerHTML = `
+            <div style="text-align:center; padding: 40px 20px; background:#fff; border-radius:12px; border:1px dashed var(--border-strong);">
+                <div style="font-size:16px; font-weight:700; color:var(--text-secondary); margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div>
+                <button class="btn-outline" style="color:var(--primary); border-color:var(--primary); padding:12px 24px; font-size:15px;" onclick="window.copySurveyLink('${app.id}', '${app.name || ''}', event)">🔗 고객 전용 설문 링크 복사하기</button>
+            </div>`;
+    }
+    $("crmModal").classList.add('show');
+}
+
+window.handleStatusChange = function(id, newStatus, callTime, counselorName) {
+    if (newStatus === '상담 일정 확정') {
+        window.openScheduleModal(id, callTime, counselorName);
+    } else {
+        window.updateAppStatus(id, 'status', newStatus);
+    }
+};
+
+// 🔥 상담 팝업 텍스트 폼 리셋 로직
+window.openScheduleModal = function(id, time, name) {
+    currentScheduleAppId = id;
+    $("schedInputDate").value = ""; $("schedDowDisplay").innerText = ""; $("schedInputTime").value = "";
+    $("schedInputName").value = (name && name !== 'null' && name !== 'undefined') ? name : '';
+    $("scheduleModal").classList.add('show');
+};
+
+window.closeScheduleModal = function() { $("scheduleModal").classList.remove('show'); currentScheduleAppId = null; };
+
+window.saveScheduleData = async function() {
+    if (!currentScheduleAppId) return;
+    
+    const dVal = $("schedInputDate").value; const tVal = $("schedInputTime").value; const name = $("schedInputName").value.trim();
+    if (!dVal || !tVal) { showToast("상담 날짜와 시간을 모두 입력해주세요."); return; }
+    
+    const dObj = new Date(dVal); const dow = ['일','월','화','수','목','금','토'][dObj.getDay()];
+    const mm = dObj.getMonth() + 1; const dd = dObj.getDate();
+    let [hh, min] = tVal.split(':'); let ampm = parseInt(hh) >= 12 ? '오후' : '오전'; let hh12 = parseInt(hh) % 12 || 12;
+    const formattedCallTime = `${mm}월 ${dd}일(${dow}) ${ampm} ${hh12}:${min}`;
+
+    const { error } = await supabaseClient.from('applications').update({ status: '상담 일정 확정', call_time: formattedCallTime, counselor_name: name }).eq('id', currentScheduleAppId);
+    if (error) { showToast("저장 실패"); } else { 
+        showToast("상담 일정이 확정되었습니다."); window.closeScheduleModal(); window.fetchApplications(); 
+        
+        // 🔥 일정 확정 후 바로 설문 링크 복사 팝업 연결
+        const app = globalApps.find(a => a.id === currentScheduleAppId);
+        setTimeout(() => {
+            window.openCustomConfirm(
+              "일정 확정 완료", 
+              null, 
+              `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, 
+              () => { window.copySurveyLink(currentScheduleAppId, app.name); }, 
+              "복사하기"
+            );
+        }, 500);
+    }
+};
+
+window.updateAppStatus = async function(id, column, value) {
+    if (column === 'join_status' && value === '가입 완료') {
+        window.openCustomConfirm("가입 완료 (멤버 전환)", null, `해당 고객을 멤버 리스트로 이관하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary);">오늘 기준으로 6개월 활동 종료일이 자동 세팅됩니다.</span>`, async () => {
+            const app = globalApps.find(a => a.id === id); if (!app) return;
+            const d = new Date(); d.setMonth(d.getMonth() + 6);
+            const endDateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const { error: insertErr } = await supabaseClient.from('members').insert([{ name: app.name, phone: app.phone, batch: app.desired_batch, status: '활동 중', end_date: endDateStr }]);
+            if(insertErr) { showToast("멤버 이관 실패"); return; }
+            await supabaseClient.from('applications').update({ join_status: '가입 완료' }).eq('id', id);
+            showToast("멤버 이관이 완료되었습니다."); window.fetchApplications(); window.fetchMembers();
+        });
+        return;
+    }
+    
+    if (column === 'join_status' && value === '다음 기수 희망') {
+        const app = globalApps.find(a => a.id === id); let nextBatch = app.desired_batch;
+        if (nextBatch && nextBatch.includes('기')) { let num = parseInt(nextBatch.replace(/[^0-9]/g, '')); if (!isNaN(num)) { nextBatch = (num + 1) + '기'; } }
+        window.openCustomConfirm("다음 기수 희망", null, `해당 고객의 희망 기수를 <b>[${nextBatch}]</b>로 자동 변경하시겠습니까?`, async () => {
+            await supabaseClient.from('applications').update({ join_status: '다음 기수 희망', desired_batch: nextBatch }).eq('id', id);
+            showToast("다음 기수로 이월되었습니다."); window.fetchApplications();
+        });
+        return;
+    }
+
+    const { error } = await supabaseClient.from('applications').update({ [column]: value }).eq('id', id);
+    if (error) showToast("업데이트 실패"); else { showToast("상태가 업데이트 되었습니다."); window.fetchApplications(); }
+};
+
 window.renderAppTable = function(data) {
   const tbody = $("appTableBody"); tbody.innerHTML = '';
   if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`; return; }
   data.forEach(row => {
     const interestFull = row.interest_detail ? `${row.interest_area} <div class="sub-text">(${row.interest_detail})</div>` : (row.interest_area || '-');
-    let rawAcq = row.acquisition_channel || '-'; let cleanAcq = rawAcq.replace(/위커피\s*/g, '').replace(/(을|를)?\s*보고\s*왔어요/g, '').replace(/으로\s*왔어요/g, '').replace(/에서\s*왔어요/g, '').trim();
-    if(cleanAcq === '인스타그램그램') cleanAcq = '인스타그램';
-    let routeDisplay = cleanAcq; 
+    
+    // 🔥 유입 경로 파싱 적용
+    let routeDisplay = parseAcquisitionChannel(row.acquisition_channel);
     if (row.brand_awareness_duration && row.brand_awareness_duration !== '정보없음') routeDisplay += ` <div class="sub-text">(${row.brand_awareness_duration})</div>`; else if (row.acquisition_detail) routeDisplay += ` <div class="sub-text">(${row.acquisition_detail})</div>`;
     
     const cStat = statusClassMap[row.status] || 'st-wait'; const cJoin = joinClassMap[row.join_status || ''] || 'jn-none'; const dis = row.status === '상담 완료' ? '' : 'disabled'; 
@@ -516,7 +645,6 @@ window.renderAppTable = function(data) {
       timeBadgeHtml = `<span class="edit-schedule-link" onclick="window.openScheduleModal('${row.id}', '${displayTime}', '${row.counselor_name}')">상담 일정 수정</span>`;
     }
 
-    // 🔥 설문 뱃지 밖으로 노출
     let hasSurvey = row.survey_job || row.survey_edu;
     let surveyBadge = hasSurvey ? `<span class="status-badge badge-orange" style="margin-right:8px; font-size:11px; padding:2px 6px;">설문완료</span>` : `<span class="status-badge badge-gray" style="margin-right:8px; font-size:11px; padding:2px 6px;">미응답</span>`;
     let nameHtml = `${surveyBadge}<strong style="cursor:pointer; color:var(--text-display); transition:0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-display)'" onclick="window.openCrmModal('${row.id}')">${row.name || '-'}</strong>`;
@@ -524,7 +652,6 @@ window.renderAppTable = function(data) {
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span><span class="status-badge ${cStat}" style="margin:0 !important;">${row.status}</span></div><div class="m-prev-title">[${row.desired_batch || '-'}] ${row.name || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${row.phone || '-'})</span></div><div class="m-prev-desc">${row.interest_area || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
     const tr = document.createElement('tr');
-    // 🔥 테이블 열 붕괴 차단 (.action-wrap 플렉스 컬럼)
     tr.innerHTML = `${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch || '-'}</td><td data-label="성함(설문여부)">${nameHtml}</td><td data-label="연락처">${row.phone || '-'}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="상담 진행 상황"><div class="action-wrap"><select class="status-select ${cStat}" onchange="window.handleStatusChange('${row.id}', this.value, '${String(row.call_time || '')}', '${String(row.counselor_name || '')}')"><option value="대기" ${row.status === '대기' ? 'selected' : ''}>대기</option><option value="상담 일정 조율 중" ${row.status === '상담 일정 조율 중' ? 'selected' : ''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status === '상담 일정 확정' ? 'selected' : ''}>상담 일정 확정</option><option value="설문 완료" ${row.status === '설문 완료' ? 'selected' : ''}>설문 완료 (확정)</option><option value="상담 완료" ${row.status === '상담 완료' ? 'selected' : ''}>상담 완료</option><option value="연락 두절" ${row.status === '연락 두절' ? 'selected' : ''}>연락 두절</option></select>${timeBadgeHtml}</div></td><td data-label="가입 여부"><div class="action-wrap"><select class="status-select ${cJoin}" onchange="window.updateAppStatus('${row.id}', 'join_status', this.value)" ${dis}><option value="" ${!row.join_status ? 'selected' : ''}>선택 전</option><option value="고민 중" ${row.join_status === '고민 중' ? 'selected' : ''}>고민 중</option><option value="가입 완료" ${row.join_status === '가입 완료' ? 'selected' : ''}>가입 완료</option><option value="미가입" ${row.join_status === '미가입' ? 'selected' : ''}>미가입</option><option value="다음 기수 희망" ${row.join_status === '다음 기수 희망' ? 'selected' : ''}>다음 기수 희망</option></select></div></td>`;
     tbody.appendChild(tr);
   });
