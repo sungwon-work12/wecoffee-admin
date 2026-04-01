@@ -126,7 +126,7 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
-// 🔥 팝업 멘트 동적 변경 및 다이렉트 복사 처리 픽스
+// 🔥 팝업 멘트 동적 변경 및 다이렉트 닫기 연동
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btnText = '적용하기') {
     $("confirmTarget").innerHTML = title;
     if(statusHtml) { $("confirmStateBox").style.display = 'block'; $("confirmSimpleBox").style.display = 'none'; $("confirmStatus").innerHTML = statusHtml; $("confirmActionState").innerHTML = actionHtml; } 
@@ -137,6 +137,7 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btn
     $("confirmModal").classList.add('show');
 }
 window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); window.currentConfirmCallback = null; }
+
 $("confirmBtn").onclick = async function() { 
     if (window.currentConfirmCallback) {
         const isCopyAction = ($("confirmBtn").innerText === '복사하기');
@@ -147,7 +148,7 @@ $("confirmBtn").onclick = async function() {
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId) $(modalId).classList.remove('show'); }
 
 // ==========================================
-// 공지사항 함수 (에디터 로드 100% 렌더링 보장 픽스 및 타입 안정성 강화)
+// 공지사항 함수 (에디터 렌더링 생명주기 픽스)
 // ==========================================
 function initQuill() {
     if(!quillEditor && $('editor-container')) {
@@ -160,6 +161,7 @@ window.openNoticeModal = function() {
   $("noticeId").value = ''; $("noticeTitle").value = ''; $("noticePinned").checked = false; $("noticeStatus").value = '발행'; $("noticeModalTitle").innerText = "새 공지사항 등록"; 
 }
 window.editNotice = function(id) { 
+  // 🔥 ID 타입 매칭 강제 픽스
   let n = gNotice.find(x => String(x.id) === String(id)); if(!n) return; 
   $("noticeModal").classList.add('show'); 
   setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = n.content || ''; } catch(e) { console.error("에디터 에러", e); } }, 50);
@@ -484,9 +486,11 @@ window.copySurveyLink = function(id, name, e) {
     copyTxt(url);
 };
 
-window.closeCrmModal = function() { $("crmModal").classList.remove('show'); };
+window.closeCrmModal = function() {
+    $("crmModal").classList.remove('show');
+};
 
-// 🔥 CRM 팝업 및 실시간 동기화
+// 🔥 CRM 모달 렌더링 독립 (라이브 싱크용)
 window.renderCrmInner = function(id) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     $("crmName").innerText = app.name || '이름 없음';
@@ -568,21 +572,37 @@ window.saveScheduleData = async function() {
               "일정 확정 완료", 
               null, 
               `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, 
-              () => { window.copySurveyLink(currentScheduleAppId, app.name); }, 
+              () => { window.copySurveyLink(currentScheduleAppId, app.name); window.closeConfirmModal(); }, 
               "복사하기"
             );
         }, 300);
     }
 };
 
+// 🔥 멤버 이관 실패 방지: DB 중복 스캔 로직(Upsert 분기처리) 추가
 window.updateAppStatus = async function(id, column, value) {
     if (column === 'join_status' && value === '가입 완료') {
         window.openCustomConfirm("가입 완료 (멤버 전환)", null, `해당 고객을 멤버 리스트로 이관하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary);">오늘 기준으로 6개월 활동 종료일이 자동 세팅됩니다.</span>`, async () => {
             const app = globalApps.find(a => String(a.id) === String(id)); if (!app) return;
             const d = new Date(); d.setMonth(d.getMonth() + 6);
             const endDateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-            const { error: insertErr } = await supabaseClient.from('members').insert([{ name: app.name, phone: app.phone, batch: app.desired_batch, status: '활동 중', end_date: endDateStr }]);
-            if(insertErr) { showToast("멤버 이관 실패"); return; }
+            
+            // DB에서 해당 연락처가 있는지 먼저 스캔
+            const { data: existingMember, error: checkErr } = await supabaseClient.from('members').select('*').eq('phone', app.phone).limit(1);
+            if (checkErr) { showToast("멤버 확인 중 오류 발생"); return; }
+            
+            let dbErr;
+            if (existingMember && existingMember.length > 0) {
+                // 존재하면 정보 덮어씌우기 (Update)
+                const { error: updateErr } = await supabaseClient.from('members').update({ status: '활동 중', end_date: endDateStr, batch: app.desired_batch, name: app.name }).eq('phone', app.phone);
+                dbErr = updateErr;
+            } else {
+                // 없으면 새로 넣기 (Insert)
+                const { error: insertErr } = await supabaseClient.from('members').insert([{ name: app.name, phone: app.phone, batch: app.desired_batch, status: '활동 중', end_date: endDateStr }]);
+                dbErr = insertErr;
+            }
+
+            if(dbErr) { showToast("멤버 이관 실패"); return; }
             await supabaseClient.from('applications').update({ join_status: '가입 완료' }).eq('id', id);
             showToast("멤버 이관이 완료되었습니다."); window.fetchApplications(); window.fetchMembers();
         });
@@ -824,3 +844,23 @@ window.downloadExcel = function(type) {
   });
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
+
+// 🔥 스케줄 관리 함수 재연결 (오류 방지)
+window.openBlockModal = function() { 
+  currentBlockId = null; $("blockModalTitle").innerText = "수업 및 훈련 등 등록"; $("blkId").value = ""; $("blkCategory").value = "기본 수업"; 
+  $("blkDate").value = ""; $("blkStart").value = ""; $("blkEnd").value = ""; $("blkCenter").value = "마포 센터"; $("blkSpace").value = ""; $("blkReason").value = ""; $("blkCapacity").value = ""; 
+  $("blockModal").classList.add('show'); 
+}
+window.editBlock = function(id) { 
+  currentBlockId = id; const b = gBlk.find(x => String(x.id) === String(id)); if(!b) return; 
+  $("blockModalTitle").innerText = "스케줄 내역 수정"; $("blkId").value = b.id; $("blkCategory").value = b.category; $("blkDate").value = b.block_date; $("blkStart").value = b.start_time; $("blkEnd").value = b.end_time; $("blkCenter").value = b.center; $("blkSpace").value = b.space_equip; $("blkReason").value = b.reason; $("blkCapacity").value = b.capacity || ""; 
+  $("blockModal").classList.add('show'); 
+}
+window.saveBlockData = async function() {
+  let dVal = $("blkDate").value; let stVal = $("blkStart").value; let enVal = $("blkEnd").value;
+  const payload = { category: $("blkCategory").value, block_date: dVal, start_time: stVal, end_time: enVal, center: $("blkCenter").value, space_equip: $("blkSpace").value.trim(), reason: $("blkReason").value.trim(), capacity: parseInt($("blkCapacity").value) || null };
+  if(!payload.block_date || !payload.start_time || !payload.end_time) { showToast("날짜와 시간을 정확히 입력해주세요."); return; }
+  let error; if(currentBlockId) { const res = await supabaseClient.from('blocks').update(payload).eq('id', currentBlockId); error = res.error; } else { const res = await supabaseClient.from('blocks').insert([payload]); error = res.error; }
+  if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeBlockModal(); window.fetchCenterData(); }
+}
+window.closeBlockModal = function() { $("blockModal").classList.remove('show'); currentBlockId = null; }
