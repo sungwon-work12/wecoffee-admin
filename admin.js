@@ -135,7 +135,7 @@ window.switchMainTab = function(pageId, element) {
   if(pageId === 'page-members') window.fetchMembers();
 }
 
-// 🔥 공지사항 탭 선택 시 글로벌 센터 필터 숨김 
+// 🔥 공지사항 탭 선택 시 글로벌 센터 필터 숨김 로직
 window.switchSubTab = function(subId, element) {
   $$$(".sub-page").forEach(p => p.classList.remove('active')); $(subId).classList.add('active');
   $$$(".sub-item").forEach(item => item.classList.remove('active')); 
@@ -267,7 +267,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 방안 B: 툴팁 텍스트 매핑 완벽 복구 및 [복사] 버튼 삭제로 UI 붕괴 해결
+// 🔥 생두명 1열 고정 + 다크 툴팁 텍스트 연동 매핑 복구
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -295,15 +295,15 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
         let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
         let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     
-        return `<tr>${mPreview}
+        return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
             <td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td>
             <td data-label="주문 날짜" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
             <td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td>
             <td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td>
             <td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td>
             <td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
-            <td data-label="생두사 / 상품명" style="text-align:left; max-width: 280px;">
-                <div style="display:flex; align-items:center; width:100%; gap:8px;">
+            <td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 320px; overflow:visible;">
+                <div style="display:flex; align-items:center; width:100%; overflow:visible; gap:12px;">
                     ${vendorHtml}
                     <span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>
                     ${copyableHtml}
@@ -359,7 +359,7 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${displayStatus.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
-  // 🔥 생두 데이터 글로벌 센터 필터링 로직 수정
+  // 🔥 생두 데이터 글로벌 센터 필터링 로직 수정 (마포/광진 토글 연동)
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
       let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
@@ -788,14 +788,13 @@ window.applyFilterApp = function() {
 const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 
-// 🔥 5번 요청사항: 유입 경로 텍스트 군더더기 클렌징
+// 🔥 텍스트 클렌징 정규식 로직 수정 완벽 반영
 window.renderAppTable = function(data) {
   const tbody = $("appTableBody"); tbody.innerHTML = '';
   if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`; return; }
   data.forEach(row => {
     const interestFull = row.interest_detail ? `${row.interest_area} <div class="sub-text">(${row.interest_detail})</div>` : (row.interest_area || '-');
     
-    // 서술어 자르고 핵심 키워드만 남김
     let rawAcq = row.acquisition_channel || '-';
     let cleanAcq = rawAcq.replace(/위커피\s*/g, '').replace(/(을|를)?\s*보고\s*왔어요/g, '').replace(/으로\s*왔어요/g, '').replace(/에서\s*왔어요/g, '').trim();
     if(cleanAcq === '인스타그램그램') cleanAcq = '인스타그램';
