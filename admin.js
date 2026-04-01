@@ -21,7 +21,7 @@ let currentInsightData = {};
 
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
-let quillEditor = null; // 스마트 에디터 인스턴스
+let quillEditor = null;
 
 // ==========================================
 // 2. 유틸리티 함수 (공공데이터포털 공휴일 API 연동 및 하드코딩 Fallback)
@@ -53,7 +53,6 @@ window.getHoliday = function(y, m, d) {
   let key = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   if (window.holidaysCache[key]) return window.holidaysCache[key];
   
-  // API 실패를 대비한 무적의 Fallback (2024~2030)
   const fallbackHolidays = {
     '2024-01-01': '신정', '2024-02-09': '설날 연휴', '2024-02-10': '설날', '2024-02-11': '설날 연휴', '2024-02-12': '대체공휴일', '2024-03-01': '삼일절', '2024-04-10': '국회의원선거', '2024-05-05': '어린이날', '2024-05-06': '대체공휴일', '2024-05-15': '부처님오신날', '2024-06-06': '현충일', '2024-08-15': '광복절', '2024-09-16': '추석 연휴', '2024-09-17': '추석', '2024-09-18': '추석 연휴', '2024-10-03': '개천절', '2024-10-09': '한글날', '2024-12-25': '기독탄신일',
     '2025-01-01': '신정', '2025-01-28': '설날 연휴', '2025-01-29': '설날', '2025-01-30': '설날 연휴', '2025-03-01': '삼일절', '2025-03-03': '대체공휴일', '2025-05-05': '어린이날', '2025-05-06': '대체공휴일', '2025-05-05': '부처님오신날', '2025-06-06': '현충일', '2025-08-15': '광복절', '2025-10-03': '개천절', '2025-10-05': '추석 연휴', '2025-10-06': '추석', '2025-10-07': '추석 연휴', '2025-10-08': '대체공휴일', '2025-10-09': '한글날', '2025-12-25': '기독탄신일',
@@ -83,7 +82,7 @@ function formatDtWithDow(dateStr) {
 
 function formatDt(dateStr) { if(!dateStr) return "-"; const d = new Date(dateStr); return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
-function copyTxt(txt) { let t = document.createElement("textarea"); t.value = txt; t.style.position = "fixed"; t.style.top = "-9999px"; document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); showToast("상품명이 복사되었습니다."); }
+function copyTxt(txt) { let t = document.createElement("textarea"); t.value = txt; t.style.position = "fixed"; t.style.top = "-9999px"; document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); showToast("복사되었습니다."); }
 function showToast(msg) { const toast = $("toast"); toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500); }
 
 window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
@@ -184,7 +183,7 @@ window.handleLogin = async function(e) { e.preventDefault(); const email = $("lo
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
 // ==========================================
-// 4. 공통 커스텀 모달 (🔥 UI 조건부 렌더링 - 텍스트 수정 포함)
+// 4. 공통 커스텀 모달
 // ==========================================
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback) {
     $("confirmTarget").innerHTML = title;
@@ -302,7 +301,6 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 생두명 80px 고정너비로 일직선 칼정렬 + min-width: 0 추가로 말줄임 안전장치 확보
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -406,7 +404,6 @@ window.renderCenterData = function() {
   let thuOrders = fOrd.filter(o => o.item_name && o.item_name.includes('목'));
   let monOrders = fOrd.filter(o => !(o.item_name && o.item_name.includes('목'))); 
   
-  // 🔥 주문 리셋 로직: 미처리건 보기 OFF 상태일 때 요일/시간에 따라 완료/취소건 자동 숨김 처리
   if (!isOrdFilter) {
       let isMonHidden = (o) => {
           if (o.status !== '주문 취소' && o.status !== '센터 도착') return false;
@@ -482,7 +479,6 @@ window.renderDashboard = async function() {
   const focusDate = new Date(dYear, dMonth, 1); const yyyy = focusDate.getFullYear(); const mm = focusDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay() || 7; 
   if (currentDashView === 'month' && $("dashMonthTitle")) $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`;
 
-  // API 로드 대기 후 달력 렌더링
   await window.fetchHolidays(yyyy);
 
   let fSpc = $("dashSpaceFilter").value; let fBtc = $("dashBatchFilter").value;
@@ -752,7 +748,6 @@ window.deleteNotice = function(id) {
   });
 }
 
-// 🔥 취소 함수 (단일/일괄 공통). 취소(정상) 처리 시 팝업 텍스트 변경
 window.bulkAction = function(table, type) {
   let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); 
   if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
@@ -763,7 +758,7 @@ window.bulkAction = function(table, type) {
 }
 
 window.cancelAction = function(table, id) {
-  window.openCustomConfirm("정상 취소 처리", null, `해당 내역을 정상 취소로 처리하시겠습니까?`, async () => {
+  window.openCustomConfirm("정상 취소 처리", null, `해당 예약을 정상 취소로 처리하시겠습니까?`, async () => {
     await supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', id); showToast("정상 취소로 처리되었습니다."); window.fetchCenterData();
   });
 }
@@ -845,8 +840,65 @@ window.applyFilterApp = function() {
   } catch(e) { console.error("필터 적용 중 에러:", e); }
 }
 
-const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted' };
+const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
+
+// 🔥 1. 매직 링크 복사 기능 추가
+window.copySurveyLink = function(id, name, e) {
+    if(e) e.stopPropagation();
+    // 👉 대표님의 웹플로우 서베이 페이지 실제 URL로 변경 필요
+    const baseUrl = 'https://wecoffee.com/survey'; 
+    const url = `${baseUrl}?uid=${id}&name=${encodeURIComponent(name)}`;
+    copyTxt(url);
+    showToast("고객 전용 설문 링크가 복사되었습니다.\n(카톡/문자에 붙여넣기 하세요)");
+};
+
+// 🔥 2. CRM 상담 카드 열기 기능 추가
+window.openCrmModal = function(id) {
+    const app = globalApps.find(a => a.id === id);
+    if(!app) return;
+    
+    $("crmAppId").value = app.id;
+    $("crmName").innerText = app.name || '이름 없음';
+    $("crmProfile").innerText = `[${app.desired_batch||'기수 미정'}] | ${app.phone||'-'} | ${app.acquisition_channel||'-'}`;
+    $("crmTimeBadge").innerText = app.call_time && app.call_time !== 'null' ? app.call_time : '상담시간 미정';
+
+    const job = app.survey_job || '<span class="crm-empty">미작성</span>';
+    const edu = app.survey_edu || '<span class="crm-empty">미작성</span>';
+    const goal = app.survey_goal || '<span class="crm-empty">미작성</span>';
+    const brand = app.survey_brand || '<span class="crm-empty">미작성</span>';
+
+    $("crmSurveyResult").innerHTML = `
+        <div class="crm-box"><div class="crm-label">1. 직업 상태</div><div class="crm-answer">${job}</div></div>
+        <div class="crm-box"><div class="crm-label">2. 과거 교육 피드백</div><div class="crm-answer">${edu}</div></div>
+        <div class="crm-box"><div class="crm-label">3. 달성 목표 (니즈)</div><div class="crm-answer">${goal}</div></div>
+        <div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${brand}</div></div>
+    `;
+
+    // 팝업 하단 셀렉트박스 초기화
+    let initialStatus = app.join_status || (app.status === '상담 완료' ? '상담 완료' : '');
+    if(!initialStatus || initialStatus === '대기') initialStatus = '상담 완료';
+    $("crmStatusSelect").value = initialStatus;
+
+    $("crmModal").classList.add('show');
+}
+
+// 🔥 3. CRM 상태 원스톱 업데이트
+window.saveCrmStatus = function() {
+    const id = $("crmAppId").value;
+    const selected = $("crmStatusSelect").value;
+    if(!id || !selected) return;
+
+    if(selected === '상담 완료' || selected === '연락 두절') {
+        window.handleStatusChange(id, selected, null, null);
+        $("crmModal").classList.remove('show');
+    } else {
+        // 가입 완료, 다음 기수 희망 등의 조인 상태 변경
+        window.updateAppStatus(id, 'join_status', selected);
+        window.handleStatusChange(id, '상담 완료', null, null); // 가입 처리 시 상태도 완료로 넘김
+        $("crmModal").classList.remove('show');
+    }
+}
 
 window.renderAppTable = function(data) {
   const tbody = $("appTableBody"); tbody.innerHTML = '';
@@ -864,15 +916,24 @@ window.renderAppTable = function(data) {
     const cStat = statusClassMap[row.status] || 'st-wait'; const cJoin = joinClassMap[row.join_status || ''] || 'jn-none'; const dis = row.status === '상담 완료' ? '' : 'disabled'; 
     
     let timeBadgeHtml = '';
-    if(row.status === '상담 일정 확정') {
+    let surveyBtnHtml = ''; // 설문 링크/카드 버튼
+
+    if(row.status === '상담 일정 확정' || row.status === '설문 완료') {
       let displayTime = (row.call_time && row.call_time !== 'null') ? row.call_time : '미정';
       timeBadgeHtml = `<span class="edit-schedule-link" onclick="window.openScheduleModal('${row.id}', '${displayTime}', '${row.counselor_name}')">상담 일정 수정</span>`;
+      
+      // 🔥 설문을 했으면 [상담 카드 열기], 안했으면 [설문 링크 복사]
+      if(row.survey_job || row.survey_edu) { 
+          surveyBtnHtml = `<button class="btn-primary btn-sm" style="margin-top:8px; width:100%; box-shadow:0 2px 6px rgba(255,121,0,0.2);" onclick="window.openCrmModal('${row.id}')">CRM 카드 열람</button>`;
+      } else {
+          surveyBtnHtml = `<button class="btn-outline btn-sm" style="margin-top:8px; width:100%; color:var(--primary); border-color:var(--primary);" onclick="window.copySurveyLink('${row.id}', '${row.name}', event)">설문 링크 복사</button>`;
+      }
     }
 
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span><span class="status-badge ${cStat}" style="margin:0 !important;">${row.status}</span></div><div class="m-prev-title">[${row.desired_batch || '-'}] ${row.name || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${row.phone || '-'})</span></div><div class="m-prev-desc">${row.interest_area || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
     const tr = document.createElement('tr');
-    tr.innerHTML = `${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch || '-'}</td><td data-label="성함"><strong>${row.name || '-'}</strong></td><td data-label="연락처">${row.phone || '-'}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="상담 진행 상황"><div class="action-wrap"><select class="status-select ${cStat}" onchange="window.handleStatusChange('${row.id}', this.value, '${String(row.call_time || '')}', '${String(row.counselor_name || '')}')"><option value="대기" ${row.status === '대기' ? 'selected' : ''}>대기</option><option value="상담 일정 조율 중" ${row.status === '상담 일정 조율 중' ? 'selected' : ''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status === '상담 일정 확정' ? 'selected' : ''}>상담 일정 확정</option><option value="상담 완료" ${row.status === '상담 완료' ? 'selected' : ''}>상담 완료</option><option value="연락 두절" ${row.status === '연락 두절' ? 'selected' : ''}>연락 두절</option></select>${timeBadgeHtml}</div></td><td data-label="가입 여부"><div class="action-wrap"><select class="status-select ${cJoin}" onchange="window.updateAppStatus('${row.id}', 'join_status', this.value)" ${dis}><option value="" ${!row.join_status ? 'selected' : ''}>선택 전</option><option value="고민 중" ${row.join_status === '고민 중' ? 'selected' : ''}>고민 중</option><option value="가입 완료" ${row.join_status === '가입 완료' ? 'selected' : ''}>가입 완료</option><option value="미가입" ${row.join_status === '미가입' ? 'selected' : ''}>미가입</option><option value="다음 기수 희망" ${row.join_status === '다음 기수 희망' ? 'selected' : ''}>다음 기수 희망</option></select></div></td>`;
+    tr.innerHTML = `${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch || '-'}</td><td data-label="성함"><strong>${row.name || '-'}</strong></td><td data-label="연락처">${row.phone || '-'}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="상담 진행 상황"><div class="action-wrap"><select class="status-select ${cStat}" onchange="window.handleStatusChange('${row.id}', this.value, '${String(row.call_time || '')}', '${String(row.counselor_name || '')}')"><option value="대기" ${row.status === '대기' ? 'selected' : ''}>대기</option><option value="상담 일정 조율 중" ${row.status === '상담 일정 조율 중' ? 'selected' : ''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status === '상담 일정 확정' ? 'selected' : ''}>상담 일정 확정</option><option value="설문 완료" ${row.status === '설문 완료' ? 'selected' : ''}>설문 완료 (확정)</option><option value="상담 완료" ${row.status === '상담 완료' ? 'selected' : ''}>상담 완료</option><option value="연락 두절" ${row.status === '연락 두절' ? 'selected' : ''}>연락 두절</option></select>${timeBadgeHtml}${surveyBtnHtml}</div></td><td data-label="가입 여부"><div class="action-wrap"><select class="status-select ${cJoin}" onchange="window.updateAppStatus('${row.id}', 'join_status', this.value)" ${dis}><option value="" ${!row.join_status ? 'selected' : ''}>선택 전</option><option value="고민 중" ${row.join_status === '고민 중' ? 'selected' : ''}>고민 중</option><option value="가입 완료" ${row.join_status === '가입 완료' ? 'selected' : ''}>가입 완료</option><option value="미가입" ${row.join_status === '미가입' ? 'selected' : ''}>미가입</option><option value="다음 기수 희망" ${row.join_status === '다음 기수 희망' ? 'selected' : ''}>다음 기수 희망</option></select></div></td>`;
     tbody.appendChild(tr);
   });
 }
@@ -885,7 +946,7 @@ window.renderStatistics = function(data) {
   if(data.length === 0) { $("insightSummaryText").innerHTML = "<div style='padding:16px;'>데이터가 부족합니다.</div>"; return; }
   
   const total = data.length; 
-  const counseled = data.filter(d => d.status === '상담 일정 확정' || d.status === '상담 완료').length;
+  const counseled = data.filter(d => d.status === '상담 일정 확정' || d.status === '설문 완료' || d.status === '상담 완료').length;
   const joined = data.filter(d => d.join_status === '가입 완료').length;
   const convRate = total > 0 ? Math.round((joined / total) * 100) : 0;
 
