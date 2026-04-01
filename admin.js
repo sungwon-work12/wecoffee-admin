@@ -21,10 +21,10 @@ let currentInsightData = {};
 
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
-let quillEditor = null; // 스마트 에디터 인스턴스
+let quillEditor = null;
 
 // ==========================================
-// 2. 유틸리티 함수 (공공데이터포털 공휴일 API 연동 추가)
+// 2. 유틸리티 함수 (공공데이터포털 공휴일 API 연동 및 하드코딩 Fallback)
 // ==========================================
 window.holidaysCache = {};
 window.fetchHolidays = async function(year) {
@@ -46,12 +46,24 @@ window.fetchHolidays = async function(year) {
       });
     }
     window.holidaysCache['fetched_' + year] = true; 
-  } catch(e) { console.error("Holiday API Error:", e); }
+  } catch(e) { console.error("Holiday API Error (Fallback to local data):", e); }
 };
 
 window.getHoliday = function(y, m, d) {
   let key = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-  return window.holidaysCache[key] || null;
+  if (window.holidaysCache[key]) return window.holidaysCache[key];
+  
+  // API 실패를 대비한 무적의 Fallback (2024~2030)
+  const fallbackHolidays = {
+    '2024-01-01': '신정', '2024-02-09': '설날 연휴', '2024-02-10': '설날', '2024-02-11': '설날 연휴', '2024-02-12': '대체공휴일', '2024-03-01': '삼일절', '2024-04-10': '국회의원선거', '2024-05-05': '어린이날', '2024-05-06': '대체공휴일', '2024-05-15': '부처님오신날', '2024-06-06': '현충일', '2024-08-15': '광복절', '2024-09-16': '추석 연휴', '2024-09-17': '추석', '2024-09-18': '추석 연휴', '2024-10-03': '개천절', '2024-10-09': '한글날', '2024-12-25': '기독탄신일',
+    '2025-01-01': '신정', '2025-01-28': '설날 연휴', '2025-01-29': '설날', '2025-01-30': '설날 연휴', '2025-03-01': '삼일절', '2025-03-03': '대체공휴일', '2025-05-05': '어린이날', '2025-05-06': '대체공휴일', '2025-05-05': '부처님오신날', '2025-06-06': '현충일', '2025-08-15': '광복절', '2025-10-03': '개천절', '2025-10-05': '추석 연휴', '2025-10-06': '추석', '2025-10-07': '추석 연휴', '2025-10-08': '대체공휴일', '2025-10-09': '한글날', '2025-12-25': '기독탄신일',
+    '2026-01-01': '신정', '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴', '2026-03-01': '삼일절', '2026-03-02': '대체공휴일', '2026-05-05': '어린이날', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일', '2026-06-03': '지방선거', '2026-06-06': '현충일', '2026-08-15': '광복절', '2026-09-24': '추석 연휴', '2026-09-25': '추석', '2026-09-26': '추석 연휴', '2026-10-03': '개천절', '2026-10-09': '한글날', '2026-12-25': '기독탄신일',
+    '2027-01-01': '신정', '2027-02-06': '설날 연휴', '2027-02-07': '설날', '2027-02-08': '설날 연휴', '2027-03-01': '삼일절', '2027-05-05': '어린이날', '2027-05-13': '부처님오신날', '2027-06-06': '현충일', '2027-08-15': '광복절', '2027-08-16': '대체공휴일', '2027-09-14': '추석 연휴', '2027-09-15': '추석', '2027-09-16': '추석 연휴', '2027-10-03': '개천절', '2027-10-09': '한글날', '2027-12-25': '기독탄신일',
+    '2028-01-01': '신정', '2028-01-26': '설날 연휴', '2028-01-27': '설날', '2028-01-28': '설날 연휴', '2028-03-01': '삼일절', '2028-05-02': '부처님오신날', '2028-05-05': '어린이날', '2028-06-06': '현충일', '2028-08-15': '광복절', '2028-10-02': '추석 연휴', '2028-10-03': '추석(개천절)', '2028-10-04': '추석 연휴', '2028-10-05': '대체공휴일', '2028-10-09': '한글날', '2028-12-25': '기독탄신일',
+    '2029-01-01': '신정', '2029-02-12': '설날 연휴', '2029-02-13': '설날', '2029-02-14': '설날 연휴', '2029-03-01': '삼일절', '2029-05-05': '어린이날', '2029-05-07': '대체공휴일', '2029-05-20': '부처님오신날', '2029-06-06': '현충일', '2029-08-15': '광복절', '2029-09-21': '추석 연휴', '2029-09-22': '추석', '2029-09-23': '추석 연휴', '2029-09-24': '대체공휴일', '2029-10-03': '개천절', '2029-10-09': '한글날', '2029-12-25': '기독탄신일',
+    '2030-01-01': '신정', '2030-02-02': '설날 연휴', '2030-02-03': '설날', '2030-02-04': '설날 연휴', '2030-03-01': '삼일절', '2030-05-05': '어린이날', '2030-05-06': '대체공휴일', '2030-05-09': '부처님오신날', '2030-06-06': '현충일', '2030-08-15': '광복절', '2030-09-11': '추석 연휴', '2030-09-12': '추석', '2030-09-13': '추석 연휴', '2030-10-03': '개천절', '2030-10-09': '한글날', '2030-12-25': '기독탄신일'
+  };
+  return fallbackHolidays[key] || null;
 };
 
 function getDow(dStr) {
@@ -98,7 +110,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 // 3. 인증 및 로직 즉각 실행
 // ==========================================
 function initializeApp() {
-  window.fetchHolidays(new Date().getFullYear()); // 초기 로딩 시 올해 공휴일 데이터 Pre-load
+  window.fetchHolidays(new Date().getFullYear());
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
       var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
@@ -172,13 +184,20 @@ window.handleLogin = async function(e) { e.preventDefault(); const email = $("lo
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
 // ==========================================
-// 4. 공통 커스텀 모달
+// 4. 공통 커스텀 모달 (🔥 UI 분리 로직 적용 완료)
 // ==========================================
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback) {
     $("confirmTarget").innerHTML = title;
-    const stEl = $("confirmStatus");
-    if(statusHtml) { stEl.style.display = 'block'; stEl.innerHTML = statusHtml; stEl.style.background = 'transparent'; stEl.style.padding = '0'; } else { stEl.style.display = 'none'; }
-    $("confirmAction").innerHTML = actionHtml;
+    if(statusHtml) {
+        $("confirmStateBox").style.display = 'block';
+        $("confirmSimpleBox").style.display = 'none';
+        $("confirmStatus").innerHTML = statusHtml;
+        $("confirmActionState").innerHTML = actionHtml;
+    } else {
+        $("confirmStateBox").style.display = 'none';
+        $("confirmSimpleBox").style.display = 'block';
+        $("confirmActionSimple").innerHTML = actionHtml;
+    }
     window.currentConfirmCallback = callback;
     $("confirmModal").classList.add('show');
 }
@@ -283,7 +302,6 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 80px 고정 너비 및 다크 툴팁 연동 완벽 복구
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -386,6 +404,28 @@ window.renderCenterData = function() {
   let thuOrders = fOrd.filter(o => o.item_name && o.item_name.includes('목'));
   let monOrders = fOrd.filter(o => !(o.item_name && o.item_name.includes('목'))); 
   
+  // 🔥 주문 리셋 로직: 미처리건 보기 OFF 상태일 때 요일/시간에 따라 완료/취소건 자동 숨김 처리
+  if (!isOrdFilter) {
+      let isMonHidden = (o) => {
+          if (o.status !== '주문 취소' && o.status !== '센터 도착') return false;
+          let oDate = new Date(o.created_at);
+          if ((now - oDate) / 86400000 >= 5) return true; // 5일 경과 안전장치
+          let dow = now.getDay();
+          if (dow === 2 || dow === 3 || dow === 4) return true; // 화, 수, 목요일이면 지난 월요일건 숨김
+          return false;
+      };
+      let isThuHidden = (o) => {
+          if (o.status !== '주문 취소' && o.status !== '센터 도착') return false;
+          let oDate = new Date(o.created_at);
+          if ((now - oDate) / 86400000 >= 5) return true;
+          let dow = now.getDay();
+          if (dow === 5 || dow === 6 || dow === 0) return true; // 금, 토, 일요일이면 지난 목요일건 숨김
+          return false;
+      };
+      monOrders = monOrders.filter(o => !isMonHidden(o));
+      thuOrders = thuOrders.filter(o => !isThuHidden(o));
+  }
+
   renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon');
   renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
 
@@ -438,9 +478,9 @@ window.renderMCalCenter = function(selDate) {
 window.renderDashboard = async function() {
   const now = new Date(); let dYear = now.getFullYear(); let dMonth = now.getMonth() + currentDashMonthOffset;
   const focusDate = new Date(dYear, dMonth, 1); const yyyy = focusDate.getFullYear(); const mm = focusDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay() || 7; 
-  if ($("dashMonthTitle")) $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`;
+  if (currentDashView === 'month' && $("dashMonthTitle")) $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`;
 
-  // API 로드 대기 후 달력 렌더링
+  // API 로드 대기
   await window.fetchHolidays(yyyy);
 
   let fSpc = $("dashSpaceFilter").value; let fBtc = $("dashBatchFilter").value;
@@ -613,7 +653,7 @@ window.saveBlockData = async function() {
 }
 
 window.deleteBlock = function(id) {
-  window.openCustomConfirm("스케줄 삭제", null, `<span style="color:var(--text-display);">해당 스케줄을 삭제하시겠습니까?</span>`, async () => {
+  window.openCustomConfirm("스케줄 삭제", null, `해당 스케줄을 삭제하시겠습니까?`, async () => {
     const { error } = await supabaseClient.from('blocks').delete().eq('id', id); 
     if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); }
   });
@@ -704,7 +744,7 @@ window.saveNoticeData = async function() {
 }
 
 window.deleteNotice = function(id) {
-  window.openCustomConfirm("공지사항 삭제", null, `<span style="color:var(--text-display);">이 공지사항을 완전히 삭제하시겠습니까?</span>`, async () => {
+  window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => {
     const { error } = await supabaseClient.from('notices').delete().eq('id', id);
     if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); }
   });
@@ -713,14 +753,14 @@ window.deleteNotice = function(id) {
 window.bulkAction = function(table, type) {
   let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); 
   if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
-  window.openCustomConfirm("일괄 취소", null, `<span style="color:var(--text-display);">선택한 </span><span style="color:var(--primary); font-weight:800;">${chks.length}건</span><span style="color:var(--text-display);">을 일괄 취소하시겠습니까?</span>`, async () => {
+  window.openCustomConfirm("일괄 취소", null, `선택한 ${chks.length}건을 일괄 취소하시겠습니까?`, async () => {
     let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', chk.value)); });
     await Promise.all(promises); showToast("일괄 처리가 완료되었습니다."); window.fetchCenterData();
   });
 }
 
 window.cancelAction = function(table, id) {
-  window.openCustomConfirm("정상 취소 처리", null, `<span style="color:var(--text-display);">해당 예약을 정상 취소로 처리하시겠습니까?</span>`, async () => {
+  window.openCustomConfirm("정상 취소 처리", null, `해당 예약을 정상 취소로 처리하시겠습니까?`, async () => {
     await supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', id); showToast("정상 취소로 처리되었습니다."); window.fetchCenterData();
   });
 }
@@ -728,7 +768,7 @@ window.cancelAction = function(table, id) {
 window.bulkActionOrd = function(statusValue) {
   let chks = $$$(`.chk-ord:checked`);
   if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
-  window.openCustomConfirm("생두 상태 일괄 변경", null, `<span style="color:var(--text-display);">선택한 </span><span style="color:var(--primary); font-weight:800;">${chks.length}건</span><span style="color:var(--text-display);">을(를) </span><span style="color:var(--primary); font-weight:800;">${statusValue}</span><span style="color:var(--text-display);"> 상태로 변경하시겠습니까?</span>`, async () => {
+  window.openCustomConfirm("생두 상태 일괄 변경", null, `선택한 ${chks.length}건을(를) ${statusValue} 상태로 변경하시겠습니까?`, async () => {
     let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from('orders').update({ status: statusValue }).eq('id', chk.value)); });
     await Promise.all(promises); showToast(`일괄 처리가 완료되었습니다.`); window.fetchCenterData();
   });
@@ -1045,30 +1085,30 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
 
   if(opt === 'release') {
       const m = globalMembers.find(x => x.id === id); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지';
-      confirmMsg = `<span style="color:var(--text-display);">상태를 </span><span style="color:var(--primary); font-weight:800;">[${newStat}]</span><span style="color:var(--text-display);"> 상태로 전환하시겠습니까?</span>`;
+      confirmMsg = `상태를 <b>[${newStat}]</b> 상태로 전환하시겠습니까?`;
   } else if (opt === 'pause') {
-      confirmMsg = `<span style="color:var(--text-display);">활동을 </span><span style="color:var(--primary); font-weight:800;">일시정지</span><span style="color:var(--text-display);">하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span></span>`;
+      confirmMsg = `활동을 <b>일시정지</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span>`;
   } else if (opt === 'resume') {
-      confirmMsg = `<span style="color:var(--text-display);">활동을 </span><span style="color:var(--primary); font-weight:800;">재개</span><span style="color:var(--text-display);">하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(이전 정지 기간을 자동 계산하여 연장합니다.)</span></span>`;
+      confirmMsg = `활동을 <b>재개</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(이전 정지 기간을 자동 계산하여 연장합니다.)</span>`;
   } else {
       let baseDate = new Date(); baseDate.setHours(0,0,0,0); let isActive = false;
       if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDate) { isActive = true; } }
       if (isActive) {
-          confirmMsg = `<span style="color:var(--text-display);">이어서 </span><span style="color:var(--primary); font-weight:800;">${optText}</span><span style="color:var(--text-display);">을(를) 적용하시겠습니까?</span>`;
+          confirmMsg = `이어서 <b>${optText}</b>을(를) 적용하시겠습니까?`;
       } else {
-          confirmMsg = `<span style="color:var(--text-display);">오늘 날짜를 기준으로<br></span><span style="color:var(--primary); font-weight:800;">${optText}</span><span style="color:var(--text-display);">을(를) 새롭게 적용하시겠습니까?</span>`;
+          confirmMsg = `오늘 날짜를 기준으로<br><b>${optText}</b>을(를) 새롭게 적용하시겠습니까?`;
       }
   }
 
   let statText = "";
   if (opt === 'release' || opt === 'pause' || opt === 'resume') {
        let cur = opt === 'resume' ? '일시정지' : (opt === 'release' ? '확인요망' : '활동 중');
-       statText = `<span style="color:var(--text-secondary);">현재 상태: </span><span style="color:var(--primary); font-weight:800;">${cur}</span>`;
+       statText = `현재 상태: <b>${cur}</b>`;
   } else {
        if(currentEndDate && new Date(currentEndDate) >= new Date().setHours(0,0,0,0)) {
-           statText = `<span style="color:var(--text-secondary);">현재 활동 종료일: </span><span style="color:var(--primary); font-weight:800;">${currentEndDate}</span>`; 
+           statText = `현재 활동 종료일: <b>${currentEndDate}</b>`; 
        } else {
-           statText = `<span style="color:var(--text-secondary);">현재 활동 종료 상태입니다.</span>`; 
+           statText = `현재 활동 종료 상태입니다.`; 
        }
   }
 
@@ -1126,7 +1166,7 @@ window.updateMemberEndDate = async function(id, dateStr) {
 }
 
 window.deleteHistory = async function(id, phone, name, action_detail) {
-    window.openCustomConfirm("내역 삭제", null, `<span style="color:var(--text-display);">해당 내역을 완전히 삭제하시겠습니까?</span><br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
+    window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
         await supabaseClient.from('member_history').delete().eq('id', id);
         
         const m = globalMembers.find(x => x.phone === phone);
