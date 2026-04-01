@@ -23,35 +23,8 @@ const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "
 let quillEditor = null;
 
 // ==========================================
-// 2. 유틸리티 함수 & 스마트 파싱
+// 2. 유틸리티 함수 
 // ==========================================
-window.formatSmartDate = function(el) {
-    let v = el.value.replace(/\D/g, '');
-    if(!v) return;
-    let y = new Date().getFullYear();
-    if(v.length === 4) el.value = `${y}-${v.slice(0,2)}-${v.slice(2,4)}`;
-    else if(v.length === 6) el.value = `20${v.slice(0,2)}-${v.slice(2,4)}-${v.slice(4,6)}`;
-    else if(v.length === 8) el.value = `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`;
-};
-
-window.formatSmartTime = function(el) {
-    let t = el.value.replace(/\D/g, '');
-    if(!t) return;
-    if(t.length === 1 || t.length === 2) el.value = `${t.padStart(2,'0')}:00`;
-    else if(t.length === 3) el.value = `0${t.slice(0,1)}:${t.slice(1,3)}`;
-    else if(t.length === 4) el.value = `${t.slice(0,2)}:${t.slice(2,4)}`;
-};
-
-window.updateBlkDow = function(val) {
-    if(!val) { $("blkDowDisplay").innerText = ''; return; }
-    const d = new Date(val); if(!isNaN(d)) { $("blkDowDisplay").innerText = '(' + ['일','월','화','수','목','금','토'][d.getDay()] + ')'; }
-};
-
-window.updateSchedDow = function(val) {
-    if(!val) { $("schedDowDisplay").innerText = ''; return; }
-    const d = new Date(val); if(!isNaN(d)) { $("schedDowDisplay").innerText = '(' + ['일','월','화','수','목','금','토'][d.getDay()] + ')'; }
-};
-
 window.holidaysCache = {};
 window.fetchHolidays = async function(year) {
   if(window.holidaysCache['fetched_' + year]) return; 
@@ -153,7 +126,7 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
-// 🔥 팝업 멘트 동적 변경 및 다이렉트 복사 처리 픽스
+// 🔥 팝업 멘트 동적 변경 및 다이렉트 닫기 연동
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btnText = '적용하기') {
     $("confirmTarget").innerHTML = title;
     if(statusHtml) { $("confirmStateBox").style.display = 'block'; $("confirmSimpleBox").style.display = 'none'; $("confirmStatus").innerHTML = statusHtml; $("confirmActionState").innerHTML = actionHtml; } 
@@ -164,6 +137,7 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btn
     $("confirmModal").classList.add('show');
 }
 window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); window.currentConfirmCallback = null; }
+
 $("confirmBtn").onclick = async function() { 
     if (window.currentConfirmCallback) {
         const isCopyAction = ($("confirmBtn").innerText === '복사하기');
@@ -174,7 +148,7 @@ $("confirmBtn").onclick = async function() {
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId) $(modalId).classList.remove('show'); }
 
 // ==========================================
-// 공지사항 함수 (에디터 로드 100% 렌더링 보장 픽스)
+// 공지사항 함수 (에디터 렌더링 생명주기 픽스)
 // ==========================================
 function initQuill() {
     if(!quillEditor && $('editor-container')) {
@@ -196,7 +170,6 @@ window.closeNoticeModal = function() { $("noticeModal").classList.remove('show')
 window.saveNoticeData = async function() { let id = $("noticeId").value; let htmlContent = quillEditor ? quillEditor.root.innerHTML : ''; let payload = { title: $("noticeTitle").value.trim(), content: htmlContent, is_pinned: $("noticePinned").checked, status: $("noticeStatus").value }; if(!payload.title) return showToast("제목을 입력해주세요."); if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); let error; if(id) { const res = await supabaseClient.from('notices').update(payload).eq('id', id); error = res.error; } else { const res = await supabaseClient.from('notices').insert([payload]); error = res.error; } if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); } }
 window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
 window.handleNoticeMediaUpload = async function(event) { const files = event.target.files; if (!files || files.length === 0) return; const overlay = $("mediaUploadOverlay"); overlay.style.display = "flex"; try { if(!quillEditor) initQuill(); let range = quillEditor.getSelection(true); if(!range) range = { index: quillEditor.getLength() }; for (let i = 0; i < files.length; i++) { const file = files[i]; const fileExt = file.name.split('.').pop(); const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`; const { error: uploadError } = await supabaseClient.storage.from('notice_media').upload(fileName, file); if (uploadError) { showToast(`${file.name} 업로드 실패`); continue; } const { data: { publicUrl } } = supabaseClient.storage.from('notice_media').getPublicUrl(fileName); if (file.type.startsWith('image/')) { quillEditor.insertEmbed(range.index, 'image', publicUrl); } else if (file.type.startsWith('video/')) { quillEditor.insertEmbed(range.index, 'video', publicUrl); } range.index++; } showToast("미디어가 첨부되었습니다."); } catch (e) { showToast("업로드 중 오류 발생"); } finally { overlay.style.display = "none"; $("noticeMediaUpload").value = ''; } }
-
 
 // ==========================================
 // 5. 센터 관리 데이터 로드 및 UI 렌더링
@@ -468,6 +441,7 @@ window.renderAppDailyBanner = function(data) {
   if($("appDailyBanner")) $("appDailyBanner").innerHTML = html;
 }
 
+// 🔥 CRM 실시간 동기화 탑재
 window.fetchApplications = async function() {
   try {
     const { data, error } = await supabaseClient.from('applications').select('*').order('created_at', { ascending: false });
@@ -475,6 +449,11 @@ window.fetchApplications = async function() {
     const batches = [...new Set(globalApps.map(d => d.desired_batch).filter(Boolean))].sort().reverse();
     let optionsHTML = '<option value="all">전체 기수 보기</option>'; batches.forEach(b => optionsHTML += `<option value="${b}">${b}</option>`);
     $("batchFilterApp").innerHTML = optionsHTML; window.applyFilterApp(); 
+    
+    // 실시간 모달 리렌더링
+    if ($("crmModal").classList.contains('show') && $("crmAppId").value) {
+        window.renderCrmInner($("crmAppId").value);
+    }
   } catch(e) { $("appTableBody").innerHTML = `<tr><td colspan="8" class="empty-state">에러 발생</td></tr>`; console.error("신청 리스트 에러:", e); }
 }
 
@@ -497,10 +476,9 @@ function parseAcquisitionChannel(rawText) {
     if(txt.includes('블로그')) return '네이버 블로그';
     if(txt.includes('블랙워터')) return '블랙워터';
     if(txt.includes('지인')) return '지인 추천';
-    return rawText.split('(')[0].trim(); // 기타 남은 텍스트는 앞부분만 깔끔하게 노출
+    return rawText.split('(')[0].trim();
 }
 
-// 🔥 클립보드 복사 함수 연동
 window.copySurveyLink = function(id, name, e) {
     if(e) e.stopPropagation();
     const baseUrl = 'https://www.wecoffee.co.kr/survey'; 
@@ -508,27 +486,13 @@ window.copySurveyLink = function(id, name, e) {
     copyTxt(url);
 };
 
-// 🔥 CRM 닫기 함수 연결
 window.closeCrmModal = function() {
     $("crmModal").classList.remove('show');
 };
 
-// 🔥 타일형 다이렉트 상태 저장 함수
-window.saveCrmStatusDirect = function(selected) {
-    const id = $("crmAppId").value;
-    if(!id || !selected) return;
-    if(selected === '상담 완료' || selected === '연락 두절') {
-        window.updateAppStatus(id, 'status', selected);
-    } else {
-        window.updateAppStatus(id, 'join_status', selected);
-        window.updateAppStatus(id, 'status', '상담 완료');
-    }
-    window.closeCrmModal();
-}
-
-window.openCrmModal = function(id) {
+// 🔥 CRM 모달 렌더링 독립 (라이브 싱크용)
+window.renderCrmInner = function(id) {
     const app = globalApps.find(a => a.id === id); if(!app) return;
-    $("crmAppId").value = app.id;
     $("crmName").innerText = app.name || '이름 없음';
     $("crmProfile").innerText = `[${app.desired_batch||'기수 미정'}] | ${app.phone||'-'} | ${app.acquisition_channel||'-'}`;
     $("crmTimeBadge").innerText = app.call_time && app.call_time !== 'null' ? app.call_time : '상담시간 미정';
@@ -548,7 +512,27 @@ window.openCrmModal = function(id) {
                 <button class="btn-outline" style="color:var(--primary); border-color:var(--primary); padding:12px 24px; font-size:15px;" onclick="window.copySurveyLink('${app.id}', '${app.name || ''}', event)">🔗 고객 전용 설문 링크 복사하기</button>
             </div>`;
     }
+
+    let initialStatus = app.join_status || (app.status === '상담 완료' ? '상담 완료' : '');
+    if(!initialStatus || initialStatus === '대기') initialStatus = '상담 완료';
+    $("crmStatusSelect").value = initialStatus;
+}
+
+window.openCrmModal = function(id) {
+    $("crmAppId").value = id;
+    window.renderCrmInner(id);
     $("crmModal").classList.add('show');
+}
+
+window.saveCrmStatus = function() {
+    const id = $("crmAppId").value; const selected = $("crmStatusSelect").value; if(!id || !selected) return;
+    if(selected === '상담 완료' || selected === '연락 두절') {
+        window.updateAppStatus(id, 'status', selected);
+    } else {
+        window.updateAppStatus(id, 'join_status', selected);
+        window.updateAppStatus(id, 'status', '상담 완료');
+    }
+    window.closeCrmModal();
 }
 
 window.handleStatusChange = function(id, newStatus, callTime, counselorName) {
@@ -559,10 +543,9 @@ window.handleStatusChange = function(id, newStatus, callTime, counselorName) {
     }
 };
 
-// 🔥 상담 팝업 텍스트 폼 리셋 로직
 window.openScheduleModal = function(id, time, name) {
     currentScheduleAppId = id;
-    $("schedInputDate").value = ""; $("schedDowDisplay").innerText = ""; $("schedInputTime").value = "";
+    $("schedInputDate").value = ""; $("schedInputTime").value = "";
     $("schedInputName").value = (name && name !== 'null' && name !== 'undefined') ? name : '';
     $("scheduleModal").classList.add('show');
 };
@@ -571,9 +554,8 @@ window.closeScheduleModal = function() { $("scheduleModal").classList.remove('sh
 
 window.saveScheduleData = async function() {
     if (!currentScheduleAppId) return;
-    
     const dVal = $("schedInputDate").value; const tVal = $("schedInputTime").value; const name = $("schedInputName").value.trim();
-    if (!dVal || !tVal) { showToast("상담 날짜와 시간을 모두 입력해주세요."); return; }
+    if (!dVal || !tVal) { showToast("상담 날짜와 시간을 모두 선택해주세요."); return; }
     
     const dObj = new Date(dVal); const dow = ['일','월','화','수','목','금','토'][dObj.getDay()];
     const mm = dObj.getMonth() + 1; const dd = dObj.getDate();
@@ -584,17 +566,16 @@ window.saveScheduleData = async function() {
     if (error) { showToast("저장 실패"); } else { 
         showToast("상담 일정이 확정되었습니다."); window.closeScheduleModal(); window.fetchApplications(); 
         
-        // 🔥 일정 확정 후 바로 설문 링크 복사 팝업 연결
         const app = globalApps.find(a => a.id === currentScheduleAppId);
         setTimeout(() => {
             window.openCustomConfirm(
               "일정 확정 완료", 
               null, 
               `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, 
-              () => { window.copySurveyLink(currentScheduleAppId, app.name); }, 
+              () => { window.copySurveyLink(currentScheduleAppId, app.name); window.closeConfirmModal(); }, 
               "복사하기"
             );
-        }, 500);
+        }, 300);
     }
 };
 
@@ -632,7 +613,6 @@ window.renderAppTable = function(data) {
   data.forEach(row => {
     const interestFull = row.interest_detail ? `${row.interest_area} <div class="sub-text">(${row.interest_detail})</div>` : (row.interest_area || '-');
     
-    // 🔥 유입 경로 파싱 적용
     let routeDisplay = parseAcquisitionChannel(row.acquisition_channel);
     if (row.brand_awareness_duration && row.brand_awareness_duration !== '정보없음') routeDisplay += ` <div class="sub-text">(${row.brand_awareness_duration})</div>`; else if (row.acquisition_detail) routeDisplay += ` <div class="sub-text">(${row.acquisition_detail})</div>`;
     
