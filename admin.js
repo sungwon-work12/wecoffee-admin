@@ -21,7 +21,7 @@ let currentInsightData = {};
 
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 
-let quillEditor = null; // 스마트 에디터 인스턴스
+let quillEditor = null;
 
 // ==========================================
 // 2. 유틸리티 함수
@@ -135,11 +135,19 @@ window.switchMainTab = function(pageId, element) {
   if(pageId === 'page-members') window.fetchMembers();
 }
 
+// 🔥 공지사항 탭 이동 시 글로벌 센터 필터 숨김 로직 추가
 window.switchSubTab = function(subId, element) {
   $$$(".sub-page").forEach(p => p.classList.remove('active')); $(subId).classList.add('active');
   $$$(".sub-item").forEach(item => item.classList.remove('active')); 
   let targetEl = element || document.querySelector(`.sub-item[onclick*="${subId}"]`);
   if(targetEl) { targetEl.classList.add('active'); targetEl.classList.remove("tab-pulse"); }
+  
+  if (subId === 'sub-notice') {
+      if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'none';
+  } else {
+      if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'inline-flex';
+  }
+  
   localStorage.setItem('wecoffee_sub_tab', subId);
   if(subId === 'sub-res') window.renderDashboard(); 
 }
@@ -259,7 +267,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
   else showToast("금액이 저장되었습니다."); 
 }
 
-// 🔥 생두명 1줄 고정 배치 + 원클릭 복사
+// 🔥 방안 B: 말줄임 + 툴팁 호버 + 원클릭 복사
 function renderOrderTableHTML(fOrd, tableId, chkClass) {
     $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
         let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':o.status==='입금 대기'?'st-arranging':'st-wait';
@@ -276,27 +284,26 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#');
         let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer; flex-shrink:0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`;
         
-        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" title="클릭하여 복사" style="flex:1; min-width:0;">
-            <div style="display:flex; align-items:center; width:100%;">
-                <span class="copyable-text" style="font-size:14px; white-space:nowrap;">${cNm}</span>
-                <span class="copyable-hint">복사</span>
-            </div>
+        // 툴팁(data-full-text) 추가 및 복사 힌트 적용
+        let copyableHtml = `<div class="copyable-wrap" onclick="copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${cNm}">
+            <span class="copyable-text">${cNm}</span>
+            <span class="copyable-hint">복사</span>
         </div>`;
 
         let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : '';
         let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     
-        return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}
+        return `<tr>${mPreview}
             <td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td>
             <td data-label="주문 날짜" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td>
             <td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td>
             <td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td>
             <td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td>
             <td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td>
-            <td data-label="생두사 / 상품명" style="text-align:left; white-space:nowrap;">
-                <div style="display:flex; align-items:center; width:100%; gap:12px;">
+            <td data-label="생두사 / 상품명" style="text-align:left; max-width: 280px;">
+                <div style="display:flex; align-items:center; width:100%; gap:8px;">
                     ${vendorHtml}
-                    <span style="color:var(--border-strong); font-size:12px;">|</span>
+                    <span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>
                     ${copyableHtml}
                 </div>
             </td>
@@ -350,12 +357,14 @@ window.renderCenterData = function() {
     return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${displayStatus.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${t.name}</strong></td><td data-label="연락처">${t.phone}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; 
   }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
 
+  // 🔥 생두 필터링 - 센터 탭 연동 복구 완료
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked;
   let fOrd = gOrd.filter(o => { 
+      let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
       let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
       let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
       let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인') : true; 
-      return matchQ && matchV && matchS; 
+      return matchCenter && matchQ && matchV && matchS; 
   });
   
   let thuOrders = fOrd.filter(o => o.item_name && o.item_name.includes('목'));
@@ -478,7 +487,7 @@ window.renderDashboard = async function() {
 
     if($("appDashContent")) $("appDashContent").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
     let td = new Date(); let todayStr = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;
-    window.renderMCalApp(calEvts[todayStr] ? todayStr : Object.keys(calEvts).sort()[0]);
+    window.renderMCalCenter(calEvts[todayStr] ? todayStr : Object.keys(calEvts).sort()[0]);
   }
 }
 
@@ -777,16 +786,16 @@ window.applyFilterApp = function() {
 const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 
-// 🔥 유입 경로 텍스트 클렌징 (불필요한 서술어 삭제)
+// 🔥 5번 요청사항: 유입 경로 서술어 정규식 클렌징 완벽 적용
 window.renderAppTable = function(data) {
   const tbody = $("appTableBody"); tbody.innerHTML = '';
   if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`; return; }
   data.forEach(row => {
     const interestFull = row.interest_detail ? `${row.interest_area} <div class="sub-text">(${row.interest_detail})</div>` : (row.interest_area || '-');
     
-    // 유입 경로 텍스트 정제 정규식
+    // DB의 문장형 텍스트를 핵심 키워드로 클렌징
     let rawAcq = row.acquisition_channel || '-';
-    let cleanAcq = rawAcq.replace(/(을|를)?\s*보고 왔어요/g, '').replace(/으로 왔어요/g, '').replace(/위커피\s*/g, '').trim();
+    let cleanAcq = rawAcq.replace(/위커피\s*/g, '').replace(/(을|를)?\s*보고\s*왔어요/g, '').replace(/으로\s*왔어요/g, '').replace(/에서\s*왔어요/g, '').trim();
     if(cleanAcq === '인스타그램그램') cleanAcq = '인스타그램';
     
     let routeDisplay = cleanAcq; 
