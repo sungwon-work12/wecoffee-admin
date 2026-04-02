@@ -52,7 +52,10 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = new Date(dateStr
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500); }
 
-// 🔥 브라우저 보안 회피용 다이렉트 복사 함수
+// 🔥 스케줄 폼 입력용 문자 포맷터
+window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length === 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
+window.formatBlockTime = function(v) { let t = String(v).replace(/\D/g, ''); if(t.length === 1) return `0${t}:00`; if(t.length === 2) return `${t.padStart(2,'0')}:00`; if(t.length === 3) return `0${t.slice(0,1)}:${t.slice(1,3)}`; if(t.length === 4) return `${t.slice(0,2)}:${t.slice(2,4)}`; return v; }
+
 function copyTxt(txt) {
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(txt).then(() => showToast("클립보드에 복사되었습니다.")).catch(() => fallbackCopy(txt));
@@ -62,7 +65,7 @@ function fallbackCopy(txt) {
     let t = document.createElement("textarea"); t.value = txt; t.style.position = "fixed"; t.style.top = "-9999px"; document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); showToast("클립보드에 복사되었습니다.");
 }
 
-// 구글 캘린더 (오직 '트레이닝 센터 대시보드'용)
+// 구글 캘린더 연동 (센터 대시보드에만 표출되도록 격리)
 window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   const API_KEY = 'AIzaSyAjtrSlv56VPhtqMYGsQd0L4q1AlZTW1Ng'; const CALENDAR_ID = 'wecoffeekorea@gmail.com';
   try {
@@ -74,7 +77,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 };
 
 // ==========================================
-// 3. 인증 및 모달 제어
+// 3. 인증 및 글로벌 제어
 // ==========================================
 function initializeApp() {
   window.fetchHolidays(new Date().getFullYear());
@@ -127,7 +130,6 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
-// 🔥 팝업 멘트 동적 변경 및 다이렉트 닫기 처리
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btnText = '적용하기') {
     $("confirmTarget").innerHTML = title;
     if(statusHtml) { $("confirmStateBox").style.display = 'block'; $("confirmSimpleBox").style.display = 'none'; $("confirmStatus").innerHTML = statusHtml; $("confirmActionState").innerHTML = actionHtml; } 
@@ -148,7 +150,7 @@ $("confirmBtn").onclick = async function() {
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId) $(modalId).classList.remove('show'); }
 
 // ==========================================
-// 공지사항 함수 (에디터 로드 및 수정 버튼 문자열 매칭)
+// 공지사항 함수
 // ==========================================
 function initQuill() {
     if(!quillEditor && $('editor-container')) {
@@ -172,7 +174,7 @@ window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭�
 window.handleNoticeMediaUpload = async function(event) { const files = event.target.files; if (!files || files.length === 0) return; const overlay = $("mediaUploadOverlay"); overlay.style.display = "flex"; try { if(!quillEditor) initQuill(); let range = quillEditor.getSelection(true); if(!range) range = { index: quillEditor.getLength() }; for (let i = 0; i < files.length; i++) { const file = files[i]; const fileExt = file.name.split('.').pop(); const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`; const { error: uploadError } = await supabaseClient.storage.from('notice_media').upload(fileName, file); if (uploadError) { showToast(`${file.name} 업로드 실패`); continue; } const { data: { publicUrl } } = supabaseClient.storage.from('notice_media').getPublicUrl(fileName); if (file.type.startsWith('image/')) { quillEditor.insertEmbed(range.index, 'image', publicUrl); } else if (file.type.startsWith('video/')) { quillEditor.insertEmbed(range.index, 'video', publicUrl); } range.index++; } showToast("미디어가 첨부되었습니다."); } catch (e) { showToast("업로드 중 오류 발생"); } finally { overlay.style.display = "none"; $("noticeMediaUpload").value = ''; } }
 
 // ==========================================
-// 복구된 기존 기능: 수업 및 훈련 스케줄(Block) 관리
+// 복구된: 스케줄 및 수업/훈련 관리
 // ==========================================
 window.openBlockModal = function() {
   currentBlockId = null;
@@ -211,9 +213,9 @@ window.closeBlockModal = function() {
 window.saveBlockData = async function() {
   const payload = { 
       category: $("blkCategory").value, 
-      block_date: $("blkDate").value, 
-      start_time: $("blkStart").value, 
-      end_time: $("blkEnd").value, 
+      block_date: window.formatBlockDate($("blkDate").value), 
+      start_time: window.formatBlockTime($("blkStart").value), 
+      end_time: window.formatBlockTime($("blkEnd").value), 
       center: $("blkCenter").value, 
       space_equip: $("blkSpace").value.trim(), 
       reason: $("blkReason").value.trim(), 
@@ -233,7 +235,7 @@ window.deleteBlock = function(id) {
 }
 
 // ==========================================
-// 복구된 기존 기능: 일괄 처리 및 취소 (Bulk Actions)
+// 복구된: 취소 및 일괄 처리
 // ==========================================
 window.bulkAction = function(table, type) {
   let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); 
@@ -338,6 +340,8 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
 
 window.renderCenterData = function() {
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(oneMonthAgo.getDate() - 30); const now = new Date(); updateDailyInOutBanner();
+  
+  // 상세 리스트는 한달 치만 노출되도록 필터 유지
   let qRes = ($("searchRes")?.value || "").toLowerCase(); let fRes = gRes.filter(r => { let rDate = new Date(r.res_date || r.created_at); return (rDate >= oneMonthAgo) && (currentGlobalCenter === '전체' || r.center === currentGlobalCenter) && (`${r.name} ${r.phone}`.toLowerCase().includes(qRes)); });
   $("resTableBody").innerHTML = fRes.length ? fRes.map(r=>{ 
     let displayStatus = r.status || ''; let actBtn = displayStatus.includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; 
@@ -394,17 +398,19 @@ window.renderMCalCenter = function(selDate) {
     let listWrap = $("m-cal-list-center"); if(listWrap) listWrap.innerHTML = html;
 };
 
-// 🔥 대시보드 렌더링 (구글 캘린더 전용)
+// 🔥 대시보드 렌더링 로직 수정 (전체 데이터를 기준으로 달 넘김 완벽 대응)
 window.renderDashboard = async function() {
   const now = new Date(); let dYear = now.getFullYear(); let dMonth = now.getMonth() + currentDashMonthOffset; const focusDate = new Date(dYear, dMonth, 1); const yyyy = focusDate.getFullYear(); const mm = focusDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay() || 7; 
   if (currentDashView === 'month' && $("dashMonthTitle")) $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`;
   await window.fetchHolidays(yyyy);
 
   let fSpc = $("dashSpaceFilter").value; let fBtc = $("dashBatchFilter").value;
+  // 🔥 필터에 전체 데이터 gRes 등을 직접 사용
   let filteredRes = gRes.filter(r => (currentGlobalCenter === '전체' || r.center === currentGlobalCenter) && !(r.status||'').includes('취소') && (fSpc === '전체' || String(r.space_equip||'').includes(fSpc)) && (fBtc === '전체' || r.batch === fBtc));
   let filteredBlk = gBlk.filter(b => (currentGlobalCenter === '전체' || b.center === currentGlobalCenter) && (fSpc === '전체' || b.space_equip === fSpc || !b.space_equip || b.space_equip === '전체'));
   let filteredTrn = gTrn.filter(t => { if((t.status||'').includes('취소') || (fBtc !== '전체' && t.batch !== fBtc)) return false; let parts = String(t.content||"").split(' || '); if(parts.length < 5) return false; if(currentGlobalCenter !== '전체' && parts[3].trim() !== currentGlobalCenter) return false; if(fSpc !== '전체' && !parts[1].includes(fSpc)) return false; return true; });
   
+  // 구글 캘린더는 무조건 센터 대시보드에서만 로드
   let googleEvents = await window.fetchGoogleCalendarEvents(yyyy, mm + 1); let calEvts = {};
   
   if (currentDashView === 'week') {
@@ -425,6 +431,7 @@ window.renderDashboard = async function() {
     $("dash-content").innerHTML = `<div class="desktop-cal">${hHtml}</div>` + mHtml;
     let td = new Date(); let todayStr = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; window.renderMCalCenter(calEvts[todayStr] ? todayStr : Object.keys(calEvts).sort()[0]);
   } else {
+    // 월간 보기 데이터 파싱
     for(let d=1; d<=daysInMonth; d++) { let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; calEvts[ds] = []; }
     filteredRes.forEach(r => { if(calEvts[r.res_date]) { let stTime = String(r.res_time||"").split('~')[0].trim(); let spaceName = String(r.space_equip||"").split(' ')[0]; calEvts[r.res_date].push({ type: 'res', start: stTime, text: `[${r.batch||'-'}] ${r.name}`, tooltip: `[${spaceName}] ${r.res_time} | [${r.batch||'-'}] ${r.name}` }); } });
     filteredBlk.forEach(b => { if(calEvts[b.block_date]) { let spaceName = String(b.space_equip||"전체").split(' ')[0] || "전체"; calEvts[b.block_date].push({ type: 'blk', start: b.start_time, text: `[${b.category}]`, tooltip: `[${spaceName}] ${b.start_time}~${b.end_time} | ${b.category}` }); } });
@@ -443,7 +450,7 @@ window.renderDashboard = async function() {
     mHtml += `</div>`; 
     window.centerCalEvts = calEvts;
     let mobStrip = `<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-center">`; Object.keys(calEvts).sort().forEach(ds => { let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : ''; mobStrip += `<div class="m-cal-date" id="m-date-center-${ds}" onclick="window.renderMCalCenter('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`; }); mobStrip += `</div><div id="m-cal-list-center" class="m-cal-list"></div></div>`;
-    if($("appDashContent")) $("appDashContent").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
+    if($("dash-content")) $("dash-content").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
     let td = new Date(); let todayStr = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; window.renderMCalCenter(calEvts[todayStr] ? todayStr : Object.keys(calEvts).sort()[0]);
   }
 }
@@ -722,9 +729,23 @@ window.saveScheduleData = async function() {
     const dVal = $("schedInputDate").value; const tVal = $("schedInputTime").value; const name = $("schedInputName").value.trim();
     if (!dVal || !tVal) { showToast("상담 날짜와 시간을 모두 선택해주세요."); return; }
     
-    const dObj = new Date(dVal); const dow = ['일','월','화','수','목','금','토'][dObj.getDay()];
-    const mm = dObj.getMonth() + 1; const dd = dObj.getDate();
-    let [hh, min] = tVal.split(':'); let ampm = parseInt(hh) >= 12 ? '오후' : '오전'; let hh12 = parseInt(hh) % 12 || 12;
+    // YYYY-MM-DD 를 다시 원래 월일 요일 포맷으로 파싱
+    const dt = String(dVal).replace(/\D/g, ''); 
+    let parseDate = new Date();
+    if(dt.length === 8) { parseDate = new Date(`${dt.slice(0,4)}-${dt.slice(4,6)}-${dt.slice(6,8)}`); }
+    else if(dt.length === 4) { parseDate = new Date(`${new Date().getFullYear()}-${dt.slice(0,2)}-${dt.slice(2,4)}`); }
+    else { showToast("날짜 포맷이 올바르지 않습니다."); return; }
+
+    const dow = ['일','월','화','수','목','금','토'][parseDate.getDay()];
+    const mm = parseDate.getMonth() + 1; const dd = parseDate.getDate();
+    
+    const timeRe = String(tVal).replace(/\D/g, '');
+    let hh = "00", min = "00";
+    if(timeRe.length === 4) { hh = timeRe.slice(0,2); min = timeRe.slice(2,4); }
+    else if(timeRe.length === 3) { hh = "0" + timeRe.slice(0,1); min = timeRe.slice(1,3); }
+    else { showToast("시간 포맷이 올바르지 않습니다."); return; }
+
+    let ampm = parseInt(hh) >= 12 ? '오후' : '오전'; let hh12 = parseInt(hh) % 12 || 12;
     const formattedCallTime = `${mm}월 ${dd}일(${dow}) ${ampm} ${hh12}:${min}`;
 
     const { error } = await supabaseClient.from('applications').update({ status: '상담 일정 확정', call_time: formattedCallTime, counselor_name: name }).eq('id', currentScheduleAppId);
@@ -744,7 +765,7 @@ window.saveScheduleData = async function() {
     }
 };
 
-// 🔥 멤버 이관 실패 방지: DB 중복 스캔 로직(Upsert 분기처리) 추가
+// 🔥 멤버 이관 실패 방지: 에러 노출 추가 및 안전한 DB 처리
 window.updateAppStatus = async function(id, column, value) {
     if (column === 'join_status' && value === '가입 완료') {
         window.openCustomConfirm("가입 완료 (멤버 전환)", null, `해당 고객을 멤버 리스트로 이관하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary);">오늘 기준으로 6개월 활동 종료일이 자동 세팅됩니다.</span>`, async () => {
@@ -752,22 +773,25 @@ window.updateAppStatus = async function(id, column, value) {
             const d = new Date(); d.setMonth(d.getMonth() + 6);
             const endDateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
             
-            // DB에서 해당 연락처가 있는지 먼저 스캔
+            if(!app.phone) { showToast("연락처가 없는 고객은 이관할 수 없습니다."); return; }
+
             const { data: existingMember, error: checkErr } = await supabaseClient.from('members').select('*').eq('phone', app.phone).limit(1);
-            if (checkErr) { showToast("멤버 확인 중 오류 발생"); return; }
+            if (checkErr) { showToast("멤버 조회 중 오류 발생"); return; }
             
             let dbErr;
             if (existingMember && existingMember.length > 0) {
-                // 존재하면 정보 덮어씌우기 (Update)
                 const { error: updateErr } = await supabaseClient.from('members').update({ status: '활동 중', end_date: endDateStr, batch: app.desired_batch, name: app.name }).eq('phone', app.phone);
                 dbErr = updateErr;
             } else {
-                // 없으면 새로 넣기 (Insert)
                 const { error: insertErr } = await supabaseClient.from('members').insert([{ name: app.name, phone: app.phone, batch: app.desired_batch, status: '활동 중', end_date: endDateStr }]);
                 dbErr = insertErr;
             }
 
-            if(dbErr) { showToast("멤버 이관 실패"); return; }
+            if(dbErr) { 
+                console.error(dbErr);
+                showToast(`이관 실패: ${dbErr.message || '알 수 없는 DB 에러'}`); 
+                return; 
+            }
             await supabaseClient.from('applications').update({ join_status: '가입 완료' }).eq('id', id);
             showToast("멤버 이관이 완료되었습니다."); window.fetchApplications(); window.fetchMembers();
         });
@@ -857,156 +881,4 @@ window.renderStatistics = function(data) {
   let treeChartHtml = '';
   
   sortedChannels.forEach((item, index) => {
-     let chName = item[0]; let chTotal = item[1].total; let details = item[1].details; let opacity = index === 0 ? 1 : (index === 1 ? 0.8 : (index === 2 ? 0.6 : 0.4)); let percent = total > 0 ? Math.round((chTotal / total) * 100) : 0;
-     treeChartHtml += `<div style="margin-bottom: 16px;"><div style="font-size:14px; font-weight:800; color:var(--text-display); margin-bottom:4px; display:flex; justify-content:space-between;"><span>${index+1}. ${chName}</span><span>${chTotal}건 (${percent}%)</span></div><div style="background:var(--border-strong); height:8px; border-radius:4px; overflow:hidden; margin-bottom:8px;"><div style="width: ${percent}%; background:rgba(255, 121, 0, ${opacity}); height:100%;"></div></div>`;
-     let sortedDetails = Object.entries(details).sort((a,b) => b[1] - a[1]);
-     if (sortedDetails.length > 0) { sortedDetails.forEach(det => { let dName = det[0]; let dCount = det[1]; let dPercent = Math.round((dCount / chTotal) * 100); treeChartHtml += `<div style="display:flex; align-items:center; margin-bottom:6px; padding-left:12px;"><div style="color:var(--text-tertiary); margin-right:8px; font-size:12px; font-weight:800;">ㄴ</div><div style="flex:1;"><div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;"><span>${dName}</span><span>${dCount}건</span></div><div style="background:var(--border); height:4px; border-radius:2px; overflow:hidden;"><div style="width: ${dPercent}%; background:rgba(255, 121, 0, ${opacity * 0.4}); height:100%;"></div></div></div></div>`; }); }
-     treeChartHtml += `</div>`;
-  });
-
-  let chartsHtml = `<div class="stat-card" style="padding:24px; text-align:left; align-items:flex-start;"><div style="font-size:16px; font-weight:800; margin-bottom:24px; width:100%;">전체 유입 경로 순위 (상세 속성 트리)</div><div style="width:100%;">${treeChartHtml}</div></div><div class="stat-card" style="padding:24px; text-align:left; align-items:flex-start;"><div style="font-size:16px; font-weight:800; margin-bottom:24px; width:100%;">관심 분야 (목적)</div><div style="width:100%;">${getFrequency(data.map(d => String(d.interest_area||''))).map((c, i) => generateBarHTML(c[0], c[1], total, i === 0 ? 1 : (i === 1 ? 0.8 : (i === 2 ? 0.6 : 0.4)))).join('')}</div></div>`;
-  container.innerHTML = chartsHtml;
-  window.currentInsightData = { total, joined, instaCount: channelMap['인스타그램']?channelMap['인스타그램'].total:0, adCount: channelMap['모집 광고']?channelMap['모집 광고'].total:0, leadTime1M: safeDataForSummary.adNow, leadTime3M: safeDataForSummary.leadTime3M };
-}
-
-// ==========================================
-// 10. 멤버 리스트 관리
-// ==========================================
-window.fetchMembers = async function() { 
-  const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); 
-  if (error) return; 
-  globalMembers = data; 
-  let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); });
-  let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort().reverse().map(b=>`<option value="${b}">${b}</option>`).join("");
-  if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml;
-  window.searchMembers(); 
-}
-
-window.searchMembers = function() {
-  const query = $("memberSearch").value.trim().toLowerCase(); 
-  const statusFilter = $("memberStatusFilter") ? $("memberStatusFilter").value : 'all';
-  const batchFilter = $("memberBatchFilter") ? $("memberBatchFilter").value : 'all';
-  const today = new Date(); today.setHours(0,0,0,0);
-  
-  const filtered = globalMembers.filter(m => {
-    let isExpired = true; let isPaused = m.status === '활동 일시정지';
-    if (m.end_date && m.end_date.length === 10) { let endD = new Date(m.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; }
-    let statusText = m.status || '활동 중'; 
-    if (statusText === '패널티 정지') statusText = '패널티 정지'; else if (statusText === '활동 일시정지') statusText = '활동 일시정지'; else if (isExpired) statusText = '활동 종료';
-    let matchQuery = `${m.batch||''} ${m.name||''} ${m.phone||''} ${statusText}`.toLowerCase().includes(query);
-    let matchBatch = batchFilter === 'all' || m.batch === batchFilter;
-    let matchStatus = false;
-    if (statusFilter === 'all') matchStatus = true; else if (statusFilter === '활동 중 (전체)') matchStatus = ['활동 중', '연장 활동 중', '단일권 이용'].includes(statusText); else matchStatus = statusText === statusFilter;
-    return matchQuery && matchStatus && matchBatch;
-  });
-  renderMemberTable(filtered);
-}
-
-function renderMemberTable(data) {
-  const tbody = $("memberTableBody"); tbody.innerHTML = ''; if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="empty-state">내역이 없습니다.</td></tr>`; return; }
-  const today = new Date(); today.setHours(0,0,0,0);
-  data.forEach(row => {
-    let yy = '', mm = '', dd = ''; let isExpired = true; let isPaused = row.status === '활동 일시정지';
-    if (row.end_date && row.end_date.length === 10) { [yy, mm, dd] = row.end_date.split('-'); let endD = new Date(row.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; }
-    if (isExpired && !isPaused && row.status !== '패널티 정지') { yy = ''; mm = ''; dd = ''; } 
-    
-    let currentStat = row.status || '활동 중'; let statusBadge = "";
-    if (currentStat === '패널티 정지') statusBadge = `<span class="status-badge badge-red">패널티 정지</span>`; else if (isPaused) statusBadge = `<span class="status-badge badge-gray">일시정지</span>`; else if (isExpired) statusBadge = `<span class="status-badge badge-ended" style="background:#fff0f0;color:var(--error);">활동 종료</span>`; else statusBadge = `<span class="status-badge badge-active" style="background:#e8f5e9;color:var(--success);">${currentStat}</span>`;
-    
-    let yearOpts = '<option value="">년도</option>'; for(let i = 2024; i <= 2030; i++) yearOpts += `<option value="${i}" ${yy == i ? 'selected' : ''}>${i}년</option>`; let monthOpts = '<option value="">월</option>'; for(let i = 1; i <= 12; i++) { let val = String(i).padStart(2, '0'); monthOpts += `<option value="${val}" ${mm == val ? 'selected' : ''}>${i}월</option>`; } let dayOpts = '<option value="">일</option>'; for(let i = 1; i <= 31; i++) { let val = String(i).padStart(2, '0'); dayOpts += `<option value="${val}" ${dd == val ? 'selected' : ''}>${i}일</option>`; }
-    let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch || '-'}] ${row.name || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${row.phone || '-'})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함"><strong style="cursor:pointer;" onclick="$('memberSearch').value='${row.name}'; window.searchMembers();">${row.name || '-'}</strong></td><td data-label="연락처">${row.phone || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${row.name}', '${row.phone}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${row.phone}', '${row.name}')">내역</button></div></div></td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-document.addEventListener('change', function(e) {
-  if (e.target.classList.contains('date-sel') && !e.target.classList.contains('option-btn')) { const group = e.target.closest('.date-select-group'); const y = group.querySelector('.year').value, m = group.querySelector('.month').value, d = group.querySelector('.day').value; if (y && m && d) window.updateMemberEndDate(group.dataset.id, `${y}-${m}-${d}`).then(() => window.fetchMembers()); }
-});
-
-window.handleMemberOption = function(id, batch, name, phone, currentEndDate, selectEl) {
-  const opt = selectEl.value; const optText = selectEl.options[selectEl.selectedIndex].text; selectEl.value = ''; if(!opt) return;
-  let confirmMsg = ""; let baseDateForUpdate = new Date(); baseDateForUpdate.setHours(0,0,0,0);
-  if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDateForUpdate) { baseDateForUpdate = endD; } }
-
-  if(opt === 'release') {
-      const m = globalMembers.find(x => String(x.id) === String(id)); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; confirmMsg = `상태를 <b>[${newStat}]</b> 상태로 전환하시겠습니까?`;
-  } else if (opt === 'pause') {
-      confirmMsg = `활동을 <b>일시정지</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span>`;
-  } else if (opt === 'resume') {
-      confirmMsg = `활동을 <b>재개</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(이전 정지 기간을 자동 계산하여 연장합니다.)</span>`;
-  } else {
-      let baseDate = new Date(); baseDate.setHours(0,0,0,0); let isActive = false;
-      if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDate) { isActive = true; } }
-      if (isActive) { confirmMsg = `이어서 <b>${optText}</b>을(를) 적용하시겠습니까?`; } else { confirmMsg = `오늘 날짜를 기준으로<br><b>${optText}</b>을(를) 새롭게 적용하시겠습니까?`; }
-  }
-
-  let statText = "";
-  if (opt === 'release' || opt === 'pause' || opt === 'resume') { let cur = opt === 'resume' ? '일시정지' : (opt === 'release' ? '확인요망' : '활동 중'); statText = `현재 상태: <b>${cur}</b>`; } else { if(currentEndDate && new Date(currentEndDate) >= new Date().setHours(0,0,0,0)) { statText = `현재 활동 종료일: <b>${currentEndDate}</b>`;  } else { statText = `현재 활동 종료 상태입니다.`;  } }
-
-  pendingOptionData = { id, name, phone, opt, optText, baseDate: baseDateForUpdate, currentEndDate };
-  
-  window.openCustomConfirm(`[${batch || '미정'}] ${name} 님`, statText, confirmMsg, async () => {
-      if(opt === 'release') { const m = globalMembers.find(x => String(x.id) === String(id)); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; m.status = newStat; window.searchMembers(); showToast(`상태가 [${newStat}](으)로 변경되었습니다.`); return; }
-      if(opt === 'pause') { const m = globalMembers.find(x => String(x.id) === String(id)); m.status = '활동 일시정지'; window.searchMembers(); await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: '활동 일시정지 시작', amount: '-' }]); showToast("활동이 일시정지되었습니다."); return; }
-      if(opt === 'resume') {
-          const { data: hist } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).like('action_detail', '활동 일시정지 시작%').order('created_at', { ascending: false }).limit(1);
-          let extendDays = 0; if (hist && hist.length > 0) { let pauseDate = new Date(hist[0].created_at); pauseDate.setHours(0,0,0,0); let todayDate = new Date(); todayDate.setHours(0,0,0,0); extendDays = Math.floor((todayDate - pauseDate) / (1000 * 60 * 60 * 24)); }
-          if (extendDays < 0) extendDays = 0; let endD = new Date(currentEndDate); endD.setDate(endD.getDate() + extendDays); let newEndDate = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
-          const m = globalMembers.find(x => String(x.id) === String(id)); m.status = '연장 활동 중'; m.end_date = newEndDate; window.searchMembers(); await supabaseClient.from('members').update({ end_date: newEndDate }).eq('id', id); await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: `활동 재개 (정지일수: ${extendDays}일 자동 연장)`, amount: '-' }]); showToast(`재개 완료. ${extendDays}일이 연장되었습니다.`); return;
-      }
-
-      let amountStr = '0원'; let targetStatus = '연장 활동 중';
-      if (opt === '1') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '220,000원'; } else if (opt === '3') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 3); amountStr = '550,000원'; } else if (opt === '6') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 6); amountStr = '1,100,000원'; } else if (opt === 'bonus') { baseDateForUpdate.setMonth(baseDateForUpdate.getMonth() + 1); amountStr = '무료 제공'; } else if (opt === 'day') { baseDateForUpdate.setDate(baseDateForUpdate.getDate() + 1); amountStr = '별도 안내'; targetStatus = '단일권 이용'; }
-      let yyyy = baseDateForUpdate.getFullYear(), mm = String(baseDateForUpdate.getMonth() + 1).padStart(2, '0'), dd = String(baseDateForUpdate.getDate()).padStart(2, '0'); const newDateStr = `${yyyy}-${mm}-${dd}`;
-      const m = globalMembers.find(x => String(x.id) === String(id)); m.end_date = newDateStr; m.status = targetStatus; window.searchMembers(); await supabaseClient.from('members').update({ end_date: newDateStr }).eq('id', id); await supabaseClient.from('member_history').insert([{ member_name: name, member_phone: phone, action_detail: optText, amount: amountStr }]); showToast("업데이트 되었습니다.");
-  });
-}
-
-window.updateMemberEndDate = async function(id, dateStr) {
-  const { error } = await supabaseClient.from('members').update({ end_date: dateStr }).eq('id', id);
-  if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다.");
-}
-
-window.deleteHistory = async function(id, phone, name, action_detail) {
-    window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => {
-        await supabaseClient.from('member_history').delete().eq('id', id);
-        const m = globalMembers.find(x => String(x.phone) === String(phone));
-        if (m && m.end_date) {
-            let d = new Date(m.end_date); let isChanged = false;
-            if (action_detail.includes('1개월 연장') || action_detail.includes('보너스 1개월')) { d.setMonth(d.getMonth() - 1); isChanged = true; } else if (action_detail.includes('3개월 연장')) { d.setMonth(d.getMonth() - 3); isChanged = true; } else if (action_detail.includes('6개월 연장')) { d.setMonth(d.getMonth() - 6); isChanged = true; } else if (action_detail.includes('당일권 추가')) { d.setDate(d.getDate() - 1); isChanged = true; }
-            if (isChanged) { let newEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; m.end_date = newEndDate; await supabaseClient.from('members').update({ end_date: newEndDate }).eq('phone', phone); }
-        }
-        showToast("내역이 삭제되고 종료일이 복구되었습니다."); window.searchMembers(); window.openHistoryModal(phone, name); 
-    });
-};
-
-window.openHistoryModal = async function(phone, name) {
-  $("historyModalTitle").innerText = `${name} 님의 내역`; const modal = $("historyModal"); modal.classList.add('show'); const body = $("historyModalBody"); body.innerHTML = '<div class="empty-state">내역을 불러오는 중입니다.</div>';
-  const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false });
-  if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state">결제/연장 내역이 없습니다.</div>'; return; }
-  body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>';
-}
-window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
-
-window.downloadExcel = function(type) {
-  if (type === 'applications' && isInsightView) {
-    const d = window.currentInsightData || {};
-    let csv = "\uFEFF항목,수치,비고\n";
-    csv += `총 신청 건수,${d.total||0}건,-\n`; csv += `최종 가입 완료,${d.joined||0}건,(전환율 ${d.total > 0 ? Math.round(d.joined/d.total*100) : 0}%)\n`; csv += `인스타그램 총 유입,${d.instaCount||0}건,-\n`; csv += `모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`; link.click(); return;
-  }
-  let data = []; let headers = []; let filename = "";
-  if(type === 'applications') { data = globalApps; filename = "가입신청"; headers = ['신청일', '기수', '성함', '연락처', '관심분야', '유입경로', '진행상황', '가입여부', '상담일시', '담당자']; } else if(type === 'members') { data = globalMembers; filename = "멤버리스트"; headers = ['등록일', '상태', '기수', '성함', '연락처', '활동종료일']; } else if(type === 'reservations') { data = gRes; filename = "예약현황"; headers = ['접수일', '기수', '성함', '연락처', '예약날짜', '예약시간', '센터', '장비', '상태', '취소사유']; } else if(type === 'trainings') { data = gTrn; filename = "수업훈련"; headers = ['신청일', '기수', '성함', '연락처', '콘텐츠', '상태', '취소사유']; } else if(type === 'orders') { data = gOrd; filename = "생두주문"; headers = ['주문일', '주문번호', '기수', '성함', '연락처', '생두사', '상품명', '수량', '총금액', '상태']; }
-  if(data.length === 0) { showToast('다운로드할 데이터가 없습니다.'); return; }
-  let csvContent = '\uFEFF' + headers.join(',') + '\n';
-  data.forEach(d => {
-    let row = [];
-    if(type === 'applications') row = [formatDt(d.created_at), d.desired_batch, d.name, d.phone, d.interest_area, d.acquisition_channel, d.status, d.join_status, d.call_time, d.counselor_name]; else if(type === 'members') row = [formatDt(d.created_at), d.status, d.batch, d.name, d.phone, d.end_date]; else if(type === 'reservations') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.res_date, d.res_time, d.center, d.space_equip, d.status, d.cancel_reason]; else if(type === 'trainings') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.content, d.status, d.cancel_reason]; else if(type === 'orders') row = [formatDt(d.created_at), d.id, d.batch, d.name, d.phone, d.vendor, d.item_name, d.quantity, d.total_price, d.status];
-    csvContent += row.map(item => { let text = String(item || ''); text = text.replace(/"/g, '""'); text = text.replace(/\n/g, ' '); return `"${text}"`; }).join(',') + '\n';
-  });
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
-}
-</script>
+     let chName = item[0]; let chTotal = item[1].total; let details = item[1].details; let opacity = index === 0 ? 1 : (index === 1 ? 0.8 : (index === 2 ? 0.6 : 0.4)); let percent = total > 0 ? Math.round((chTotal / total) * 100) :
