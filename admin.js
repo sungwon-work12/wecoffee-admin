@@ -52,11 +52,10 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = new Date(dateStr
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500); }
 
-// 🔥 폼 입력용 문자 포맷터 (텍스트 수동입력)
+// 폼 입력용 문자 포맷터
 window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length === 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
 window.formatBlockTime = function(v) { let t = String(v).replace(/\D/g, ''); if(t.length === 1) return `0${t}:00`; if(t.length === 2) return `${t.padStart(2,'0')}:00`; if(t.length === 3) return `0${t.slice(0,1)}:${t.slice(1,3)}`; if(t.length === 4) return `${t.slice(0,2)}:${t.slice(2,4)}`; return v; }
 
-// 🔥 100% 작동 보장 복사 함수 (우회 적용)
 function copyTxt(txt) {
     let t = document.createElement("textarea"); t.value = txt; t.style.position = "fixed"; t.style.top = "-9999px"; document.body.appendChild(t); t.select();
     try { document.execCommand("copy"); showToast("사전 설문 링크가 복사되었습니다."); } 
@@ -64,7 +63,7 @@ function copyTxt(txt) {
     document.body.removeChild(t);
 }
 
-// 구글 캘린더 (센터 대시보드에만 표출되도록)
+// 구글 캘린더 연동 (센터 대시보드에만 표출)
 window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   const API_KEY = 'AIzaSyAjtrSlv56VPhtqMYGsQd0L4q1AlZTW1Ng'; const CALENDAR_ID = 'wecoffeekorea@gmail.com';
   try {
@@ -142,7 +141,6 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btn
 window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); window.currentConfirmCallback = null; }
 $("confirmBtn").onclick = async function() { 
     if (window.currentConfirmCallback) {
-        // 복사하기 같은 동기적 기능은 await 없이 즉시 실행
         if($("confirmBtn").innerText === '복사하기') {
             window.currentConfirmCallback();
         } else {
@@ -627,23 +625,15 @@ function parseAcquisitionChannel(rawText) {
     return rawText.split('(')[0].trim();
 }
 
-window.copySurveyLink = function(id, name, e) {
-    if(e) e.stopPropagation();
-    const baseUrl = 'https://www.wecoffee.co.kr/survey'; 
-    const url = `${baseUrl}?uid=${id}&name=${encodeURIComponent(name)}`;
-    copyTxt(url);
-};
-
 window.closeCrmModal = function() {
     $("crmModal").classList.remove('show');
 };
 
-// 🔥 설문 응답 모달 렌더링 (UI 대폭 개선 및 오토레이아웃 적용)
+// 🔥 설문 응답 모달 렌더링 (UI 개선 & 오토레이아웃)
 window.renderCrmInner = function(id) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     $("crmName").innerText = app.name || '이름 없음';
     
-    // 숨통이 트이는 여유로운 프로필 뱃지 레이아웃
     let batchTag = `<span style="background:var(--bg-page); padding:6px 10px; border-radius:6px; font-size:13px; font-weight:600; color:var(--text-secondary);">[${app.desired_batch||'기수 미정'}]</span>`;
     let phoneTag = `<span style="background:var(--bg-page); padding:6px 10px; border-radius:6px; font-size:13px; font-weight:600; color:var(--text-secondary);">${app.phone||'-'}</span>`;
     let acqTag = `<span style="background:var(--bg-page); padding:6px 10px; border-radius:6px; font-size:13px; font-weight:600; color:var(--text-secondary);">${app.acquisition_channel||'-'}</span>`;
@@ -653,7 +643,6 @@ window.renderCrmInner = function(id) {
 
     const job = app.survey_job; const edu = app.survey_edu; const goal = app.survey_goal; const brand = app.survey_brand;
 
-    // 긴 글도 가로로 안 삐져나가게 CSS 클래스(.crm-answer)에 오토레이아웃 처리됨
     if (job || edu) {
         $("crmSurveyResult").innerHTML = `
             <div class="crm-box"><div class="crm-label">1. 직업 상태</div><div class="crm-answer">${job || '<span class="crm-empty">미작성</span>'}</div></div>
@@ -661,11 +650,10 @@ window.renderCrmInner = function(id) {
             <div class="crm-box"><div class="crm-label">3. 달성 목표 (니즈)</div><div class="crm-answer">${goal || '<span class="crm-empty">미작성</span>'}</div></div>
             <div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${brand || '<span class="crm-empty">미작성</span>'}</div></div>`;
     } else {
-        // 이모지 제거 및 깔끔한 버튼 UI 적용
         $("crmSurveyResult").innerHTML = `
             <div style="text-align:center; padding: 40px 20px; background:#fff; border-radius:12px; border:1px dashed var(--border-strong);">
                 <div style="font-size:16px; font-weight:700; color:var(--text-secondary); margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div>
-                <button class="btn-outline" style="color:var(--primary); border-color:var(--primary); padding:12px 24px; font-size:15px;" onclick="window.copySurveyLink('${app.id}', '${app.name || ''}', event)">고객 전용 설문 링크 복사하기</button>
+                <button class="btn-outline" style="color:var(--primary); border-color:var(--primary); padding:12px 24px; font-size:15px;" onclick="copyTxt('https://www.wecoffee.co.kr/survey?uid=${app.id}&name=${encodeURIComponent(app.name || '')}')">고객 전용 설문 링크 복사하기</button>
             </div>`;
     }
 
@@ -708,7 +696,7 @@ window.openScheduleModal = function(id, time, name) {
 
 window.closeScheduleModal = function() { $("scheduleModal").classList.remove('show'); currentScheduleAppId = null; };
 
-// 🔥 상담 일정 커스텀 폼 저장 로직 (과거 시간 차단 추가)
+// 🔥 상담 일정 커스텀 폼 저장 로직 (과거 시간 차단 + 연도 자동 계산)
 window.saveScheduleData = async function() {
     if (!currentScheduleAppId) return;
     const dVal = $("schedInputDate").value; const tVal = $("schedInputTime").value; const name = $("schedInputName").value.trim();
@@ -720,22 +708,30 @@ window.saveScheduleData = async function() {
     if(dt.length !== 4) { showToast("날짜는 MMDD 형식(4자리)으로 입력해주세요."); return; }
     if(timeRe.length !== 4) { showToast("시간은 HHMM 형식(4자리)으로 입력해주세요."); return; }
 
-    const currentYear = new Date().getFullYear();
-    const mm = dt.slice(0,2); const dd = dt.slice(2,4);
-    const hh = timeRe.slice(0,2); const min = timeRe.slice(2,4);
+    const now = new Date();
+    let currentYear = now.getFullYear();
+    const mm = parseInt(dt.slice(0,2), 10); 
+    const dd = parseInt(dt.slice(2,4), 10);
+    const hh = parseInt(timeRe.slice(0,2), 10); 
+    const min = parseInt(timeRe.slice(2,4), 10);
 
-    // 날짜 유효성 체크 및 과거 시간 필터링
-    const parseDate = new Date(`${currentYear}-${mm}-${dd}T${hh}:${min}:00`);
+    // 연도 자동 계산 로직 (입력한 달이 현재 달보다 2달 이상 작으면 내년 예약으로 간주)
+    if (mm < now.getMonth() + 1 - 2) { 
+        currentYear += 1;
+    }
+
+    const parseDate = new Date(currentYear, mm - 1, dd, hh, min);
     if(isNaN(parseDate.getTime())) { showToast("유효하지 않은 날짜입니다."); return; }
     
-    if(parseDate < new Date()) {
+    if(parseDate < now) {
         showToast("과거 시간은 설정할 수 없습니다.");
         return;
     }
 
     const dow = ['일','월','화','수','목','금','토'][parseDate.getDay()];
-    let ampm = parseInt(hh) >= 12 ? '오후' : '오전'; let hh12 = parseInt(hh) % 12 || 12;
-    const formattedCallTime = `${parseInt(mm)}월 ${parseInt(dd)}일(${dow}) ${ampm} ${hh12}:${min}`;
+    let ampm = hh >= 12 ? '오후' : '오전'; 
+    let hh12 = hh % 12 || 12;
+    const formattedCallTime = `${mm}월 ${dd}일(${dow}) ${ampm} ${hh12}:${String(min).padStart(2,'0')}`;
 
     const { error } = await supabaseClient.from('applications').update({ status: '상담 일정 확정', call_time: formattedCallTime, counselor_name: name }).eq('id', currentScheduleAppId);
     if (error) { showToast("저장 실패"); } else { 
@@ -748,18 +744,17 @@ window.saveScheduleData = async function() {
               "일정 확정 완료", 
               null, 
               `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, 
-              () => { window.copySurveyLink(currentScheduleAppId, app.name); }, 
+              () => { copyTxt(`https://www.wecoffee.co.kr/survey?uid=${currentScheduleAppId}&name=${encodeURIComponent(app.name || '')}`); }, 
               "복사하기"
             );
         }, 300);
     }
 };
 
-// 🔥 가입 완료(6개월 자동내역) & 롤백 기능 탑재 완료
+// 🔥 멤버 이관(Upsert) 및 롤백 로직 (결제 내역 자동 추가)
 window.updateAppStatus = async function(id, column, value) {
     const app = globalApps.find(a => String(a.id) === String(id)); if (!app) return;
 
-    // 💡 롤백 로직: 기존에 '가입 완료'였는데 다시 '고민 중' 등으로 내리는 경우
     if (column === 'join_status' && app.join_status === '가입 완료' && value !== '가입 완료') {
         window.openCustomConfirm("가입 취소 (롤백)", null, `멤버 리스트와 결제 내역에서 해당 고객을 <b>완전히 삭제</b>하고<br>상태를 [${value}](으)로 되돌리시겠습니까?`, async () => {
             await supabaseClient.from('members').delete().eq('phone', app.phone);
@@ -792,9 +787,8 @@ window.updateAppStatus = async function(id, column, value) {
                 dbErr = insertErr;
             }
 
-            if(dbErr) { showToast(`이관 실패: members 테이블 오류`); return; }
+            if(dbErr) { showToast(`이관 실패: members 테이블에 status 컬럼이 없습니다.`); return; }
             
-            // 🔥 6개월, 165만원 결제 내역 강제 삽입 (Lock)
             await supabaseClient.from('member_history').insert([{ 
                 member_name: targetName, 
                 member_phone: app.phone, 
@@ -832,7 +826,6 @@ window.renderAppTable = function(data) {
     
     const cStat = statusClassMap[row.status] || 'st-wait'; const cJoin = joinClassMap[row.join_status || ''] || 'jn-none'; const dis = row.status === '상담 완료' ? '' : 'disabled'; 
     
-    // 🔥 토글 박스 1:1 센터 정렬을 위한 투명 뱃지 구조 맞춤
     let timeBadgeHtml = '';
     let emptyJoinSpace = '';
     if(row.status === '상담 일정 확정' || row.status === '설문 완료') {
@@ -1040,4 +1033,7 @@ window.downloadExcel = function(type) {
   data.forEach(d => {
     let row = [];
     if(type === 'applications') row = [formatDt(d.created_at), d.desired_batch, d.name, d.phone, d.interest_area, d.acquisition_channel, d.status, d.join_status, d.call_time, d.counselor_name]; else if(type === 'members') row = [formatDt(d.created_at), d.status, d.batch, d.name, d.phone, d.end_date]; else if(type === 'reservations') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.res_date, d.res_time, d.center, d.space_equip, d.status, d.cancel_reason]; else if(type === 'trainings') row = [formatDt(d.created_at), d.batch, d.name, d.phone, d.content, d.status, d.cancel_reason]; else if(type === 'orders') row = [formatDt(d.created_at), d.id, d.batch, d.name, d.phone, d.vendor, d.item_name, d.quantity, d.total_price, d.status];
-    csvContent += row.map(item =>
+    csvContent += row.map(item => { let text = String(item || ''); text = text.replace(/"/g, '""'); text = text.replace(/\n/g, ' '); return `"${text}"`; }).join(',') + '\n';
+  });
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+}
