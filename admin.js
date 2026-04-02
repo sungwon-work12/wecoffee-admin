@@ -52,6 +52,7 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = new Date(dateStr
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500); }
 
+// 🔥 폼 입력용 문자 포맷터 (텍스트 수동입력용)
 window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length === 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
 window.formatBlockTime = function(v) { let t = String(v).replace(/\D/g, ''); if(t.length === 1) return `0${t}:00`; if(t.length === 2) return `${t.padStart(2,'0')}:00`; if(t.length === 3) return `0${t.slice(0,1)}:${t.slice(1,3)}`; if(t.length === 4) return `${t.slice(0,2)}:${t.slice(2,4)}`; return v; }
 
@@ -64,7 +65,7 @@ function fallbackCopy(txt) {
     let t = document.createElement("textarea"); t.value = txt; t.style.position = "fixed"; t.style.top = "-9999px"; document.body.appendChild(t); t.select(); document.execCommand("copy"); document.body.removeChild(t); showToast("클립보드에 복사되었습니다.");
 }
 
-// 구글 캘린더 (센터 대시보드에만 표출되도록)
+// 구글 캘린더 연동 (센터 대시보드에만 표출되도록 격리)
 window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   const API_KEY = 'AIzaSyAjtrSlv56VPhtqMYGsQd0L4q1AlZTW1Ng'; const CALENDAR_ID = 'wecoffeekorea@gmail.com';
   try {
@@ -364,7 +365,7 @@ window.renderMCalCenter = function(selDate) {
     let listWrap = $("m-cal-list-center"); if(listWrap) listWrap.innerHTML = html;
 };
 
-// 🔥 구글 캘린더 연동 및 센터 대시보드 렌더링
+// 🔥 대시보드 렌더링 (구글 캘린더 연동 포함)
 window.renderDashboard = async function() {
   const now = new Date(); 
   let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1);
@@ -478,7 +479,7 @@ window.renderMCalApp = function(selDate) {
     let listWrap = $("m-cal-list-app"); if(listWrap) listWrap.innerHTML = html;
 };
 
-// 🔥 예정된 상담 캘린더 렌더링
+// 예정된 상담 캘린더 렌더링
 window.renderAppDashboard = async function() {
     const now = new Date(); 
     let targetDate = new Date(now.getFullYear(), now.getMonth() + appDashMonthOffset, 1);
@@ -493,7 +494,6 @@ window.renderAppDashboard = async function() {
     let scheduledApps = globalApps.filter(a => a.status === '상담 일정 확정' && a.call_time);
     let calEvts = {};
 
-    let startDate, endDate;
     if (currentAppDashView === 'week') {
         let startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currDay);
         for(let i = 0; i < 7; i++) {
@@ -633,10 +633,16 @@ window.closeCrmModal = function() {
     $("crmModal").classList.remove('show');
 };
 
+// 🔥 설문 응답 모달 렌더링
 window.renderCrmInner = function(id) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     $("crmName").innerText = app.name || '이름 없음';
-    $("crmProfile").innerText = `[${app.desired_batch||'기수 미정'}] | ${app.phone||'-'} | ${app.acquisition_channel||'-'}`;
+    
+    let batchTag = `<span style="background:var(--border); padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; color:var(--text-secondary);">[${app.desired_batch||'기수 미정'}]</span>`;
+    let phoneTag = `<span style="background:var(--border); padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; color:var(--text-secondary);">${app.phone||'-'}</span>`;
+    let acqTag = `<span style="background:var(--border); padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; color:var(--text-secondary);">${app.acquisition_channel||'-'}</span>`;
+    $("crmProfile").innerHTML = `${batchTag}${phoneTag}${acqTag}`;
+    
     $("crmTimeBadge").innerText = app.call_time && app.call_time !== 'null' ? app.call_time : '상담시간 미정';
 
     const job = app.survey_job; const edu = app.survey_edu; const goal = app.survey_goal; const brand = app.survey_brand;
@@ -694,6 +700,7 @@ window.openScheduleModal = function(id, time, name) {
 
 window.closeScheduleModal = function() { $("scheduleModal").classList.remove('show'); currentScheduleAppId = null; };
 
+// 🔥 상담 일정 커스텀 폼 저장 로직
 window.saveScheduleData = async function() {
     if (!currentScheduleAppId) return;
     const dVal = $("schedInputDate").value; const tVal = $("schedInputTime").value; const name = $("schedInputName").value.trim();
@@ -721,18 +728,20 @@ window.saveScheduleData = async function() {
         showToast("상담 일정이 확정되었습니다."); window.closeScheduleModal(); window.fetchApplications(); 
         
         const app = globalApps.find(a => String(a.id) === String(currentScheduleAppId));
+        // 🔥 복사하기 버튼 클릭 즉시 처리 및 모달 닫힘
         setTimeout(() => {
             window.openCustomConfirm(
               "일정 확정 완료", 
               null, 
               `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, 
-              () => { window.copySurveyLink(currentScheduleAppId, app.name); window.closeConfirmModal(); }, 
+              () => { window.copySurveyLink(currentScheduleAppId, app.name); }, 
               "복사하기"
             );
         }, 300);
     }
 };
 
+// 🔥 멤버 이관 실패 방지 및 결제 내역(6개월) 자동 추가 로직
 window.updateAppStatus = async function(id, column, value) {
     if (column === 'join_status' && value === '가입 완료') {
         window.openCustomConfirm("가입 완료 (멤버 전환)", null, `해당 고객을 멤버 리스트로 이관하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary);">오늘 기준으로 6개월 활동 종료일이 자동 세팅됩니다.</span>`, async () => {
@@ -757,8 +766,17 @@ window.updateAppStatus = async function(id, column, value) {
             }
 
             if(dbErr) { showToast(`이관 실패: members 테이블에 status 컬럼이 없습니다.`); return; }
+            
+            // 🔥 결제 내역(History) 자동 추가 로직
+            await supabaseClient.from('member_history').insert([{ 
+                member_name: targetName, 
+                member_phone: app.phone, 
+                action_detail: '신규 가입 (6개월)', 
+                amount: '1,650,000원' 
+            }]);
+
             await supabaseClient.from('applications').update({ join_status: '가입 완료' }).eq('id', id);
-            showToast("멤버 이관이 완료되었습니다."); window.fetchApplications(); window.fetchMembers();
+            showToast("멤버 이관 및 내역 등록이 완료되었습니다."); window.fetchApplications(); window.fetchMembers();
         });
         return;
     }
@@ -800,7 +818,6 @@ window.renderAppTable = function(data) {
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span><span class="status-badge ${cStat}" style="margin:0 !important;">${row.status}</span></div><div class="m-prev-title">[${row.desired_batch || '-'}] ${row.name || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${row.phone || '-'})</span></div><div class="m-prev-desc">${row.interest_area || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
     const tr = document.createElement('tr');
-    // 🔥 데이터 라벨을 "성함(설문여부)"에서 "성함"으로 변경
     tr.innerHTML = `${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch || '-'}</td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${row.phone || '-'}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="상담 진행 상황"><div class="action-wrap"><select class="status-select ${cStat}" onchange="window.handleStatusChange('${row.id}', this.value, '${String(row.call_time || '')}', '${String(row.counselor_name || '')}')"><option value="대기" ${row.status === '대기' ? 'selected' : ''}>대기</option><option value="상담 일정 조율 중" ${row.status === '상담 일정 조율 중' ? 'selected' : ''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status === '상담 일정 확정' ? 'selected' : ''}>상담 일정 확정</option><option value="설문 완료" ${row.status === '설문 완료' ? 'selected' : ''}>설문 완료 (확정)</option><option value="상담 완료" ${row.status === '상담 완료' ? 'selected' : ''}>상담 완료</option><option value="연락 두절" ${row.status === '연락 두절' ? 'selected' : ''}>연락 두절</option></select>${timeBadgeHtml}</div></td><td data-label="가입 여부"><div class="action-wrap"><select class="status-select ${cJoin}" onchange="window.updateAppStatus('${row.id}', 'join_status', this.value)" ${dis}><option value="" ${!row.join_status ? 'selected' : ''}>선택 전</option><option value="고민 중" ${row.join_status === '고민 중' ? 'selected' : ''}>고민 중</option><option value="가입 완료" ${row.join_status === '가입 완료' ? 'selected' : ''}>가입 완료</option><option value="미가입" ${row.join_status === '미가입' ? 'selected' : ''}>미가입</option><option value="다음 기수 희망" ${row.join_status === '다음 기수 희망' ? 'selected' : ''}>다음 기수 희망</option></select></div></td>`;
     tbody.appendChild(tr);
   });
@@ -987,7 +1004,7 @@ window.downloadExcel = function(type) {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`; link.click(); return;
   }
   let data = []; let headers = []; let filename = "";
-  if(type === 'applications') { data = globalApps; filename = "가입신청"; headers = ['신청일', '기수', '성함', '연락처', '관심분야', '유입경로', '진행상황', '가입여부', '상담일시', '담당자']; } else if(type === 'members') { data = globalMembers; filename = "멤버리스트"; headers = ['등록일', '상태', '기수', '성함', '연락처', '활동종료일']; } else if(type === 'reservations') { data = gRes; filename = "예약현황"; headers = ['접수일', '기수', '성함', '연락처', '예약날짜', '예약시간', '센터', '장비', '상태', '취소사유']; } else if(type === 'trainings') { data = gTrn; filename = "수업훈련"; headers = ['신청일', '기수', '성함', '연락처', '콘텐츠', '상태', '취소사유']; } else if(type === 'orders') { data = gOrd; filename = "생두주문"; headers = ['주문일', '주문번호', '기수', '성함', '연락처', '생두사', '상품명', '수량', '총금액', '상태']; }
+  if(type === 'applications') { data = globalApps; filename = "가입신청"; headers = ['신청일', '기수', '성함', '연락처', '관심분야', '유입경로', '진행상황', '가입여부', '상담일시', '담당자']; } else if(type === 'members') { globalMembers.forEach(m => m.batch = m.batch || '미정'); data = globalMembers; filename = "멤버리스트"; headers = ['등록일', '상태', '기수', '성함', '연락처', '활동종료일']; } else if(type === 'reservations') { data = gRes; filename = "예약현황"; headers = ['접수일', '기수', '성함', '연락처', '예약날짜', '예약시간', '센터', '장비', '상태', '취소사유']; } else if(type === 'trainings') { data = gTrn; filename = "수업훈련"; headers = ['신청일', '기수', '성함', '연락처', '콘텐츠', '상태', '취소사유']; } else if(type === 'orders') { data = gOrd; filename = "생두주문"; headers = ['주문일', '주문번호', '기수', '성함', '연락처', '생두사', '상품명', '수량', '총금액', '상태']; }
   if(data.length === 0) { showToast('다운로드할 데이터가 없습니다.'); return; }
   let csvContent = '\uFEFF' + headers.join(',') + '\n';
   data.forEach(d => {
