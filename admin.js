@@ -171,6 +171,91 @@ window.saveNoticeData = async function() { let id = $("noticeId").value; let htm
 window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
 window.handleNoticeMediaUpload = async function(event) { const files = event.target.files; if (!files || files.length === 0) return; const overlay = $("mediaUploadOverlay"); overlay.style.display = "flex"; try { if(!quillEditor) initQuill(); let range = quillEditor.getSelection(true); if(!range) range = { index: quillEditor.getLength() }; for (let i = 0; i < files.length; i++) { const file = files[i]; const fileExt = file.name.split('.').pop(); const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`; const { error: uploadError } = await supabaseClient.storage.from('notice_media').upload(fileName, file); if (uploadError) { showToast(`${file.name} 업로드 실패`); continue; } const { data: { publicUrl } } = supabaseClient.storage.from('notice_media').getPublicUrl(fileName); if (file.type.startsWith('image/')) { quillEditor.insertEmbed(range.index, 'image', publicUrl); } else if (file.type.startsWith('video/')) { quillEditor.insertEmbed(range.index, 'video', publicUrl); } range.index++; } showToast("미디어가 첨부되었습니다."); } catch (e) { showToast("업로드 중 오류 발생"); } finally { overlay.style.display = "none"; $("noticeMediaUpload").value = ''; } }
 
+// ==========================================
+// 복구된 기존 기능: 수업 및 훈련 스케줄(Block) 관리
+// ==========================================
+window.openBlockModal = function() {
+  currentBlockId = null;
+  $("blockModalTitle").innerText = "수업 및 훈련 등 등록";
+  $("blkId").value = "";
+  $("blkCategory").value = "기본 수업";
+  $("blkDate").value = "";
+  $("blkStart").value = "";
+  $("blkEnd").value = "";
+  $("blkCenter").value = "마포 센터";
+  $("blkSpace").value = "";
+  $("blkReason").value = "";
+  $("blkCapacity").value = "";
+  $("blockModal").classList.add('show');
+}
+window.editBlock = function(id) {
+  currentBlockId = id;
+  const b = gBlk.find(x => String(x.id) === String(id));
+  if(!b) return;
+  $("blockModalTitle").innerText = "스케줄 내역 수정";
+  $("blkId").value = b.id;
+  $("blkCategory").value = b.category;
+  $("blkDate").value = b.block_date; 
+  $("blkStart").value = b.start_time; 
+  $("blkEnd").value = b.end_time;     
+  $("blkCenter").value = b.center;
+  $("blkSpace").value = b.space_equip;
+  $("blkReason").value = b.reason;
+  $("blkCapacity").value = b.capacity || "";
+  $("blockModal").classList.add('show');
+}
+window.closeBlockModal = function() {
+  $("blockModal").classList.remove('show');
+  currentBlockId = null;
+}
+window.saveBlockData = async function() {
+  const payload = { 
+      category: $("blkCategory").value, 
+      block_date: $("blkDate").value, 
+      start_time: $("blkStart").value, 
+      end_time: $("blkEnd").value, 
+      center: $("blkCenter").value, 
+      space_equip: $("blkSpace").value.trim(), 
+      reason: $("blkReason").value.trim(), 
+      capacity: parseInt($("blkCapacity").value) || null 
+  };
+  if(!payload.block_date || !payload.start_time || !payload.end_time) { showToast("날짜와 시간을 정확히 입력해주세요."); return; }
+  let error; 
+  if(currentBlockId) { const res = await supabaseClient.from('blocks').update(payload).eq('id', currentBlockId); error = res.error; } 
+  else { const res = await supabaseClient.from('blocks').insert([payload]); error = res.error; }
+  if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeBlockModal(); window.fetchCenterData(); }
+}
+window.deleteBlock = function(id) {
+  window.openCustomConfirm("스케줄 삭제", null, `해당 스케줄을 삭제하시겠습니까?`, async () => {
+    const { error } = await supabaseClient.from('blocks').delete().eq('id', id);
+    if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); }
+  });
+}
+
+// ==========================================
+// 복구된 기존 기능: 일괄 처리 및 취소 (Bulk Actions)
+// ==========================================
+window.bulkAction = function(table, type) {
+  let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); 
+  if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
+  window.openCustomConfirm("일괄 취소", null, `선택한 ${chks.length}건을 일괄 취소하시겠습니까?`, async () => {
+    let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', chk.value)); });
+    await Promise.all(promises); showToast("일괄 처리가 완료되었습니다."); window.fetchCenterData();
+  });
+}
+window.cancelAction = function(table, id) {
+  window.openCustomConfirm("정상 취소 처리", null, `해당 내역을 정상 취소로 처리하시겠습니까?`, async () => {
+    await supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', id); showToast("정상 취소로 처리되었습니다."); window.fetchCenterData();
+  });
+}
+window.bulkActionOrd = function(statusValue) {
+  let chks = $$$(`.chk-ord:checked`);
+  if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; }
+  window.openCustomConfirm("생두 상태 일괄 변경", null, `선택한 ${chks.length}건을(를) ${statusValue} 상태로 변경하시겠습니까?`, async () => {
+    let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from('orders').update({ status: statusValue }).eq('id', chk.value)); });
+    await Promise.all(promises); showToast(`일괄 처리가 완료되었습니다.`); window.fetchCenterData();
+  });
+}
 
 // ==========================================
 // 5. 센터 관리 데이터 로드 및 UI 렌더링
@@ -320,7 +405,6 @@ window.renderDashboard = async function() {
   let filteredBlk = gBlk.filter(b => (currentGlobalCenter === '전체' || b.center === currentGlobalCenter) && (fSpc === '전체' || b.space_equip === fSpc || !b.space_equip || b.space_equip === '전체'));
   let filteredTrn = gTrn.filter(t => { if((t.status||'').includes('취소') || (fBtc !== '전체' && t.batch !== fBtc)) return false; let parts = String(t.content||"").split(' || '); if(parts.length < 5) return false; if(currentGlobalCenter !== '전체' && parts[3].trim() !== currentGlobalCenter) return false; if(fSpc !== '전체' && !parts[1].includes(fSpc)) return false; return true; });
   
-  // 구글 캘린더는 센터 대시보드에서만 호출
   let googleEvents = await window.fetchGoogleCalendarEvents(yyyy, mm + 1); let calEvts = {};
   
   if (currentDashView === 'week') {
@@ -418,7 +502,7 @@ window.renderMCalApp = function(selDate) {
     let listWrap = $("m-cal-list-app"); if(listWrap) listWrap.innerHTML = html;
 };
 
-// 🔥 예정된 상담 캘린더 전용 렌더링 함수 복구
+// 🔥 예정된 상담 캘린더 전용 렌더링 함수
 window.renderAppDashboard = async function() {
     const now = new Date(); let dYear = now.getFullYear(); let dMonth = now.getMonth() + appDashMonthOffset;
     const focusDate = new Date(dYear, dMonth, 1); const yyyy = focusDate.getFullYear(); const mm = focusDate.getMonth();
@@ -925,3 +1009,4 @@ window.downloadExcel = function(type) {
   });
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
+</script>
