@@ -36,7 +36,6 @@ function showToast(msg) { const toast = $("toast"); toast.innerText = msg; toast
 window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length >= 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
 window.formatBlockTime = function(v) { let t = String(v).replace(/\D/g, ''); if(t.length === 1) return `0${t}:00`; if(t.length === 2) return `${t.padStart(2,'0')}:00`; if(t.length === 3) return `0${t.slice(0,1)}:${t.slice(1,3)}`; if(t.length >= 4) return `${t.slice(0,2)}:${t.slice(2,4)}`; return v; }
 
-// 🔥 복사하기 완벽 해결 로직 (동기식 fallback 포함)
 window.copyTxt = function(txt) {
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(txt).then(() => { showToast("사전 설문 링크가 복사되었습니다."); }).catch(err => { fallbackCopyTextToClipboard(txt); });
@@ -104,11 +103,13 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btn
 }
 window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); window.currentConfirmCallback = null; }
 
-// 🔥 모달 컨펌 버튼 클릭 로직 보강 (복사 즉시 실행)
+// 🔥 모달 컨펌 버튼 클릭 로직 (비동기 병목 제거)
 $("confirmBtn").onclick = async function() { 
     if (window.currentConfirmCallback) {
         if($("confirmBtn").innerText === '복사하기') {
-            window.currentConfirmCallback(); // 복사는 비동기 통신 대기 없이 즉시 호출
+            window.currentConfirmCallback(); // 비동기 대기 없이 동기 호출로 클립보드 블락 우회
+            window.closeConfirmModal();      // 즉시 닫기
+            return;
         } else {
             await window.currentConfirmCallback(); 
         }
@@ -228,7 +229,6 @@ const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완�
 function parseAcquisitionChannel(rawText) { if(!rawText) return '-'; let txt = String(rawText).toLowerCase(); if(txt.includes('광고') || txt.includes('스폰서드')) return '광고'; if(txt.includes('인스타')) return '인스타그램'; if(txt.includes('블로그')) return '네이버 블로그'; if(txt.includes('블랙워터')) return '블랙워터'; if(txt.includes('지인')) return '지인 추천'; return rawText.split('(')[0].trim(); }
 window.closeCrmModal = function() { $("crmModal").classList.remove('show'); };
 
-// 설문지 응답 보기
 window.renderCrmInner = function(id) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     $("crmName").innerText = app.name || '이름 없음';
@@ -286,7 +286,6 @@ window.saveScheduleData = async function() {
 window.updateAppStatus = async function(id, column, value) {
     const app = globalApps.find(a => String(a.id) === String(id)); if (!app) return;
     if (column === 'join_status' && app.join_status === '가입 완료' && value !== '가입 완료') {
-        // 🔥 롤백 팝업 텍스트 굵기 및 줄바꿈 정상화 (완벽 동일 세팅)
         window.openCustomConfirm("가입 취소 (롤백)", null, `해당 고객의 가입 처리를 취소하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500; display:block; margin-top:8px; line-height:1.5;">멤버 리스트와 결제 내역에서 해당 고객을 완전히 삭제하고,<br>상태를 [${value}](으)로 되돌리시겠습니까?</span>`, async () => {
             await supabaseClient.from('members').delete().eq('phone', app.phone); await supabaseClient.from('member_history').delete().eq('member_phone', app.phone); await supabaseClient.from('applications').update({ join_status: value }).eq('id', id); showToast("멤버 리스트에서 삭제되고 롤백 되었습니다."); window.fetchApplications(); window.fetchMembers();
         });
@@ -318,7 +317,6 @@ window.renderAppTable = function(data) {
     let routeDisplay = parseAcquisitionChannel(row.acquisition_channel); if (row.brand_awareness_duration && row.brand_awareness_duration !== '정보없음') routeDisplay += ` <div class="sub-text">(${row.brand_awareness_duration})</div>`; else if (row.acquisition_detail) routeDisplay += ` <div class="sub-text">(${row.acquisition_detail})</div>`;
     const cStat = statusClassMap[row.status] || 'st-wait'; const cJoin = joinClassMap[row.join_status || ''] || 'jn-none'; const dis = row.status === '상담 완료' ? '' : 'disabled'; 
     let timeBadgeHtml = ''; let emptyJoinSpace = '';
-    // 🔥 테이블 드롭다운 셀 1:1 센터 정렬 밸런스 유지 (투명 더미 텍스트 삽입)
     if(row.status === '상담 일정 확정' || row.status === '설문 완료') { 
         let displayTime = (row.call_time && row.call_time !== 'null') ? row.call_time : '미정'; 
         timeBadgeHtml = `<div class="edit-schedule-link" onclick="window.openScheduleModal('${row.id}', '${displayTime}', '${row.counselor_name}')">상담 일정 수정</div>`; 
@@ -333,19 +331,57 @@ window.renderAppTable = function(data) {
 }
 function getFrequency(arr) { return Object.entries(arr.reduce((acc, val) => { if(val) acc[val] = (acc[val] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1]); }
 function generateBarHTML(label, count, maxCount, opacity = 1) { const percent = maxCount === 0 ? 0 : Math.round((count / maxCount) * 100); return `<div style="margin-bottom:8px;"><div style="font-size:13px; font-weight:600; margin-bottom:4px; display:flex; justify-content:space-between;"><span>${label}</span><span style="color:var(--text-secondary); font-size:12px;">${count}건 (${percent}%)</span></div><div style="background:var(--border-strong); height:8px; border-radius:4px; overflow:hidden;"><div style="width:${percent}%; background:rgba(255, 121, 0, ${opacity}); height:100%;"></div></div></div>`; }
+
 window.renderStatistics = function(data) {
   const container = $("statsContainer"); container.innerHTML = ''; if(data.length === 0) { $("insightSummaryText").innerHTML = "<div style='padding:16px;'>데이터가 부족합니다.</div>"; return; }
   const total = data.length; const counseled = data.filter(d => d.status === '상담 일정 확정' || d.status === '설문 완료' || d.status === '상담 완료').length; const joined = data.filter(d => d.join_status === '가입 완료').length; const convRate = total > 0 ? Math.round((joined / total) * 100) : 0;
   let channelMap = {}; let safeDataForSummary = { instaFollow:0, instaNonFollow:0, adNow:0, leadTime3M:0 };
-  data.forEach(d => { let rawCh = String(d.acquisition_channel || '기타 경로'); let acq_ch = '기타 경로'; let detail = ''; const match = rawCh.match(/\(([^)]+)\)/); if (match) { detail = match[1].trim(); rawCh = rawCh.split('(')[0].trim(); } if (rawCh.includes('인스타')) { acq_ch = '인스타그램'; if (!detail) detail = (d.acquisition_detail && d.acquisition_detail !== '정보없음' && d.acquisition_detail !== 'null') ? String(d.acquisition_detail) : ''; if (!detail) detail = (d.brand_awareness_duration && d.brand_awareness_duration !== '정보없음' && d.brand_awareness_duration !== 'null') ? String(d.brand_awareness_duration) : ''; if (detail.includes('팔로')) safeDataForSummary.instaFollow++; else safeDataForSummary.instaNonFollow++; } else if (rawCh.includes('광고') || rawCh.includes('스폰서드')) { acq_ch = '모집 광고'; if (!detail) detail = (d.brand_awareness_duration && d.brand_awareness_duration !== '정보없음' && d.brand_awareness_duration !== 'null') ? String(d.brand_awareness_duration) : ''; if (!detail) detail = (d.acquisition_detail && d.acquisition_detail !== '정보없음' && d.acquisition_detail !== 'null') ? String(d.acquisition_detail) : ''; if (detail.includes('방금') || detail.includes('1주일') || detail.includes('한 달') || detail.includes('1개월 이내')) safeDataForSummary.adNow++; else if (detail.includes('3개월') || detail.includes('이상')) safeDataForSummary.leadTime3M++; } else if (rawCh.includes('지인')) { acq_ch = '지인 추천'; if (!detail) detail = (d.acquisition_detail && d.acquisition_detail !== '정보없음' && d.acquisition_detail !== 'null') ? String(d.acquisition_detail) : ''; } else if (rawCh.includes('블로그')) { acq_ch = '네이버 블로그'; if (!detail) detail = (d.acquisition_detail && d.acquisition_detail !== '정보없음' && d.acquisition_detail !== 'null') ? String(d.acquisition_detail) : ''; } else { acq_ch = rawCh; } if(!channelMap[acq_ch]) channelMap[acq_ch] = { total: 0, details: {} }; channelMap[acq_ch].total++; if(detail && detail !== 'null' && detail !== '정보없음' && !detail.includes('미기재')) { channelMap[acq_ch].details[detail] = (channelMap[acq_ch].details[detail] || 0) + 1; } });
+  
+  data.forEach(d => { 
+    let rawCh = String(d.acquisition_channel || '기타 경로'); let acq_ch = '기타 경로'; let detail = ''; 
+    const match = rawCh.match(/\(([^)]+)\)/); 
+    if (match) { detail = match[1].trim(); rawCh = rawCh.split('(')[0].trim(); } 
+    
+    if (rawCh.includes('인스타')) { 
+        acq_ch = '인스타그램'; 
+        if (!detail) detail = (d.acquisition_detail && d.acquisition_detail !== '정보없음' && d.acquisition_detail !== 'null') ? String(d.acquisition_detail) : ''; 
+        if (!detail) detail = (d.brand_awareness_duration && d.brand_awareness_duration !== '정보없음' && d.brand_awareness_duration !== 'null') ? String(d.brand_awareness_duration) : ''; 
+        if (detail.includes('팔로')) safeDataForSummary.instaFollow++; else safeDataForSummary.instaNonFollow++; 
+    } else if (rawCh.includes('광고') || rawCh.includes('스폰서드')) { 
+        acq_ch = '모집 광고'; 
+        if (!detail) detail = (d.brand_awareness_duration && d.brand_awareness_duration !== '정보없음' && d.brand_awareness_duration !== 'null') ? String(d.brand_awareness_duration) : ''; 
+        if (!detail) detail = (d.acquisition_detail && d.acquisition_detail !== '정보없음' && d.acquisition_detail !== 'null') ? String(d.acquisition_detail) : ''; 
+        if (detail.includes('방금') || detail.includes('1주일') || detail.includes('한 달') || detail.includes('1개월 이내')) safeDataForSummary.adNow++; 
+        else if (detail.includes('3개월') || detail.includes('이상')) safeDataForSummary.leadTime3M++; 
+    } else if (rawCh.includes('지인')) { 
+        acq_ch = '지인 추천'; 
+        if (!detail) detail = (d.acquisition_detail && d.acquisition_detail !== '정보없음' && d.acquisition_detail !== 'null') ? String(d.acquisition_detail) : ''; 
+    } else if (rawCh.includes('블로그')) { 
+        acq_ch = '네이버 블로그'; 
+        if (!detail) detail = (d.acquisition_detail && d.acquisition_detail !== '정보없음' && d.acquisition_detail !== 'null') ? String(d.acquisition_detail) : ''; 
+    } else { 
+        acq_ch = rawCh; 
+    } 
+    
+    if(!channelMap[acq_ch]) channelMap[acq_ch] = { total: 0, details: {} }; 
+    channelMap[acq_ch].total++; 
+    if(detail && detail !== 'null' && detail !== '정보없음' && !detail.includes('미기재')) { 
+        channelMap[acq_ch].details[detail] = (channelMap[acq_ch].details[detail] || 0) + 1; 
+    } 
+  });
+  
   let interestData = getFrequency(data.map(d => String(d.interest_area||''))); let topInterest = interestData.length > 0 ? interestData[0][0] : '없음'; let topInterestRate = total > 0 && interestData.length > 0 ? Math.round((interestData[0][1] / total) * 100) : 0;
   let summaryHtml = `<div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:32px;"><div style="flex:1; min-width:260px; background:#fff; border:1px solid var(--border-strong); border-radius:12px; padding:24px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;"><div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px; font-weight:600;">기수 주요 목적 (관심사)</div><div style="font-size:20px; font-weight:800; color:var(--text-display);">${topInterest} <span style="font-size:15px; color:var(--primary);">(${topInterestRate}%)</span></div></div><div style="flex:1; min-width:260px; background:#fff; border:1px solid var(--border-strong); border-radius:12px; padding:24px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;"><div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px; font-weight:600;">인스타그램 팬덤 유입 현황</div><div style="font-size:15px; font-weight:700; color:var(--text-display);">팔로워 <span style="font-size:22px; color:var(--primary); font-weight:800;">${safeDataForSummary.instaFollow}</span>명 <span style="color:var(--border-strong); margin:0 8px;">|</span> 비팔로워 <span style="font-size:20px; font-weight:800;">${safeDataForSummary.instaNonFollow}</span>명</div></div><div style="flex:1; min-width:260px; background:#fff; border:1px solid var(--border-strong); border-radius:12px; padding:24px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center;"><div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px; font-weight:600;">모집 광고 리드타임 (고민 후 전환)</div><div style="font-size:15px; font-weight:700; color:var(--text-display);">1개월 이상 <span style="font-size:22px; color:var(--primary); font-weight:800;">${safeDataForSummary.leadTime3M}</span>명 <span style="color:var(--border-strong); margin:0 8px;">|</span> 단기 유입 <span style="font-size:20px; font-weight:800;">${safeDataForSummary.adNow}</span>명</div></div></div>`; $("insightSummaryText").innerHTML = summaryHtml;
   let cardsHtml = `<div class="stat-card" style="padding:24px 16px;"><div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px; font-weight:600;">총 신청 건수</div><div style="font-size:26px; font-weight:800; color:var(--text-display); line-height:1;">${total}<span style="font-size:15px; margin-left:2px;">건</span></div></div><div class="stat-card" style="padding:24px 16px;"><div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px; font-weight:600;">최종 가입 전환율</div><div style="font-size:26px; font-weight:800; color:var(--primary); line-height:1;">${convRate}<span style="font-size:18px;">%</span></div></div><div class="stat-card" style="padding:24px 16px;"><div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px; font-weight:600;">인스타그램 (총합)</div><div style="font-size:26px; font-weight:800; color:var(--text-display); line-height:1;">${channelMap['인스타그램'] ? channelMap['인스타그램'].total : 0}<span style="font-size:15px; margin-left:2px;">건</span></div></div><div class="stat-card" style="padding:24px 16px;"><div style="font-size:13px; color:var(--text-secondary); margin-bottom:8px; font-weight:600;">모집 광고 (총합)</div><div style="font-size:26px; font-weight:800; color:var(--text-display); line-height:1;">${channelMap['모집 광고'] ? channelMap['모집 광고'].total : 0}<span style="font-size:15px; margin-left:2px;">건</span></div></div>`; $("statsCards").innerHTML = cardsHtml;
   let funnelHtml = `<div class="stat-card" style="padding:24px;"><div style="font-size:16px; font-weight:800; margin-bottom:20px; color:var(--text-display); width:100%; text-align:left;">고객 전환 퍼널 (Funnel)</div><div class="funnel-wrap"><div class="funnel-step"><div style="font-size:13px; color:var(--text-secondary); margin-bottom:6px; font-weight:600;">신청 접수</div><div style="font-size:20px; font-weight:800; color:var(--text-display);">${total}명</div></div><div class="funnel-arrow">➔</div><div class="funnel-step"><div style="font-size:13px; color:var(--text-secondary); margin-bottom:6px; font-weight:600;">상담 확정/완료</div><div style="font-size:20px; font-weight:800; color:var(--text-display); margin-bottom:4px;">${counseled}명</div><div style="font-size:12px; color:var(--primary); font-weight:700; background:#fff; padding:2px 8px; border-radius:4px; border:1px solid #f2f4f6;">${total > 0 ? Math.round(counseled/total*100) : 0}% 전환</div></div><div class="funnel-arrow">➔</div><div class="funnel-step success"><div style="font-size:13px; margin-bottom:6px; font-weight:600;">가입 완료</div><div style="font-size:20px; font-weight:800; margin-bottom:4px;">${joined}명</div><div style="font-size:12px; color:var(--primary); font-weight:700; background:#fff; padding:2px 8px; border-radius:4px;">${counseled > 0 ? Math.round(joined/counseled*100) : 0}% 전환</div></div></div></div>`; $("statsFunnel").innerHTML = funnelHtml; $("statsFunnel").style.display = 'block';
   let sortedChannels = Object.entries(channelMap).sort((a,b) => b[1].total - a[1].total); let treeChartHtml = '';
   sortedChannels.forEach((item, index) => { let chName = item[0]; let chTotal = item[1].total; let details = item[1].details; let opacity = index === 0 ? 1 : (index === 1 ? 0.8 : (index === 2 ? 0.6 : 0.4)); let percent = total > 0 ? Math.round((chTotal / total) * 100) : 0; treeChartHtml += `<div style="margin-bottom: 16px;"><div style="font-size:14px; font-weight:800; color:var(--text-display); margin-bottom:4px; display:flex; justify-content:space-between;"><span>${index+1}. ${chName}</span><span>${chTotal}건 (${percent}%)</span></div><div style="background:var(--border-strong); height:8px; border-radius:4px; overflow:hidden; margin-bottom:8px;"><div style="width: ${percent}%; background:rgba(255, 121, 0, ${opacity}); height:100%;"></div></div>`; let sortedDetails = Object.entries(details).sort((a,b) => b[1] - a[1]); if (sortedDetails.length > 0) { sortedDetails.forEach(det => { let dName = det[0]; let dCount = det[1]; let dPercent = Math.round((dCount / chTotal) * 100); treeChartHtml += `<div style="display:flex; align-items:center; margin-bottom:6px; padding-left:12px;"><div style="color:var(--text-tertiary); margin-right:8px; font-size:12px; font-weight:800;">ㄴ</div><div style="flex:1;"><div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:4px;"><span>${dName}</span><span>${dCount}건</span></div><div style="background:var(--border); height:4px; border-radius:2px; overflow:hidden;"><div style="width: ${dPercent}%; background:rgba(255, 121, 0, ${opacity * 0.4}); height:100%;"></div></div></div></div>`; }); } treeChartHtml += `</div>`; });
-  let chartsHtml = `<div class="stat-card" style="padding:24px; text-align:left; align-items:flex-start;"><div style="font-size:16px; font-weight:800; margin-bottom:24px; width:100%;">전체 유입 경로 순위 (상세 속성 트리)</div><div style="width:100%;">${treeChartHtml}</div></div><div class="stat-card" style="padding:24px; text-align:left; align-items:flex-start;"><div style="font-size:16px; font-weight:800; margin-bottom:24px; width:100%;">관심 분야 (목적)</div><div style="width:100%;">${getFrequency(data.map(d => String(d.interest_area||''))).map((c, i) => generateBarHTML(c[0], c[1], total, i === 0 ? 1 : (i === 1 ? 0.8 : (i === 2 ? 0.6 : 0.4)))).join('')}</div></div>`; container.innerHTML = chartsHtml; window.currentInsightData = { total, joined, instaCount: channelMap['인스타그램']?channelMap['인스타그램'].total:0, adCount: channelMap['모집 광고']?channelMap['모집 광고'].total:0, leadTime1M: safeDataForSummary.adNow, leadTime3M: safeDataForSummary.leadTime3M };
+  let chartsHtml = `<div class="stat-card" style="padding:24px; text-align:left; align-items:flex-start;"><div style="font-size:16px; font-weight:800; margin-bottom:24px; width:100%;">전체 유입 경로 순위 (상세 속성 트리)</div><div style="width:100%;">${treeChartHtml}</div></div><div class="stat-card" style="padding:24px; text-align:left; align-items:flex-start;"><div style="font-size:16px; font-weight:800; margin-bottom:24px; width:100%;">관심 분야 (목적)</div><div style="width:100%;">${getFrequency(data.map(d => String(d.interest_area||''))).map((c, i) => generateBarHTML(c[0], c[1], total, i === 0 ? 1 : (i === 1 ? 0.8 : (i === 2 ? 0.6 : 0.4)))).join('')}</div></div>`; container.innerHTML = chartsHtml; 
+  
+  // 🔥 전역 객체에 엑셀 추출용 상세 데이터 전부 저장
+  window.currentInsightData = { total, joined, instaCount: channelMap['인스타그램']?channelMap['인스타그램'].total:0, adCount: channelMap['모집 광고']?channelMap['모집 광고'].total:0, instaFollow: safeDataForSummary.instaFollow, instaNonFollow: safeDataForSummary.instaNonFollow, leadTime1M: safeDataForSummary.adNow, leadTime3M: safeDataForSummary.leadTime3M, channelMap: channelMap };
 }
+
 window.fetchMembers = async function() { const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); if (error) return; globalMembers = data; let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); }); let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort().reverse().map(b=>`<option value="${b}">${b}</option>`).join(""); if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml; window.searchMembers(); }
 window.searchMembers = function() { const query = $("memberSearch").value.trim().toLowerCase(); const statusFilter = $("memberStatusFilter") ? $("memberStatusFilter").value : 'all'; const batchFilter = $("memberBatchFilter") ? $("memberBatchFilter").value : 'all'; const today = new Date(); today.setHours(0,0,0,0); const filtered = globalMembers.filter(m => { let isExpired = true; let isPaused = m.status === '활동 일시정지'; if (m.end_date && m.end_date.length === 10) { let endD = new Date(m.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; } let statusText = m.status || '활동 중'; if (statusText === '패널티 정지') statusText = '패널티 정지'; else if (statusText === '활동 일시정지') statusText = '활동 일시정지'; else if (isExpired) statusText = '활동 종료'; let matchQuery = `${m.batch||''} ${m.name||''} ${m.phone||''} ${statusText}`.toLowerCase().includes(query); let matchBatch = batchFilter === 'all' || m.batch === batchFilter; let matchStatus = false; if (statusFilter === 'all') matchStatus = true; else if (statusFilter === '활동 중 (전체)') matchStatus = ['활동 중', '연장 활동 중', '단일권 이용'].includes(statusText); else matchStatus = statusText === statusFilter; return matchQuery && matchStatus && matchBatch; }); renderMemberTable(filtered); }
 function renderMemberTable(data) {
@@ -380,8 +416,41 @@ window.updateMemberEndDate = async function(id, dateStr) { const { error } = awa
 window.deleteHistory = async function(id, phone, name, action_detail) { window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => { await supabaseClient.from('member_history').delete().eq('id', id); const m = globalMembers.find(x => String(x.phone) === String(phone)); if (m && m.end_date) { let d = new Date(m.end_date); let isChanged = false; if (action_detail.includes('1개월 연장') || action_detail.includes('보너스 1개월')) { d.setMonth(d.getMonth() - 1); isChanged = true; } else if (action_detail.includes('3개월 연장')) { d.setMonth(d.getMonth() - 3); isChanged = true; } else if (action_detail.includes('6개월 연장')) { d.setMonth(d.getMonth() - 6); isChanged = true; } else if (action_detail.includes('당일권 추가')) { d.setDate(d.getDate() - 1); isChanged = true; } if (isChanged) { let newEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; m.end_date = newEndDate; await supabaseClient.from('members').update({ end_date: newEndDate }).eq('phone', phone); } } showToast("내역이 삭제되고 종료일이 복구되었습니다."); window.searchMembers(); window.openHistoryModal(phone, name); }); };
 window.openHistoryModal = async function(phone, name) { $("historyModalTitle").innerText = `${name} 님의 내역`; const modal = $("historyModal"); modal.classList.add('show'); const body = $("historyModalBody"); body.innerHTML = '<div class="empty-state">내역을 불러오는 중입니다.</div>'; const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false }); if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state" style="color:var(--text-tertiary);">결제/연장 내역이 없습니다.</div>'; return; } body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>'; }
 window.closeHistoryModal = function() { $("historyModal").classList.remove('show'); }
+
+// 🔥 인사이트 상세 속성 엑셀 출력 수정 로직 반영
 window.downloadExcel = function(type) {
-  if (type === 'applications' && isInsightView) { const d = window.currentInsightData || {}; let csv = "\uFEFF항목,수치,비고\n"; csv += `총 신청 건수,${d.total||0}건,-\n`; csv += `최종 가입 완료,${d.joined||0}건,(전환율 ${d.total > 0 ? Math.round(d.joined/d.total*100) : 0}%)\n`; csv += `인스타그램 총 유입,${d.instaCount||0}건,-\n`; csv += `모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`; const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`; link.click(); return; }
+  if (type === 'applications' && isInsightView) { 
+    const d = window.currentInsightData || {}; 
+    let csv = "\uFEFF카테고리,세부 항목,수치,비고\n"; 
+    csv += `전체 요약,총 신청 건수,${d.total||0}건,-\n`; 
+    csv += `전체 요약,최종 가입 완료,${d.joined||0}건,(전환율 ${d.total > 0 ? Math.round(d.joined/d.total*100) : 0}%)\n`; 
+    csv += `유입 채널,인스타그램 총 유입,${d.instaCount||0}건,-\n`; 
+    csv += `인스타 상세,팔로워 유입,${d.instaFollow||0}건,-\n`; 
+    csv += `인스타 상세,비팔로워 유입,${d.instaNonFollow||0}건,-\n`; 
+    csv += `유입 채널,모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`; 
+    csv += `광고 리드타임,단기 유입 (1개월 이내),${d.leadTime1M||0}건,-\n`; 
+    csv += `광고 리드타임,장기 유입 (3개월 이상),${d.leadTime3M||0}건,-\n`; 
+    
+    if (d.channelMap) {
+        csv += `\n상세 채널별 트래킹,상세 내역,건수,비고\n`;
+        for (let ch in d.channelMap) {
+            let chData = d.channelMap[ch];
+            csv += `[${ch}],(총 ${chData.total}건),-,-\n`;
+            for (let det in chData.details) {
+                let detSafe = String(det).replace(/"/g, '""');
+                csv += `ㄴ,${detSafe},${chData.details[det]}건,-\n`;
+            }
+        }
+    }
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+    const link = document.createElement('a'); 
+    link.href = URL.createObjectURL(blob); 
+    link.download = `위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`; 
+    link.click(); 
+    return; 
+  }
+  
   let data = []; let headers = []; let filename = "";
   if(type === 'applications') { data = globalApps; filename = "가입신청"; headers = ['신청일', '기수', '성함', '연락처', '관심분야', '유입경로', '진행상황', '가입여부', '상담일시', '담당자']; } else if(type === 'members') { globalMembers.forEach(m => m.batch = m.batch || '미정'); data = globalMembers; filename = "멤버리스트"; headers = ['등록일', '상태', '기수', '성함', '연락처', '활동종료일']; } else if(type === 'reservations') { data = gRes; filename = "예약현황"; headers = ['접수일', '기수', '성함', '연락처', '예약날짜', '예약시간', '센터', '장비', '상태', '취소사유']; } else if(type === 'trainings') { data = gTrn; filename = "수업훈련"; headers = ['신청일', '기수', '성함', '연락처', '콘텐츠', '상태', '취소사유']; } else if(type === 'orders') { data = gOrd; filename = "생두주문"; headers = ['주문일', '주문번호', '기수', '성함', '연락처', '생두사', '상품명', '수량', '총금액', '상태']; }
   if(data.length === 0) { showToast('다운로드할 데이터가 없습니다.'); return; }
