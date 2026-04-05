@@ -95,27 +95,6 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 
 function initializeApp() {
   window.fetchHolidays(new Date().getFullYear());
-  
-  // 🔥 1. 복사 버튼 동기화 처리
-  if ($("confirmBtn")) {
-      $("confirmBtn").onclick = function() { 
-          if (window.currentConfirmCallback) {
-              if (this.innerText === '복사하기') {
-                  window.copyTxt(window.currentCopyText); 
-                  window.closeConfirmModal();
-                  return;
-              } else {
-                  (async () => {
-                      await window.currentConfirmCallback(); 
-                      window.closeConfirmModal(); 
-                  })();
-                  return;
-              }
-          }
-          window.closeConfirmModal(); 
-      };
-  }
-
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
       var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
@@ -153,25 +132,31 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
+// 🔥 1. 모달 초기화 및 복사 동기화 구조 개선
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btnText = '적용하기') {
     $("confirmTarget").innerHTML = title;
     if(statusHtml) { $("confirmStateBox").style.display = 'block'; $("confirmSimpleBox").style.display = 'none'; $("confirmStatus").innerHTML = statusHtml; $("confirmActionState").innerHTML = actionHtml; } 
     else { $("confirmStateBox").style.display = 'none'; $("confirmSimpleBox").style.display = 'block'; $("confirmActionSimple").innerHTML = actionHtml; }
     
     let btn = $("confirmBtn");
-    btn.innerText = btnText; 
+    btn.innerText = btnText;
     
-    // 복사일 경우 callback 텍스트를 글로벌 변수에 할당하여 onclick에서 사용하게 함
-    if(btnText === '복사하기') {
-        window.currentCopyText = callback;
-        window.currentConfirmCallback = true;
-    } else {
-        window.currentConfirmCallback = callback;
-    }
-    
+    // 이전 이벤트 리스너 완전 제거 후 새로 할당
+    btn.onclick = null;
+    btn.onclick = function() {
+        if(btnText === '복사하기') {
+            window.copyTxt(callback); // callback에 복사할 텍스트가 들어옴
+            window.closeConfirmModal();
+        } else {
+            (async () => {
+                await callback();
+                window.closeConfirmModal();
+            })();
+        }
+    };
     $("confirmModal").classList.add('show');
 }
-window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); window.currentConfirmCallback = null; }
+window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); }
 
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId) $(modalId).classList.remove('show'); }
 
@@ -227,6 +212,47 @@ window.renderCenterData = function() {
 }
 window.renderNoticeData = function() { let fNoti = [...gNotice]; fNoti.sort((a,b) => { if(a.is_pinned === b.is_pinned) return new Date(b.created_at) - new Date(a.created_at); return a.is_pinned ? -1 : 1; }); $("noticeTableBody").innerHTML = fNoti.length ? fNoti.map(n => { let pinBadge = n.is_pinned ? `<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>` : `<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`; let statBadge = n.status === '발행' ? `<span class="status-badge badge-green">발행 중</span>` : `<span class="status-badge badge-gray">숨김</span>`; let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${n.title}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${n.title}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; }).join("") : `<tr><td colspan="5" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`; }
 window.renderMCalCenter = function(selDate) { $$$("#dash-content .m-cal-date").forEach(el => el.classList.remove('active')); let target = document.getElementById(`m-date-center-${selDate}`); if(target) { target.classList.add('active'); target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } let evts = window.centerCalEvts[selDate] || []; evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||''))); let html = ''; if(evts.length === 0) { html = `<div class="empty-state" style="padding:40px 0;">예정된 일정이 없습니다.</div>`; } else { evts.forEach(e => { let badgeStyle = e.type==='google' ? 'color:#495057;' : 'color:var(--primary);'; html += `<div class="m-cal-card"><div class="m-cal-card-time" style="${badgeStyle}">${e.start || e.time || '종일'}</div><div class="m-cal-card-title">${e.text||''}</div><div class="m-cal-card-desc">${String(e.tooltip||'').split('|')[0]}</div></div>`; }); } let listWrap = $("m-cal-list-center"); if(listWrap) listWrap.innerHTML = html; };
+window.renderDashboard = async function() {
+  const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay() || 7; 
+  if (currentDashView === 'month' && $("dashMonthTitle")) $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; await window.fetchHolidays(yyyy);
+  let fSpc = $("dashSpaceFilter").value; let fBtc = $("dashBatchFilter").value; let filteredRes = gRes.filter(r => (currentGlobalCenter === '전체' || r.center === currentGlobalCenter) && !(r.status||'').includes('취소') && (fSpc === '전체' || String(r.space_equip||'').includes(fSpc)) && (fBtc === '전체' || r.batch === fBtc)); let filteredBlk = gBlk.filter(b => (currentGlobalCenter === '전체' || b.center === currentGlobalCenter) && (fSpc === '전체' || b.space_equip === fSpc || !b.space_equip || b.space_equip === '전체')); let filteredTrn = gTrn.filter(t => { if((t.status||'').includes('취소') || (fBtc !== '전체' && t.batch !== fBtc)) return false; let parts = String(t.content||"").split(' || '); if(parts.length < 5) return false; if(currentGlobalCenter !== '전체' && parts[3].trim() !== currentGlobalCenter) return false; if(fSpc !== '전체' && !parts[1].includes(fSpc)) return false; return true; });
+  let googleEvents = await window.fetchGoogleCalendarEvents(yyyy, mm + 1); let calEvts = {};
+  if (currentDashView === 'week') { let weekDates = []; let daysKr = ["일", "월", "화", "수", "목", "금", "토"]; for(let i = 1; i <= 7; i++) { let dObj = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currDay + i); weekDates.push(dObj); calEvts[`${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`] = []; } let matrix = {}; equipList.forEach(eq => { matrix[eq] = {}; weekDates.forEach(wd => { let ds = `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,'0')}-${String(wd.getDate()).padStart(2,'0')}`; matrix[eq][ds] = []; }); }); const pushData = (dStr, spaceStr, text) => { equipList.forEach(eq => { if(spaceStr === "전체" || spaceStr.includes(eq)) if(matrix[eq][dStr]) matrix[eq][dStr].push(text); }); }; filteredRes.forEach(r => { let stTime = String(r.res_time||"").split('~')[0].trim(); let spaceName = String(r.space_equip||"").split(' ')[0]; pushData(r.res_date, r.space_equip || '', `<div class="dash-item dash-item-res"><div class="dash-item-text"><span class="dash-time">${stTime}</span>[${r.batch||'-'}] ${r.name}</div><div class="dash-tooltip">[${spaceName}] ${r.res_time} | [${r.batch||'-'}] ${r.name}</div></div>`); if(calEvts[r.res_date]) calEvts[r.res_date].push({ type:'res', start:stTime, text:`[${r.batch||'-'}] ${r.name}`, tooltip:`[${spaceName}] ${r.res_time} | [${r.batch||'-'}] ${r.name}` }); }); filteredBlk.forEach(b => { let spaceName = String(b.space_equip||"전체").split(' ')[0] || "전체"; pushData(b.block_date, b.space_equip || '전체', `<div class="dash-item dash-item-blk"><div class="dash-item-text"><span class="dash-time">${b.start_time}</span>[${b.category}]</div><div class="dash-tooltip">[${spaceName}] ${b.start_time}~${b.end_time} | ${b.category}</div></div>`); if(calEvts[b.block_date]) calEvts[b.block_date].push({ type:'blk', start:b.start_time, text:`[${b.category}]`, tooltip:`[${spaceName}] ${b.start_time}~${b.end_time} | ${b.category}` }); }); filteredTrn.forEach(t => { let parts = String(t.content||"").split(' || '); let stTime = String(parts[2]||"").split('~')[0].trim(); let spaceName = String(parts[1]||"전체").split(' ')[0]; let ds = parts[0].trim(); pushData(ds, parts[1].trim(), `<div class="dash-item dash-item-trn"><div class="dash-item-text"><span class="dash-time">${stTime}</span>[${t.batch||'-'}] ${t.name}</div><div class="dash-tooltip">[${spaceName}] ${parts[2]} | [${t.batch||'-'}] ${t.name}</div></div>`); if(calEvts[ds]) calEvts[ds].push({ type:'trn', start:stTime, text:`[${t.batch||'-'}] ${t.name}`, tooltip:`[${spaceName}] ${parts[2]} | [${t.batch||'-'}] ${t.name}` }); }); googleEvents.forEach(g => { if(calEvts[g.date]) calEvts[g.date].push({ type: 'google', start: g.time, text: g.text, tooltip: `${g.time} | ${g.text}` }); }); let hHtml = `<div class="dash-grid"><div class="dash-header dash-cell" style="word-break:keep-all;">날짜</div>` + equipList.map(e=>`<div class="dash-header dash-cell">${e}</div>`).join(""); weekDates.forEach(wd => { let ds = `${wd.getFullYear()}-${String(wd.getMonth()+1).padStart(2,'0')}-${String(wd.getDate()).padStart(2,'0')}`; let holidayName = window.getHoliday(wd.getFullYear(), wd.getMonth()+1, wd.getDate()); let dateColorClass = holidayName ? 'color:var(--error); font-weight:800;' : ''; let dateText = `${wd.getMonth()+1}/${wd.getDate()} (${daysKr[wd.getDay()]})` + (holidayName ? `<br><span style="font-size:10px;">${holidayName}</span>` : ''); hHtml += `<div class="dash-header dash-cell" style="${dateColorClass}">${dateText}</div>`; equipList.forEach(eq => hHtml += `<div class="dash-cell">${matrix[eq][ds].join('')}</div>`); }); hHtml += `</div>`; window.centerCalEvts = calEvts; let mHtml = `<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-center">`; Object.keys(calEvts).sort().forEach(ds => { let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : ''; mHtml += `<div class="m-cal-date" id="m-date-center-${ds}" onclick="window.renderMCalCenter('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`; }); mHtml += `</div><div id="m-cal-list-center" class="m-cal-list"></div></div>`; $("dash-content").innerHTML = `<div class="desktop-cal">${hHtml}</div>` + mHtml; let td = new Date(); let todayStr = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; window.renderMCalCenter(calEvts[todayStr] ? todayStr : Object.keys(calEvts).sort()[0]);
+  } else {
+    for(let d=1; d<=daysInMonth; d++) { let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; calEvts[ds] = []; } filteredRes.forEach(r => { if(calEvts[r.res_date]) { let stTime = String(r.res_time||"").split('~')[0].trim(); let spaceName = String(r.space_equip||"").split(' ')[0]; calEvts[r.res_date].push({ type: 'res', start: stTime, text: `[${r.batch||'-'}] ${r.name}`, tooltip: `[${spaceName}] ${r.res_time} | [${r.batch||'-'}] ${r.name}` }); } }); filteredBlk.forEach(b => { if(calEvts[b.block_date]) { let spaceName = String(b.space_equip||"전체").split(' ')[0] || "전체"; calEvts[b.block_date].push({ type: 'blk', start: b.start_time, text: `[${b.category}]`, tooltip: `[${spaceName}] ${b.start_time}~${b.end_time} | ${b.category}` }); } }); filteredTrn.forEach(t => { let parts = String(t.content||"").split(' || '); let ds = parts[0].trim(); if(calEvts[ds]) { let stTime = String(parts[2]||"").split('~')[0].trim(); let spaceName = String(parts[1]||"전체").split(' ')[0]; calEvts[ds].push({ type: 'trn', start: stTime, text: `[${t.batch||'-'}] ${t.name}`, tooltip: `[${spaceName}] ${parts[2]} | [${t.batch||'-'}] ${t.name}` }); } }); googleEvents.forEach(g => { if(calEvts[g.date]) calEvts[g.date].push({ type: 'google', start: g.time, text: g.text, tooltip: `${g.time} | ${g.text}` }); });
+    let mHtml = `<div class="dash-cal-grid"><div class="dash-cal-header" style="color:var(--error);">일</div><div class="dash-cal-header">월</div><div class="dash-cal-header">화</div><div class="dash-cal-header">수</div><div class="dash-cal-header">목</div><div class="dash-cal-header">금</div><div class="dash-cal-header" style="color:var(--blue);">토</div>`; let firstDay = new Date(yyyy, mm, 1).getDay(); for(let i=0; i<firstDay; i++) mHtml += `<div class="dash-cal-cell empty"></div>`;
+    for(let d=1; d<=daysInMonth; d++) { let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; let evts = calEvts[ds] || []; evts.sort((a,b) => String(a.start || '').localeCompare(String(b.start || ''))); let holidayName = window.getHoliday(yyyy, mm + 1, d); let dateClass = holidayName ? 'holiday-date' : ''; let dateText = d + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : ''); let evtsHtml = evts.slice(0, 3).map(e => `<div class="dash-item dash-item-res" style="background:#FFF6EF; border-left-color:var(--primary); color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.start||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join(''); if(evts.length > 3) { let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${e.text||''}`).join('<br>'); evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`; } mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`; } mHtml += `</div>`; window.centerCalEvts = calEvts;
+    let mobStrip = `<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-center">`; Object.keys(calEvts).sort().forEach(ds => { let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : ''; mobStrip += `<div class="m-cal-date" id="m-date-center-${ds}" onclick="window.renderMCalCenter('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`; }); mobStrip += `</div><div id="m-cal-list-center" class="m-cal-list"></div></div>`;
+    $("dash-content").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip; let td = new Date(); let todayStr = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; window.renderMCalCenter(calEvts[todayStr] ? todayStr : Object.keys(calEvts).sort()[0]);
+  }
+}
+window.showOrderSummary = function() {
+  let pending = gOrd.filter(o => o.status === '주문 접수'); if(pending.length === 0) { showToast("현재 발주 대기 중인 내역이 없습니다."); return; } let grouped = {};
+  pending.forEach(o => { let vendor = o.vendor; if(!grouped[vendor]) grouped[vendor] = {}; let cNm = o.item_name; let dOpt = "월요일 발주"; let m = (o.item_name||"").match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/); if(m) { cNm = m[1].trim(); dOpt = m[4] + "요일 발주"; } else { let oM = (o.item_name||"").match(/(.+) \[(.*?)\]/); if(oM) { cNm = oM[1].trim(); let optText = oM[2].trim(); if(optText.includes('목')) dOpt = '목요일 발주'; else dOpt = '월요일 발주'; } } if(!grouped[vendor][dOpt]) grouped[vendor][dOpt] = {}; if(!grouped[vendor][dOpt][cNm]) grouped[vendor][dOpt][cNm] = []; grouped[vendor][dOpt][cNm].push(`[${o.center||'미지정'}] ${o.name}(${o.quantity})`); });
+  currentSummaryData = []; let html = `<div style="display:flex; flex-direction:column; gap:16px;">`;
+  for(let vendor in grouped) { html += `<div style="background:#f9fafb; padding:16px; border-radius:12px; border:1px solid var(--border-strong);"><div style="font-weight:800; font-size:16px; margin-bottom:12px; color:var(--primary);">${vendor}</div>`; for(let dOpt in grouped[vendor]) { let dOptStyle = dOpt === '목요일 발주' ? 'background:var(--text-display); color:#fff;' : 'background:var(--primary-light); color:var(--primary);'; html += `<div style="margin-bottom:8px;"><span style="${dOptStyle} padding:4px 8px; border-radius:6px; font-size:12px; font-weight:700;">${dOpt}</span></div>`; for(let item in grouped[vendor][dOpt]) { let buyers = grouped[vendor][dOpt][item]; let totalCount = buyers.length; let detailsHtml = buyers.map(b => `<div style="color:var(--text-secondary); margin-top:4px; padding-left:12px; border-left:2px solid var(--border-strong);">➔ ${b}</div>`).join(''); html += `<div style="font-size:14px; margin-bottom:12px; line-height:1.4; background:#fff; padding:12px; border-radius:8px; border:1px solid var(--border);"><strong style="color:var(--text-display);">${item} <span style="color:var(--primary); font-size:13px;">(총 ${totalCount}건)</span></strong>${detailsHtml}</div>`; currentSummaryData.push({ vendor: vendor, day: dOpt, item: item, details: buyers.join(', ') }); } } html += `</div>`; } html += `</div>`; $("summaryModalBody").innerHTML = html; $("summaryModal").classList.add('show');
+}
+window.closeSummaryModal = function() { $("summaryModal").classList.remove('show'); }
+window.downloadSummaryExcel = function() { if(currentSummaryData.length === 0) return; let csvContent = '\uFEFF생두사,발주일,상품명,발주요약내용(센터/이름/수량)\n'; currentSummaryData.forEach(d => { csvContent += `"${d.vendor}","${d.day}","${String(d.item).replace(/"/g, '""')}","${String(d.details).replace(/"/g, '""')}"\n`; }); const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `발주요약_${new Date().toISOString().slice(0,10)}.csv`; link.click(); }
+window.updateTable = async function(table, column, id, value, selectEl) { const { error } = await supabaseClient.from(table).update({ [column]: value }).eq('id', id); if(error) { showToast("저장 실패"); } else { showToast("업데이트 되었습니다."); if(table === 'orders' && column === 'status') { let order = gOrd.find(o => String(o.id) === String(id)); if(order) order.status = value; if(selectEl) { let badgeClass = value==='주문 취소'?'st-ghosted':value==='센터 도착'?'st-completed':value==='입금 확인'?'st-confirmed':value==='입금 대기'?'st-arranging':'st-wait'; selectEl.className = 'status-select ' + badgeClass; let row = selectEl.closest('tr'); if(row) { let badgeEl = row.querySelector('.m-prev-top .status-badge'); if(badgeEl) { badgeEl.className = 'status-badge ' + badgeClass; badgeEl.innerText = value; } } } } } }
+
+window.renderMCalApp = function(selDate) { 
+    $$$("#appDashContent .m-cal-date").forEach(el => el.classList.remove('active')); 
+    let target = document.getElementById(`m-date-app-${selDate}`); 
+    if(target) { target.classList.add('active'); target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } 
+    let evts = window.appCalEvts[selDate] || []; 
+    evts.sort((a,b) => String(a.time||'').localeCompare(String(b.time||''))); 
+    let html = ''; 
+    if(evts.length === 0) { 
+        html = `<div class="empty-state" style="padding:40px 0;">예정된 상담 일정이 없습니다.</div>`; 
+    } else { 
+        evts.forEach(e => { 
+            html += `<div class="m-cal-card"><div class="m-cal-card-time" style="color:var(--primary);">${e.time || '종일'}</div><div class="m-cal-card-title">${e.text||''}</div><div class="m-cal-card-desc">${String(e.tooltip||'').split('|').slice(1).join('|').trim()}</div></div>`; 
+        }); 
+    } 
+    let listWrap = $("m-cal-list-app"); 
+    if(listWrap) listWrap.innerHTML = html; 
+};
 
 window.renderAppDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + appDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
@@ -234,7 +260,7 @@ window.renderAppDashboard = async function() {
     let scheduledApps = globalApps.filter(a => a.status === '상담 일정 확정' && a.call_time); let calEvts = {};
     if (currentAppDashView === 'week') { let startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currDay); for(let i = 0; i < 7; i++) { let dObj = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i); let ds = `${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`; calEvts[ds] = []; } } else { for(let d=1; d<=daysInMonth; d++) { let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; calEvts[ds] = []; } }
     
-    // 🔥 4. 캘린더 요일 중복 제거 로직 (시간만 분리)
+    // 🔥 2. 캘린더 요일 중복 렌더링 수정 (시간만 추출)
     scheduledApps.forEach(app => { 
         const m = String(app.call_time||'').match(/(\d+)년\s*(\d+)월\s*(\d+)일/); 
         if (m) { 
@@ -260,7 +286,7 @@ window.toggleAppDashView = function(view) { currentAppDashView = view; if(view =
 window.changeAppDashMonth = function(offset) { appDashMonthOffset += offset; window.renderAppDashboard(); }
 window.resetAppDashMonth = function() { appDashMonthOffset = 0; window.renderAppDashboard(); }
 
-// 🔥 3. 모바일 "오늘의 상담 일정" 가로 스크롤 삭제 및 깔끔한 줄바꿈 적용
+// 🔥 3. 모바일 "오늘의 상담 일정" 가로 스크롤 강제 삭제 및 레이아웃 정리
 window.renderAppDailyBanner = function(data) {
   let td = new Date(); let mm = td.getMonth() + 1; let dd = td.getDate(); let yy = td.getFullYear(); 
   let scheduled = data.filter(a => a.status === '상담 일정 확정' && a.call_time); 
@@ -308,7 +334,7 @@ function parseAcquisitionChannel(rawText) {
 
 window.closeCrmModal = function() { $("crmModal").classList.remove('show'); };
 
-// 🔥 2. 모바일 CRM "유입 경로" 핵심 파싱 & 토스/현대카드 스타일의 세련된 인라인 텍스트 UI로 전면 개편
+// 🔥 4. 토스/현대카드 스타일: 직관적이고 세련된 인라인 텍스트 태그 UI 적용 (이모지 철거)
 window.renderCrmInner = function(id) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     $("crmName").innerText = app.name || '이름 없음';
