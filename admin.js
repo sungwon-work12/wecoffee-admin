@@ -95,6 +95,26 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 
 function initializeApp() {
   window.fetchHolidays(new Date().getFullYear());
+  
+  if ($("confirmBtn")) {
+      $("confirmBtn").onclick = function() { 
+          if (window.currentConfirmCallback) {
+              if (this.innerText === '복사하기') {
+                  window.copyTxt(window.currentCopyText); 
+                  window.closeConfirmModal();
+                  return;
+              } else {
+                  (async () => {
+                      await window.currentConfirmCallback(); 
+                      window.closeConfirmModal(); 
+                  })();
+                  return;
+              }
+          }
+          window.closeConfirmModal(); 
+      };
+  }
+
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
       var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
@@ -132,32 +152,24 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
-// 🔥 1. 모달 초기화 및 복사 동기화 구조 개선
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btnText = '적용하기') {
     $("confirmTarget").innerHTML = title;
     if(statusHtml) { $("confirmStateBox").style.display = 'block'; $("confirmSimpleBox").style.display = 'none'; $("confirmStatus").innerHTML = statusHtml; $("confirmActionState").innerHTML = actionHtml; } 
     else { $("confirmStateBox").style.display = 'none'; $("confirmSimpleBox").style.display = 'block'; $("confirmActionSimple").innerHTML = actionHtml; }
     
     let btn = $("confirmBtn");
-    btn.innerText = btnText;
+    btn.innerText = btnText; 
     
-    // 이전 이벤트 리스너 완전 제거 후 새로 할당
-    btn.onclick = null;
-    btn.onclick = function() {
-        if(btnText === '복사하기') {
-            window.copyTxt(callback); // callback에 복사할 텍스트가 들어옴
-            window.closeConfirmModal();
-        } else {
-            (async () => {
-                await callback();
-                window.closeConfirmModal();
-            })();
-        }
-    };
+    if(btnText === '복사하기') {
+        window.currentCopyText = callback;
+        window.currentConfirmCallback = true;
+    } else {
+        window.currentConfirmCallback = callback;
+    }
+    
     $("confirmModal").classList.add('show');
 }
-window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); }
-
+window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); window.currentConfirmCallback = null; }
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId) $(modalId).classList.remove('show'); }
 
 function initQuill() { if(!quillEditor && $('editor-container')) { quillEditor = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'align': [] }], [{ 'color': [] }, { 'background': [] }], ['clean'] ] }, placeholder: '내용을 자유롭게 적어주세요.' }); } }
@@ -236,6 +248,7 @@ window.closeSummaryModal = function() { $("summaryModal").classList.remove('show
 window.downloadSummaryExcel = function() { if(currentSummaryData.length === 0) return; let csvContent = '\uFEFF생두사,발주일,상품명,발주요약내용(센터/이름/수량)\n'; currentSummaryData.forEach(d => { csvContent += `"${d.vendor}","${d.day}","${String(d.item).replace(/"/g, '""')}","${String(d.details).replace(/"/g, '""')}"\n`; }); const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `발주요약_${new Date().toISOString().slice(0,10)}.csv`; link.click(); }
 window.updateTable = async function(table, column, id, value, selectEl) { const { error } = await supabaseClient.from(table).update({ [column]: value }).eq('id', id); if(error) { showToast("저장 실패"); } else { showToast("업데이트 되었습니다."); if(table === 'orders' && column === 'status') { let order = gOrd.find(o => String(o.id) === String(id)); if(order) order.status = value; if(selectEl) { let badgeClass = value==='주문 취소'?'st-ghosted':value==='센터 도착'?'st-completed':value==='입금 확인'?'st-confirmed':value==='입금 대기'?'st-arranging':'st-wait'; selectEl.className = 'status-select ' + badgeClass; let row = selectEl.closest('tr'); if(row) { let badgeEl = row.querySelector('.m-prev-top .status-badge'); if(badgeEl) { badgeEl.className = 'status-badge ' + badgeClass; badgeEl.innerText = value; } } } } } }
 
+// 🔥 2. 캘린더 요일 중복 제거
 window.renderMCalApp = function(selDate) { 
     $$$("#appDashContent .m-cal-date").forEach(el => el.classList.remove('active')); 
     let target = document.getElementById(`m-date-app-${selDate}`); 
@@ -260,7 +273,6 @@ window.renderAppDashboard = async function() {
     let scheduledApps = globalApps.filter(a => a.status === '상담 일정 확정' && a.call_time); let calEvts = {};
     if (currentAppDashView === 'week') { let startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currDay); for(let i = 0; i < 7; i++) { let dObj = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i); let ds = `${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`; calEvts[ds] = []; } } else { for(let d=1; d<=daysInMonth; d++) { let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; calEvts[ds] = []; } }
     
-    // 🔥 2. 캘린더 요일 중복 렌더링 수정 (시간만 추출)
     scheduledApps.forEach(app => { 
         const m = String(app.call_time||'').match(/(\d+)년\s*(\d+)월\s*(\d+)일/); 
         if (m) { 
@@ -286,7 +298,7 @@ window.toggleAppDashView = function(view) { currentAppDashView = view; if(view =
 window.changeAppDashMonth = function(offset) { appDashMonthOffset += offset; window.renderAppDashboard(); }
 window.resetAppDashMonth = function() { appDashMonthOffset = 0; window.renderAppDashboard(); }
 
-// 🔥 3. 모바일 "오늘의 상담 일정" 가로 스크롤 강제 삭제 및 레이아웃 정리
+// 🔥 3. 모바일 "오늘의 상담 일정" 가로 스크롤 삭제
 window.renderAppDailyBanner = function(data) {
   let td = new Date(); let mm = td.getMonth() + 1; let dd = td.getDate(); let yy = td.getFullYear(); 
   let scheduled = data.filter(a => a.status === '상담 일정 확정' && a.call_time); 
@@ -327,14 +339,15 @@ function parseAcquisitionChannel(rawText) {
     if(txt.includes('광고') || txt.includes('스폰서드')) return '광고'; 
     if(txt.includes('인스타')) return '인스타그램'; 
     if(txt.includes('블로그')) return '네이버 블로그'; 
-    if(txt.includes('블랙워터')) return '블랙워터'; 
+    if(txt.includes('블랙워터')) return '블랙워터이슈'; 
     if(txt.includes('지인')) return '지인 추천'; 
-    return rawText.split('(')[0].trim(); 
+    if(txt.includes('기타')) return '기타';
+    return txt.split('(')[0].trim(); 
 }
 
 window.closeCrmModal = function() { $("crmModal").classList.remove('show'); };
 
-// 🔥 4. 토스/현대카드 스타일: 직관적이고 세련된 인라인 텍스트 태그 UI 적용 (이모지 철거)
+// 🔥 4. 토스/현대카드 스타일 태그 UI (이모지 철거)
 window.renderCrmInner = function(id) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     $("crmName").innerText = app.name || '이름 없음';
@@ -403,6 +416,7 @@ window.saveScheduleData = async function() {
     }
 };
 
+// 🔥 4. 멤버 가입 15일 기준 로직
 window.updateAppStatus = async function(id, column, value) {
     const app = globalApps.find(a => String(a.id) === String(id)); if (!app) return;
     if (column === 'join_status' && app.join_status === '가입 완료' && value !== '가입 완료') {
@@ -412,9 +426,17 @@ window.updateAppStatus = async function(id, column, value) {
         return;
     }
     if (column === 'join_status' && value === '가입 완료') {
-        window.openCustomConfirm("가입 완료 (멤버 전환)", null, `해당 고객을 멤버 리스트로 이관하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500; display:block; margin-top:8px; line-height:1.5;">오늘 기준으로 6개월 활동 종료일 및 결제 내역이 자동 세팅됩니다.</span>`, async () => {
+        window.openCustomConfirm("가입 완료 (멤버 전환)", null, `해당 고객을 멤버 리스트로 이관하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500; display:block; margin-top:8px; line-height:1.5;">오늘(15일 전후 기준)로부터 6개월 후 활동 종료일이 자동 세팅됩니다.</span>`, async () => {
             if (!app.phone) { showToast("연락처가 없는 고객은 이관할 수 없습니다."); return; }
-            const d = new Date(); d.setMonth(d.getMonth() + 6); const endDateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; const targetBatch = app.desired_batch || '미정'; const targetName = app.name || '이름없음';
+            
+            const now = new Date();
+            let endY = now.getFullYear();
+            let endM = now.getMonth() + 6; 
+            let endDay = now.getDate() <= 15 ? 1 : 15;
+            let endDateObj = new Date(endY, endM, endDay);
+            const endDateStr = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth()+1).padStart(2,'0')}-${String(endDateObj.getDate()).padStart(2,'0')}`;
+            
+            const targetBatch = app.desired_batch || '미정'; const targetName = app.name || '이름없음';
             const { data: existingMember, error: checkErr } = await supabaseClient.from('members').select('*').eq('phone', app.phone).limit(1); if (checkErr) { showToast("멤버 조회 중 오류 발생"); return; }
             let dbErr; if (existingMember && existingMember.length > 0) { const { error: updateErr } = await supabaseClient.from('members').update({ status: '활동 중', end_date: endDateStr, batch: targetBatch, name: targetName }).eq('phone', app.phone); dbErr = updateErr; } else { const { error: insertErr } = await supabaseClient.from('members').insert([{ name: targetName, phone: app.phone, batch: targetBatch, status: '활동 중', end_date: endDateStr }]); dbErr = insertErr; }
             if(dbErr) { showToast(`이관 실패: members 테이블 오류`); return; }
