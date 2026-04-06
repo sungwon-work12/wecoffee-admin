@@ -132,24 +132,23 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
-window.openCustomConfirm = function(title, statusHtml, actionHtml, callback, btnText = '적용하기') {
+window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrText, btnText = '적용하기') {
     $("confirmTarget").innerHTML = title;
     if(statusHtml) { $("confirmStateBox").style.display = 'block'; $("confirmSimpleBox").style.display = 'none'; $("confirmStatus").innerHTML = statusHtml; $("confirmActionState").innerHTML = actionHtml; } 
     else { $("confirmStateBox").style.display = 'none'; $("confirmSimpleBox").style.display = 'block'; $("confirmActionSimple").innerHTML = actionHtml; }
     
     let btn = $("confirmBtn");
     btn.innerText = btnText;
-    
     let newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
     
     newBtn.onclick = function() {
         if(btnText === '복사하기') {
-            window.copyTxt(callback);
+            window.copyTxt(callbackOrText);
             window.closeConfirmModal();
         } else {
             (async () => {
-                await callback();
+                await callbackOrText();
                 window.closeConfirmModal();
             })();
         }
@@ -191,7 +190,12 @@ window.fetchCenterData = async function() {
     let bSet = new Set(); gRes.forEach(r => { if(r.batch) bSet.add(r.batch); }); gTrn.forEach(t => { if(t.batch) bSet.add(t.batch); });
     let bHtml = `<option value="전체">전체 기수</option>` + Array.from(bSet).sort().map(b=>`<option value="${b}">${b}</option>`).join("");
     if($("dashBatchFilter") && $("dashBatchFilter").innerHTML !== bHtml) $("dashBatchFilter").innerHTML = bHtml;
-    window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); updateSmartBadges();
+    
+    // 독립적 실행을 위한 try-catch 안전장치
+    try { window.renderCenterData(); } catch(e){ console.error(e); }
+    try { window.renderDashboard(); } catch(e){ console.error(e); }
+    try { window.renderNoticeData(); } catch(e){ console.error(e); }
+    try { updateSmartBadges(); } catch(e){ console.error(e); }
   } catch(e) { console.error("fetchCenterData Error:", e); }
 }
 
@@ -211,7 +215,14 @@ window.renderCenterData = function() {
   renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon'); renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter); $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ let max = b.capacity || '-'; let current = 0; if(max !== '-') current = gTrn.filter(t => String(t.content||'').includes(b.start_time) && !(t.status||'').includes('취소')).length; let capDisplay = max === '-' ? '-' : `<strong>${max - current}</strong> / ${max}`; let dow = getDow(b.block_date); let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">${b.category}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${b.block_date}(${dow}) ${b.start_time}~${b.end_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${b.center}] ${b.space_equip || '전체'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="날짜"><strong>${b.block_date}</strong></td><td data-label="시간">${b.start_time} ~ ${b.end_time}</td><td data-label="구분"><span style="color:var(--primary);font-weight:600;">${b.category}</span></td><td data-label="공간">${b.center} <span class="sub-text">${b.space_equip}</span></td><td data-label="사유">${b.reason}</td><td data-label="정원" class="tc">${capDisplay}</td><td data-label="관리" class="tc"><div class="action-wrap-flex"><button class="btn-outline btn-sm" onclick="window.editBlock('${b.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteBlock('${b.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>` }).join("") : `<tr><td colspan="7" class="empty-state">내역 없음</td></tr>`;
 }
-window.renderNoticeData = function() { let fNoti = [...gNotice]; fNoti.sort((a,b) => { if(a.is_pinned === b.is_pinned) return new Date(b.created_at) - new Date(a.created_at); return a.is_pinned ? -1 : 1; }); $("noticeTableBody").innerHTML = fNoti.length ? fNoti.map(n => { let pinBadge = n.is_pinned ? `<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>` : `<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`; let statBadge = n.status === '발행' ? `<span class="status-badge badge-green">발행 중</span>` : `<span class="status-badge badge-gray">숨김</span>`; let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${n.title}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${n.title}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; }).join("") : `<tr><td colspan="5" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`; }
+window.renderNoticeData = function() { 
+  let fNoti = [...gNotice]; 
+  fNoti.sort((a,b) => { 
+    if(a.is_pinned === b.is_pinned) return new Date(b.created_at||0) - new Date(a.created_at||0); 
+    return a.is_pinned ? -1 : 1; 
+  }); 
+  $("noticeTableBody").innerHTML = fNoti.length ? fNoti.map(n => { let pinBadge = n.is_pinned ? `<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>` : `<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`; let statBadge = n.status === '발행' ? `<span class="status-badge badge-green">발행 중</span>` : `<span class="status-badge badge-gray">숨김</span>`; let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${n.title}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${n.title}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; }).join("") : `<tr><td colspan="5" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`; 
+}
 window.renderMCalCenter = function(selDate) { $$$("#dash-content .m-cal-date").forEach(el => el.classList.remove('active')); let target = document.getElementById(`m-date-center-${selDate}`); if(target) { target.classList.add('active'); target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } let evts = window.centerCalEvts[selDate] || []; evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||''))); let html = ''; if(evts.length === 0) { html = `<div class="empty-state" style="padding:40px 0;">예정된 일정이 없습니다.</div>`; } else { evts.forEach(e => { let badgeStyle = e.type==='google' ? 'color:#495057;' : 'color:var(--primary);'; html += `<div class="m-cal-card"><div class="m-cal-card-time" style="${badgeStyle}">${e.start || e.time || '종일'}</div><div class="m-cal-card-title">${e.text||''}</div><div class="m-cal-card-desc">${String(e.tooltip||'').split('|')[0]}</div></div>`; }); } let listWrap = $("m-cal-list-center"); if(listWrap) listWrap.innerHTML = html; };
 
 window.renderAppDashboard = async function() {
@@ -294,8 +305,7 @@ function parseAcquisitionChannel(rawText) {
     if(txt.includes('블로그')) return '네이버 블로그'; 
     if(txt.includes('블랙워터')) return '블랙워터이슈'; 
     if(txt.includes('지인')) return '지인 추천'; 
-    if(txt.includes('기타')) return '기타';
-    return txt.split('(')[0].trim(); 
+    return '기타'; 
 }
 
 window.closeCrmModal = function() { $("crmModal").classList.remove('show'); };
@@ -314,7 +324,7 @@ window.renderCrmInner = function(id) {
     $("crmProfile").innerHTML = `${batchTag}${divider}${phoneTag}${divider}${acqTag}`;
     
     let timeStr = app.call_time && app.call_time !== 'null' ? app.call_time : '미정';
-    $("crmTimeBadge").innerHTML = `상담 예정일: ${timeStr}`;
+    $("crmTimeBadge").innerHTML = `상담 예정일: <span style="color:var(--text-display); font-weight:700;">${timeStr}</span>`;
     $("crmTimeBadge").style.color = "var(--text-secondary)";
     $("crmTimeBadge").style.fontWeight = "500";
     
@@ -331,7 +341,6 @@ window.openCrmModal = function(id) { $("crmAppId").value = id; window.renderCrmI
 window.saveCrmStatus = function() { const id = $("crmAppId").value; const selected = $("crmStatusSelect").value; if(!id || !selected) return; if(selected === '상담 완료' || selected === '연락 두절') { window.updateAppStatus(id, 'status', selected); } else { window.updateAppStatus(id, 'join_status', selected); window.updateAppStatus(id, 'status', '상담 완료'); } window.closeCrmModal(); }
 window.handleStatusChange = function(id, newStatus, callTime, counselorName) { if (newStatus === '상담 일정 확정') { window.openScheduleModal(id, callTime, counselorName); } else { window.updateAppStatus(id, 'status', newStatus); } };
 
-// 기존 일정 날짜 및 시간 폼 복구(파싱) 로직 추가
 window.openScheduleModal = function(id, time, name) { 
     currentScheduleAppId = id; 
     $("schedInputDate").value = ""; $("schedInputDate").dataset.raw = "";
@@ -386,7 +395,6 @@ window.saveScheduleData = async function() {
 
     const parseDate = new Date(currentYear, mm - 1, dd, hh, min);
     if(isNaN(parseDate.getTime())) { showToast("유효하지 않은 날짜입니다."); return; }
-    if(parseDate < now) { showToast("과거 시간은 설정할 수 없습니다."); return; }
 
     const dow = ['일','월','화','수','목','금','토'][parseDate.getDay()];
     let ampm = hh >= 12 ? '오후' : '오전'; let hh12 = hh % 12 || 12;
