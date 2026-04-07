@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WeCoffee Member</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#ffffff">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+:root{--primary:#ff7900;--text:#222222;--sub:#777;--error:#f04452;--green:#32b06a;--text-body:15px;--text-small:13px;--text-micro:11px}
+*{box-sizing:border-box;-webkit-font-smoothing:antialiased}
+
+body{margin:0;padding:0;background:#fff;font-family:'Pretendard',sans-serif;color:var(--text);font-size:var(--text-body);display:flex;flex-direction:column;min-height:100dvh}
+a{text-decoration:none;color:inherit}
+.tc{text-align:center}.cp{color:var(--primary)}.ce{color:var(--error)}.cs{color:var(--sub)}.cw{color:#fff}.fw4{font-weight:400}.fw5{font-weight:500}.fw6{font-weight:600}.fw7{font-weight:700}.fw8{font-weight:800}.fs11{font-size:11px}.fs12{font-size:12px}.fs13{font-size:13px}.fs14{font-size:14px}.fs15{font-size:15px}.fs16{font-size:16px}.fs17{font-size:17px}.fs18{font-size:18px}.fs19{font-size:19px}.fs20{font-size:20px}.fs22{font-size:22px}.fs24{font-size:24px}.fs28{font-size:28px}.mt4{margin-top:4px}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt20{margin-top:20px}.mt24{margin-top:24px}.mt32{margin-top:32px}.mt40{margin-top:40px}.mb0{margin-bottom:0!important}.mb2{margin-bottom:2px}.mb4{margin-bottom:4px}.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}.mb20{margin-bottom:20px}.mb24{margin-bottom:24px}.mb32{margin-bottom:32px}.mb40{margin-bottom:40px}.mr6{margin-right:6px}.ml4{margin-left:4px}.lh14{line-height:1.4}.lh16{line-height:1.6}.c19{color:#222222}.c66{color:#666}.c8b{color:#8b95a1}.c22{color:#222222}.bg-f2{background:#f2f4f6}.wsn{white-space:normal}.wbk{word-break:keep-all;overflow-wrap:break-word}.py-1{padding:5px 0}.w-100{width:100%}.cancel-inp{width:100%;padding:14px;border:none;background:#f2f4f6;border-radius:10px;font-size:14px;box-sizing:border-box;color:#222222;text-align:left}
+
+.login-wrapper{display:none; flex-direction:column; justify-content:center; align-items:center; flex:1; width:100%;} .login-wrapper.active{display:flex}
+.wecoffee-wrap{width:100%; max-width:1140px; margin:0 auto; padding:24px 24px; text-align:left;} @media(max-width:640px){.wecoffee-wrap{max-width:480px;padding:24px 20px}}
+
+#dashboardWrapper .wecoffee-wrap { padding-bottom: 140px !important; }
+
+.title{font-size:24px;font-weight:800;margin-bottom:16px;color:var(--text);line-height:1.3;text-align:left;}
+.group{margin-bottom:16px; width:100%;} .group p{font-size:16px;font-weight:700;line-height:1.4;margin-bottom:12px;text-align:left;} .group p span.desc{font-size:13px;font-weight:500;color:var(--sub);display:block;margin-top:6px}
+input[type=text],input[type=number],input[type=url],select{width:100%;padding:18px 16px;border-radius:16px;border:1.5px solid #e5e8eb;margin-bottom:16px;font-size:16px !important;transition:.2s;background:#fff;font-family:inherit;color:#222222 !important;line-height:1.5; box-sizing:border-box;}
+input:focus,select:focus{outline:0;border-color:var(--primary);box-shadow:0 0 0 2px rgba(255,121,0,.1)}input::placeholder{color:var(--sub)}
+select{appearance:none;-webkit-appearance:none;cursor:pointer;background-image:url('data:image/svg+xml;utf8,<svg fill="%238b95a1" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');background-repeat:no-repeat;background-position:right 16px center;opacity:1 !important}
+select option{font-size:16px !important;color:#222222 !important;background-color:#fff !important}
+.input-label{font-size:14px;font-weight:700;margin-bottom:8px;display:block;color:#222222;text-align:left;}
+
+.res-card, .order-card, .notice-box { width: 100% !important; box-sizing: border-box; }
+.option{position:relative;padding:18px 20px;border-radius:16px;border:1.5px solid #e5e8eb;margin-bottom:12px;font-size:15px;cursor:pointer;display:flex;align-items:center;transition:transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s, border-color 0.2s;background:#fff;gap:12px;user-select:none; width:100%; box-sizing:border-box;}
+.option input{appearance:none;width:0;height:0;position:absolute}
+@media (hover: hover) { .option:hover:not(.checked):not(.disabled) { background: #f9fafb; } }
+.option.checked{transform:scale(1.01);border-color:var(--primary);background:#fff6ef;box-shadow:0 6px 18px rgba(255,121,0,.08);font-weight:700;}.option.disabled{opacity:.5;pointer-events:none;background:#f9fafb;border-color:#e5e8eb}
+.grid-1col{display:flex;flex-direction:column;gap:12px;margin-bottom:16px; width:100%;} .grid-1col .option{margin-bottom:0;justify-content:flex-start}
+.grid-2col{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px; width:100%;} .grid-2col .option{margin-bottom:0;justify-content:flex-start} 
+.grid-3col{display:grid;grid-template-columns:repeat(3,1fr);gap:10px; width:100%;}
+
+.calendar-wrap{border:1.5px solid #e5e8eb;border-radius:18px;padding:20px 16px; width:100%; box-sizing:border-box;}.calendar-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;font-weight:800;font-size:17px}.calendar-header button{background:none;border:none;font-size:16px;cursor:pointer;color:var(--sub);padding:4px 16px;border-radius:8px;transition:.2s}.calendar-header button:active{background:#f2f4f6}
+.calendar-weekdays,.calendar-days{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}.calendar-weekdays{font-size:14px;color:var(--sub);margin-bottom:12px;font-weight:700}.calendar-days{gap:6px}.cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;cursor:pointer;border-radius:14px;transition:.2s}.cal-day:hover:not(.disabled){background:#f9fafb}.cal-day.disabled{color:#ccc!important;pointer-events:none}.cal-day.today{font-weight:800;color:var(--primary)}.cal-day.today::after{content:'오늘';font-size:11px;margin-top:2px;font-weight:700}.cal-day.active{background:var(--primary)!important;color:#fff!important;font-weight:800;box-shadow:0 4px 12px rgba(255,121,0,.25)}.cal-day.active.today::after{color:#fff!important}
+.ct-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:16px; width:100%;}.time-grid{grid-template-columns:repeat(4,1fr)}.ct-item{padding:16px 4px;border-radius:14px;border:1.5px solid #e5e8eb;text-align:center;cursor:pointer;background:#fff;transition:.2s;font-size:15px;font-weight:600;color:#333d4b;display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:56px;overflow:hidden}.ct-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}.ct-item:active{transform:scale(.95)}.ct-item.active{border-color:var(--primary);background:#fff6ef;color:var(--primary);font-weight:800}.ct-item.blocked{opacity:1; pointer-events:none; background:#f2f4f6; border-color:#e5e8eb; cursor:not-allowed; color:#8b95a1}
+
+.res-card{position:relative; overflow:hidden; padding:24px 24px;border-radius:18px;border:1px solid #e5e8eb;background:#fafafa;margin-bottom:12px; display:flex; flex-direction:column; align-items:flex-start; text-align:left;}
+.res-card .info{width:100%;} .cName{font-size:17px; font-weight:700; color:#222222;} .cTime{font-size:15px; font-weight:500; color:#4e5968; margin-top:4px;} .cSpace{font-size:15px; font-weight:500; color:#222222; margin-top:6px; word-break:keep-all; line-height:1.4;}
+
+.order-card{padding:24px; border-radius:18px; border:1px solid #e5e8eb; background:#fff; margin-bottom:12px; display:flex; flex-direction:column; align-items:flex-start; text-align:left; box-shadow:0 0 0 1.5px #e5e8eb inset;}
+.order-card .info-box{width:100%;} 
+.order-card .oVendor{font-size:13px; font-weight:600; color:var(--sub); margin-bottom:4px;} 
+.order-card .oItem{font-size:16px; font-weight:800; color:var(--text); margin-bottom:6px; word-break:keep-all; line-height:1.4;} 
+.order-card .oTime{font-size:14px; font-weight:500; color:var(--sub); margin-bottom:4px;} 
+.order-card .status{font-size:14px; font-weight:800; padding:8px 12px; border-radius:8px; white-space:nowrap; cursor:pointer;}
+
+.swipe-wrap { position:relative; width:100%; overflow:hidden; border-radius:18px; margin-bottom:12px; display:flex; justify-content:flex-end; }
+.swipe-content { transition:transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); width:100%; z-index:2; position:relative; background:#fff; flex-shrink:0; box-shadow:0 0 0 1.5px #e5e8eb inset; border-radius:18px; }
+.swipe-action-btn { position:absolute; right:0; top:0; height:100%; width:90px; background:#333d4b; color:#fff; font-weight:800; font-size:15px; display:flex; align-items:center; justify-content:center; border-radius:0 18px 18px 0; cursor:pointer; z-index:1; }
+
+#nvBody { line-height: 1.45 !important; }
+
+.m-cal-strip { display:flex; overflow-x:auto; gap:8px; padding-bottom:16px; margin-bottom:16px; scrollbar-width:none; -webkit-overflow-scrolling:touch; border-bottom:1px solid #eee; width:100%; } .m-cal-strip::-webkit-scrollbar { display:none; }
+.m-cal-date { flex-shrink:0; width:54px; height:58px; min-width:54px; padding:8px 4px; border-radius:12px; border:1.5px solid #e5e8eb; background:#fff; text-align:center; cursor:pointer; transition:0.2s; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; }
+.m-cal-date.active { background:#222222; color:#fff; border-color:#222222; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
+.m-cal-day { font-size:12px; font-weight:600; color:#8b95a1; } .m-cal-date.active .m-cal-day { color:rgba(255,255,255,0.8); } .m-cal-num { font-size:18px; font-weight:800; line-height:1; }
+.m-cal-dot { width:5px; height:5px; border-radius:50%; background:var(--primary); opacity:0; } .m-cal-dot.has-evt { opacity:1; }
+.m-cal-list { display:flex; flex-direction:column; gap:10px; width:100%; }
+.m-cal-card { background:#fafafa; border:1px solid #e5e8eb; padding:16px 20px; border-radius:14px; display:flex; flex-direction:column; gap:6px; text-align:left; width:100%; }
+.m-cal-card-time { font-size:14px; font-weight:800; color:var(--primary); } .m-cal-card-title { font-size:16px; font-weight:700; color:#222222; line-height:1.4; word-break:keep-all; } .m-cal-card-desc { font-size:14px; font-weight:500; color:#4e5968; margin-top:4px; }
+
+@media (min-width: 1024px) {
+    .m-cal-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; overflow-x: visible; border-bottom: none; padding-bottom: 0; }
+    .m-cal-date { width: 100%; height: 80px; min-width: auto; justify-content: center; }
+    .m-cal-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 16px; }
+}
+
+.status-접수{background:#f2f4f6;color:#4e5968} .status-입금{background:#e3f2fd;color:#1976d2} .status-완료{background:#e8f5e9;color:#28a745;border:1px solid #28a745;} .status-도착{background:#e8f5e9;color:#28a745;border:1px solid #28a745;} .status-취소됨{background:#fff0f0;color:#f04452}
+.step{display:none;width:100%}.step.active{display:block;animation:fS .2s ease forwards;}@keyframes fS{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+.btns{position:relative;width:100%;margin-top:24px;display:flex;gap:12px}
+.btns button{padding:18px;border-radius:16px;font-weight:700;font-size:16px;border:none;cursor:pointer;transition:.15s;font-family:inherit;-webkit-appearance:none;appearance:none; display:flex; justify-content:center; align-items:center;}
+.btns button:active{transform:scale(.97)}
+.action-btns-wrap button.prev { flex: 1; background:#f2f4f6; color:#4e5968; width:auto; }
+.action-btns-wrap button.next { flex: 2; background:linear-gradient(90deg,#ff7900,#ffb347); color:#fff; box-shadow:0 6px 16px rgba(255,121,0,.2); width:auto; }
+#bAuth { width: 100% !important; flex: none !important; background:linear-gradient(90deg,#ff7900,#ffb347); color:#fff; box-shadow:0 6px 16px rgba(255,121,0,.2); }
+.btns button.next:disabled{opacity:.4;pointer-events:none;background:#e5e8eb;box-shadow:none;color:#8b95a1}
+
+.btn-badge{flex:none;background:#fff6ef;color:var(--primary);padding:6px 12px;border-radius:20px;font-weight:800;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;border:none;transition:.2s;white-space:nowrap;width:auto}.btn-badge svg{width:16px;height:16px}
+.badge-solid{background:var(--primary);color:#fff;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:800;margin-right:6px; letter-spacing: 0.5px;}
+
+.loading{position:fixed;inset:0;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;z-index:2147483647 !important;opacity:0;pointer-events:none;transition:.1s}.loading.show{opacity:1;pointer-events:auto}.spinner{width:42px;height:42px;border:4px solid #f2f4f6;border-top:4px solid var(--primary);border-radius:50%;animation:spin .7s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.toast-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:2147483647 !important;opacity:0;pointer-events:none;transition:.2s;padding:0 24px}.toast-overlay.show{opacity:1;pointer-events:auto}
+
+.toast-box{background:#fff;width:100%;max-width:320px;border-radius:20px;padding:24px 20px;text-align:center;box-shadow:0 24px 48px rgba(0,0,0,.15);transform:translateY(20px) scale(.95);transition:.25s;max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}.toast-overlay.show .toast-box{transform:translateY(0) scale(1)}
+.full-page-overlay { position:fixed; inset:0; background:#fff; z-index:2147483647 !important; opacity:0; visibility:hidden; transition:opacity 0.25s ease, visibility 0.25s; }
+.full-page-overlay.show { opacity:1; visibility:visible; }
+.schedule-table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:14px;text-align:left}.schedule-table th,.schedule-table td{border-bottom:1px solid #eee;padding:16px 6px}.schedule-table th{color:var(--sub);font-weight:700;width:64px}.schedule-tag{display:inline-flex;align-items:center;flex-wrap:wrap;word-break:keep-all;background:#fff6ef;color:var(--primary);padding:8px 12px;border-radius:10px;font-weight:700;margin:4px; font-size:13px;}
+.copy-toast{position:fixed;bottom:48px;left:50%;transform:translateX(-50%) translateY(20px);background:rgba(0,0,0,.8);color:#fff;padding:16px 32px;border-radius:30px;font-size:16px;font-weight:700;opacity:0;pointer-events:none;transition:.3s;z-index:999999}.copy-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.popup-btns{display:flex;gap:10px;width:100%;margin-top:16px}.popup-btn{flex:1;padding:14px 0;border-radius:14px;font-size:16px;font-weight:800;border:none;cursor:pointer;text-align:center;white-space:nowrap!important;transition:.2s;margin:0;line-height:1.4;letter-spacing:-.5px}.popup-btn:active{transform:scale(.97)}
+.btn-cancel{background:#f2f4f6!important;color:#4e5968!important;border:none}.btn-danger{background:var(--error)!important;color:#fff!important}.btn-primary{background:linear-gradient(90deg,#ff7900,#ffb347)!important;color:#fff!important;box-shadow:0 6px 16px rgba(255,121,0,.2)!important}
+.btn-dark{background:#333d4b!important;color:#fff!important;}
+
+.flex-col-c{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%}
+.bounce-btn{transition:transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);cursor:pointer;user-select:none; -webkit-tap-highlight-color: transparent;}.bounce-btn:active{transform:scale(0.96)}
+.flex-between { display:flex; justify-content:space-between; align-items:center; width: 100%; }
+.cp-click { cursor:pointer; transition:0.2s; } .cp-click:active { opacity:0.6; }
+.notice-list { list-style:none; padding:0; margin:0; width:100%; }
+.notice-list li { border-bottom:1px solid #eee; padding:20px 24px; display:flex; flex-direction:column; gap:6px; cursor:pointer;}
+.notice-list li:last-child { border-bottom:none; }
+
+.acc-header { display:flex; flex-direction:row; justify-content:space-between; align-items:center; cursor:pointer; width:100%; padding:20px 24px; } 
+.acc-header p { text-align:left; flex:1; margin:0; }
+.acc-icon { width:20px; height:20px; transition:transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); stroke:#222222; margin-left:auto; flex:none; } 
+.acc-icon.open { transform:rotate(180deg); }
+.tkt-card::before { display:none; }
+.floating-nav { position:fixed; bottom:calc(24px + env(safe-area-inset-bottom)); left:24px; right:24px; max-width:1140px; margin:0 auto; background:rgba(255,255,255,0.95); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1.5px solid #eee; z-index:9999; box-shadow:0 16px 40px rgba(0,0,0,0.1); border-radius:24px; padding:8px; }
+.floating-nav .option.checked { background:#fff6ef !important; transform:none !important; color:var(--primary) !important; font-weight:800 !important; border:none; box-shadow:none;}
+
+.w-nav { transition: opacity 0.3s ease; }
+.pulse { animation: pl 2s infinite; box-shadow: 0 0 0 0 rgba(25,118,210,0.4); border-radius: 8px; }
+@keyframes pl { 0% { box-shadow: 0 0 0 0 rgba(25,118,210,0.4); } 70% { box-shadow: 0 0 0 8px rgba(25,118,210,0); } 100% { box-shadow: 0 0 0 0 rgba(25,118,210,0); } }
+#cMsg *, #scMsg * { text-decoration: none !important; }
+</style>
+</head>
+<body>
+
+<div id="mainWrapper" style="display:flex; flex-direction:column; min-height:100dvh; opacity:1; transition:opacity 0.3s ease;">
+    
+    <div id="loginWrapper" class="login-wrapper active">
+        <div class="wecoffee-wrap" style="padding-bottom:40px; width: 100%;"> 
+            <div style="text-align:center; margin-bottom:32px;">
+                <img src="https://cdn.prod.website-files.com/67d58619cd2bfc505c3f713a/67d5867ba383cf9945f323d9_%E1%84%8B%E1%85%B1%E1%84%8F%E1%85%A5%E1%84%91%E1%85%B5%20%E1%84%85%E1%85%A9%E1%84%80%E1%85%A9-01.png" alt="WECOFFEE" style="height:26px; margin-bottom:12px; object-fit:contain;">
+                <h1 class="title mb0" id="mTit" style="font-size:15px; color:#8b95a1; font-weight:600; text-align:center; letter-spacing:-0.3px;">멤버 로그인</h1>
+            </div>
+            <form id="rForm" style="width: 100%;">
+                <div class="step active" id="step0">
+                    <div class="group" style="margin-bottom:16px;">
+                        <select name="batch" id="bSel" required>
+                            <option value="" disabled selected>기수를 선택해 주세요</option>
+                        </select>
+                    </div>
+                    <div class="group" style="margin-bottom:16px;">
+                        <input type="text" id="nInp" name="name" placeholder="이름을 입력해 주세요" required autocomplete="off">
+                    </div>
+                    <div class="group" style="margin-bottom:24px;">
+                        <input type="text" id="pInp" name="phone" placeholder="휴대폰 번호를 입력해 주세요" required autocomplete="off">
+                    </div>
+                    <div class="btns" style="margin-top:32px; width: 100%;">
+                        <button type="button" class="next" id="bAuth" style="padding:18px; font-size:16px; width: 100%;">로그인</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="dashboardWrapper" style="display:none; flex:1; width: 100%;">
+        <div class="wecoffee-wrap" style="padding-bottom:120px; width: 100%;">
+            
+            <div id="welcomeArea" style="display:none; margin-bottom:32px; width: 100%;">
+                <h1 class="title" style="margin-bottom:8px; font-size:24px; color:#222222; text-align: left;"><span id="uN0" class="cp"></span><span style="color:#222222;">님 반가워요</span></h1>
+                <div id="rDay" class="fs15 fw6 c8b" style="text-align: left;"></div>
+            </div>
+            
+            <form id="mainForm" style="width: 100%;">
+                <div class="step" id="dashboardStep">
+                    <div id="nWrap" style="display:none;" class="group mb32">
+                        <div class="flex-between mb16">
+                            <span class="fs18 fw8 c22">멤버 공지사항</span>
+                            <span class="fs14 c8b fw6 cp-click" style="display:flex; align-items:center; gap:2px;" onclick="shw('nOly')">전체보기 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+                        </div>
+                        <div class="res-card" style="padding:0; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.02);">
+                            <ul id="nList" class="notice-list"></ul>
+                        </div>
+                    </div>
+
+                    <div id="tktWrap" style="display:none;" class="group mb32">
+                        <div id="tktTit" class="fs18 fw8 c22 mb16" style="text-align: left;">나의 다음 예약</div>
+                        <div id="tktCard" style="position:relative;"></div>
+                    </div>
+
+                    <div class="group mb24 acc-wrap">
+                        <div class="acc-header res-card flex-between" onclick="tglAcc('calAcc', 'calAccIc')" style="padding:20px 24px; cursor:pointer; margin-bottom:0; box-shadow:0 2px 8px rgba(0,0,0,0.02);">
+                            <p class="mb0 fs16 fw7 c22" style="margin:0;">위커피 콘텐츠 확인</p>
+                            <svg id="calAccIc" class="acc-icon" fill="none" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
+                        </div>
+                        <div id="calAcc" style="display:none; margin-top:12px;"><div id="globalCalArea"></div></div>
+                    </div>
+
+                    <div class="group mb24 acc-wrap">
+                        <div class="acc-header res-card flex-between" onclick="tglAcc('rAcc', 'rAccIc')" style="padding:20px 24px; cursor:pointer; margin-bottom:0; box-shadow:0 2px 8px rgba(0,0,0,0.02);">
+                            <p class="mb0 fs16 fw7 c22" style="margin:0;"><span id="uN1" class="cp"></span>님의 예약 현황 <span id="rCnt" class="fs14 fw6 cs ml4">(0건)</span></p>
+                            <svg id="rAccIc" class="acc-icon" fill="none" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
+                        </div>
+                        <div id="rAcc" style="display:none; margin-top:12px;"><div id="rList"></div></div>
+                    </div>
+
+                    <div class="group mb32 acc-wrap">
+                        <div class="acc-header res-card flex-between" onclick="tglAcc('oAcc', 'oAccIc')" style="padding:20px 24px; cursor:pointer; margin-bottom:0; box-shadow:0 2px 8px rgba(0,0,0,0.02);">
+                            <p class="mb0 fs16 fw7 c22" style="margin:0;"><span id="uN2" class="cp"></span>님의 생두 주문 현황 <span id="oCnt" class="fs14 fw6 cs ml4">(0건)</span></p>
+                            <svg id="oAccIc" class="acc-icon" fill="none" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
+                        </div>
+                        <div id="oAcc" style="display:none; margin-top:12px;"><div id="oList"></div></div>
+                        <div class="tc" style="margin-top:40px; margin-bottom:24px;"><span class="fs14 c8b" style="text-decoration:underline; cursor:pointer;" onclick="gHm()">안전하게 로그아웃</span></div>
+                    </div>
+                </div>
+
+                <div class="step" id="taskStep">
+                    <h1 class="title mb24" id="taskTit" style="text-align: left;">센터 예약하기</h1>
+                    
+                    <div id="tSec" style="display:none">
+                        <div id="tGrp" class="group mb32"><div class="grid-1col"><label class="option"><input type="radio" name="tTsk" value="new"><span id="xTNew" style="transition:.2s">수업 및 훈련 참가</span></label><label class="option"><input type="radio" name="tTsk" value="change">수업 및 훈련 참가 변경</label><label class="option"><input type="radio" name="tTsk" value="cancel">수업 및 훈련 참가 취소</label></div></div>
+                        <div id="mTrn" class="group" style="display:none"><p id="tTit" class="cp mb16">어떤 내역을 변경할까요?</p><div id="tTList" class="grid-1col"></div></div>
+                        <div id="nTrn" style="display:none"><div class="group"><p class="mb20">신청 가능 목록 <span class="desc">정원 초과 시 제한됩니다.</span></p><div id="tGrid" style="display:flex;flex-direction:column;gap:12px"></div></div></div>
+                    </div>
+                    
+                    <div id="rSec" style="display:none">
+                        <div id="rGrp" class="group mb32"><div class="grid-1col"><label class="option"><input type="radio" name="rTsk" value="new"><span id="xRNew" style="transition:.2s">새로운 예약</span></label><label class="option"><input type="radio" name="rTsk" value="change">예약 변경</label><label class="option"><input type="radio" name="rTsk" value="cancel">예약 취소</label></div></div>
+                        <div id="mRes" class="group" style="display:none"><p id="rTit" class="cp mb16">어떤 내역을 변경할까요?</p><div id="tRList" class="grid-1col"></div></div>
+                        <div id="nRes" style="display:none">
+                            <div id="cGrp" class="group mb32"><p class="mb16">센터 선택</p><div class="grid-1col"><label class="option"><input type="radio" name="center" value="마포 센터">마포 센터</label><label class="option"><input type="radio" name="center" value="광진 센터">광진 센터</label></div></div>
+                            <div id="calArea" style="display:none"><div class="group mb32"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><p style="margin:0">날짜 선택</p><button type="button" id="bSch" class="btn-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> 실시간 현황</button></div><div class="calendar-wrap"><div class="calendar-header"><button type="button" id="pMon">❮</button><span id="cMY"></span><button type="button" id="nMon">❯</button></div><div class="calendar-weekdays"><div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div></div><div class="calendar-days" id="dGrid"></div></div></div></div>
+                            <div id="sGridW" class="group mt32 mb32" style="display:none"><p class="mb16">공간 및 장비 선택</p><div class="grid-2col" id="sGrid"><label class="option"><input type="radio" name="space" value="로스팅룸">로스팅존</label><label class="option"><input type="radio" name="space" value="에스프레소존">에스프레소존</label><label class="option"><input type="radio" name="space" value="브루잉존">브루잉존</label><label class="option"><input type="radio" name="space" value="커핑존">커핑존</label><label class="option"><input type="radio" name="space" value="스터디존">스터디존</label></div></div>
+                            <div class="group mt32 mb32" id="eGrp" style="display:none"><p class="mb16" style="display:flex;justify-content:space-between;align-items:center">장비 선택 <span class="desc" id="eHnt" style="margin:0"></span></p><div class="grid-1col" id="eList"></div></div>
+                            <div class="group mt32 mb32" id="tmGrp" style="display:none"><p class="mb16">시간 선택</p><div class="ct-grid time-grid" id="tmGrid"></div><div id="bTxt" class="ce fs14 mt12 fw6 tc"></div></div>
+                        </div>
+                    </div>
+                    
+                    <div id="oSec" style="display:none">
+                        <div id="oGrp" class="group mb32"><div class="grid-1col"><label class="option"><input type="radio" name="oTsk" value="new"><span id="xONew" style="transition:.2s">새로운 주문</span></label><label class="option"><input type="radio" name="oTsk" value="cancel">주문 취소</label></div></div>
+                        <div id="nOrd" style="display:none">
+                            <div class="group mb32">
+                                <p class="mb20">생두 주문하기 <span class="desc">매주 월/목 오전 10시 마감</span></p>
+                                
+                                <span class="input-label mb8 mt16">생두 수령 센터 선택</span>
+                                <select id="oCenter" name="oCenter" class="mb20" onchange="rNxt()">
+                                    <option value="" disabled selected>수령할 센터를 선택해주세요</option>
+                                    <option value="마포 센터">마포 센터</option>
+                                    <option value="광진 센터">광진 센터</option>
+                                </select>
+                                
+                                <span class="input-label mb8 mt16">생두사</span><select id="oVen" name="vendor" class="mb20" onchange="rNxt()"><option value="" disabled selected>선택해 주세요</option><option value="엠아이커피">엠아이커피</option><option value="코빈즈커피">코빈즈</option><option value="커피리브레">리브레</option><option value="더블유빈">더블유빈</option><option value="블레스빈">블레스빈</option><option value="기미사">기미사</option></select>
+                                <span class="input-label mb8 mt16">상품 정보</span><input type="text" id="oItm" name="itemName" class="mb12" placeholder="예: 에티오피아 첼베사 워시드" autocomplete="off" oninput="rNxt()"><input type="text" id="oUrl" name="url" class="mb20" placeholder="상품 URL 붙여넣기" autocomplete="off" oninput="rNxt()">
+                                <span class="input-label mb8 mt16">희망 수량</span><select id="oQty" name="quantity" class="mb20" onchange="rNxt()"><option value="" disabled selected>수량 선택</option><option value="500g">500g</option><option value="1kg">1kg</option><option value="2kg">2kg</option><option value="3kg">3kg</option><option value="4kg">4kg</option><option value="5kg">5kg</option><option value="6kg">6kg</option><option value="7kg">7kg</option><option value="8kg">8kg</option><option value="9kg">9kg</option><option value="10kg">10kg</option></select>
+                                <span class="input-label mb8 mt16">희망 발주일 선택</span>
+                                <select id="oDel" name="deliveryDate" class="mb20" onchange="rNxt()"><option value="" disabled selected>발주일을 선택해주세요</option></select>
+                            </div>
+                        </div>
+                        <div id="mOrd" class="group" style="display:none"><p id="oTit" class="mb16">어떤 주문을 취소할까요?</p><div id="tOList" class="grid-1col"></div></div>
+                    </div>
+                    <div class="btns action-btns-wrap" style="margin-top:40px;">
+                        <button type="button" class="prev" onclick="goBackToHome()">이전</button>
+                        <button type="button" class="next" id="bSub" disabled>제출하기</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="stickyBar" class="floating-nav" style="display:none;">
+    <div class="grid-3col" style="gap:8px;">
+        <label class="option tc bounce-btn" style="padding:16px 4px; justify-content:center; border-radius:18px; margin-bottom:0; cursor:pointer; border:none; background:transparent;"><input type="radio" name="mTask" value="reserve" form="mainForm"><span class="fs15 fw7 c22">센터 예약</span></label>
+        <label class="option tc bounce-btn" style="padding:16px 4px; justify-content:center; border-radius:18px; margin-bottom:0; cursor:pointer; border:none; background:transparent;"><input type="radio" name="mTask" value="training" form="mainForm"><span class="fs15 fw7 c22">수업/훈련</span></label>
+        <label class="option tc bounce-btn" style="padding:16px 4px; justify-content:center; border-radius:18px; margin-bottom:0; cursor:pointer; border:none; background:transparent;"><input type="radio" name="mTask" value="order" form="mainForm"><span class="fs15 fw7 c22">생두 주문</span></label>
+    </div>
+</div>
+
+<div id="ld" class="loading"><div class="spinner"></div></div>
+<div id="cOly" class="toast-overlay"><div class="toast-box" id="cBox"><div id="cMsg" class="flex-col-c"></div><div class="popup-btns"><button type="button" class="popup-btn btn-cancel" onclick="hid('cOly')">닫기</button><button id="cBtn" class="popup-btn btn-primary">확인</button></div></div></div>
+<div id="sOly" class="toast-overlay"><div class="toast-box" style="max-width:380px;padding:32px 24px"><div id="sCon"></div><div class="popup-btns"><button class="popup-btn btn-primary" onclick="hid('sOly')">닫기</button></div></div></div>
+<div id="scOly" class="toast-overlay"><div class="toast-box"><div id="scMsg" class="flex-col-c"></div><div class="popup-btns"><button class="popup-btn btn-primary" onclick="gSts()">확인</button></div></div></div>
+<div id="cpTst" class="copy-toast">복사되었습니다</div>
+
+<div id="nOly" class="toast-overlay" onclick="if(event.target.id==='nOly')hid('nOly')">
+    <div class="toast-box notice-box" style="max-height:85vh; display:flex; flex-direction:column; align-items:stretch; max-width:420px;">
+        <div style="padding:24px 24px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; width:100%;">
+            <span class="fs18 fw8 c22">멤버 공지사항</span>
+            <button class="btn-cancel" style="padding:4px; border-radius:8px; margin:0; width:auto; flex:none; font-size:22px; background:transparent!important; color:#8b95a1!important;" onclick="hid('nOly')">✕</button>
+        </div>
+        <div id="nFList" style="padding:0; overflow-y:auto; text-align:left;"></div>
+    </div>
+</div>
+
+<div id="nView" class="full-page-overlay">
+    <div style="display:flex; flex-direction:column; height:100%; width:100%; max-width:1140px; margin:auto;">
+        <div style="padding:28px 24px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:flex-start;">
+            <div style="padding-right:16px;">
+                <h2 id="nvTitle" class="fs22 fw8 c22 mb12" style="word-break:keep-all; line-height:1.4; margin:0; text-align: left;"></h2>
+                <div id="nvDate" class="fs15 c8b fw5" style="text-align: left;"></div>
+            </div>
+            <button class="btn-cancel bounce-btn" style="background:none!important; border:none; font-size:22px; padding:4px; margin:0; color:#222; line-height:1;" onclick="hid('nView');">✕</button>
+        </div>
+        <div id="nvContent" style="flex:1; width:100%; overflow-y:auto; padding:32px 24px; text-align:left;">
+            <div id="nvBody" class="fs16 c22" style="white-space:pre-wrap; word-break:break-all; line-height:1.45;"></div>
+        </div>
+        <div style="border-top:1px solid #eee; width:100%; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:16px 24px calc(16px + env(safe-area-inset-bottom)); background:#fafafa;">
+            <div style="display:flex; justify-content:flex-start;"><div id="nvPrevBtn" class="fs16 fw7 c66 bounce-btn" style="cursor:pointer; display:none; align-items:center; gap:6px;" onclick="moveNoti(-1)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg> 이전글</div></div>
+            <button class="btn-cancel fw7 fs16 bounce-btn" style="padding:14px 32px; border-radius:12px; margin:0; border:1.5px solid #e5e8eb; background:#fff!important; color:#222!important;" onclick="hid('nView'); shw('nOly');">목록</button>
+            <div style="display:flex; justify-content:flex-end;"><div id="nvNextBtn" class="fs16 fw7 c66 bounce-btn" style="cursor:pointer; display:none; align-items:center; gap:6px;" onclick="moveNoti(1)">다음글 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></div></div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 🔥 푸시 알림 권한 요청 및 토큰 저장 로직
+const PUBLIC_VAPID_KEY = 'BKj1LS67wy0d9hKsHLb3uoqrs3ILHqKWFtCPg8HNUD0M6EaD8KLyz5ivAlmnDYyBx1c3CZ6E7CdtrO2kOFyGl0Q';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function subscribeToPush(phone) {
+  if ('serviceWorker' in navigator && 'PushManager' in window) {
+    try {
+      const register = await navigator.serviceWorker.register('https://sungwon-work12.github.io/wecoffee-admin/sw.js');
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+
+      const subscription = await register.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(PUBLIC_VAPID_KEY)
+      });
+
+      const { error } = await window.supabaseClient
+        .from('push_subscriptions')
+        .upsert({ 
+          phone: phone, 
+          subscription_data: JSON.parse(JSON.stringify(subscription)) 
+        }, { onConflict: 'phone' });
+    } catch (err) {
+      console.error('푸시 구독 에러:', err);
+    }
+  }
+}
+
+// ---------------- 기본 유틸 및 설정 ----------------
+function el(i) { return document.getElementById(i); }
+function qS(q) { return document.querySelector(q); }
+function qSA(q) { return document.querySelectorAll(q); }
+
+window.shw = function(i) { let e = el(i); if(e) e.classList.add("show"); };
+window.hid = function(i) { let e = el(i); if(e) e.classList.remove("show"); };
+
+const { createClient } = supabase;
+window.supabaseClient = createClient('https://dqvzowmhxorxhiqoibmk.supabase.co','sb_publishable_DSi3rGnuQhy6OtML_3ukEA_7ptfaoK-');
+
+var cur=0, uDat=null, bDat=[], oDat=[], sDt="", sTm=[], lRT="", lOT="", lTT="", cachedNotices=[], currentNotiIdx=0;
+var isFetching = false;
+
+window.gCtr = () => qS('input[name="center"]:checked')?.value || "";
+window.gSpc = () => qS('input[name="space"]:checked')?.value || "";
+window.kD = e => { if(!e||e==="undefined")return""; let t=new Date(e); return isNaN(t)?e:t.getFullYear()+"년 "+String(t.getMonth()+1).padStart(2,'0')+"월 "+String(t.getDate()).padStart(2,'0')+"일("+["일","월","화","수","목","금","토"][t.getDay()]+")"};
+window.eDat = {"로스팅룸":["이지스터 800(신형)-1","이지스터 800(신형)-2","이지스터 800(구형)-3","이지스터 800(구형)-4","이지스터 1.8","스트롱홀드 S7X"],"에스프레소존":["아스토리아 스톰 2그룹"]};
+window.td = new Date(); window.dM = new Date(window.td.getFullYear(), window.td.getMonth(), 1);
+window.isMt = (s1,s2) => { if(!s1||!s2)return!1; let a=s1.replace(/\s/g,'').replace(/존/g,'룸'), b=s2.replace(/\s/g,'').replace(/존/g,'룸'); return a==='전체'||a.includes(b)||b.includes(a)};
+window.pM = s => { let t=s.replace(/\D/g,''); if(!t)return 0; let h=parseInt(t.slice(0,-2),10)||0, m=parseInt(t.slice(-2),10)||0; if((s.includes("오후")||s.toLowerCase().includes("pm"))&&h<12)h+=12; if((s.includes("오전")||s.toLowerCase().includes("am"))&&h===12)h=0; return h*60+m};
+window.isTr = (t,r) => { if(!r)return!1; let s=String(r), sp=s.includes("~")?"~":s.includes("-")?"-":null; if(!sp)return t===s.trim(); let[st,en]=s.split(sp); return window.pM(t)>=window.pM(st) && window.pM(t)<window.pM(en)};
+window.tms = Array.from({length:48}, (_,i) => `${String(Math.floor(i/2)).padStart(2,'0')}:${i%2?'30':'00'}`);
+
+window.supabaseClient.channel('member-realtime')
+    .on('postgres_changes',{event:'*',schema:'public',table:'reservations'},p=>{if(uDat)window.fDat(!1);if(sDt)window.loadDailyBlocks(sDt)})
+    .on('postgres_changes',{event:'*',schema:'public',table:'blocks'},p=>{if(sDt)window.loadDailyBlocks(sDt);if(uDat)window.fDat(!1)})
+    .on('postgres_changes',{event:'*',schema:'public',table:'trainings'},p=>{if(uDat)window.fDat(!1);let trn=el("nTrn");if(trn&&trn.style.display==="block")window.fTrn()})
+    .on('postgres_changes',{event:'*',schema:'public',table:'orders'},p=>{if(uDat)window.fDat(!1)})
+    .subscribe();
+
+window.tglAcc = function(id,icId) {
+    let elObj=el(id),ic=el(icId);
+    if(elObj.style.display==='none'){elObj.style.display='block';ic.classList.add('open');}
+    else{elObj.style.display='none';ic.classList.remove('open');}
+    if(id==='calAcc'&&elObj.style.display==='block') window.renderGlobalCalendar();
+};
+
+window.cAl = function(t,d) {
+    qSA(".btn-cancel").forEach(e=>e.style.display="none");
+    el("cMsg").innerHTML=`<div class="fs20 fw8 c22 mb12 wbk" style="letter-spacing:-0.5px">${t}</div><div class="fs15 c8b lh16 wbk" style="white-space:pre-line;">${d}</div>`;
+    let b=el("cBtn"); b.innerText="확인"; b.className="popup-btn btn-primary"; window.shw("cOly"); b.onclick=()=>window.hid("cOly");
+};
+window.sSuc = function(t,d) {
+    el("scMsg").innerHTML=`<div class="fs20 fw8 c22 mb12 wbk" style="letter-spacing:-0.5px">${t}</div><div class="fs15 c8b lh16 wbk" style="white-space:pre-line;">${d}</div>`; window.shw("scOly");
+};
+window.gSts = function() { window.hid("scOly"); window.rFmt(true); cur=1; sessionStorage.removeItem("wc_depth"); window.sStp(1); };
+window.gHm = function() { localStorage.removeItem("wc_log"); localStorage.removeItem("wc_data"); sessionStorage.removeItem("wc_depth"); location.reload(); };
+
+window.copyTxt = function(txt) {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(txt).then(()=>{window.showToast("복사되었습니다.");}).catch(()=>{window.fallbackCopyTextToClipboard(txt);});
+    } else { window.fallbackCopyTextToClipboard(txt); }
+};
+window.fallbackCopyTextToClipboard = function(text) {
+    var ta = document.createElement("textarea"); ta.value = text; ta.style.top="0"; ta.style.left="0"; ta.style.position="fixed"; document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); window.showToast("복사되었습니다."); } catch (err) {} document.body.removeChild(ta);
+};
+window.showToast = function(msg) {
+    const toast = el("cpTst"); if(!toast) return;
+    toast.innerText = msg; window.shw("cpTst"); setTimeout(() => window.hid("cpTst"), 2500);
+};
+
+window.fNoti = async function() {
+    try{
+        const{data}=await window.supabaseClient.from('notices').select('*').eq('status','발행').order('is_pinned',{ascending:false}).order('created_at',{ascending:false});
+        if(data&&data.length){
+            cachedNotices=data; el("nWrap").style.display="block";
+            el("nList").innerHTML=data.slice(0,1).map(n=>`<li onclick="window.openNoti(0)"><div class="fs16 fw7 c22 wbk lh14">${n.is_pinned?'<span class="badge-solid">필독</span>':''}${n.title}</div><div class="fs14 c8b fw5 mt4">${window.kD(n.created_at).replace(' (','(')}</div></li>`).join("");
+            el("nFList").innerHTML=data.map((n,i)=>`<div class="notice-item" onclick="window.openNoti(${i})"><div class="fs16 fw7 c22 wbk lh14 mb4">${n.is_pinned?'<span class="badge-solid">필독</span>':''}${n.title}</div><div class="fs13 c8b fw5">${window.kD(n.created_at).replace(' (','(')}</div></div>`).join("");
+        }
+    }catch(e){}
+};
+window.openNoti = function(idx) {
+    currentNotiIdx=idx; let n=cachedNotices[idx]; window.hid('nOly'); window.shw('nView');
+    el("nvTitle").innerHTML=`${n.is_pinned?'<span class="badge-solid">필독</span>':''}${n.title}`;
+    el("nvDate").innerText=window.kD(n.created_at).replace(' (','(');
+    el("nvBody").innerHTML=(n.content||"").replace(/\n/g,'<br>');
+    el("nvPrevBtn").style.display=(idx>0)?"flex":"none";
+    el("nvNextBtn").style.display=(idx<cachedNotices.length-1)?"flex":"none";
+    setTimeout(()=>{let c=el("nvContent");if(c)c.scrollTop=0;},10);
+};
+window.moveNoti = function(dir) { let t=currentNotiIdx+dir; if(t>=0&&t<cachedNotices.length) window.openNoti(t); };
+
+window.rCal = function() {
+    let y=window.dM.getFullYear(),m=window.dM.getMonth(),fd=new Date(y,m,1).getDay(),ld=new Date(y,m+1,0).getDate(),g=el("dGrid");
+    if(!g)return; el("cMY").innerText=`${y}년 ${m+1}월`; g.innerHTML="";
+    for(let i=0;i<fd;i++)g.appendChild(document.createElement("div"));
+    let s=`${window.td.getFullYear()}-${String(window.td.getMonth()+1).padStart(2,"0")}-${String(window.td.getDate()).padStart(2,"0")}`;
+    for(let i=1;i<=ld;i++){
+        let d=new Date(y,m,i),dS=`${y}-${String(m+1).padStart(2,"0")}-${String(i).padStart(2,"0")}`,r=document.createElement("div");
+        r.className="cal-day"; r.innerText=i; d.setHours(23,59,59,999);
+        if(y!==window.td.getFullYear()||m!==window.td.getMonth()||d<window.td) r.classList.add("disabled");
+        else {
+            r.onclick=()=>{
+                qSA(".cal-day").forEach(c=>c.classList.remove("active")); r.classList.add("active"); sDt=dS; sTm=[];
+                el("sGridW").style.display="block"; el("tmGrp").style.display="none"; el("eGrp").style.display="none";
+                qSA('input[name="space"], input[name="equip"]').forEach(elem=>{elem.checked=false;elem.dataset.w='f';elem.closest('.option')?.classList.remove('checked')});
+                window.rNxt(); el("sGridW").scrollIntoView({behavior:"smooth",block:"nearest"}); window.loadDailyBlocks(dS);
+            }
+        }
+        dS===s&&r.classList.add("today"); dS===sDt&&r.classList.add("active"); g.appendChild(r)
+    }
+};
+
+window.loadDailyBlocks = async function(d){
+    try{
+        let c=window.gCtr(); bDat=[];
+        const[r,b]=await Promise.all([
+            window.supabaseClient.from('reservations').select('*').eq('res_date',d).eq('center',c).neq('status','취소').neq('status','취소(정상)').neq('status','이용 완료'),
+            window.supabaseClient.from('blocks').select('*').eq('block_date',d).eq('center',c)
+        ]);
+        if(r.data)r.data.forEach(x=>bDat.push({date:d,isBlock:!1,time:x.res_time,spaceInfo:x.space_equip,name:x.name}));
+        if(b.data)b.data.forEach(x=>bDat.push({date:d,isBlock:!0,time:`${x.start_time}~${x.end_time}`,spaceInfo:x.space_equip,reason:x.reason}));
+        let eg=el("eGrp"), tg=el("tmGrp");
+        if(eg&&eg.style.display==="block")window.rEq(); if(tg&&tg.style.display==="block")window.rTm();
+    }catch(e){}
+};
+
+window.rEq = function(){
+    let sp=window.gSpc(),eq=qS('input[name="equip"]:checked')?.value,g=el("eGrp"),l=el("eList");
+    if(sp&&window.eDat[sp]){
+        l.innerHTML=window.eDat[sp].map(e=>{
+            let mx=e.includes("아스토리아")?2:3,ct=0;
+            if(sDt&&sTm.length)sTm.forEach(t=>{let c=bDat.filter(b=>!b.isBlock&&b.date===sDt&&window.isTr(t,b.time)&&b.spaceInfo.includes(e)).length;ct=Math.max(ct,c)});
+            let rm=Math.max(0,mx-ct),bdg=`<span class="btn-badge" style="padding:4px 8px;font-size:11px;margin-left:6px;height:auto;line-height:1;background:${rm<=0?'#fff0f0':'#fff6ef'};color:${rm<=0?'var(--error)':'var(--primary)'}">${rm<=0?"예약 마감":rm+"석 남음"}</span>`,chk=e===eq?'checked':'',w=e===eq?'data-w="t"':'data-w="f"',cls=rm<=0?'disabled':'';
+            if(e===eq&&rm>0)cls+=' checked';
+            return`<label class="option ${cls} py-1 wsn lh14 bounce-btn" style="word-break:keep-all; display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:8px;"><input type=radio name=equip value="${e}" ${chk} ${w} ${rm<=0?'disabled':''}><span>${e}</span></div>${bdg}</label>`
+        }).join("");
+        g.style.display="block"
+    }else{l.innerHTML="";g.style.display="none"}
+};
+
+window.rTm = function(){
+    let sp=window.gSpc(),eq=qS('input[name="equip"]:checked')?.value,g=el("tmGrid");
+    if(!g) return; g.innerHTML=""; el("bTxt").innerText=""; 
+    let no=new Date(),nh=no.getHours(),nm=no.getMinutes(),tS=`${no.getFullYear()}-${String(no.getMonth()+1).padStart(2,"0")}-${String(no.getDate()).padStart(2,"0")}`;
+    window.tms.forEach(t=>{
+        let a=document.createElement("div"); a.className="ct-item"; let th=parseInt(t.split(":")[0],10),tm=parseInt(t.split(":")[1],10);
+        let b=bDat.find(x=>x.isBlock&&x.date===sDt&&window.isTr(t,x.time)&&(window.isMt(x.spaceInfo,sp)||(eq&&window.isMt(x.spaceInfo,eq)))),isF=!1;
+        if(eq){let mx=eq.includes("아스토리아")?2:3;if(bDat.filter(x=>!x.isBlock&&x.date===sDt&&window.isTr(t,x.time)&&x.spaceInfo.includes(eq)).length>=mx)isF=!0}
+        else if(sp&&!["로스팅룸","에스프레소존"].includes(sp)){if(bDat.filter(x=>!x.isBlock&&x.date===sDt&&window.isTr(t,x.time)&&window.isMt(x.spaceInfo,sp)).length>=1)isF=!0}
+        let isP=sDt===tS&&(th<nh||(th===nh&&tm<=nm));
+        if(b){
+            a.className+=" blocked py-1";a.style.minHeight="64px";a.innerHTML=`<span class="fs13 c66 fw5" style="text-decoration:line-through">${t}</span><span class="fs11 c66 fw5 mt4 lh14 wsn wbk" style="width:100%">${b.reason}</span>`
+        }else if(isF){
+            a.className+=" blocked py-1";a.style.minHeight="64px";a.innerHTML=`<span class="fs13 c66 fw5" style="text-decoration:line-through">${t}</span><span class="fs11 ce fw7 mt4 lh14 wsn wbk" style="width:100%">정원 마감</span>`
+        }else if(isP){
+            a.className+=" blocked";a.innerText=t
+        }else{
+            a.innerText=t; if(sTm.includes(t))a.classList.add("active");
+            a.onclick=()=>{
+                if(a.classList.contains("blocked"))return;
+                if(sTm.length===1&&sTm[0]===t)sTm=[];
+                else if(sTm.length!==1)sTm=[t];
+                else{
+                    let s=window.tms.indexOf(sTm[0]),e=window.tms.indexOf(t),mn=Math.min(s,e),mx=Math.max(s,e),blk=!1;
+                    for(let i=mn;i<=mx;i++){
+                        if(bDat.find(x=>x.isBlock&&x.date===sDt&&window.isTr(window.tms[i],x.time)&&(window.isMt(x.spaceInfo,sp)||(eq&&window.isMt(x.spaceInfo,eq)))))blk=!0;
+                        if(eq){let max=eq.includes("아스토리아")?2:3;if(bDat.filter(x=>!x.isBlock&&x.date===sDt&&window.isTr(window.tms[i],x.time)&&x.spaceInfo.includes(eq)).length>=max)blk=!0;}
+                        else if(sp&&!["로스팅룸","에스프레소존"].includes(sp)){if(bDat.filter(x=>!x.isBlock&&x.date===sDt&&window.isTr(window.tms[i],x.time)&&window.isMt(x.spaceInfo,sp)).length>=1)blk=!0;}
+                    }
+                    blk?(window.cAl("예약할 수 없는 시간입니다","선택하신 시간에 이미 마감된 일정이 포함되어 있습니다.\n일정을 다시 확인해 주세요."),sTm=[t]):sTm=window.tms.slice(mn,mx+1)
+                }
+                window.rTm(); if(eq)window.rEq(); window.rNxt();
+            }
+        }
+        g.appendChild(a)
+    })
+};
+
+window.rFmt = function(a) {
+    if(a)qSA('input[type="radio"],input[type="checkbox"]').forEach(r=>{if(r.name!=="mTask"){r.checked=false;r.dataset.w='f';r.closest(".option")?.classList.remove("checked")}});
+    sDt=""; sTm=[];
+    ["calArea","sGridW","tmGrp","eGrp","nTrn","mTrn","mRes","nRes","nOrd","mOrd"].forEach(i=>{let e=el(i);if(e)e.style.display="none"});
+    if(el("xRNew"))el("xRNew").textContent="새로운 예약";
+    if(el("xONew"))el("xONew").textContent="새로운 주문";
+    if(el("xTNew"))el("xTNew").textContent="수업 및 훈련 참가";
+    ["rGrp","oGrp","tGrp"].forEach(i=>{let e=el(i);if(e)e.style.display="block"});
+    ["oVen","oItm","oUrl","oQty","cRsn","oCenter","oDel"].forEach(i=>{let e=el(i);if(e)e.value=""});
+    if(!a){qSA('input[name="rTsk"], input[name="tTsk"], input[name="oTsk"]').forEach(r=>{r.checked=false;r.dataset.w='f';r.closest('.option')?.classList.remove('checked');});}
+};
+
+window.sStp = function(s) {
+    let allStps = qSA(".step");
+    allStps.forEach((e,i)=>e.classList.toggle("active",i===s)); window.scrollTo(0,0); let w=el("welcomeArea");
+    let gnb = qS('.w-nav');
+    
+    if(s===0){
+        el("loginWrapper").style.display="flex"; el("dashboardWrapper").style.display="none"; el("stickyBar").style.display="none"; if(w)w.style.display="none";
+        if(gnb) gnb.style.display="none";
+    }else{
+        el("loginWrapper").style.display="none"; el("dashboardWrapper").style.display="flex"; el("stickyBar").style.display="block";
+        if(gnb) gnb.style.display="";
+        if(s===1){
+            if(el("uN0"))el("uN0").innerText=(uDat?.batch?uDat.batch+" ":"")+uDat?.name||"";
+            if(el("uN1"))el("uN1").innerText=uDat?.name||"";
+            if(el("uN2"))el("uN2").innerText=uDat?.name||"";
+            let c=(uDat?.remainDays!=="expired"&&uDat?.remainDays<=30)?"var(--error)":"var(--primary)";
+            if(el("rDay")){el("rDay").innerHTML=`잔여 활동일수: <strong style="color:${c}">D-${uDat?.remainDays||0}</strong>`; el("rDay").style.display="block";}
+            if(w)w.style.display="block";
+        }else{
+            if(w)w.style.display="none"; if(el("rDay"))el("rDay").style.display="none";
+            window.uVis(); el("stickyBar").style.display="none";
+        }
+    }
+    window.rNxt();
+};
+
+window.goBackToHome = function() { cur--; sessionStorage.removeItem("wc_depth"); window.sStp(cur); };
+
+window.renderGlobalCalendar = async function() {
+    let g=el("globalCalArea"); g.innerHTML=`<div class="tc cs fs14 py-1" style="padding:40px 0;">위커피 일정을 불러오고 있습니다...</div>`;
+    try{
+        let t=new Date(),y=t.getFullYear(),m=t.getMonth(),dInM=new Date(y,m+1,0).getDate();
+        const{data:b}=await window.supabaseClient.from('blocks').select('*').gte('block_date',`${y}-${String(m+1).padStart(2,'0')}-01`).lte('block_date',`${y}-${String(m+1).padStart(2,'0')}-${dInM}`);
+        let evts={}; for(let d=1;d<=dInM;d++)evts[`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`]=[];
+        if(b)b.forEach(x=>{if(evts[x.block_date]&&x.category!=='센터 점검(차단)'){let spc=String(x.space_equip||"전체").split(' ')[0]||"전체";evts[x.block_date].push({start:x.start_time,title:`[${x.category}] ${x.reason}`,desc:`[${x.center}] ${spc} | ${x.start_time}~${x.end_time}`});}});
+        window.mGlobalEvts=evts; let h=`<div class="m-cal-strip" id="m-cal-strip-global">`;
+        Object.keys(evts).sort().forEach(ds=>{
+            let dObj=new Date(ds),dk=["일","월","화","수","목","금","토"][dObj.getDay()],hs=evts[ds].length>0?'has-evt':'';
+            h+=`<div class="m-cal-date" id="m-date-global-${ds}" onclick="window.renderGlobalList('${ds}')"><span class="m-cal-day">${dk}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hs}"></div></div>`;
+        });
+        h+=`</div><div id="m-cal-list-global" class="m-cal-list"></div>`; g.innerHTML=h; window.renderGlobalList(`${y}-${String(m+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`);
+    }catch(e){g.innerHTML=`<div class="tc ce fs14 py-1" style="padding:40px 0;">일정을 불러오지 못했습니다.</div>`;}
+};
+
+window.renderGlobalList = function(s) {
+    qSA("#globalCalArea .m-cal-date").forEach(e=>e.classList.remove('active'));
+    let t=el(`m-date-global-${s}`); if(t){t.classList.add('active');t.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}
+    let evts=window.mGlobalEvts[s]||[]; evts.sort((a,b)=>String(a.start||'').localeCompare(String(b.start||'')));
+    let h=''; if(evts.length===0)h=`<div class="tc cs fs14" style="padding:32px 0;">위커피의 공식 일정이 없습니다.</div>`;
+    else evts.forEach(e=>{h+=`<div class="m-cal-card"><div class="m-cal-card-time">${e.start||''}</div><div class="m-cal-card-title">${e.title||''}</div><div class="m-cal-card-desc">${e.desc||''}</div></div>`;});
+    let w=el("m-cal-list-global"); if(w)w.innerHTML=h;
+};
+
+window.earlyFinish = async function(id) {
+    window.setCnf("이용 조기 종료", "정말 이용을 조기 종료하시겠습니까?\n종료 시 다른 멤버가 해당 시간을 예약할 수 있습니다.", "btn-dark", async()=>{
+        window.shw("ld"); window.hid("cOly");
+        const{error}=await window.supabaseClient.from('reservations').update({status:'이용 완료'}).eq('id',id);
+        if(error){window.hid("ld"); window.cAl("오류","상태를 변경하지 못했습니다.");}
+        else{
+            qSA(".swipe-content").forEach(c => { c.style.transform = 'translateX(0)'; });
+            await window.fDat(false); window.hid("ld"); window.sSuc("종료 처리 완료","다음 분들을 위해 시간을 양보해 주셔서 감사합니다.");
+        }
+    });
+};
+
+window.setupSwipeCards = function() {
+    qSA(".swipe-wrap").forEach(w=>{
+        let c=w.querySelector('.swipe-content'); if(!c) return;
+        let clone = c.cloneNode(true); c.parentNode.replaceChild(clone, c); c = clone; 
+        let s=0, y=0, x=0, sw=!1, sc=!1;
+        c.addEventListener('touchstart',e=>{
+            s=e.touches[0].clientX; y=e.touches[0].clientY; sw=!0; sc=!1; c.style.transition='none';
+            qSA(".swipe-content").forEach(other=>{if(other!==c){other.style.transform='translateX(0)';}});
+        },{passive:!0});
+        c.addEventListener('touchmove',e=>{
+            if(!sw)return; let dx=e.touches[0].clientX-s, dy=e.touches[0].clientY-y;
+            if(!sc){if(Math.abs(dy)>Math.abs(dx)){sc=!0;sw=!1;return;}}
+            if(sc)return; if(dx<0&&dx>=-90){x=dx;c.style.transform=`translateX(${x}px)`;}
+        },{passive:!0});
+        c.addEventListener('touchend',e=>{
+            sw=!1; c.style.transition='transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
+            if(x<-40){c.style.transform=`translateX(-90px)`;}else{c.style.transform=`translateX(0)`;}
+        });
+    });
+};
+
+window.rDelOpts = function() {
+    let s=el("oDel"); if(!s)return;
+    s.innerHTML='<option value="" disabled selected>희망 발주일을 선택해 주세요</option>';
+    let t=new Date(),opts=[],addD=(d,i)=>{let n=new Date(d);n.setDate(d.getDate()+i);return n;};
+    for(let i=0;i<14;i++){
+        let chk=addD(t,i),day=chk.getDay(),h=(i===0)?t.getHours():0;
+        if((day===1&&h<10)||(day===4&&h<10)){let dK=["일","월","화","수","목","금","토"][day];let msg=`${chk.getMonth()+1}/${chk.getDate()}(${dK}) 발주`;opts.push(msg);}
+        if(opts.length>=2)break;
+    }
+    opts.forEach(o=>s.appendChild(new Option(o,o)));
+};
+
+window.fDat = async function(shwLd=true) {
+    if(isFetching) return;
+    isFetching = true;
+
+    let b=el("bSel")?.value, n=(el("nInp")?.value||"").trim(), p=el("pInp")?.value;
+    if(!b||!n||!p){let sv=JSON.parse(localStorage.getItem("wc_log")||"{}");b=sv.b||b;n=sv.n||n;p=sv.p||p;}
+    if(!b||!n||!p){isFetching = false; return;}
+    
+    let sD=sessionStorage.getItem("wc_depth");
+    if(sD&&cur===0){
+        let tI=qS(`input[name="mTask"][value="${sD}"]`);
+        if(tI){tI.checked=!0;tI.dataset.w='t';tI.closest('.option').classList.add('checked');cur=2;window.sStp(2);}else{cur=1;window.sStp(1);}
+    }else if(cur===0){cur=1;window.sStp(1);}
+    
+    if(shwLd){window.shw("ld");if(el("tktCard"))el("tktCard").innerHTML=el("rList").innerHTML=el("oList").innerHTML=`<div class="tc cs fs14 py-1" style="padding:40px 0;">정보를 불러오는 중입니다...</div>`;}
+    
+    try{
+        let p1=p,p2=p.replace(/\D/g,"");
+        const{data:mem,error:mE}=await window.supabaseClient.from('members').select('*').eq('name',n).in('phone',[p1,p2]);
+        if(mE||!mem||mem.length===0)throw new Error("인증 실패");
+        let sB=b.replace(/[^0-9]/g,""),m=mem.find(x=>(x.batch||"").replace(/[^0-9]/g,"")===sB);
+        if(!m)throw new Error("기수 불일치");
+        
+        window.fNoti();
+        let eD=new Date(m.end_date),rD=isNaN(eD.getTime())?"expired":Math.max(0,Math.ceil((eD-new Date())/(1000*60*60*24)));
+        if(rD==="expired"||rD===0)rD="expired";
+        uDat={batch:m.batch||b,name:n,phone:p,remainDays:rD,status:m.status||'활동 중',myReservations:[],myOrders:[]};
+        
+        if(el("uN0"))el("uN0").innerText=(uDat?.batch?uDat.batch+" ":"")+uDat?.name||"";
+        if(el("uN1"))el("uN1").innerText=uDat?.name||"";
+        if(el("uN2"))el("uN2").innerText=uDat?.name||"";
+        
+        let cCol=(rD!=="expired"&&rD<=30)?"var(--error)":"var(--primary)";
+        if(el("rDay")){el("rDay").innerHTML=`잔여 활동일수: <strong style="color:${cCol}">D-${rD}</strong>`;el("rDay").style.display="block";}
+        
+        // 👉 로그인 직후 푸시 알림 권한 요청 및 저장
+        if(typeof subscribeToPush === 'function') { subscribeToPush(p); }
+
+        oDat=[]; let aR=[];
+        try{const{data:r}=await window.supabaseClient.from('reservations').select('*').eq('name',n).in('phone',[p1,p2]);if(r)r.forEach(x=>aR.push({isTraining:!1,resId:x.id,date:x.res_date,time:x.res_time,spaceInfo:x.space_equip,center:x.center,status:x.status}));}catch(e){}
+        try{
+            const{data:t}=await window.supabaseClient.from('trainings').select('*').eq('name',n).in('phone',[p1,p2]);
+            if(t)t.forEach(x=>{
+                let p=String(x.content||"").split(' || '),cD,sI,cT,cC,cTi;
+                if(p.length>=5){cD=p[0];sI=p[1];cT=p[2];cC=p[3];cTi=p[4];}else{cD=x.created_at;sI=p[0]||"공간 미정";cT=p[1]||"";cC=p[2]||"";cTi=p[3]||"";}
+                let mat=cTi.match(/^\[(.*?)\]\s*(.*)$/),cat=mat?mat[1]:"수업/훈련",tit=mat?mat[2]:cTi;
+                aR.push({isTraining:!0,resId:x.id,date:cD,trainCategory:cat,trainTitle:tit,trainTime:cT,center:cC,status:x.status,spaceInfo:sI});
+            });
+        }catch(e){}
+        
+        try{
+            const{data:o}=await window.supabaseClient.from('orders').select('*').eq('name',n).in('phone',[p1,p2]);
+            if(o){
+                let seen=new Set();
+                o.forEach(x=>{
+                    if(!seen.has(x.id)){
+                        seen.add(x.id);
+                        oDat.push({orderId:x.id,date:x.created_at,center:x.center,vendor:x.vendor,itemName:x.item_name,quantity:x.quantity,status:x.status,totalPrice:x.total_price});
+                    }
+                });
+            }
+        }catch(e){}
+        
+        uDat.myReservations=aR; let aRes=[]; const tdObj=new Date(); tdObj.setHours(0,0,0,0);
+        uDat.myReservations.forEach(r=>{
+            let d=new Date(r.date.split('T')[0]);d.setHours(0,0,0,0);
+            if((r.status.includes('취소')||r.status.includes('변경'))&&d<tdObj)return;
+            if(d<tdObj)return;
+            aRes.push(r);
+        });
+        uDat.myReservations=aRes;
+        let sR=[...aRes].sort((a,b)=>new Date(a.date.split('T')[0]).getTime()-new Date(b.date.split('T')[0]).getTime());
+        
+        let tTkt=null,tIdx=sR.findIndex(r=>r.isTraining);
+        if(tIdx!==-1)tTkt=sR[tIdx];else if(sR.length>0)tTkt=sR[0];
+        
+        if(tTkt&&el("tktWrap")){
+            let tD=new Date(tTkt.date.split('T')[0]);tD.setHours(0,0,0,0);
+            let tDs=Math.ceil((tD-tdObj)/(1000*60*60*24)),isT=(tDs===0);
+            el("tktWrap").style.display="block";
+            el("tktTit").innerText=isT?"나의 오늘 예약":"나의 다음 예약";
+            
+            let isFin = tTkt.status === '이용 완료';
+            let cTxt=tTkt.isTraining?tTkt.trainCategory:"센터 예약";
+            let bdg=`<span class="badge-solid" style="${isFin ? 'background:#f2f4f6; color:#8b95a1;' : ''}">${isFin ? '이용 완료' : cTxt}</span>`;
+            let dT=isT?"":`<span class="fs15 fw8 cp">D-${tDs}</span>`;
+            let cN=(tTkt.center&&tTkt.center!=='null')?tTkt.center:"센터 미정";
+            let cS=tTkt.isTraining?`${tTkt.spaceInfo} | <span class="fw6">[${tTkt.trainCategory}]</span> ${tTkt.trainTitle}`:(tTkt.spaceInfo||"").replace("에스프레소 머신","에스프레소존");
+            let cTi=tTkt.isTraining?tTkt.trainTime:tTkt.time;
+            
+            let iC=`<div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:12px;">${bdg}${dT}</div><div class="info" style="width:100%; ${isFin ? 'opacity:0.6;' : ''}"><div class="cName">${cN}</div><div class="cTime">${window.kD(tTkt.date).replace(" (","(")} | ${cTi}</div><div class="cSpace">${cS}</div></div>`;
+            
+            if(!tTkt.isTraining && isT && !isFin){
+                el("tktCard").innerHTML=`<div class="swipe-wrap"><div class="swipe-action-btn" onclick="window.earlyFinish('${tTkt.resId}')">종료</div><div class="res-card swipe-content" style="margin-bottom:0; border:none; box-shadow:0 0 0 1.5px #e5e8eb inset;">${iC}</div></div>`;
+                window.setupSwipeCards();
+            }else{
+                el("tktCard").innerHTML=`<div class="res-card" style="margin-bottom:0; box-shadow:0 0 0 1.5px #e5e8eb inset;">${iC}</div>`;
+            }
+        }else{
+            if(el("tktWrap"))el("tktWrap").style.display="none";
+        }
+        
+        if(el("rCnt"))el("rCnt").innerText=`(${aRes.length}건)`;
+        window.rRes(sR);
+        
+        let aOrd=[]; let seenOrd=new Set();
+        oDat.forEach(o=>{
+            if(seenOrd.has(o.orderId)) return;
+            seenOrd.add(o.orderId);
+            let d=new Date(o.date.split('T')[0]); d.setHours(0,0,0,0);
+            let st=o.status||"주문 접수";
+            if((st.includes('취소')||st.includes('도착')||st.includes('완료'))&&((tdObj-d)/(1000*60*60*24))>=3) return;
+            aOrd.push(o);
+        });
+        aOrd.sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());
+        if(el("oCnt"))el("oCnt").innerText=`(${aOrd.length}건)`;
+        window.rOrd(aOrd);
+        
+        if(shwLd){
+            window.hid("ld"); let sD=sessionStorage.getItem("wc_depth");
+            if(sD&&cur===0){
+                let tI=qS(`input[name="mTask"][value="${sD}"]`);
+                if(tI){tI.checked=!0;tI.dataset.w='t';tI.closest('.option').classList.add('checked');window.rFmt(!1);cur=2;window.sStp(2);}else{cur=1;window.sStp(1);}
+            }else if(cur===0){cur=1;window.sStp(1);}else{window.uVis();window.rNxt();}
+        }
+    }catch(e){
+        if(shwLd){window.hid("ld");window.cAl("로그인 실패","이름과 연락처를 다시 확인해 주세요.");cur=0;window.sStp(0);localStorage.removeItem("wc_log");sessionStorage.removeItem("wc_depth");}
+    }
+    isFetching = false;
+};
+
+window.rRes = function(l){
+    let e=el("rList");
+    if(!l||!l.length)return e.innerHTML=`<div class="tc cs fs14 py-1" style="padding:32px 0;">다가오는 예약이 없습니다.</div>`;
+    e.innerHTML=l.map(r=>{
+        let isFin = r.status === '이용 완료';
+        let cN=(r.center&&r.center!=='null')?r.center:"센터 미정",dS=window.kD(r.date).replace(" (","(");
+        let bdg = isFin ? `<span class="badge-solid" style="background:#f2f4f6; color:#8b95a1; margin-bottom: 8px; display:inline-block;">이용 완료</span>` : '';
+        let iC=r.isTraining?`<div class="info" style="${isFin ? 'opacity:0.5;' : ''}">${bdg}<div class="cName">${cN}</div><div class="cTime">${dS} | ${r.trainTime}</div><div class="cSpace">${r.spaceInfo} | <span class="fw6">[${r.trainCategory}]</span> ${r.trainTitle}</div></div>`:`<div class="info" style="${isFin ? 'opacity:0.5;' : ''}">${bdg}<div class="cName">${cN}</div><div class="cTime">${dS} | ${r.time}</div><div class="cSpace">${(r.spaceInfo||"").replace("에스프레소 머신","에스프레소존")}</div></div>`;
+        return`<div class="res-card" style="margin-bottom:12px; box-shadow:0 0 0 1.5px #e5e8eb inset;">${iC}</div>`;
+    }).join('');
+};
+
+window.fTrn = async function(){
+    let g=el("tGrid");g.innerHTML="<div class='tc cs fs14 py-1'>목록을 불러오고 있어요...</div>";
+    try{
+        const[b,t]=await Promise.all([window.supabaseClient.from('blocks').select('*').in('category',['기본 수업','정기 훈련','스페셜 코칭','세미나','대회','비즈니스 커핑']),window.supabaseClient.from('trainings').select('content').neq('status','취소').neq('status','취소(정상)')]);
+        let bD=b.data,tD=t.data;
+        if(bD&&bD.length>0){
+            let h="",tdObj=new Date(),tdStr=`${tdObj.getFullYear()}-${String(tdObj.getMonth()+1).padStart(2,'0')}-${String(tdObj.getDate()).padStart(2,'0')}`,cM=tdObj.getHours()*60+tdObj.getMinutes();
+            bD.forEach(i=>{
+                if(i.block_date<tdStr)return;
+                if(i.block_date===tdStr&&window.pM(i.start_time)<=cM)return;
+                let fV=`${i.block_date} || ${i.space_equip||"공간 미정"} || ${i.start_time}~${i.end_time} || ${i.center} || [${i.category}] ${i.reason}`,mx=parseInt(i.capacity)||4,cu=tD?tD.filter(x=>x.content===fV).length:0,isF=cu>=mx;
+                
+                let bdg=`<span class="btn-badge" style="padding:6px 10px;font-size:12px;background:${isF?'#fff0f0':'#fff6ef'};color:${isF?'var(--error)':'var(--primary)'}; display:inline-block; flex-shrink:0;">${isF?"정원 마감":`${mx-cu}석 남음`}</span>`;
+                let catTag = `<span style="display:inline-block; font-size:12px; font-weight:800; padding:4px 8px; background:#f2f4f6; color:#4e5968; border-radius:6px; margin-bottom:6px;">${i.category}</span>`;
+                
+                h+=`<label class="option target-res-card bounce-btn ${isF?'disabled':''}" style="align-items:flex-start; flex-direction:column; gap:12px;">
+                    <input type=radio name=trnId value="${fV}" ${isF?'disabled':''}>
+                    <div class="info" style="width:100%;">
+                        ${catTag}
+                        <div class="cSpace" style="font-size:16px; font-weight:700; color:#222; word-break:keep-all; white-space:normal; line-height:1.4; margin-top:0;">${i.reason}</div>
+                        <div class="cTime" style="margin-top:8px;">${window.kD(i.block_date).replace(" (","(")} | ${i.start_time}~${i.end_time}</div>
+                        <div class="cName" style="font-size:13px; color:#8b95a1; margin-top:4px;">${i.center} | ${i.space_equip||"공간 미정"}</div>
+                    </div>
+                    <div style="width:100%; text-align:right;">${bdg}</div>
+                </label>`;
+            });
+            g.innerHTML=h===""?"<div class='tc cs fs14 py-1'>신청할 수 있는 일정이 없어요</div>":h;
+        }else g.innerHTML="<div class='tc cs fs14 py-1'>신청할 수 있는 일정이 없어요</div>"
+    }catch(e){g.innerHTML="<div class='tc ce fs14 py-1'>일정을 불러올 수 없습니다.</div>"}
+};
+
+window.bTR = function(t){
+    let w=el("tRList");
+    if(window.uDat.myReservations.filter(r=>!r.isTraining).length){
+        let tdObj=new Date(),tdStr=`${tdObj.getFullYear()}-${String(tdObj.getMonth()+1).padStart(2,'0')}-${String(tdObj.getDate()).padStart(2,'0')}`,cM=tdObj.getHours()*60+tdObj.getMinutes();
+        w.innerHTML=window.uDat.myReservations.filter(r=>!r.isTraining).map(r=>{
+            let i=(r.spaceInfo||"").replace("에스프레소 머신","에스프레소존"),cN=(r.center&&r.center!=='null')?r.center:"센터 미정",tTimes=r.time.split('~'),rSt=window.pM(tTimes[0]),rDt=r.date.split('T')[0],isP=rDt<tdStr||(rDt===tdStr&&rSt<=cM),dP=isP&&t!=='new'?"disabled style='opacity:0.5'":"",chk=isP&&t!=='new'?"disabled":"";
+            return`<label class="option target-res-card bounce-btn" ${dP}><input type="${t==='cancel'?'checkbox':'radio'}" name="tRes" value="${r.resId}" data-d="${r.date}" ${chk}><div class="info" style="width:100%"><div class="cName">${cN}</div><div class="cTime">${window.kD(r.date).replace(" (","(")} | ${r.time}</div><div class="cSpace">${i}</div></div></label>`
+        }).join("");
+    }else w.innerHTML="<p class='cs fs15'>내역 없음</p>";
+};
+
+window.bTT = function(t){
+    let w=el("tTList"),tr=window.uDat.myReservations.filter(r=>r.isTraining);
+    if(tr.length){
+        let tdObj=new Date(),tdStr=`${tdObj.getFullYear()}-${String(tdObj.getMonth()+1).padStart(2,'0')}-${String(tdObj.getDate()).padStart(2,'0')}`,cM=tdObj.getHours()*60+tdObj.getMinutes();
+        w.innerHTML=tr.map(r=>{
+            let cN=(r.center&&r.center!=='null')?r.center:"센터 미정",tTimes=r.trainTime.split('~'),rSt=window.pM(tTimes[0]),rDt=r.date.split('T')[0],isP=rDt<tdStr||(rDt===tdStr&&rSt<=cM),dP=isP&&t!=='new'?"disabled style='opacity:0.5'":"",chk=isP&&t!=='new'?"disabled":"";
+            return`<label class="option target-res-card bounce-btn" ${dP}><input type="${t==='cancel'?'checkbox':'radio'}" name="tTrn" value="${r.resId}" data-d="${r.date}" ${chk}><div class="info" style="width:100%"><div class="cName">${cN}</div><div class="cTime">${window.kD(r.date).replace(" (","(")} | ${r.trainTime}</div><div class="cSpace">${r.spaceInfo} | <span class="fw6">[${r.trainCategory}]</span> ${r.trainTitle}</div></div></label>`
+        }).join("");
+    }else w.innerHTML="<p class='cs fs15'>내역 없음</p>";
+};
+
+window.rOrd = function(l){
+    let e=el("oList");
+    if(!l||!l.length)return e.innerHTML=`<div class="tc cs fs14 py-1" style="padding:32px 0;">주문 내역이 없습니다.</div>`;
+    e.innerHTML=l.map(i=>{
+        let st=i.status||"주문 접수",
+            sc=st.includes("취소")?"status-취소됨":st.includes("도착")||st.includes("완료")?"status-완료":(st.includes("대기")||st.includes("확인"))?"status-입금":"status-접수",
+            pClass = st === "입금 대기" ? "pulse" : "",
+            cT=i.center?`<span class="badge-solid" style="background:#f2f4f6; color:#4e5968;">${i.center}</span>`:'';
+        
+        let rNm=i.itemName||"",cNm=rNm,oMt="";
+        let m=rNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
+        if(m){
+            cNm=m[1].trim();
+            let oY=new Date(i.date).getFullYear(),cM=parseInt(m[2],10)-1,cD=parseInt(m[3],10),dStr=m[4]+"요일",cTObj=new Date(oY,cM,cD,10,0,0);
+            if(new Date(i.date).getMonth()===11&&cM===0)cTObj.setFullYear(oY+1);
+            if(new Date()<cTObj)oMt=`<div class="oTime" style="margin-top:4px;"><span style="color:var(--primary);font-weight:700">${dStr} 발주 예정</span></div>`;
+            else oMt=`<div class="oTime" style="margin-top:4px;"><span style="color:var(--green);font-weight:700">${dStr} 발주 완료</span></div>`;
+        }else{
+            let oM=rNm.match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();
+        }
+        return `<div class="order-card" style="width:100%; margin-bottom:12px; box-shadow:0 0 0 1.5px #e5e8eb inset; border:none; flex-direction:column; align-items:flex-start;"><div style="display:flex; justify-content:space-between; width:100%; align-items:flex-start;"><div class="info-box"><div class="oVendor" style="font-size:13px; color:var(--sub); font-weight:600; margin-bottom:4px;">${cT}${i.vendor}</div><div class="oItem" style="font-size:16px; font-weight:800; color:var(--text); margin-bottom:6px;">${cNm}</div><div class="oTime" style="font-size:14px; color:var(--sub);">${window.kD(i.date).replace(" (","(")} 주문 | ${i.quantity}</div>${oMt}</div><div class="status ${sc} ${pClass}" onclick="if('${st}'==='입금 대기')window.sPay()">${st}</div></div></div>`
+    }).join('');
+};
+
+window.sPay = function(){
+    const pending = oDat.filter(o => o.status === '입금 대기');
+    if(pending.length === 0) return;
+
+    let total = 0;
+    let listHtml = '<div style="width:100%; text-align:left; background:#f4f5f7; border-radius:12px; padding:12px; margin:16px 0; display:flex; flex-direction:column; gap:8px;">';
+    let isAllConfirmed = true;
+
+    pending.forEach(o => {
+        const priceStr = String(o.totalPrice || "").trim();
+        const priceNum = Number(priceStr.replace(/\D/g, ''));
+        if(!priceStr || priceStr === "확인 중" || isNaN(priceNum) || priceNum === 0) isAllConfirmed = false;
+        total += priceNum;
+        
+        listHtml += `
+        <div style="background:#fff; padding:12px; border-radius:8px; border:1px solid #e5e8eb;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span style="font-size:11px; font-weight:800; color:var(--primary); background:#fff6ef; padding:4px 6px; border-radius:6px;">${o.vendor}</span>
+                <span style="font-size:14px; font-weight:800; color:#222;">${priceNum > 0 ? priceNum.toLocaleString() + '원' : '확인 중'}</span>
+            </div>
+            <div style="font-size:15px; font-weight:700; color:#222; word-break:keep-all; line-height:1.4; white-space:normal;">${o.itemName.split(' [')[0]}</div>
+            <div style="font-size:13px; color:#8b95a1; font-weight:500; margin-top:4px;">수량: ${o.quantity}</div>
+        </div>`;
+    });
+    listHtml += '</div>';
+
+    const sp = !isAllConfirmed ? "확인 중" : total.toLocaleString() + "원";
+    const ah = !isAllConfirmed 
+        ? `<div class="fs15 c8b mt16 lh16 tc wbk" style="text-decoration:none;">관리자가 주문 금액을 확인 중입니다.<br>잠시만 기다려 주세요.</div>`
+        : `<div class="flex-col-c w-100 bounce-btn" style="padding: 16px 0; margin-top: 8px; cursor:pointer;" onclick="window.copyTxt('100027212656')">
+            <div class="fs14 c8b fw6 mb6">토스뱅크 (강현준)</div>
+            <div class="fs24 fw8 c22 mb12" style="letter-spacing:0.5px;">1000-2721-2656</div>
+            <div class="fs13 fw6" style="color:var(--primary); background:#fff6ef; padding:8px 14px; border-radius:10px;">터치하여 계좌번호 복사</div>
+           </div>`;
+
+    let actionBtns = !isAllConfirmed 
+        ? `<div style="display:flex; flex-direction:column; gap:8px; margin-top:16px; width:100%;"><button class="popup-btn" style="width:100%; margin:0; background:#f2f4f6!important; color:#4e5968!important;" onclick="hid('cOly')">닫기</button></div>`
+        : `<div style="display:flex; flex-direction:column; gap:8px; margin-top:16px; width:100%;">
+            <button class="popup-btn btn-primary" style="width:100%; margin:0;" onclick="window.requestDepositCheck()">송금 완료 (확인 요청)</button>
+            <button class="popup-btn" style="width:100%; margin:0; background:#f2f4f6!important; color:#4e5968!important;" onclick="hid('cOly')">닫기</button>
+           </div>`;
+
+    qSA("#cBox .popup-btns").forEach(e=>e.style.display="none");
+
+    el("cMsg").innerHTML = `
+        <div class="wsn tc w-100" style="padding: 10px 0;">
+            <div class="fs15 c8b fw6 mb8">총 입금하실 금액 (${pending.length}건)</div>
+            <div class="fw8 c22 mb0" style="font-size:32px;letter-spacing:-1px;">${sp}</div>
+            ${listHtml}
+            ${ah}
+            ${actionBtns}
+        </div>`;
+    
+    window.shw("cOly");
+};
+
+window.requestDepositCheck = async function() {
+    window.hid("cOly");
+    window.shw("ld");
+    const pending = oDat.filter(o => o.status === '입금 대기');
+    try {
+        await Promise.all(pending.map(o => window.supabaseClient.from('orders').update({ status: '입금 확인' }).eq('id', o.orderId)));
+        await window.fDat(false);
+        window.hid("ld");
+        window.sSuc("요청이 접수되었습니다", "업데이트 시 알림을 통해 안내드립니다.");
+    } catch(e) {
+        window.hid("ld");
+        window.cAl("오류", "요청 처리에 실패했습니다.");
+    }
+};
+
+window.uVis = function(){
+    let m=qS('input[name="mTask"]:checked')?.value,s=el("rSec"),d=el("oSec"),t=el("tSec"),b=el("bSub");
+    if(window.cur===2){
+        s.style.display=m==="reserve"?"block":"none"; d.style.display=m==="order"?"block":"none"; t.style.display=m==="training"?"block":"none";
+        if(m==="reserve"){
+            el("taskTit").textContent="센터 예약하기"; let rt=qS('input[name="rTsk"]:checked')?.value;
+            el("mRes").style.display=(rt==="change"||rt==="cancel")?"block":"none";
+            let sn=!1;if(rt==="new"&&el("xRNew").textContent.includes("새로운 예약"))sn=!0;if(rt==="change"&&qS('input[name="tRes"]:checked'))sn=!0;
+            el("nRes").style.display=sn?"block":"none"; if(el("cGrp"))el("cGrp").style.display=sn?"block":"none";
+            b.textContent=rt==="cancel"?"예약 취소하기":rt==="change"?"변경 완료하기":"예약 접수하기";
+            b.style.cssText=rt==="cancel"?"background:var(--error)!important;color:#fff!important":"background:linear-gradient(90deg,#ff7900,#ffb347)!important;color:#fff!important";
+            if(rt==="cancel")el("rTit").textContent="어떤 예약을 취소할까요?";else if(rt==="change")el("rTit").textContent="어떤 예약을 변경할까요?";
+            if(rt&&rt!==window.lRT){window.bTR(rt);window.lRT=rt}
+        }else if(m==="order"){
+            el("taskTit").textContent="생두 주문하기"; let ot=qS('input[name="oTsk"]:checked')?.value;
+            el("nOrd").style.display=ot==="new"?"block":"none"; el("mOrd").style.display=ot==="cancel"?"block":"none";
+            window.rDelOpts();
+            b.textContent=ot==="cancel"?"주문 취소하기":ot==="new"?"주문 접수하기":"계속하기";
+            b.style.cssText=ot==="cancel"?"background:var(--error)!important;color:#fff!important":ot==="new"?"background:linear-gradient(90deg,#32b06a,#28a745)!important;color:#fff!important":"background:linear-gradient(90deg,#ff7900,#ffb347)!important;color:#fff!important";
+            if(ot&&ot!==window.lOT){window.bTO();window.lOT=ot}
+        }else if(m==="training"){
+            el("taskTit").textContent="수업 및 훈련 참가"; let tt=qS('input[name="tTsk"]:checked')?.value;
+            el("mTrn").style.display=(tt==="change"||tt==="cancel")?"block":"none";
+            let sn=!1;if(tt==="new"&&el("xTNew").textContent.includes("수업 및 훈련 참가"))sn=!0;if(tt==="change"&&qS('input[name="tTrn"]:checked'))sn=!0;
+            el("nTrn").style.display=sn?"block":"none";
+            b.textContent=tt==="cancel"?"참가 취소하기":tt==="change"?"변경 완료하기":"참가 신청하기";
+            b.style.cssText=tt==="cancel"?"background:var(--error)!important;color:#fff!important":"background:linear-gradient(90deg,#ff7900,#ffb347)!important;color:#fff!important";
+            if(tt==="cancel")el("tTit").textContent="어떤 내역을 취소할까요?";else if(tt==="change")el("tTit").textContent="어떤 내역을 변경할까요?";
+            if(tt&&tt!==window.lTT){window.bTT(tt);window.lTT=tt}
+        }
+    }
+};
+
+window.vStp = function(){
+    if(window.cur===0)return el("bSel").value&&el("nInp").value.trim()&&el("pInp").value.length>=12;
+    if(window.cur===1)return !!qS('input[name="mTask"]:checked');
+    if(window.cur===2){
+        let m=qS('input[name="mTask"]:checked').value;
+        if(m==="reserve"){
+            let rt=qS('input[name="rTsk"]:checked')?.value; if(!rt)return!1;
+            let sp=window.gSpc(),ct=window.gCtr();
+            if(rt==="new"&&el("xRNew").textContent.includes("새로운 예약"))return ct&&sp&&window.sDt&&window.sTm.length&&(!["로스팅룸","에스프레소존"].includes(sp)||qS('input[name="equip"]:checked'));
+            if(rt==="cancel")return qSA('input[name="tRes"]:checked').length>0;
+            if(rt==="change")return qS('input[name="tRes"]:checked')&&ct&&sp&&window.sDt&&window.sTm.length&&(!["로스팅룸","에스프레소존"].includes(sp)||qS('input[name="equip"]:checked'))
+        }else if(m==="order"){
+            let ot=qS('input[name="oTsk"]:checked')?.value;
+            if(ot==="new")return el("oVen").value&&el("oItm").value.trim()&&el("oUrl").value.trim()&&el("oQty").value&&el("oCenter").value&&el("oDel")?.value;
+            return qSA('input[name="tOrd"]:checked').length>0
+        }else if(m==="training"){
+            let tt=qS('input[name="tTsk"]:checked')?.value; if(!tt)return!1;
+            if(tt==="new")return !!qS('input[name="trnId"]:checked');
+            if(tt==="cancel")return qSA('input[name="tTrn"]:checked').length>0;
+            if(tt==="change")return qS('input[name="tTrn"]:checked')&&qS('input[name="trnId"]:checked')
+        }
+    }
+    return!1
+};
+
+window.rNxt = function(){let s=qSA(".step");if(s&&s.length>window.cur){let b=s[window.cur].querySelector(".next");if(b)b.disabled=!window.vStp();}};
+
+window.setCnf = function(t,d,bc,cb,i=!1){
+    qSA(".btn-cancel").forEach(e=>e.style.display="block");
+    el("cMsg").innerHTML=`<div class="fs22 fw8 c22 mb8 wbk" style="letter-spacing:-0.5px">${t}</div><div class="fs14 c8b mb16 lh16 wbk" style="white-space:pre-line;">${d}</div>`+(i?`<input type=text id=cRsn class="cancel-inp mt8" placeholder="사유를 입력해 주세요"><div id="cErr" class="ce fs13 mt8" style="display:none;font-weight:600">구체적인 사유를 적어주세요. ('개인 사정' 불가)</div>`:'');
+    let btn=el("cBtn"); btn.innerText=bc==="btn-danger"?"취소하기":bc==="btn-primary"?"변경하기":bc==="btn-dark"?"종료하기":"확인";
+    if(i)btn.innerText="취소 접수"; btn.className="popup-btn "+bc; window.shw("cOly"); btn.onclick=cb;
+};
+
+window.eSub = async function(rsn=""){
+    let m=qS('input[name="mTask"]:checked').value,rt=qS('input[name="rTsk"]:checked')?.value,ot=qS('input[name="oTsk"]:checked')?.value,tt=qS('input[name="tTsk"]:checked')?.value;
+    if((m==='reserve'&&(rt==='new'||rt==='change'))||(m==='training'&&(tt==='new'||tt==='change'))){
+        let reqDate="",reqSt=0,reqEn=0,ignoreId="";
+        if(m==='reserve'){
+            reqDate=window.sDt;reqSt=window.pM(window.sTm[0]);let et=window.sTm[window.sTm.length-1],eh=parseInt(et.split(":")[0],10),em=parseInt(et.split(":")[1],10)+30;reqEn=eh*60+em;
+            if(rt==='change')ignoreId=qS('input[name="tRes"]:checked').value;
+        }else{
+            let parts=qS('input[name="trnId"]:checked').value.split(' || ');reqDate=parts[0].trim();let times=parts[2].split('~');reqSt=window.pM(times[0]);reqEn=window.pM(times[1]);
+            if(tt==='change')ignoreId=qS('input[name="tTrn"]:checked').value;
+        }
+        let hasOverlap=window.uDat.myReservations.some(r=>{
+            if(r.status.includes('취소')||r.status==='이용 완료')return!1;
+            if(r.resId===ignoreId)return!1;
+            let rDate=r.date.split('T')[0];if(rDate!==reqDate)return!1;
+            let rTimes=(r.isTraining?r.trainTime:r.time).split('~'),rSt=window.pM(rTimes[0]),rEn=window.pM(rTimes[1]);
+            return(reqSt<rEn&&reqEn>rSt);
+        });
+        if(hasOverlap){window.cAl("예약 불가","해당 시간에 이미 다른 예약이나\n신청된 수업이 존재합니다.\n일정을 다시 확인해 주세요.");return;}
+    }
+    window.shw("ld");
+    let b=el("bSel").value,n=el("nInp").value.trim(),p=el("pInp").value;
+    if(!b){let sv=JSON.parse(localStorage.getItem("wc_log")||"{}");b=sv.b;n=sv.n;p=sv.p;}
+    try{
+        let iS=!1;
+        if((m==='reserve'&&rt==='cancel')||(m==='training'&&tt==='cancel')||(m==='order'&&ot==='cancel')){
+            let ids=[];
+            if(m==='reserve'){ids=Array.from(qSA('input[name="tRes"]:checked')).map(i=>i.value);await Promise.all(ids.map(id=>window.supabaseClient.from('reservations').update({status:'취소',cancel_reason:rsn}).eq('id',id)));}
+            if(m==='training'){ids=Array.from(qSA('input[name="tTrn"]:checked')).map(i=>i.value);await Promise.all(ids.map(id=>window.supabaseClient.from('trainings').update({status:'취소',cancel_reason:rsn}).eq('id',id)));}
+            if(m==='order'){ids=Array.from(qSA('input[name="tOrd"]:checked')).map(i=>i.value);await Promise.all(ids.map(id=>window.supabaseClient.from('orders').update({status:'주문 취소'}).eq('id',id)));}
+            iS=!0;
+        }else if((m==='reserve'&&rt==='change')||(m==='training'&&tt==='change')){
+            if(m==='reserve'){
+                let tid=qS('input[name="tRes"]:checked').value;
+                await window.supabaseClient.from('reservations').update({status:'취소(정상)',cancel_reason:'일정 변경'}).eq('id',tid);
+                let et=window.sTm[window.sTm.length-1],eh=parseInt(et.split(":")[0],10),em=parseInt(et.split(":")[1],10)+30;if(em>=60){eh+=1;em=0}
+                let sV=window.gSpc()+(qS('input[name="equip"]:checked')?` (${qS('input[name="equip"]:checked').value})`:"");
+                await window.supabaseClient.from('reservations').insert([{batch:b,name:n,phone:p,res_date:window.sDt,res_time:window.sTm[0]+" ~ "+String(eh).padStart(2,'0')+":"+String(em).padStart(2,'0'),center:window.gCtr(),space_equip:sV,status:'예약완료'}]);
+            }
+            if(m==='training'){
+                let tid=qS('input[name="tTrn"]:checked').value;
+                await window.supabaseClient.from('trainings').update({status:'취소(정상)',cancel_reason:'일정 변경'}).eq('id',tid);
+                let cD=qS('input[name="trnId"]:checked').value;
+                await window.supabaseClient.from('trainings').insert([{batch:b,name:n,phone:p,content:cD,status:'접수완료'}]);
+            }
+            iS=!0;
+        }else{
+            if(m==='reserve'){
+                let et=window.sTm[window.sTm.length-1],eh=parseInt(et.split(":")[0],10),em=parseInt(et.split(":")[1],10)+30;if(em>=60){eh+=1;em=0}
+                let sV=window.gSpc()+(qS('input[name="equip"]:checked')?` (${qS('input[name="equip"]:checked').value})`:"");
+                await window.supabaseClient.from('reservations').insert([{batch:b,name:n,phone:p,res_date:window.sDt,res_time:window.sTm[0]+" ~ "+String(eh).padStart(2,'0')+":"+String(em).padStart(2,'0'),center:window.gCtr(),space_equip:sV,status:'예약완료'}]);
+            }else if(m==='order'){
+                let oid="ORD-"+Math.random().toString(36).substring(2,6).toUpperCase(),oC=el("oCenter").value,iNm=el("oItm").value.trim()+` [희망: ${el("oDel").value}]`;
+                await window.supabaseClient.from('orders').insert([{id:oid,center:oC,vendor:el("oVen").value,item_name:iNm,url:el("oUrl").value.trim(),quantity:el("oQty").value,batch:b,name:n,phone:p,status:'주문 접수'}]);
+            }else if(m==='training'){
+                let cD=qS('input[name="trnId"]:checked').value;
+                await window.supabaseClient.from('trainings').insert([{batch:b,name:n,phone:p,content:cD,status:'접수완료'}]);
+            }
+            iS=!0;
+        }
+        if(iS){
+            let st="요청 완료",sd="정상적으로 처리되었습니다.";
+            if(m==='reserve'){st=rt==='new'?"예약 완료":rt==='change'?"예약 변경":"예약 취소";}
+            else if(m==='training'){st=tt==='new'?"신청 완료":tt==='change'?"일정 변경":"참가 취소";}
+            else if(m==='order'){st=ot==='new'?"주문 접수":"주문 취소";sd=ot==='new'?"발주 전까지 취소가 가능합니다.":"정상적으로 처리되었습니다.";}
+            await window.fDat(false); window.hid("ld"); window.sSuc(st,sd);
+        }
+    }catch(e){
+        window.hid("ld");window.cAl("문제가 발생했습니다",e.message||"잠시 후 다시 시도해 주세요.");
+    }
+};
+
+document.addEventListener('click',e=>{
+    let l=e.target.closest('.option');
+    if(!l) {
+        if(!e.target.closest('.swipe-wrap')) {
+            qSA(".swipe-content").forEach(c => { c.style.transform = 'translateX(0)'; });
+        }
+        return;
+    }
+    
+    if(e.target.tagName !== 'INPUT') return;
+    
+    let i=e.target;
+    
+    setTimeout(() => {
+        if (i.type === 'checkbox') {
+            if (i.checked) { l.classList.add('checked'); i.dataset.w='t'; } else { l.classList.remove('checked'); i.dataset.w='f'; }
+            window.uVis(); window.rNxt(); return;
+        }
+        
+        let iR=['mTask'].includes(i.name);
+        if(iR&&i.dataset.w!=='t')sessionStorage.setItem("wc_depth",i.value);
+        
+        if(!iR&&i.dataset.w==='t'){
+            i.checked=false; i.dataset.w='f'; l.classList.remove('checked');
+            if(i.name==='rTsk'){el("mRes").style.display='none';el("nRes").style.display='none';if(el("cGrp"))el("cGrp").style.display='none';el("calArea").style.display='none';el("sGridW").style.display='none';el("eGrp").style.display='none';el("tmGrp").style.display='none';window.sTm=[]}
+            if(i.name==='tTsk'){el("mTrn").style.display='none';el("nTrn").style.display='none'}
+            if(i.name==='oTsk'){el("mOrd").style.display='none';el("nOrd").style.display='none'}
+            if(i.name==='center'){window.sDt="";window.sTm=[];qSA(".cal-day").forEach(c=>c.classList.remove("active"));el("calArea").style.display='none';el("sGridW").style.display='none';el("eGrp").style.display='none';el("tmGrp").style.display='none'}
+            if(i.name==='space'){el("eGrp").style.display='none';el("tmGrp").style.display='none';window.sTm=[]}
+            if(i.name==='equip'){el("tmGrp").style.display='none';window.sTm=[]}
+            window.uVis(); window.rNxt(); return;
+        }
+        
+        qSA(`input[name="${i.name}"]`).forEach(elem=>{elem.dataset.w='f';elem.closest(".option")?.classList.remove("checked")});
+        i.checked=true; i.dataset.w='t'; l.classList.add('checked');
+        
+        if(i.name==='rTsk'){el("xRNew").textContent="새로운 예약";if(i.value==='new'){el("rGrp").style.display='none'}}
+        if(i.name==='oTsk'){el("xONew").textContent="새로운 주문";if(i.value==='new'){el("oGrp").style.display='none'}}
+        if(i.name==='tTsk'){el("xTNew").textContent="수업 및 훈련 참가";if(i.value==='new'){el("tGrp").style.display='none';window.fTrn()}}
+        if(i.name==='center'){window.sDt="";window.sTm=[];qSA(".cal-day").forEach(c=>c.classList.remove("active"));window.rCal();el("calArea").style.display="block";el("sGridW").style.display="none";el("eGrp").style.display="none";el("tmGrp").style.display="none";qSA('input[name="space"], input[name="equip"]').forEach(elem=>{elem.checked=false;elem.dataset.w='f';elem.closest('.option')?.classList.remove('checked')});el("calArea").scrollIntoView({behavior:"smooth",block:"start"})}
+        if(i.name==='space'){window.sTm=[];el("tmGrp").style.display="none";el("eGrp").style.display="none";if(window.eDat[i.value]){el("eGrp").style.display="block";el("eHnt").textContent=i.value==='로스팅룸'?"기기당 최대 3명":i.value==='에스프레소존'?"그룹당 최대 1명":"";window.rEq()}else{el("tmGrp").style.display="block";window.rTm();el("tmGrp").scrollIntoView({behavior:"smooth",block:"nearest"})}}
+        if(i.name==='equip'){window.sTm=[];el("tmGrp").style.display="block";window.rTm();el("tmGrp").scrollIntoView({behavior:"smooth",block:"nearest"})}
+        if(i.name==='mTask'){window.rFmt(false);window.cur=2;window.sStp(window.cur)}
+        if(i.name==='tRes'&&qS('input[name="rTsk"]:checked')?.value==='change'){el("nRes").style.display="block";if(el("cGrp"))el("cGrp").style.display="block";if(el("cGrp"))el("cGrp").scrollIntoView({behavior:"smooth",block:"start"})}
+        if(i.name==='tTrn'&&qS('input[name="tTsk"]:checked')?.value==='change'){el("nTrn").style.display="block";window.fTrn();el("nTrn").scrollIntoView({behavior:"smooth",block:"start"})}
+        
+        window.uVis(); window.rNxt();
+    }, 10);
+});
+
+document.addEventListener("DOMContentLoaded",()=>{
+    const overlays=['nView','nOly','cOly','sOly','scOly','ld'];
+    overlays.forEach(id=>{let elem=document.getElementById(id);if(elem)document.body.appendChild(elem);});
+    let bSelect=el("bSel");if(bSelect){for(let e=50;e>=1;e--)bSelect.appendChild(new Option(e+"기",e+"기"));}
+    if(el("nInp"))el("nInp").oninput=window.rNxt;
+    if(el("pInp")){el("pInp").onfocus=()=>{if(!el("pInp").value)el("pInp").value="010-"};el("pInp").oninput=e=>{let v=e.target.value.replace(/\D/g,"");if(v.length>11)v=v.substring(0,11);v=v.length>3&&v.length<=7?v.slice(0,3)+"-"+v.slice(3):v.length>7?v.slice(0,3)+"-"+v.slice(3,7)+"-"+v.slice(7):v;e.target.value=v;window.rNxt();};}
+    
+    let bAuth = el("bAuth");
+    if(bAuth){
+        bAuth.onclick=()=>{
+            if(window.vStp()){localStorage.setItem("wc_log",JSON.stringify({b:el("bSel").value,n:el("nInp").value.trim(),p:el("pInp").value,ts:Date.now()}));window.fDat();}
+        };
+    }
+    
+    let schBtn=el("bSch");
+    if(schBtn)schBtn.onclick=async()=>{
+        window.shw("ld");
+        let d=window.sDt||`${window.td.getFullYear()}-${String(window.td.getMonth()+1).padStart(2,'0')}-${String(window.td.getDate()).padStart(2,'0')}`;
+        try{
+            let c=window.gCtr();
+            const[r,b]=await Promise.all([window.supabaseClient.from('reservations').select('*').eq('res_date',d).eq('center',c).neq('status','취소').neq('status','취소(정상)').neq('status','이용 완료'),window.supabaseClient.from('blocks').select('*').eq('block_date',d).eq('center',c)]);
+            window.hid("ld");
+            let h=`<div class="fs20 fw8 mb20 wbk" style="letter-spacing:-0.5px">${window.kD(d)} 현황</div><table class=schedule-table><tbody>`,any=!1;
+            window.tms.forEach(t=>{
+                let ba=[];
+                r.data?.forEach(x=>{if(window.isTr(t,x.res_time))ba.push({spaceInfo:x.space_equip,name:x.name,isBlock:!1});});
+                b.data?.forEach(x=>{if(window.isTr(t,`${x.start_time}~${x.end_time}`))ba.push({spaceInfo:x.space_equip,reason:x.reason,isBlock:!0});});
+                if(ba.length){any=!0;h+=`<tr><th>${t}</th><td>${ba.map(x=>`<span class=schedule-tag ${x.isBlock?'style="background:#f2f4f6;color:#8b95a1"':''}>${x.spaceInfo} (${x.isBlock?x.reason:x.name})</span>`).join("")}</td></tr>`}
+            });
+            if(!any)h+=`<tr><td class="tc c66 py-1">이용 중인 내역이 없습니다.</td></tr>`;
+            el("sCon").innerHTML=h+"</tbody></table>";window.shw("sOly")
+        }catch(e){window.hid("ld")}
+    };
+
+    let bSub = el("bSub");
+    if(bSub){
+        bSub.onclick=()=>{
+            if(window.uDat&&window.uDat.status==='정지'){window.cAl("예약 정지 알림","현재 이용 정지 상태입니다.\n관리자에게 문의해주세요.");return;}
+            let m=qS('input[name="mTask"]:checked').value,rt=qS('input[name="rTsk"]:checked')?.value,tt=qS('input[name="tTsk"]:checked')?.value,ot=qS('input[name="oTsk"]:checked')?.value,dt=new Date(),dS=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+            if(m==='reserve'&&rt==='change'){
+                let tid=qS('input[name="tRes"]:checked')?.value,or=window.uDat.myReservations.find(x=>x.resId===tid),cN=(or.center&&or.center!=='null')?or.center:"",od=or?window.kD(or.date):"",otm=or?or.time:"",os=or?or.spaceInfo:"";
+                window.setCnf("예약 일정을 변경하시겠습니까?",`<div style="margin-top:16px;text-align:center"><div class="fs14 c8b fw5 mb4">기존 예약</div><div class="fs16 fw6 c22 mb16">${cN}<br><span style="font-size:14px;font-weight:400;color:#8b95a1">${od} | ${otm}</span></div><div class="fs14 c8b fw5 mb4">장소/기기</div><div class="fs16 fw5 c22 mb24">${os}</div></div><div class="fs15 c8b">기존 예약은 자동으로 취소됩니다.</div>`,"btn-primary",()=>{window.hid("cOly");window.eSub()});
+            }else if(m==='training'&&tt==='change'){
+                let tid=qS('input[name="tTrn"]:checked')?.value,or=window.uDat.myReservations.find(x=>x.resId===tid),cN=(or.center&&or.center!=='null')?or.center:"",od=or?window.kD(or.date):"",otm=or?or.trainTime:"",os=or?or.trainTitle:"",oC=or?or.trainCategory:"",sI=or?or.spaceInfo:"공간 미정";
+                window.setCnf("참가 일정을 변경하시겠습니까?",`<div style="margin-top:16px;text-align:center"><div class="fs14 c8b fw5 mb4">기존 신청 내역</div><div class="fs16 fw6 c22 mb16">${cN}<br><span style="font-size:14px;font-weight:400;color:#8b95a1">${od} | ${otm}</span></div><div class="fs14 c8b fw5 mb4">구분/주제</div><div class="fs16 fw5 c22 mb24">${sI} | <span class="fw6">[${oC}]</span> ${os}</div></div><div class="fs15 c8b">기존 신청 내역은 자동으로 취소됩니다.</div>`,"btn-primary",()=>{window.hid("cOly");window.eSub()});
+            }else if(m==='reserve'&&rt==='cancel'){
+                if(Array.from(qSA('input[name="tRes"]:checked')).some(t=>t.getAttribute('data-d')===dS)) window.setCnf("당일 취소를 진행하시겠습니까?","당일 취소 시, 사유에 따라 패널티가\n부과될 수 있습니다. 신중하게 취소해 주세요.","btn-danger",()=>{let r=el("cRsn").value.trim();if(!r||r==='개인 사정'||r.length<4){el("cErr").style.display="block";return;}window.hid("cOly");window.eSub(r)},!0);
+                else window.setCnf("예약을 취소하시겠습니까?","취소한 예약은 되돌릴 수 없습니다.","btn-danger",()=>{window.hid("cOly");window.eSub()});
+            }else if(m==='training'&&tt==='cancel'){
+                if(Array.from(qSA('input[name="tTrn"]:checked')).some(t=>t.getAttribute('data-d')===dS)) window.setCnf("당일 취소를 진행하시겠습니까?","당일 취소 시, 사유에 따라 패널티가\n부과될 수 있습니다. 신중하게 취소해 주세요.","btn-danger",()=>{let r=el("cRsn").value.trim();if(!r||r==='개인 사정'||r.length<4){el("cErr").style.display="block";return;}window.hid("cOly");window.eSub(r)},!0);
+                else window.setCnf("참가를 취소하시겠습니까?","취소한 내역은 되돌릴 수 없습니다.","btn-danger",()=>{window.hid("cOly");window.eSub()});
+            }else if(m==='order'&&ot==='cancel'){
+                let ct=qSA('input[name="tOrd"]:checked').length;
+                window.setCnf("주문을 취소하시겠습니까?",`선택한 ${ct}개의 주문은 되돌릴 수 없습니다.`,"btn-danger",()=>{window.hid("cOly");window.eSub()});
+            }else{ window.eSub(); }
+        };
+    }
+    
+    let sl = localStorage.getItem("wc_log");if(sl){try{let i=JSON.parse(sl);if(el("bSel"))el("bSel").value=i.b||"";if(el("nInp"))el("nInp").value=i.n||"";if(el("pInp"))el("pInp").value=i.p||"";window.fDat();}catch(e){window.cur=0;window.sStp(0);}}else{window.cur=0;window.sStp(0);}
+    window.rCal();
+});
+</script>
+
+</body>
+</html>
