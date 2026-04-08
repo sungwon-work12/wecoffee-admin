@@ -1,4 +1,3 @@
-<script>
 const { createClient } = supabase;
 const supabaseClient = createClient('https://dqvzowmhxorxhiqoibmk.supabase.co', 'sb_publishable_DSi3rGnuQhy6OtML_3ukEA_7ptfaoK-');
 const $ = id => document.getElementById(id), $$ = q => document.querySelector(q), $$$ = q => document.querySelectorAll(q);
@@ -731,4 +730,3 @@ window.downloadExcel = function(type) {
     csvContent += row.map(item => { let text = String(item || ''); text = text.replace(/"/g, '""'); text = text.replace(/\n/g, ' '); return `"${text}"`; }).join(',') + '\n'; });
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
-</script>
