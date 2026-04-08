@@ -1,3 +1,4 @@
+<script>
 const { createClient } = supabase;
 const supabaseClient = createClient('https://dqvzowmhxorxhiqoibmk.supabase.co', 'sb_publishable_DSi3rGnuQhy6OtML_3ukEA_7ptfaoK-');
 const $ = id => document.getElementById(id), $$ = q => document.querySelector(q), $$$ = q => document.querySelectorAll(q);
@@ -234,30 +235,48 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
     showToast("저장되었습니다."); 
 }
 
-// 🔥 어드민 주문 상태 변경 시 확인 팝업 (안전한 롤백/업데이트 기능 추가)
+// 🔥 주문 상태 변경 핸들러 (UI 위계 개선 및 안전한 DB 업데이트)
 window.handleOrderStatusChange = function(id, newValue, selectEl) {
     let order = gOrd.find(o => String(o.id) === String(id));
     if(!order) return;
-    let oldStatus = order.status;
-    let confirmMsg = `주문 상태를 <b>[${newValue}]</b>(으)로 변경하시겠습니까?`;
+    let oldStatus = order.status || '주문 접수';
+    if (oldStatus === newValue) return;
+
+    let confirmMsg = `<div style="font-size:15px; color:var(--text-display); margin-top:8px;">주문 상태를 <strong style="color:var(--primary); font-size:18px;">[${newValue}]</strong>(으)로<br>변경하시겠습니까?</div>`;
     
-    // 만약 입금 확인 등 진행된 상태에서 이전으로 롤백하려는 경우 경고 문구 추가
-    if ((oldStatus === '입금 확인 중' || oldStatus === '입금 확인') && (newValue === '입금 대기' || newValue === '주문 접수')) {
-        confirmMsg = `<span style="color:var(--error); font-weight:800;">[롤백 경고]</span><br>현재 상태(${oldStatus})를 <b>[${newValue}]</b>(으)로 되돌리시겠습니까?`;
+    let isRollback = false;
+    if ((oldStatus === '입금 확인 중' || oldStatus === '입금 확인' || oldStatus === '센터 도착') && (newValue === '입금 대기' || newValue === '주문 접수')) {
+        isRollback = true;
+    }
+
+    if (isRollback) {
+        confirmMsg = `
+        <div style="background:#fff0f0; border:1px solid #ffcdd2; border-radius:8px; padding:16px; margin-bottom:12px; text-align:left;">
+            <div style="color:var(--error); font-weight:800; font-size:14px; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                롤백 경고
+            </div>
+            <div style="font-size:14px; color:var(--text-display); line-height:1.5; word-break:keep-all;">
+                현재 <span style="font-weight:700; color:var(--text-secondary);">[${oldStatus}]</span> 상태입니다.<br>
+                정말 <strong style="color:var(--error); font-size:16px;">[${newValue}]</strong> (으)로 되돌리시겠습니까?
+            </div>
+        </div>`;
     }
 
     window.openCustomConfirm("주문 상태 변경", null, confirmMsg, async () => {
-        // 승인 시: 상태 업데이트 진행
-        selectEl.className = `status-select ${newValue==='주문 취소'?'st-ghosted':newValue==='센터 도착'?'st-completed':newValue==='입금 확인'?'st-confirmed':(newValue==='입금 대기'||newValue==='입금 확인 중')?'st-arranging':'st-wait'}`;
-        await window.updateTable('orders', 'status', id, newValue, selectEl);
-    });
-    
-    // 팝업에서 취소(또는 배경 클릭)를 대비하여 셀렉트 박스의 값은 일단 이전 상태로 되돌려 둠
-    // (팝업에서 승인하면 fetchCenterData()가 다시 불리면서 정상적인 값으로 렌더링됨)
+        const { error } = await supabaseClient.from('orders').update({ status: newValue }).eq('id', id);
+        if (error) {
+            showToast("상태 변경에 실패했습니다.");
+        } else {
+            showToast(`[${newValue}] 상태로 변경되었습니다.`);
+            window.fetchCenterData(); 
+        }
+    }, "변경하기");
+
+    // 팝업이 뜨는 동안 셀렉트박스는 시각적으로 원상복구해둠
     selectEl.value = oldStatus;
 };
 
-// 🔥 어드민 드롭다운에 "입금 확인 중" 추가 및 handleOrderStatusChange 연결 완료
 function renderOrderTableHTML(fOrd, tableId, chkClass) { 
   $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
     let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
@@ -712,3 +731,4 @@ window.downloadExcel = function(type) {
     csvContent += row.map(item => { let text = String(item || ''); text = text.replace(/"/g, '""'); text = text.replace(/\n/g, ' '); return `"${text}"`; }).join(',') + '\n'; });
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
+</script>
