@@ -8,17 +8,6 @@ let currentSummaryData = [], currentInsightData = {};
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 let quillEditor = null;
 
-// 🚀 알림 발송 공통 함수 (서버 연동)
-window.sendAdminPush = async function(phone, title, body) {
-    try {
-        await fetch('http://localhost:3000/send-push', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone, title, body })
-        });
-    } catch(e) { console.error("알림 서버 연결 실패:", e); }
-};
-
 window.escapeHtml = function(unsafe) {
     if (!unsafe) return '';
     return String(unsafe)
@@ -116,38 +105,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
 
 function initializeApp() {
   window.fetchHolidays(new Date().getFullYear());
-
-  // ⏰ [알림 1, 2] 센터 이용 및 훈련 시작 1시간 전 체크 스케줄러
-  window.notifiedIds = new Set();
-  setInterval(() => {
-    const now = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Seoul"}));
-    const target = new Date(now.getTime() + (60 * 60 * 1000)); // 현재보다 1시간 뒤
-    const dStr = `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(target.getDate()).padStart(2,'0')}`;
-    const tStr = `${String(target.getHours()).padStart(2,'0')}:${String(target.getMinutes()).padStart(2,'0')}`;
-
-    // 1. 센터 이용 한 시간 전
-    gRes.forEach(r => {
-      if(r.status === '예약완료' && r.res_date === dStr && r.res_time.startsWith(tStr)) {
-        if(!window.notifiedIds.has('res_'+r.id)) {
-            window.notifiedIds.add('res_'+r.id);
-            window.sendAdminPush(r.phone, "위커피 센터 이용 1시간 전 ⏰", `[${r.space_equip}] 이용이 곧 시작됩니다.`);
-        }
-      }
-    });
-    // 2. 훈련/수업 시작 한 시간 전
-    gTrn.forEach(t => {
-        if(t.status === '접수완료') {
-            const p = (t.content || "").split(' || ');
-            if(p.length >= 5 && p[0] === dStr && p[2].startsWith(tStr)) {
-                if(!window.notifiedIds.has('trn_'+t.id)) {
-                    window.notifiedIds.add('trn_'+t.id);
-                    window.sendAdminPush(t.phone, "위커피 수업/훈련 1시간 전 ⏰", `${p[4]} 일정이 곧 시작됩니다.`);
-                }
-            }
-        }
-    });
-  }, 60000);
-
+  
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
       var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
@@ -164,36 +122,10 @@ function initializeApp() {
 }
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
 
-// 📡 [알림 3, 4] 실시간 감지 (잔여석 발생 & 주문 상태 변경)
 supabaseClient.channel('admin-realtime')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, handleRealtime)
-  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trainings' }, payload => {
-      handleRealtime(payload);
-      const oldRow = payload.old;
-      const newRow = payload.new;
-      // 3. 훈련 잔여석 발생 알림 (취소 발생 시)
-      if (oldRow.status !== newRow.status && newRow.status.includes('취소')) {
-          const content = newRow.content || "";
-          if (!content.includes('[기본 수업]') && !content.includes('[센터 점검(차단)]')) {
-              const match = content.match(/\[(.*?)\]\s*(.*)/);
-              if(match) {
-                  globalMembers.forEach(m => {
-                      if(m.push_token) window.sendAdminPush(m.phone, `🚨 [${match[1]}] 잔여석 발생!`, `${match[2]} 일정에 빈자리가 생겼습니다.`);
-                  });
-              }
-          }
-      }
-  })
-  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, payload => {
-      handleRealtime(payload);
-      const oldRow = payload.old;
-      const newRow = payload.new;
-      // 4. 생두 주문 상태 변경 알림
-      if (oldRow.status !== newRow.status) {
-          let shortItemName = (newRow.item_name || "").split(' [')[0];
-          window.sendAdminPush(newRow.phone, "위커피 주문 안내 🚚", `[${shortItemName}] 주문이 '${newRow.status}' 상태로 변경되었습니다.`);
-      }
-  })
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'trainings' }, handleRealtime)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handleRealtime)
   .on('postgres_changes', { event: '*', schema: 'public', table: 'blocks' }, handleRealtime)
   .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, handleRealtime)
   .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, handleRealtime)
