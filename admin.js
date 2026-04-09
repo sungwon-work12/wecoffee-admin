@@ -218,6 +218,135 @@ window.fetchCenterData = async function() {
   } catch(e) { console.error("fetchCenterData Error:", e); }
 }
 
+// 📌 [수정] 누락되었던 대시보드 렌더링 함수 완벽 복구
+window.renderDashboard = async function() {
+    const now = new Date();
+    let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1);
+    const yyyy = targetDate.getFullYear();
+    const mm = targetDate.getMonth();
+    const daysInMonth = new Date(yyyy, mm + 1, 0).getDate();
+    const currDay = now.getDay();
+
+    if (currentDashView === 'month' && $("dashMonthTitle")) {
+        $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`;
+    }
+    await window.fetchHolidays(yyyy);
+
+    let spaceFilter = $("dashSpaceFilter") ? $("dashSpaceFilter").value : '전체';
+    let batchFilter = $("dashBatchFilter") ? $("dashBatchFilter").value : '전체';
+
+    let calEvts = {};
+
+    if (currentDashView === 'week') {
+        let startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currDay);
+        for(let i = 0; i < 7; i++) {
+            let dObj = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i);
+            let ds = `${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`;
+            calEvts[ds] = [];
+        }
+    } else {
+        for(let d=1; d<=daysInMonth; d++) {
+            let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            calEvts[ds] = [];
+        }
+    }
+
+    let goEvts = [];
+    try { goEvts = await window.fetchGoogleCalendarEvents(yyyy, mm + 1); } catch(e){}
+
+    goEvts.forEach(g => {
+        if(calEvts[g.date]) {
+            calEvts[g.date].push({
+                time: g.time || '종일', start: g.start || '00:00', text: g.text, type: 'google', tooltip: g.text
+            });
+        }
+    });
+
+    gRes.forEach(r => {
+        if ((r.status||'').includes('취소')) return;
+        if (currentGlobalCenter !== '전체' && r.center !== currentGlobalCenter) return;
+        if (spaceFilter !== '전체' && !(r.space_equip||'').includes(spaceFilter)) return;
+        if (batchFilter !== '전체' && r.batch !== batchFilter) return;
+
+        if (calEvts[r.res_date]) {
+            let st = String(r.res_time||"").split('~')[0].trim();
+            let spc = String(r.space_equip||"").split(' ')[0];
+            calEvts[r.res_date].push({
+                time: st, start: st, text: `[${spc}] ${r.name}`, type: 'res', tooltip: `${r.res_time} | ${r.space_equip} | ${r.name}`
+            });
+        }
+    });
+
+    gBlk.forEach(b => {
+        if (currentGlobalCenter !== '전체' && b.center !== currentGlobalCenter) return;
+        if (spaceFilter !== '전체' && !(b.space_equip||'').includes(spaceFilter)) return;
+        if (calEvts[b.block_date]) {
+            calEvts[b.block_date].push({
+                time: b.start_time, start: b.start_time, text: `[${b.category}] ${b.reason}`, type: 'blk', tooltip: `${b.start_time}~${b.end_time} | ${b.space_equip||'전체'} | ${b.reason}`
+            });
+        }
+    });
+
+    gTrn.forEach(t => {
+        if ((t.status||'').includes('취소')) return;
+        if (batchFilter !== '전체' && t.batch !== batchFilter) return;
+
+        let cInfo = String(t.content||"").split(' || ');
+        if(cInfo.length >= 5) {
+            let tDate = cInfo[0].trim(); let tCenter = cInfo[3].trim(); let tSpc = cInfo[4].trim();
+            if (currentGlobalCenter !== '전체' && tCenter !== currentGlobalCenter) return;
+            if (spaceFilter !== '전체' && !tSpc.includes(spaceFilter)) return;
+            if (calEvts[tDate]) {
+                let st = String(cInfo[2]||"").split('~')[0].trim();
+                calEvts[tDate].push({
+                    time: st, start: st, text: `[수강] ${t.name}`, type: 'trn', tooltip: `${cInfo[2]} | ${tSpc} | ${t.name} (${cInfo[1]})`
+                });
+            }
+        }
+    });
+
+    let mHtml = `<div class="dash-cal-grid"><div class="dash-cal-header" style="color:var(--error);">일</div><div class="dash-cal-header">월</div><div class="dash-cal-header">화</div><div class="dash-cal-header">수</div><div class="dash-cal-header">목</div><div class="dash-cal-header">금</div><div class="dash-cal-header" style="color:var(--blue);">토</div>`;
+    let iterDates = Object.keys(calEvts).sort();
+    if (currentDashView === 'month') {
+        let firstDay = new Date(yyyy, mm, 1).getDay();
+        for(let i=0; i<firstDay; i++) mHtml += `<div class="dash-cal-cell empty"></div>`;
+    }
+
+    iterDates.forEach(ds => {
+        let dObj = new Date(ds); let evts = calEvts[ds];
+        evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||'')));
+        let holidayName = window.getHoliday(dObj.getFullYear(), dObj.getMonth() + 1, dObj.getDate());
+        let dateClass = holidayName ? 'holiday-date' : '';
+        let dateText = dObj.getDate() + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
+
+        let evtsHtml = evts.slice(0, 3).map(e => {
+            let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk'));
+            return `<div class="dash-item ${badgeClass}"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${window.escapeHtml(e.text)||''}</div><div class="dash-tooltip">${window.escapeHtml(e.tooltip)||''}</div></div>`;
+        }).join('');
+
+        if(evts.length > 3) {
+            let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${window.escapeHtml(e.text)||''}`).join('<br>');
+            evtsHtml += `<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`;
+        }
+        mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
+    });
+    mHtml += `</div>`;
+
+    window.centerCalEvts = calEvts;
+    let mobStrip = `<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-center">`;
+    iterDates.forEach(ds => {
+        let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()];
+        let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : '';
+        mobStrip += `<div class="m-cal-date" id="m-date-center-${ds}" onclick="window.renderMCalCenter('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`;
+    });
+    mobStrip += `</div><div id="m-cal-list-center" class="m-cal-list"></div></div>`;
+
+    if($("dash-content")) $("dash-content").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
+
+    let td = new Date(); let todayStr = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;
+    window.renderMCalCenter(calEvts[todayStr] ? todayStr : iterDates[0]);
+};
+
 function updateSmartBadges() { let pendingOrders = gOrd.filter(o => o.status === '주문 접수' || (o.status||'').includes('대기')).length; if(pendingOrders > 0) $("ordTabBtn").classList.add('tab-pulse'); else $("ordTabBtn").classList.remove('tab-pulse'); let pendingRes = gRes.filter(r => (r.status||'') === '예약완료').length; if(pendingRes > 0) $("resTabBtn").classList.add('tab-pulse'); else $("resTabBtn").classList.remove('tab-pulse'); let pendingTrn = gTrn.filter(t => (t.status||'') === '접수완료').length; if(pendingTrn > 0) $("trnTabBtn").classList.add('tab-pulse'); else $("trnTabBtn").classList.remove('tab-pulse'); }
 window.toggleAll = function(source, className) { $$$("." + className).forEach(chk => { if(!chk.disabled) chk.checked = source.checked; }); }
 function updateDailyInOutBanner() { let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; const getDailyEvents = (centerFilter) => { let evts = []; gRes.forEach(r => { if(r.res_date === ds && r.center === centerFilter && !(r.status||'').includes('취소')) { let st = String(r.res_time||"").split('~')[0].trim(); let en = String(r.res_time||"").split('~')[1]?.trim() || ''; let spc = String(r.space_equip||"").split(' ')[0]; evts.push({ start: st, end: en, name: r.name, space: spc }); } }); gTrn.forEach(t => { let p = String(t.content||"").split(' || '); if(p.length >= 5 && p[0].trim() === ds && p[3].trim() === centerFilter && !(t.status||'').includes('취소')) { let st = String(p[2]||"").split('~')[0].trim(); let en = String(p[2]||"").split('~')[1]?.trim() || ''; let spc = p[4]; evts.push({ start: st, end: en, name: t.name, space: spc }); } }); return evts; }; let centers = currentGlobalCenter === '전체' ? ['마포 센터', '광진 센터'] : [currentGlobalCenter]; let html = ``; centers.forEach(c => { let evts = getDailyEvents(c); if(evts.length === 0) { html += `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 일정이 없습니다.</div></div>`; } else { evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||''))); let first = evts[0]; evts.sort((a,b) => String(b.end||'').localeCompare(String(a.end||''))); let last = evts[evts.length-1]; html += `<div class="inout-card"><div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="display:flex; flex-direction:column; gap:8px; font-size:14px; font-weight:600;"><div style="display:flex; align-items:center;"><span style="color:var(--primary); background:var(--primary-light); padding:2px 8px; border-radius:4px; font-size:12px; margin-right:8px;">첫 입실</span> <span style="font-size:16px; font-weight:800; width:50px;">${first.start}</span> <span style="font-weight:500; color:var(--text-secondary);">[${first.space}] ${first.name}</span></div><div style="display:flex; align-items:center;"><span style="color:var(--error); background:#fff0f0; padding:2px 8px; border-radius:4px; font-size:12px; margin-right:8px;">최종 퇴실</span> <span style="font-size:16px; font-weight:800; width:50px;">${last.end}</span> <span style="font-weight:500; color:var(--text-secondary);">[${last.space}] ${last.name}</span></div></div></div>`; } }); if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; }
@@ -244,7 +373,6 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
     showToast("저장되었습니다."); 
 }
 
-// 🔥 주문 상태 변경 핸들러 (UI 위계 개선 및 안전한 DB 업데이트)
 window.handleOrderStatusChange = function(id, newValue, selectEl) {
     let order = gOrd.find(o => String(o.id) === String(id));
     if(!order) return;
@@ -282,7 +410,6 @@ window.handleOrderStatusChange = function(id, newValue, selectEl) {
         }
     }, "변경하기");
 
-    // 팝업이 뜨는 동안 셀렉트박스는 시각적으로 원상복구해둠
     selectEl.value = oldStatus;
 };
 
@@ -347,6 +474,7 @@ window.renderMCalCenter = function(selDate) {
   if(listWrap) listWrap.innerHTML = html; 
 };
 
+// 📌 [수정] 모바일 캘린더에서 과거(연도 미기재) 포맷 등 날짜 파싱 예외 처리 보강
 window.renderAppDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + appDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentAppDashView === 'month' && $("appDashMonthTitle")) $("appDashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; await window.fetchHolidays(yyyy);
@@ -354,16 +482,28 @@ window.renderAppDashboard = async function() {
     if (currentAppDashView === 'week') { let startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currDay); for(let i = 0; i < 7; i++) { let dObj = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i); let ds = `${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`; calEvts[ds] = []; } } else { for(let d=1; d<=daysInMonth; d++) { let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; calEvts[ds] = []; } }
     
     scheduledApps.forEach(app => { 
-        const m = String(app.call_time||'').match(/(\d+)년\s*(\d+)월\s*(\d+)일/); 
+        let callTimeStr = String(app.call_time||'');
+        let m = callTimeStr.match(/(\d+)년\s*(\d+)월\s*(\d+)일/); 
+        let appY, appM, appD;
+
         if (m) { 
-            let appY = parseInt(m[1]); let appM = parseInt(m[2]); let appD = parseInt(m[3]); 
+            appY = parseInt(m[1]); appM = parseInt(m[2]); appD = parseInt(m[3]); 
+        } else {
+            // 과거 데이터 (연도 미기재) 예외 처리
+            let m2 = callTimeStr.match(/(\d+)월\s*(\d+)일/);
+            if(m2) {
+                appY = now.getFullYear(); appM = parseInt(m2[1]); appD = parseInt(m2[2]);
+            }
+        }
+
+        if(appY && appM && appD) {
             let ds = `${appY}-${String(appM).padStart(2,'0')}-${String(appD).padStart(2,'0')}`; 
             if (calEvts[ds]) { 
-                const tm = String(app.call_time||'').match(/(오전|오후)\s+(\d+):(\d+)/); 
-                let timeStr = tm ? `${tm[1]} ${tm[2]}:${tm[3]}` : (app.call_time.includes(')') ? app.call_time.split(')')[1].trim() : app.call_time); 
+                const tm = callTimeStr.match(/(오전|오후)\s+(\d+):(\d+)/); 
+                let timeStr = tm ? `${tm[1]} ${tm[2]}:${tm[3]}` : (callTimeStr.includes(')') ? callTimeStr.split(')')[1].trim() : callTimeStr); 
                 calEvts[ds].push({ time: timeStr, text: `[${app.desired_batch||'-'}] ${app.name}`, tooltip: `${timeStr} | 담당: ${app.counselor_name||'미정'}`}); 
             } 
-        } 
+        }
     });
     
     let mHtml = `<div class="dash-cal-grid"><div class="dash-cal-header" style="color:var(--error);">일</div><div class="dash-cal-header">월</div><div class="dash-cal-header">화</div><div class="dash-cal-header">수</div><div class="dash-cal-header">목</div><div class="dash-cal-header">금</div><div class="dash-cal-header" style="color:var(--blue);">토</div>`;
@@ -387,7 +527,11 @@ window.renderMCalApp = function(selDate) {
         html = `<div class="empty-state" style="padding:40px 0;">예정된 상담 일정이 없습니다.</div>`; 
     } else { 
         evts.forEach(e => { 
-            html += `<div class="m-cal-card"><div class="m-cal-card-time" style="color:var(--primary);">${e.time || '종일'}</div><div class="m-cal-card-title">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-desc">${String(e.tooltip||'').split('|').slice(1).join('|').trim()}</div></div>`; 
+            let rawTooltip = String(e.tooltip||'');
+            let descParts = rawTooltip.split('|');
+            let descText = descParts.length > 1 ? descParts.slice(1).join('|').trim() : rawTooltip;
+
+            html += `<div class="m-cal-card"><div class="m-cal-card-time" style="color:var(--primary);">${e.time || '종일'}</div><div class="m-cal-card-title">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-desc">${window.escapeHtml(descText)}</div></div>`; 
         }); 
     } 
     let listWrap = $("m-cal-list-app"); 
