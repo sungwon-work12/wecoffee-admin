@@ -218,7 +218,7 @@ window.fetchCenterData = async function() {
   } catch(e) { console.error("fetchCenterData Error:", e); }
 }
 
-// 📌 [수정] 누락되었던 대시보드 렌더링 함수 완벽 복구
+// 🔥 통째로 삭제되어 백지 화면을 만들었던 렌더링 함수 복구
 window.renderDashboard = async function() {
     const now = new Date();
     let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1);
