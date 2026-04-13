@@ -5,6 +5,7 @@ let globalApps=[], globalMembers=[], gRes=[], gTrn=[], gOrd=[], gBlk=[], gNotice
 let isInsightView = false, currentCalDate = new Date(), currentScheduleAppId = null, currentBlockId = null, pendingOptionData = null;
 let currentGlobalCenter = '전체', currentDashView = 'week', currentDashMonthOffset = 0, currentAppDashView = 'week', appDashMonthOffset = 0;
 let currentSummaryData = [], currentInsightData = {};
+let isCrmReadOnly = false; // CRM 모달 읽기 전용 상태 확인용 변수
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 let quillEditor = null;
 
@@ -473,7 +474,6 @@ window.renderMCalCenter = function(selDate) {
   if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 📌 [수정] 모바일 캘린더에서 과거(연도 미기재) 포맷 등 날짜 파싱 예외 처리 보강
 window.renderAppDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + appDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentAppDashView === 'month' && $("appDashMonthTitle")) $("appDashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; await window.fetchHolidays(yyyy);
@@ -488,7 +488,6 @@ window.renderAppDashboard = async function() {
         if (m) { 
             appY = parseInt(m[1]); appM = parseInt(m[2]); appD = parseInt(m[3]); 
         } else {
-            // 과거 데이터 (연도 미기재) 예외 처리
             let m2 = callTimeStr.match(/(\d+)월\s*(\d+)일/);
             if(m2) {
                 appY = now.getFullYear(); appM = parseInt(m2[1]); appD = parseInt(m2[2]);
@@ -576,7 +575,7 @@ window.renderAppDailyBanner = function(data) {
 }
 
 window.fetchApplications = async function() {
-  try { const { data, error } = await supabaseClient.from('applications').select('*').order('created_at', { ascending: false }); if (error) throw error; globalApps = data || []; const batches = [...new Set(globalApps.map(d => d.desired_batch).filter(Boolean))].sort().reverse(); let optionsHTML = '<option value="all">전체 기수 보기</option>'; batches.forEach(b => optionsHTML += `<option value="${b}">${b}</option>`); if($("batchFilterApp")) $("batchFilterApp").innerHTML = optionsHTML; window.applyFilterApp(); if ($("crmModal").classList.contains('show') && $("crmAppId").value) { window.renderCrmInner($("crmAppId").value); } } catch(e) { $("appTableBody").innerHTML = `<tr><td colspan="8" class="empty-state">에러 발생</td></tr>`; console.error("신청 리스트 에러:", e); }
+  try { const { data, error } = await supabaseClient.from('applications').select('*').order('created_at', { ascending: false }); if (error) throw error; globalApps = data || []; const batches = [...new Set(globalApps.map(d => d.desired_batch).filter(Boolean))].sort().reverse(); let optionsHTML = '<option value="all">전체 기수 보기</option>'; batches.forEach(b => optionsHTML += `<option value="${b}">${b}</option>`); if($("batchFilterApp")) $("batchFilterApp").innerHTML = optionsHTML; window.applyFilterApp(); if ($("crmModal").classList.contains('show') && $("crmAppId").value) { window.renderCrmInner($("crmAppId").value, isCrmReadOnly); } } catch(e) { $("appTableBody").innerHTML = `<tr><td colspan="8" class="empty-state">에러 발생</td></tr>`; console.error("신청 리스트 에러:", e); }
 }
 window.applyFilterApp = function() { try { const selected = $("batchFilterApp").value; const filtered = selected === 'all' ? globalApps : globalApps.filter(d => d.desired_batch === selected); if (isInsightView) window.renderStatistics(filtered); else { window.renderAppTable(filtered); window.renderAppDailyBanner(filtered); window.renderAppDashboard(); } } catch(e) { console.error("필터 적용 중 에러:", e); } }
 
@@ -596,7 +595,8 @@ function parseAcquisitionChannel(rawText) {
 
 window.closeCrmModal = function() { $("crmModal").classList.remove('show'); };
 
-window.renderCrmInner = function(id) {
+// 👇 읽기 전용 처리를 위해 파라미터 추가 👇
+window.renderCrmInner = function(id, isReadOnly = false) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     $("crmName").innerText = app.name || '이름 없음';
     
@@ -645,9 +645,23 @@ window.renderCrmInner = function(id) {
     if($("crmNoteInput")) $("crmNoteInput").value = '';
 
     let initialStatus = app.join_status || (app.status === '상담 완료' ? '상담 완료' : ''); if(!initialStatus || initialStatus === '대기') initialStatus = '상담 완료'; $("crmStatusSelect").value = initialStatus;
+
+    // 👇 읽기 전용 상태일 경우 하단 폼과 버튼 숨김 처리 👇
+    if (isReadOnly) {
+        if($("crmAddRecordArea")) $("crmAddRecordArea").style.display = 'none';
+        if($("crmStatusActionArea")) $("crmStatusActionArea").style.display = 'none';
+    } else {
+        if($("crmAddRecordArea")) $("crmAddRecordArea").style.display = 'block';
+        if($("crmStatusActionArea")) $("crmStatusActionArea").style.display = 'flex';
+    }
 }
 
-window.openCrmModal = function(id) { $("crmAppId").value = id; window.renderCrmInner(id); $("crmModal").classList.add('show'); }
+window.openCrmModal = function(id, readOnly = false) { 
+    isCrmReadOnly = readOnly;
+    $("crmAppId").value = id; 
+    window.renderCrmInner(id, isCrmReadOnly); 
+    $("crmModal").classList.add('show'); 
+}
 window.saveCrmStatus = function() { const id = $("crmAppId").value; const selected = $("crmStatusSelect").value; if(!id || !selected) return; if(selected === '상담 완료' || selected === '연락 두절') { window.updateAppStatus(id, 'status', selected); } else { window.updateAppStatus(id, 'join_status', selected); window.updateAppStatus(id, 'status', '상담 완료'); } window.closeCrmModal(); }
 window.handleStatusChange = function(id, newStatus, callTime, counselorName) { if (newStatus === '상담 일정 확정') { window.openScheduleModal(id, callTime, counselorName); } else { window.updateAppStatus(id, 'status', newStatus); } };
 
@@ -841,9 +855,8 @@ function renderMemberTable(data) {
     let yearOpts = '<option value="">년도</option>'; for(let i = 2024; i <= 2030; i++) yearOpts += `<option value="${i}" ${yy == i ? 'selected' : ''}>${i}년</option>`; let monthOpts = '<option value="">월</option>'; for(let i = 1; i <= 12; i++) { let val = String(i).padStart(2, '0'); monthOpts += `<option value="${val}" ${mm == val ? 'selected' : ''}>${i}월</option>`; } let dayOpts = '<option value="">일</option>'; for(let i = 1; i <= 31; i++) { let val = String(i).padStart(2, '0'); dayOpts += `<option value="${val}" ${dd == val ? 'selected' : ''}>${i}일</option>`; }
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch || '-'}] ${window.escapeHtml(row.name) || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${window.escapeHtml(row.phone) || '-'})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     
-    // 👇 멤버 리스트 이름 클릭 연동 (스타일 원복 완료) 👇
+    // 멤버 리스트 이름 클릭 연동
     const tr = document.createElement('tr'); tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함"><strong style="color:var(--text-display); cursor:pointer;" onclick="window.openCrmModalFromPhone('${row.phone}')" title="이전 설문/상담 내역 보기">${window.escapeHtml(row.name) || '-'}</strong></td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; tbody.appendChild(tr);
-    // 👆 수정 완료 👆
   });
 }
 document.addEventListener('change', function(e) { if (e.target.classList.contains('date-sel') && !e.target.classList.contains('option-btn')) { const group = e.target.closest('.date-select-group'); const y = group.querySelector('.year').value, m = group.querySelector('.month').value, d = group.querySelector('.day').value; if (y && m && d) window.updateMemberEndDate(group.dataset.id, `${y}-${m}-${d}`).then(() => window.fetchMembers()); } });
@@ -926,12 +939,12 @@ window.saveAdminNote = async function() {
 
     const originalMemo = app.admin_memo;
     app.admin_memo = updatedMemo;
-    window.renderCrmInner(id);
+    window.renderCrmInner(id, isCrmReadOnly);
 
     const { error } = await supabaseClient.from('applications').update({ admin_memo: updatedMemo }).eq('id', id);
     if(error) {
         app.admin_memo = originalMemo; 
-        window.renderCrmInner(id);
+        window.renderCrmInner(id, isCrmReadOnly);
         showToast("기록 추가에 실패했습니다.");
         console.error(error);
     } else {
@@ -939,6 +952,7 @@ window.saveAdminNote = async function() {
     }
 }
 
+// 읽기 전용 모드 적용 (true 전달)
 window.openCrmModalFromPhone = async function(phone) {
     if(!phone || phone === '-') return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");
     
@@ -948,7 +962,7 @@ window.openCrmModalFromPhone = async function(phone) {
     let app = globalApps.find(a => normalizePhone(a.phone) === targetPhone);
     
     if (app) {
-        window.openCrmModal(app.id);
+        window.openCrmModal(app.id, true);
     } else {
         showToast("내역을 불러오는 중입니다...");
         const { data, error } = await supabaseClient.from('applications').select('*');
@@ -956,7 +970,7 @@ window.openCrmModalFromPhone = async function(phone) {
             let matched = data.find(a => normalizePhone(a.phone) === targetPhone);
             if (matched) {
                 if(!globalApps.find(a => String(a.id) === String(matched.id))) globalApps.push(matched);
-                window.openCrmModal(matched.id);
+                window.openCrmModal(matched.id, true);
                 return;
             }
         }
