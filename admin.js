@@ -621,12 +621,11 @@ window.renderCrmInner = function(id) {
         $("crmSurveyResult").innerHTML = `<div style="text-align:center; padding: 40px 20px; background:#fff; border-radius:12px; border:1px dashed var(--border-strong);"><div style="font-size:16px; font-weight:700; color:var(--text-secondary); margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div><button class="btn-outline" style="color:var(--primary); border-color:var(--primary); padding:12px 24px; font-size:15px;" onclick="window.copyTxt('https://www.wecoffee.co.kr/survey?uid=${app.id}&name=${encodeURIComponent(app.name || '')}')">고객 전용 설문 링크 복사하기</button></div>`;
     }
 
-    // 👇 Q&A 형식의 관리자 상담 메모 렌더링 로직 👇
     let notesHtml = '';
     if (app.admin_memo) {
-        let notes = app.admin_memo.split('|||'); // 여러 메모를 구분자로 나눔
+        let notes = app.admin_memo.split('|||'); 
         notes.forEach(note => {
-            let parts = note.split(':::'); // 질문과 답변을 분리
+            let parts = note.split(':::');
             if(parts.length === 2) {
                 let q = parts[0].trim();
                 let a = parts[1].trim();
@@ -634,7 +633,6 @@ window.renderCrmInner = function(id) {
                     notesHtml += `<div class="crm-box"><div class="crm-label">${window.escapeHtml(q)}</div><div class="crm-answer">${window.escapeHtml(a).replace(/\n/g, '<br>')}</div></div>`;
                 }
             } else if (note.trim()) {
-                 // 기존에 단순 텍스트로 저장되었던 메모 하위 호환
                  notesHtml += `<div class="crm-box"><div class="crm-answer">${window.escapeHtml(note.trim()).replace(/\n/g, '<br>')}</div></div>`;
             }
         });
@@ -643,10 +641,8 @@ window.renderCrmInner = function(id) {
     if(!notesHtml) notesHtml = `<div style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:10px;">등록된 상담 기록이 없습니다.</div>`;
     if($("crmAdminNotes")) $("crmAdminNotes").innerHTML = notesHtml;
     
-    // 입력창 초기화
     if($("crmNoteTitle")) $("crmNoteTitle").value = '';
     if($("crmNoteInput")) $("crmNoteInput").value = '';
-    // 👆 렌더링 완료 👆
 
     let initialStatus = app.join_status || (app.status === '상담 완료' ? '상담 완료' : ''); if(!initialStatus || initialStatus === '대기') initialStatus = '상담 완료'; $("crmStatusSelect").value = initialStatus;
 }
@@ -845,8 +841,8 @@ function renderMemberTable(data) {
     let yearOpts = '<option value="">년도</option>'; for(let i = 2024; i <= 2030; i++) yearOpts += `<option value="${i}" ${yy == i ? 'selected' : ''}>${i}년</option>`; let monthOpts = '<option value="">월</option>'; for(let i = 1; i <= 12; i++) { let val = String(i).padStart(2, '0'); monthOpts += `<option value="${val}" ${mm == val ? 'selected' : ''}>${i}월</option>`; } let dayOpts = '<option value="">일</option>'; for(let i = 1; i <= 31; i++) { let val = String(i).padStart(2, '0'); dayOpts += `<option value="${val}" ${dd == val ? 'selected' : ''}>${i}일</option>`; }
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch || '-'}] ${window.escapeHtml(row.name) || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${window.escapeHtml(row.phone) || '-'})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     
-    // 👇 멤버 리스트 이름 클릭 연동 (폰트 밑줄 효과 및 클릭 이벤트 추가) 👇
-    const tr = document.createElement('tr'); tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함"><strong style="color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:4px;" onclick="window.openCrmModalFromPhone('${row.phone}')" title="이전 설문/상담 내역 보기">${window.escapeHtml(row.name) || '-'}</strong></td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; tbody.appendChild(tr);
+    // 👇 멤버 리스트 이름 클릭 연동 (스타일 원복 완료) 👇
+    const tr = document.createElement('tr'); tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함"><strong style="color:var(--text-display); cursor:pointer;" onclick="window.openCrmModalFromPhone('${row.phone}')" title="이전 설문/상담 내역 보기">${window.escapeHtml(row.name) || '-'}</strong></td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; tbody.appendChild(tr);
     // 👆 수정 완료 👆
   });
 }
@@ -915,7 +911,6 @@ window.downloadExcel = function(type) {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-// 👇 관리자 상담 메모 DB 저장 및 조회 함수 추가 👇
 window.saveAdminNote = async function() {
     const id = $("crmAppId").value;
     const app = globalApps.find(a => String(a.id) === String(id));
@@ -926,18 +921,15 @@ window.saveAdminNote = async function() {
     
     if(!title && !content) return showToast("내용을 입력해주세요.");
 
-    // "질문:::답변" 형식으로 저장
     const newNote = `${title}:::${content}`;
     let updatedMemo = app.admin_memo ? app.admin_memo + '|||' + newNote : newNote;
 
-    // 즉각적인 UI 반영 (Optimistic UI Update)
     const originalMemo = app.admin_memo;
     app.admin_memo = updatedMemo;
     window.renderCrmInner(id);
 
     const { error } = await supabaseClient.from('applications').update({ admin_memo: updatedMemo }).eq('id', id);
     if(error) {
-        // 실패 시 롤백
         app.admin_memo = originalMemo; 
         window.renderCrmInner(id);
         showToast("기록 추가에 실패했습니다.");
@@ -950,7 +942,6 @@ window.saveAdminNote = async function() {
 window.openCrmModalFromPhone = async function(phone) {
     if(!phone || phone === '-') return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");
     
-    // 포맷팅 차이로 인한 검색 실패 방지를 위해 숫자만 추출하여 비교
     const normalizePhone = p => String(p).replace(/\D/g, '');
     const targetPhone = normalizePhone(phone);
     
@@ -960,12 +951,10 @@ window.openCrmModalFromPhone = async function(phone) {
         window.openCrmModal(app.id);
     } else {
         showToast("내역을 불러오는 중입니다...");
-        // 캐시에 없으면 DB에서 전체를 가져와서 숫자만 비교 (완벽 매칭)
         const { data, error } = await supabaseClient.from('applications').select('*');
         if (!error && data) {
             let matched = data.find(a => normalizePhone(a.phone) === targetPhone);
             if (matched) {
-                // 가져온 데이터를 캐시에 밀어넣고 엽니다.
                 if(!globalApps.find(a => String(a.id) === String(matched.id))) globalApps.push(matched);
                 window.openCrmModal(matched.id);
                 return;
@@ -974,4 +963,3 @@ window.openCrmModalFromPhone = async function(phone) {
         showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");
     }
 }
-// 👆 추가 완료 👆
