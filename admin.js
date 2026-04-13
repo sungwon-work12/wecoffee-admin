@@ -84,7 +84,7 @@ window.formatCounselTimeDisplay = function(val) {
     return `${ampm} ${hh12}:${mm}`;
 }
 
-// 복사 기능 파라미터화 (기본값 설정)
+// 👇 복사 메시지 기본값 및 유동적 파라미터 적용 👇
 window.copyTxt = function(txt, successMsg = "복사되었습니다.") {
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(txt).then(() => { showToast(successMsg); }).catch(err => { fallbackCopyTextToClipboard(txt, successMsg); });
@@ -203,6 +203,32 @@ window.toggleDashView = function(view) { currentDashView = view; if(view === 'mo
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
 
+// 👇 누락되었던 일일 배너 계산 함수 (복구 완료!) 👇
+function updateDailyInOutBanner() { 
+  let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
+  const getDailyEvents = (centerFilter) => { 
+      let evts = []; 
+      gRes.forEach(r => { if(r.res_date === ds && r.center === centerFilter && !(r.status||'').includes('취소')) { let st = String(r.res_time||"").split('~')[0].trim(); let en = String(r.res_time||"").split('~')[1]?.trim() || ''; let spc = String(r.space_equip||"").split(' ')[0]; evts.push({ start: st, end: en, name: r.name, space: spc }); } }); 
+      gTrn.forEach(t => { let p = String(t.content||"").split(' || '); if(p.length >= 5 && p[0].trim() === ds && p[3].trim() === centerFilter && !(t.status||'').includes('취소')) { let st = String(p[2]||"").split('~')[0].trim(); let en = String(p[2]||"").split('~')[1]?.trim() || ''; let spc = p[4]; evts.push({ start: st, end: en, name: t.name, space: spc }); } }); 
+      return evts; 
+  }; 
+  let centers = currentGlobalCenter === '전체' ? ['마포 센터', '광진 센터'] : [currentGlobalCenter]; 
+  let html = ``; 
+  centers.forEach(c => { 
+      let evts = getDailyEvents(c); 
+      if(evts.length === 0) { 
+          html += `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 일정이 없습니다.</div></div>`; 
+      } else { 
+          evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||''))); 
+          let first = evts[0]; 
+          evts.sort((a,b) => String(b.end||'').localeCompare(String(a.end||''))); 
+          let last = evts[evts.length-1]; 
+          html += `<div class="inout-card"><div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="display:flex; flex-direction:column; gap:8px; font-size:14px; font-weight:600;"><div style="display:flex; align-items:center;"><span style="color:var(--primary); background:var(--primary-light); padding:2px 8px; border-radius:4px; font-size:12px; margin-right:8px;">첫 입실</span> <span style="font-size:16px; font-weight:800; width:50px;">${first.start}</span> <span style="font-weight:500; color:var(--text-secondary);">[${first.space}] ${first.name}</span></div><div style="display:flex; align-items:center;"><span style="color:var(--error); background:#fff0f0; padding:2px 8px; border-radius:4px; font-size:12px; margin-right:8px;">최종 퇴실</span> <span style="font-size:16px; font-weight:800; width:50px;">${last.end}</span> <span style="font-weight:500; color:var(--text-secondary);">[${last.space}] ${last.name}</span></div></div></div>`; 
+      } 
+  }); 
+  if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; 
+}
+
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -243,7 +269,7 @@ window.renderCenterData = function() {
   if($("ordTableBodyMon")) renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon'); 
   if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
 
-  // 잔여 정원 로직 완벽 적용
+  // 👇 (수정 2) 정확한 고유값 매칭으로 잔여 정원 카운트 로직 적용 👇
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter); 
   if($("blkTableBody")) $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
       let max = b.capacity || '-'; 
@@ -348,11 +374,11 @@ window.renderMCalApp = function(selDate) {
     if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 👇 동적으로 여백 추가 👇
+// 👇 (수정 3) 동적 마진/패딩 안전하게 적용 👇
 window.toggleInsight = function() { 
     isInsightView = !isInsightView; 
     let insightArea = $("app-insight-area");
-    if(insightArea) insightArea.style.paddingTop = "32px"; // 강제 여백 추가
+    if(insightArea) insightArea.style.paddingTop = "32px"; // 상단 여백 추가
     if (isInsightView) { 
         if($("app-table-area")) $("app-table-area").style.display = "none"; 
         if(insightArea) insightArea.style.display = "block"; 
