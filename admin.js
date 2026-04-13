@@ -5,7 +5,7 @@ let globalApps=[], globalMembers=[], gRes=[], gTrn=[], gOrd=[], gBlk=[], gNotice
 let isInsightView = false, currentCalDate = new Date(), currentScheduleAppId = null, currentBlockId = null, pendingOptionData = null;
 let currentGlobalCenter = '전체', currentDashView = 'week', currentDashMonthOffset = 0, currentAppDashView = 'week', appDashMonthOffset = 0;
 let currentSummaryData = [], currentInsightData = {};
-let isCrmReadOnly = false; // CRM 모달 읽기 전용 상태 확인용 변수
+let isCrmReadOnly = false;
 const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 let quillEditor = null;
 
@@ -595,7 +595,7 @@ function parseAcquisitionChannel(rawText) {
 
 window.closeCrmModal = function() { $("crmModal").classList.remove('show'); };
 
-// 👇 읽기 전용 처리를 위해 파라미터 추가 👇
+// 👇 읽기 전용 처리를 위해 파라미터 유지, 입력 폼 영역 ID로 제어 👇
 window.renderCrmInner = function(id, isReadOnly = false) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     $("crmName").innerText = app.name || '이름 없음';
@@ -646,12 +646,12 @@ window.renderCrmInner = function(id, isReadOnly = false) {
 
     let initialStatus = app.join_status || (app.status === '상담 완료' ? '상담 완료' : ''); if(!initialStatus || initialStatus === '대기') initialStatus = '상담 완료'; $("crmStatusSelect").value = initialStatus;
 
-    // 👇 읽기 전용 상태일 경우 하단 폼과 버튼 숨김 처리 👇
+    // 👇 읽기 전용 상태일 경우 하단 폼과 버튼 숨김 처리 (영역 ID 변경) 👇
     if (isReadOnly) {
-        if($("crmAddRecordArea")) $("crmAddRecordArea").style.display = 'none';
+        if($("crmNoteInputWrap")) $("crmNoteInputWrap").style.display = 'none';
         if($("crmStatusActionArea")) $("crmStatusActionArea").style.display = 'none';
     } else {
-        if($("crmAddRecordArea")) $("crmAddRecordArea").style.display = 'block';
+        if($("crmNoteInputWrap")) $("crmNoteInputWrap").style.display = 'block';
         if($("crmStatusActionArea")) $("crmStatusActionArea").style.display = 'flex';
     }
 }
@@ -939,6 +939,8 @@ window.saveAdminNote = async function() {
 
     const originalMemo = app.admin_memo;
     app.admin_memo = updatedMemo;
+    
+    // 👇 UI 렌더링 호출 (현재의 읽기 전용 모드 상태를 유지) 👇
     window.renderCrmInner(id, isCrmReadOnly);
 
     const { error } = await supabaseClient.from('applications').update({ admin_memo: updatedMemo }).eq('id', id);
@@ -952,7 +954,6 @@ window.saveAdminNote = async function() {
     }
 }
 
-// 읽기 전용 모드 적용 (true 전달)
 window.openCrmModalFromPhone = async function(phone) {
     if(!phone || phone === '-') return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");
     
