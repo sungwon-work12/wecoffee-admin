@@ -621,6 +621,20 @@ window.renderCrmInner = function(id) {
     } else {
         $("crmSurveyResult").innerHTML = `<div style="text-align:center; padding: 40px 20px; background:#fff; border-radius:12px; border:1px dashed var(--border-strong);"><div style="font-size:16px; font-weight:700; color:var(--text-secondary); margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div><button class="btn-outline" style="color:var(--primary); border-color:var(--primary); padding:12px 24px; font-size:15px;" onclick="window.copyTxt('https://www.wecoffee.co.kr/survey?uid=${app.id}&name=${encodeURIComponent(app.name || '')}')">고객 전용 설문 링크 복사하기</button></div>`;
     }
+
+    // 👇 관리자 상담 메모 렌더링 로직 추가
+    let notesHtml = '';
+    if (app.admin_memo) {
+        let notes = app.admin_memo.split('|||'); // 여러 메모를 구분자로 나눔
+        notes.forEach(note => {
+            if(note.trim()) notesHtml += `<div style="background:#f9fafb; padding:12px; border-radius:8px; font-size:13px; color:var(--text-display); line-height:1.5;">${window.escapeHtml(note.trim()).replace(/\n/g, '<br>')}</div>`;
+        });
+    }
+    if(!notesHtml) notesHtml = `<div style="font-size:13px; color:var(--text-tertiary);">등록된 상담 메모가 없습니다.</div>`;
+    if($("crmAdminNotes")) $("crmAdminNotes").innerHTML = notesHtml;
+    if($("crmNoteInput")) $("crmNoteInput").value = '';
+    // 👆 메모 렌더링 끝
+
     let initialStatus = app.join_status || (app.status === '상담 완료' ? '상담 완료' : ''); if(!initialStatus || initialStatus === '대기') initialStatus = '상담 완료'; $("crmStatusSelect").value = initialStatus;
 }
 
@@ -817,7 +831,10 @@ function renderMemberTable(data) {
     let currentStat = row.status || '활동 중'; let statusBadge = ""; if (currentStat === '패널티 정지') statusBadge = `<span class="status-badge badge-red">패널티 정지</span>`; else if (isPaused) statusBadge = `<span class="status-badge badge-gray">일시정지</span>`; else if (isExpired) statusBadge = `<span class="status-badge badge-ended" style="background:#fff0f0;color:var(--error);">활동 종료</span>`; else statusBadge = `<span class="status-badge badge-active" style="background:#e8f5e9;color:var(--success);">${currentStat}</span>`;
     let yearOpts = '<option value="">년도</option>'; for(let i = 2024; i <= 2030; i++) yearOpts += `<option value="${i}" ${yy == i ? 'selected' : ''}>${i}년</option>`; let monthOpts = '<option value="">월</option>'; for(let i = 1; i <= 12; i++) { let val = String(i).padStart(2, '0'); monthOpts += `<option value="${val}" ${mm == val ? 'selected' : ''}>${i}월</option>`; } let dayOpts = '<option value="">일</option>'; for(let i = 1; i <= 31; i++) { let val = String(i).padStart(2, '0'); dayOpts += `<option value="${val}" ${dd == val ? 'selected' : ''}>${i}일</option>`; }
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch || '-'}] ${window.escapeHtml(row.name) || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${window.escapeHtml(row.phone) || '-'})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
-    const tr = document.createElement('tr'); tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함"><strong style="color:var(--text-display);">${window.escapeHtml(row.name) || '-'}</strong></td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; tbody.appendChild(tr);
+    
+    // 👇 멤버 리스트 이름 클릭 연동 기능 추가 👇
+    const tr = document.createElement('tr'); tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함"><strong style="color:var(--primary); cursor:pointer; text-decoration:underline; text-underline-offset:4px;" onclick="window.openCrmModalFromPhone('${row.phone}')" title="클릭하여 이전 설문/상담 내역 보기">${window.escapeHtml(row.name) || '-'}</strong></td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; tbody.appendChild(tr);
+    // 👆 수정 완료 👆
   });
 }
 document.addEventListener('change', function(e) { if (e.target.classList.contains('date-sel') && !e.target.classList.contains('option-btn')) { const group = e.target.closest('.date-select-group'); const y = group.querySelector('.year').value, m = group.querySelector('.month').value, d = group.querySelector('.day').value; if (y && m && d) window.updateMemberEndDate(group.dataset.id, `${y}-${m}-${d}`).then(() => window.fetchMembers()); } });
@@ -884,3 +901,41 @@ window.downloadExcel = function(type) {
     csvContent += row.map(item => { let text = String(item || ''); text = text.replace(/"/g, '""'); text = text.replace(/\n/g, ' '); return `"${text}"`; }).join(',') + '\n'; });
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `${filename}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
+
+// 👇 관리자 상담 메모 DB 저장 및 조회 함수 추가 👇
+window.saveAdminNote = async function() {
+    const id = $("crmAppId").value;
+    const app = globalApps.find(a => String(a.id) === String(id));
+    if(!app) return;
+    
+    const newNote = $("crmNoteInput").value.trim();
+    if(!newNote) return showToast("메모 내용을 입력해주세요.");
+
+    let updatedMemo = app.admin_memo ? app.admin_memo + '|||' + newNote : newNote;
+
+    const { error } = await supabaseClient.from('applications').update({ admin_memo: updatedMemo }).eq('id', id);
+    if(error) {
+        showToast("메모 추가에 실패했습니다.");
+        console.error(error);
+    } else {
+        showToast("메모가 성공적으로 추가되었습니다.");
+        app.admin_memo = updatedMemo;
+        window.renderCrmInner(id); 
+    }
+}
+
+window.openCrmModalFromPhone = async function(phone) {
+    if(!phone || phone === '-') return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");
+    
+    let app = globalApps.find(a => a.phone === phone);
+    if (app) {
+        window.openCrmModal(app.id);
+    } else {
+        const { data, error } = await supabaseClient.from('applications').select('*').eq('phone', phone).order('created_at', {ascending: false}).limit(1);
+        if (error || !data || data.length === 0) return showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");
+        
+        globalApps.push(data[0]); 
+        window.openCrmModal(data[0].id);
+    }
+}
+// 👆 추가 완료 👆
