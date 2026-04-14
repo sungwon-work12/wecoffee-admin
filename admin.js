@@ -98,7 +98,6 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   } catch (error) { return []; }
 };
 
-// 👇 센터별 동적 필터 및 Datalist 갱신 함수 추가 👇
 window.updateDashSpaceFilter = function() {
     let filter = $("dashSpaceFilter");
     if(!filter) return;
@@ -354,22 +353,19 @@ window.renderDashboard = async function() {
     let goEvts = [];
     try { goEvts = await window.fetchGoogleCalendarEvents(yyyy, mm + 1); } catch(e){}
 
-    // 👇 구글 캘린더 일정 필터링 적용 👇
+    // 👇 구글 캘린더 일정 필터 연동 👇
     goEvts.forEach(g => {
         let include = true;
         if (currentGlobalCenter !== '전체') {
-            let keyword = currentGlobalCenter.split(' ')[0]; // "마포" or "광진"
+            let keyword = currentGlobalCenter.split(' ')[0];
             if (!g.text.includes(keyword)) include = false;
         }
         if (spaceFilter !== '전체') {
             let spaceKeyword = spaceFilter.replace('룸', '').replace('존', '');
             if (!g.text.includes(spaceKeyword)) include = false;
         }
-
         if(include && calEvts[g.date]) {
-            calEvts[g.date].push({
-                time: g.time || '종일', start: g.start || '00:00', text: g.text, type: 'google', tooltip: g.text
-            });
+            calEvts[g.date].push({ time: g.time || '종일', start: g.start || '00:00', text: g.text, type: 'google', tooltip: g.text });
         }
     });
 
