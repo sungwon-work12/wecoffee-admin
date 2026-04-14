@@ -16,12 +16,13 @@ window.escapeHtml = function(unsafe) {
 window.holidaysCache = {};
 window.fetchHolidays = async function(year) {
   if(window.holidaysCache['fetched_' + year]) return; 
+  // API 응답 지연 시 무한 요청을 막기 위해 호출 즉시 캐시 도장을 찍습니다.
+  window.holidaysCache['fetched_' + year] = true; 
   const serviceKey = 'dd13ab368b573e49574bd2b121ecf8b4dd4673e273e64135156968f533954bd5';
   const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${serviceKey}&solYear=${year}&numOfRows=100&_type=json`;
   try {
     const res = await fetch(url); const data = await res.json(); const items = data?.response?.body?.items?.item;
     if(items) { let arr = Array.isArray(items) ? items : [items]; arr.forEach(item => { if(item.isHoliday === 'Y') { let dStr = String(item.locdate); let fmt = `${dStr.substring(0,4)}-${dStr.substring(4,6)}-${dStr.substring(6,8)}`; window.holidaysCache[fmt] = item.dateName; } }); }
-    window.holidaysCache['fetched_' + year] = true; 
   } catch(e) { console.error("Holiday API Fallback"); }
 };
 
@@ -78,7 +79,7 @@ window.formatCounselTimeDisplay = function(val) {
     return `${ampm} ${hh12}:${mm}`;
 }
 
-// 복사 기능 멘트 동적 반영 (기본값 설정)
+// 팝업 멘트 유동적 적용 완료 (기본값 설정)
 window.copyTxt = function(txt, successMsg = "복사되었습니다.") {
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(txt).then(() => { showToast(successMsg); }).catch(err => { fallbackCopyTextToClipboard(txt, successMsg); });
@@ -99,7 +100,6 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   } catch (error) { return []; }
 };
 
-// 센터별 공간 리스트 동적 변경
 window.updateDashSpaceFilter = function() {
     let filter = $("dashSpaceFilter");
     if(!filter) return;
@@ -130,7 +130,7 @@ window.updateSpaceOptions = function() {
     dl.innerHTML = opts;
 };
 
-// 로그인 성공 시 화면 전환
+// 새로고침 시 탭 유지 로직 통일
 function handleLoginSuccess() {
     var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
     var dv = $("dashboard-view"); if(dv) dv.style.display = 'block'; 
@@ -150,7 +150,7 @@ function initializeApp() {
   window.fetchHolidays(new Date().getFullYear());
   if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
   
-  // 새로고침 시 세션 유지 방어 로직
+  // 새로고침 시 세션 유지 방어 로직 추가
   supabaseClient.auth.getSession().then(({ data: { session } }) => {
       if (session) handleLoginSuccess();
   });
@@ -285,7 +285,7 @@ window.toggleDashView = function(view) { currentDashView = view; if(view === 'mo
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
 
-// 삭제되었던 일일 현황 배너 UI 개선하여 복원
+// 삭제되었던 일일 현황 배너 복구 완료
 function updateDailyInOutBanner() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { 
@@ -374,6 +374,7 @@ window.renderDashboard = async function() {
     let goEvts = [];
     try { goEvts = await window.fetchGoogleCalendarEvents(yyyy, mm + 1); } catch(e){}
 
+    // 구글 캘린더 센터/공간 필터 
     goEvts.forEach(g => {
         let include = true;
         if (currentGlobalCenter !== '전체') {
@@ -575,7 +576,7 @@ window.renderCenterData = function() {
   if($("ordTableBodyMon")) renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon'); 
   if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
 
-  // 잔여 정원 로직 완벽 적용
+  // 잔여 정원 카운트 정밀 매칭
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter); 
   if($("blkTableBody")) $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
       let max = b.capacity || '-'; 
@@ -718,6 +719,7 @@ window.renderAppTable = function(data) {
         timeBadgeHtml = `<div class="edit-schedule-link" onclick="window.openScheduleModal('${row.id}', '${displayTime}', '${row.counselor_name}')">상담 일정 수정</div>`; 
         emptyJoinSpace = `<div class="edit-schedule-link" style="visibility:hidden; pointer-events:none;">-</div>`; 
     }
+    // 이름 호버 효과 
     let hasSurvey = row.survey_job || row.survey_edu; let surveyBadge = hasSurvey ? `<span class="status-badge badge-orange" style="margin-right:8px; font-size:11px; padding:2px 6px;">설문완료</span>` : `<span class="status-badge badge-gray" style="margin-right:8px; font-size:11px; padding:2px 6px;">미응답</span>`; let nameHtml = `${surveyBadge}<strong style="cursor:pointer; color:var(--text-display); font-weight:700; transition:0.2s;" onmouseover="this.style.fontWeight='900'" onmouseout="this.style.fontWeight='700'" onclick="window.openCrmModal('${row.id}')">${window.escapeHtml(row.name) || '-'}</strong>`;
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span><span class="status-badge ${cStat}" style="margin:0 !important;">${row.status}</span></div><div class="m-prev-title">[${row.desired_batch || '-'}] ${window.escapeHtml(row.name) || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${window.escapeHtml(row.phone) || '-'})</span></div><div class="m-prev-desc">${window.escapeHtml(row.interest_area) || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     const tr = document.createElement('tr');
