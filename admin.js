@@ -1,22 +1,16 @@
 const { createClient } = supabase;
 const supabaseClient = createClient('https://dqvzowmhxorxhiqoibmk.supabase.co', 'sb_publishable_DSi3rGnuQhy6OtML_3ukEA_7ptfaoK-');
-const $ = id => document.getElementById(id), $$= q => document.querySelector(q),$$$ = q => document.querySelectorAll(q);
+const $ = id => document.getElementById(id), $$ = q => document.querySelector(q), $$$ = q => document.querySelectorAll(q);
 let globalApps=[], globalMembers=[], gRes=[], gTrn=[], gOrd=[], gBlk=[], gNotice=[];
 let isInsightView = false, currentCalDate = new Date(), currentScheduleAppId = null, currentBlockId = null, pendingOptionData = null;
 let currentGlobalCenter = '전체', currentDashView = 'week', currentDashMonthOffset = 0, currentAppDashView = 'week', appDashMonthOffset = 0;
 let currentSummaryData = [], currentInsightData = {};
 let isCrmReadOnly = false;
-const equipList = ["이지스터 800(신형)-1", "이지스터 800(신형)-2", "이지스터 800(구형)-3", "이지스터 800(구형)-4", "이지스터 1.8", "스트롱홀드 S7X", "아스토리아 스톰 2그룹", "브루잉존", "커핑존", "스터디존"];
 let quillEditor = null;
 
 window.escapeHtml = function(unsafe) {
     if (!unsafe) return '';
-    return String(unsafe)
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
+    return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 };
 
 window.holidaysCache = {};
@@ -42,7 +36,7 @@ function getDow(dStr) { if(!dStr) return ''; const d = new Date(dStr.replace(/-/
 function formatDtWithDow(dateStr) { if(!dateStr) return "-"; const d = new Date(dateStr); if(isNaN(d.getTime())) return dateStr; const dow = ['일','월','화','수','목','금','토'][d.getDay()]; return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${dow}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function formatDt(dateStr) { if(!dateStr) return "-"; const d = new Date(dateStr); return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
-function showToast(msg) { const toast = $("toast"); toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500); }
+function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500); }
 
 window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length >= 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
 window.formatBlockTime = function(v) { let t = String(v).replace(/\D/g, ''); if(t.length === 1) return `0${t}:00`; if(t.length === 2) return `${t.padStart(2,'0')}:00`; if(t.length === 3) return `0${t.slice(0,1)}:${t.slice(1,3)}`; if(t.length >= 4) return `${t.slice(0,2)}:${t.slice(2,4)}`; return v; }
@@ -84,7 +78,6 @@ window.formatCounselTimeDisplay = function(val) {
     return `${ampm} ${hh12}:${mm}`;
 }
 
-// 👇 여기서 파라미터를 추가하여 메시지를 분리했습니다 👇
 window.copyTxt = function(txt, successMsg = "복사되었습니다.") {
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(txt).then(() => { showToast(successMsg); }).catch(err => { fallbackCopyTextToClipboard(txt, successMsg); });
@@ -94,7 +87,6 @@ function fallbackCopyTextToClipboard(text, successMsg) {
     var textArea = document.createElement("textarea"); textArea.value = text; textArea.style.top = "0"; textArea.style.left = "0"; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select();
     try { document.execCommand('copy'); showToast(successMsg); } catch (err) { showToast("복사 실패"); } document.body.removeChild(textArea);
 }
-// 👆 분리 완료 👆
 
 window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   const API_KEY = 'AIzaSyAjtrSlv56VPhtqMYGsQd0L4q1AlZTW1Ng'; const CALENDAR_ID = 'wecoffeekorea@gmail.com';
@@ -106,8 +98,40 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   } catch (error) { return []; }
 };
 
+// 👇 센터별 동적 필터 및 Datalist 갱신 함수 추가 👇
+window.updateDashSpaceFilter = function() {
+    let filter = $("dashSpaceFilter");
+    if(!filter) return;
+    let currentVal = filter.value;
+    let html = `<option value="전체">전체 공간</option>`;
+    if(currentGlobalCenter === '마포 센터') {
+         html += `<option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
+    } else if (currentGlobalCenter === '광진 센터') {
+         html += `<option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디룸">스터디룸</option>`;
+    } else {
+         html += `<option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디">스터디존/룸</option>`;
+    }
+    filter.innerHTML = html;
+    if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal;
+    else filter.value = '전체';
+}
+
+window.updateSpaceOptions = function() {
+    let center = $("blkCenter") ? $("blkCenter").value : "마포 센터";
+    let dl = $("spaceOptions");
+    if(!dl) return;
+    let opts = `<option value="전체">전체 (공간 전체)</option>`;
+    if (center === '마포 센터') {
+        opts += `<option value="로스팅존"></option><option value="에스프레소존"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디존"></option><option value="아스토리아 스톰 2그룹 / 좌 그룹"></option><option value="아스토리아 스톰 2그룹 / 우 그룹"></option><option value="이지스터 800 1번"></option><option value="이지스터 800 2번"></option><option value="이지스터 1.8"></option><option value="스트롱홀드 S7X"></option>`;
+    } else {
+        opts += `<option value="로스팅존"></option><option value="에스프레소존"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디룸"></option><option value="시네소 MVP 하이드라 2그룹 / 좌 그룹"></option><option value="시네소 MVP 하이드라 2그룹 / 우 그룹"></option><option value="페마 페미나 1그룹"></option><option value="산레모 You 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 프로 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 EXP 1그룹"></option><option value="이지스터 800 1번"></option><option value="이지스터 800 2번"></option><option value="이지스터 1.8 1번"></option>`;
+    }
+    dl.innerHTML = opts;
+};
+
 function initializeApp() {
   window.fetchHolidays(new Date().getFullYear());
+  if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
   
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
@@ -121,7 +145,6 @@ function initializeApp() {
       var lv = $("login-view"); if(lv) lv.classList.add('active'); var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; 
     }
   });
-  if($("dashSpaceFilter")) $("dashSpaceFilter").innerHTML = `<option value="전체">전체 공간</option><option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
 }
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
 
@@ -138,15 +161,15 @@ supabaseClient.channel('admin-realtime')
 function handleRealtime(payload) { if (['reservations', 'trainings', 'orders', 'blocks', 'notices'].includes(payload.table)) window.fetchCenterData(); if (payload.table === 'applications') window.fetchApplications(); if (payload.table === 'members') window.fetchMembers(); }
 
 window.switchMainTab = function(pageId, element) {
-  $$$(".page").forEach(p => p.classList.remove('active')); $(pageId).classList.add('active');
+  $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
   $$$(".gnb-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.gnb-item[onclick*="${pageId}"]`); if(targetEl) targetEl.classList.add('active');
   localStorage.setItem('wecoffee_main_tab', pageId);
   if(pageId === 'page-center') window.fetchCenterData();
-  if(pageId === 'page-applications') { window.fetchApplications(); isInsightView = false; $("app-table-area").style.display = "block"; $("app-insight-area").style.display = "none"; $("insightToggleBtn").innerText = "인사이트 보기"; }
+  if(pageId === 'page-applications') { window.fetchApplications(); isInsightView = false; if($("app-table-area")) $("app-table-area").style.display = "block"; if($("app-insight-area")) $("app-insight-area").style.display = "none"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = "인사이트 보기"; }
   if(pageId === 'page-members') window.fetchMembers();
 }
 window.switchSubTab = function(subId, element) {
-  $$$(".sub-page").forEach(p => p.classList.remove('active')); $(subId).classList.add('active');
+  $$$(".sub-page").forEach(p => p.classList.remove('active')); if($(subId)) $(subId).classList.add('active');
   $$$(".sub-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.sub-item[onclick*="${subId}"]`); if(targetEl) { targetEl.classList.add('active'); targetEl.classList.remove("tab-pulse"); }
   if (subId === 'sub-notice') { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'none'; } else { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'inline-flex'; }
   localStorage.setItem('wecoffee_sub_tab', subId); if(subId === 'sub-res') window.renderDashboard(); 
@@ -155,54 +178,128 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
-// 👇 여기도 파라미터 전달 추가 👇
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrText, btnText = '적용하기') {
-    $("confirmTarget").innerHTML = title;
-    if(statusHtml) { $("confirmStateBox").style.display = 'block'; $("confirmSimpleBox").style.display = 'none'; $("confirmStatus").innerHTML = statusHtml; $("confirmActionState").innerHTML = actionHtml; } 
-    else { $("confirmStateBox").style.display = 'none'; $("confirmSimpleBox").style.display = 'block'; $("confirmActionSimple").innerHTML = actionHtml; }
+    if($("confirmTarget")) $("confirmTarget").innerHTML = title;
+    if(statusHtml) { if($("confirmStateBox")) $("confirmStateBox").style.display = 'block'; if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'none'; if($("confirmStatus")) $("confirmStatus").innerHTML = statusHtml; if($("confirmActionState")) $("confirmActionState").innerHTML = actionHtml; } 
+    else { if($("confirmStateBox")) $("confirmStateBox").style.display = 'none'; if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'block'; if($("confirmActionSimple")) $("confirmActionSimple").innerHTML = actionHtml; }
     
     let btn = $("confirmBtn");
-    btn.innerText = btnText;
-    let newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-    
-    newBtn.onclick = function() {
-        if(btnText === '복사하기') {
-            window.copyTxt(callbackOrText, "사전 설문 링크가 복사되었습니다.");
-            window.closeConfirmModal();
-        } else {
-            (async () => {
-                await callbackOrText();
+    if(btn) {
+        btn.innerText = btnText;
+        let newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.onclick = function() {
+            if(btnText === '복사하기') {
+                window.copyTxt(callbackOrText, "사전 설문 링크가 복사되었습니다.");
                 window.closeConfirmModal();
-            })();
-        }
-    };
-    $("confirmModal").classList.add('show');
+            } else {
+                (async () => {
+                    await callbackOrText();
+                    window.closeConfirmModal();
+                })();
+            }
+        };
+    }
+    if($("confirmModal")) $("confirmModal").classList.add('show');
 }
-window.closeConfirmModal = function() { $("confirmModal").classList.remove('show'); }
-window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId) $(modalId).classList.remove('show'); }
+window.closeConfirmModal = function() { if($("confirmModal")) $("confirmModal").classList.remove('show'); }
+window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId && $(modalId)) $(modalId).classList.remove('show'); }
 
 function initQuill() { if(!quillEditor && $('editor-container')) { quillEditor = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'align': [] }], [{ 'color': [] }, { 'background': [] }], ['clean'] ] }, placeholder: '내용을 자유롭게 적어주세요.' }); } }
-window.openNoticeModal = function() { $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = ''; } catch(e) {} }, 50); $("noticeId").value = ''; $("noticeTitle").value = ''; $("noticePinned").checked = false; $("noticeStatus").value = '발행'; $("noticeModalTitle").innerText = "새 공지사항 등록"; }
-window.editNotice = function(id) { let n = gNotice.find(x => String(x.id) === String(id)); if(!n) return; $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = n.content || ''; } catch(e) {} }, 50); $("noticeId").value = n.id; $("noticeTitle").value = n.title; $("noticePinned").checked = n.is_pinned; $("noticeStatus").value = n.status || '발행'; $("noticeModalTitle").innerText = "공지사항 수정"; }
-window.closeNoticeModal = function() { $("noticeModal").classList.remove('show'); }
-window.saveNoticeData = async function() { let id = $("noticeId").value; let htmlContent = quillEditor ? quillEditor.root.innerHTML : ''; let payload = { title: $("noticeTitle").value.trim(), content: htmlContent, is_pinned: $("noticePinned").checked, status: $("noticeStatus").value }; if(!payload.title) return showToast("제목을 입력해주세요."); if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); let error; if(id) { const res = await supabaseClient.from('notices').update(payload).eq('id', id); error = res.error; } else { const res = await supabaseClient.from('notices').insert([payload]); error = res.error; } if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); } }
+window.openNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = ''; } catch(e) {} }, 50); if($("noticeId")) $("noticeId").value = ''; if($("noticeTitle")) $("noticeTitle").value = ''; if($("noticePinned")) $("noticePinned").checked = false; if($("noticeStatus")) $("noticeStatus").value = '발행'; if($("noticeModalTitle")) $("noticeModalTitle").innerText = "새 공지사항 등록"; }
+window.editNotice = function(id) { let n = gNotice.find(x => String(x.id) === String(id)); if(!n) return; if($("noticeModal")) $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = n.content || ''; } catch(e) {} }, 50); if($("noticeId")) $("noticeId").value = n.id; if($("noticeTitle")) $("noticeTitle").value = n.title; if($("noticePinned")) $("noticePinned").checked = n.is_pinned; if($("noticeStatus")) $("noticeStatus").value = n.status || '발행'; if($("noticeModalTitle")) $("noticeModalTitle").innerText = "공지사항 수정"; }
+window.closeNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.remove('show'); }
+window.saveNoticeData = async function() { let id = $("noticeId")?$("noticeId").value:""; let htmlContent = quillEditor ? quillEditor.root.innerHTML : ''; let payload = { title: $("noticeTitle")?$("noticeTitle").value.trim():"", content: htmlContent, is_pinned: $("noticePinned")?$("noticePinned").checked:false, status: $("noticeStatus")?$("noticeStatus").value:"발행" }; if(!payload.title) return showToast("제목을 입력해주세요."); if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); let error; if(id) { const res = await supabaseClient.from('notices').update(payload).eq('id', id); error = res.error; } else { const res = await supabaseClient.from('notices').insert([payload]); error = res.error; } if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); } }
 window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
-window.handleNoticeMediaUpload = async function(event) { const files = event.target.files; if (!files || files.length === 0) return; const overlay = $("mediaUploadOverlay"); overlay.style.display = "flex"; try { if(!quillEditor) initQuill(); let range = quillEditor.getSelection(true); if(!range) range = { index: quillEditor.getLength() }; for (let i = 0; i < files.length; i++) { const file = files[i]; const fileExt = file.name.split('.').pop(); const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`; const { error: uploadError } = await supabaseClient.storage.from('notice_media').upload(fileName, file); if (uploadError) continue; const { data: { publicUrl } } = supabaseClient.storage.from('notice_media').getPublicUrl(fileName); if (file.type.startsWith('image/')) { quillEditor.insertEmbed(range.index, 'image', publicUrl); } else if (file.type.startsWith('video/')) { quillEditor.insertEmbed(range.index, 'video', publicUrl); } range.index++; } showToast("미디어가 첨부되었습니다."); } catch (e) { showToast("업로드 중 오류 발생"); } finally { overlay.style.display = "none"; $("noticeMediaUpload").value = ''; } }
+window.handleNoticeMediaUpload = async function(event) { const files = event.target.files; if (!files || files.length === 0) return; const overlay = $("mediaUploadOverlay"); if(overlay) overlay.style.display = "flex"; try { if(!quillEditor) initQuill(); let range = quillEditor.getSelection(true); if(!range) range = { index: quillEditor.getLength() }; for (let i = 0; i < files.length; i++) { const file = files[i]; const fileExt = file.name.split('.').pop(); const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`; const { error: uploadError } = await supabaseClient.storage.from('notice_media').upload(fileName, file); if (uploadError) continue; const { data: { publicUrl } } = supabaseClient.storage.from('notice_media').getPublicUrl(fileName); if (file.type.startsWith('image/')) { quillEditor.insertEmbed(range.index, 'image', publicUrl); } else if (file.type.startsWith('video/')) { quillEditor.insertEmbed(range.index, 'video', publicUrl); } range.index++; } showToast("미디어가 첨부되었습니다."); } catch (e) { showToast("업로드 중 오류 발생"); } finally { if(overlay) overlay.style.display = "none"; if($("noticeMediaUpload")) $("noticeMediaUpload").value = ''; } }
 
-window.openBlockModal = function() { currentBlockId = null; $("blockModalTitle").innerText = "수업 및 훈련 등 등록"; $("blkId").value = ""; $("blkCategory").value = "기본 수업"; $("blkDate").value = ""; $("blkStart").value = ""; $("blkEnd").value = ""; $("blkCenter").value = "마포 센터"; $("blkSpace").value = ""; $("blkReason").value = ""; $("blkCapacity").value = ""; $("blockModal").classList.add('show'); }
-window.editBlock = function(id) { currentBlockId = id; const b = gBlk.find(x => String(x.id) === String(id)); if(!b) return; $("blockModalTitle").innerText = "스케줄 내역 수정"; $("blkId").value = b.id; $("blkCategory").value = b.category; $("blkDate").value = b.block_date; $("blkStart").value = b.start_time; $("blkEnd").value = b.end_time; $("blkCenter").value = b.center; $("blkSpace").value = b.space_equip; $("blkReason").value = b.reason; $("blkCapacity").value = b.capacity || ""; $("blockModal").classList.add('show'); }
-window.closeBlockModal = function() { $("blockModal").classList.remove('show'); currentBlockId = null; }
-window.saveBlockData = async function() { const payload = { category: $("blkCategory").value, block_date: window.formatBlockDate($("blkDate").value), start_time: window.formatBlockTime($("blkStart").value), end_time: window.formatBlockTime($("blkEnd").value), center: $("blkCenter").value, space_equip: $("blkSpace").value.trim(), reason: $("blkReason").value.trim(), capacity: parseInt($("blkCapacity").value) || null }; if(!payload.block_date || !payload.start_time || !payload.end_time) { showToast("날짜와 시간을 정확히 입력해주세요."); return; } let error; if(currentBlockId) { const res = await supabaseClient.from('blocks').update(payload).eq('id', currentBlockId); error = res.error; } else { const res = await supabaseClient.from('blocks').insert([payload]); error = res.error; } if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeBlockModal(); window.fetchCenterData(); } }
+window.openBlockModal = function() { 
+    currentBlockId = null; 
+    if($("blockModalTitle")) $("blockModalTitle").innerText = "수업 및 훈련 등 등록"; 
+    if($("blkId")) $("blkId").value = ""; 
+    if($("blkCategory")) $("blkCategory").value = "기본 수업"; 
+    if($("blkDate")) $("blkDate").value = ""; 
+    if($("blkStart")) $("blkStart").value = ""; 
+    if($("blkEnd")) $("blkEnd").value = ""; 
+    if($("blkCenter")) {
+        $("blkCenter").value = currentGlobalCenter === '전체' ? '마포 센터' : currentGlobalCenter; 
+        $("blkCenter").onchange = window.updateSpaceOptions;
+        window.updateSpaceOptions();
+    }
+    if($("blkSpace")) $("blkSpace").value = ""; 
+    if($("blkReason")) $("blkReason").value = ""; 
+    if($("blkCapacity")) $("blkCapacity").value = ""; 
+    if($("blockModal")) $("blockModal").classList.add('show'); 
+}
+window.editBlock = function(id) { 
+    currentBlockId = id; const b = gBlk.find(x => String(x.id) === String(id)); if(!b) return; 
+    if($("blockModalTitle")) $("blockModalTitle").innerText = "스케줄 내역 수정"; 
+    if($("blkId")) $("blkId").value = b.id; 
+    if($("blkCategory")) $("blkCategory").value = b.category; 
+    if($("blkDate")) $("blkDate").value = b.block_date; 
+    if($("blkStart")) $("blkStart").value = b.start_time; 
+    if($("blkEnd")) $("blkEnd").value = b.end_time; 
+    if($("blkCenter")) {
+        $("blkCenter").value = b.center; 
+        $("blkCenter").onchange = window.updateSpaceOptions;
+        window.updateSpaceOptions();
+    }
+    if($("blkSpace")) $("blkSpace").value = b.space_equip; 
+    if($("blkReason")) $("blkReason").value = b.reason; 
+    if($("blkCapacity")) $("blkCapacity").value = b.capacity || ""; 
+    if($("blockModal")) $("blockModal").classList.add('show'); 
+}
+window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); currentBlockId = null; }
+window.saveBlockData = async function() { const payload = { category: $("blkCategory")?$("blkCategory").value:"", block_date: window.formatBlockDate($("blkDate")?$("blkDate").value:""), start_time: window.formatBlockTime($("blkStart")?$("blkStart").value:""), end_time: window.formatBlockTime($("blkEnd")?$("blkEnd").value:""), center: $("blkCenter")?$("blkCenter").value:"", space_equip: $("blkSpace")?$("blkSpace").value.trim():"", reason: $("blkReason")?$("blkReason").value.trim():"", capacity: parseInt($("blkCapacity")?$("blkCapacity").value:"") || null }; if(!payload.block_date || !payload.start_time || !payload.end_time) { showToast("날짜와 시간을 정확히 입력해주세요."); return; } let error; if(currentBlockId) { const res = await supabaseClient.from('blocks').update(payload).eq('id', currentBlockId); error = res.error; } else { const res = await supabaseClient.from('blocks').insert([payload]); error = res.error; } if(error) showToast("저장 실패"); else { showToast("저장되었습니다."); window.closeBlockModal(); window.fetchCenterData(); } }
 window.deleteBlock = function(id) { window.openCustomConfirm("스케줄 삭제", null, `해당 스케줄을 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('blocks').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
 window.bulkAction = function(table, type) { let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; } window.openCustomConfirm("일괄 취소", null, `선택한 ${chks.length}건을 일괄 취소하시겠습니까?`, async () => { let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', chk.value)); }); await Promise.all(promises); showToast("일괄 처리가 완료되었습니다."); window.fetchCenterData(); }); }
 window.cancelAction = function(table, id) { window.openCustomConfirm("정상 취소 처리", null, `해당 내역을 정상 취소로 처리하시겠습니까?`, async () => { await supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', id); showToast("정상 취소로 처리되었습니다."); window.fetchCenterData(); }); }
 window.bulkActionOrd = function(statusValue) { let chks = $$$(`.chk-ord:checked`); if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; } window.openCustomConfirm("생두 상태 일괄 변경", null, `선택한 ${chks.length}건을(를) ${statusValue} 상태로 변경하시겠습니까?`, async () => { let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from('orders').update({ status: statusValue }).eq('id', chk.value)); }); await Promise.all(promises); showToast(`일괄 처리가 완료되었습니다.`); window.fetchCenterData(); }); }
 
-window.applyGlobalCenter = function() { currentGlobalCenter = document.querySelector('input[name="globalCenter"]:checked').value; window.renderCenterData(); window.renderDashboard(); }
-window.toggleDashView = function(view) { currentDashView = view; if(view === 'month') { $("dashMonthNav").style.display = 'flex'; } else { $("dashMonthNav").style.display = 'none'; currentDashMonthOffset = 0; } window.renderDashboard(); }
+window.applyGlobalCenter = function() { 
+    let r = document.querySelector('input[name="globalCenter"]:checked'); 
+    currentGlobalCenter = r ? r.value : '전체'; 
+    if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
+    window.renderCenterData(); 
+    window.renderDashboard(); 
+}
+window.toggleDashView = function(view) { currentDashView = view; if(view === 'month') { if($("dashMonthNav")) $("dashMonthNav").style.display = 'flex'; } else { if($("dashMonthNav")) $("dashMonthNav").style.display = 'none'; currentDashMonthOffset = 0; } window.renderDashboard(); }
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
+
+function updateDailyInOutBanner() { 
+  let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
+  const getDailyEvents = (centerFilter) => { 
+      let evts = []; 
+      gRes.forEach(r => { if(r.res_date === ds && r.center === centerFilter && !(r.status||'').includes('취소')) { let st = String(r.res_time||"").split('~')[0].trim(); let en = String(r.res_time||"").split('~')[1]?.trim() || ''; let spc = String(r.space_equip||"").split(' ')[0]; evts.push({ start: st, end: en, name: r.name, space: spc }); } }); 
+      gTrn.forEach(t => { let p = String(t.content||"").split(' || '); if(p.length >= 5 && p[0].trim() === ds && p[3].trim() === centerFilter && !(t.status||'').includes('취소')) { let st = String(p[2]||"").split('~')[0].trim(); let en = String(p[2]||"").split('~')[1]?.trim() || ''; let spc = p[4]; evts.push({ start: st, end: en, name: t.name, space: spc }); } }); 
+      return evts; 
+  }; 
+  let centers = currentGlobalCenter === '전체' ? ['마포 센터', '광진 센터'] : [currentGlobalCenter]; 
+  let html = ``; 
+  centers.forEach(c => { 
+      let evts = getDailyEvents(c); 
+      if(evts.length === 0) { 
+          html += `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 일정이 없습니다.</div></div>`; 
+      } else { 
+          evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||''))); 
+          let first = evts[0]; 
+          evts.sort((a,b) => String(b.end||'').localeCompare(String(a.end||''))); 
+          let last = evts[evts.length-1]; 
+          html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff; align-items:flex-start; text-align:left;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px; width:100%;">
+                  <span style="font-weight:800; font-size:15px; color:var(--text-display);">[${first.space}] ${window.escapeHtml(first.name)}</span>
+                  <span style="color:var(--primary); font-size:13px; font-weight:800;">첫 입실 ${first.start}</span>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 0px; width:100%;">
+                  <span style="font-weight:500; font-size:14px; color:var(--text-secondary);">[${last.space}] ${window.escapeHtml(last.name)}</span>
+                  <span style="color:var(--error); font-size:13px; font-weight:800;">최종 퇴실 ${last.end}</span>
+              </div>
+          </div>`; 
+      } 
+  }); 
+  if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; 
+}
 
 window.fetchCenterData = async function() {
   try {
@@ -257,8 +354,19 @@ window.renderDashboard = async function() {
     let goEvts = [];
     try { goEvts = await window.fetchGoogleCalendarEvents(yyyy, mm + 1); } catch(e){}
 
+    // 👇 구글 캘린더 일정 필터링 적용 👇
     goEvts.forEach(g => {
-        if(calEvts[g.date]) {
+        let include = true;
+        if (currentGlobalCenter !== '전체') {
+            let keyword = currentGlobalCenter.split(' ')[0]; // "마포" or "광진"
+            if (!g.text.includes(keyword)) include = false;
+        }
+        if (spaceFilter !== '전체') {
+            let spaceKeyword = spaceFilter.replace('룸', '').replace('존', '');
+            if (!g.text.includes(spaceKeyword)) include = false;
+        }
+
+        if(include && calEvts[g.date]) {
             calEvts[g.date].push({
                 time: g.time || '종일', start: g.start || '00:00', text: g.text, type: 'google', tooltip: g.text
             });
@@ -416,6 +524,7 @@ window.handleOrderStatusChange = function(id, newValue, selectEl) {
 };
 
 function renderOrderTableHTML(fOrd, tableId, chkClass) { 
+  if(!$(tableId)) return;
   $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
     let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
     let cNm = o.item_name || ""; let m = cNm.match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/); if(m) cNm = m[1].trim(); else { let oM = cNm.match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); } 
@@ -431,10 +540,10 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
 window.renderCenterData = function() {
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(oneMonthAgo.getDate() - 30); const now = new Date(); updateDailyInOutBanner();
   let qRes = ($("searchRes")?.value || "").toLowerCase(); let fRes = gRes.filter(r => { let rDate = new Date(r.res_date || r.created_at); return (rDate >= oneMonthAgo) && (currentGlobalCenter === '전체' || r.center === currentGlobalCenter) && (`${r.name} ${r.phone}`.toLowerCase().includes(qRes)); });
-  $("resTableBody").innerHTML = fRes.length ? fRes.map(r=>{ let displayStatus = r.status || ''; let actBtn = displayStatus.includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; let endTimeStr = String(r.res_time||"").split('~')[1]; if (endTimeStr && r.res_date && !displayStatus.includes('취소')) { let [hh, mm] = endTimeStr.trim().split(':'); let resEndObj = new Date(`${r.res_date}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`); if (resEndObj < now) displayStatus = '이용완료'; } let badgeClass = displayStatus.includes('취소') ? 'badge-red' : (displayStatus === '이용완료' ? 'badge-gray' : (displayStatus === '예약완료' ? 'badge-green' : 'badge-gray')); let dow = getDow(r.res_date); let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${r.batch||'-'}] ${window.escapeHtml(r.name)}</span><span class="status-badge ${badgeClass}">${displayStatus}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${r.res_date}(${dow}) ${r.res_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${r.center}] ${r.space_equip || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${displayStatus.includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
+  if($("resTableBody")) $("resTableBody").innerHTML = fRes.length ? fRes.map(r=>{ let displayStatus = r.status || ''; let actBtn = displayStatus.includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; let endTimeStr = String(r.res_time||"").split('~')[1]; if (endTimeStr && r.res_date && !displayStatus.includes('취소')) { let [hh, mm] = endTimeStr.trim().split(':'); let resEndObj = new Date(`${r.res_date}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`); if (resEndObj < now) displayStatus = '이용완료'; } let badgeClass = displayStatus.includes('취소') ? 'badge-red' : (displayStatus === '이용완료' ? 'badge-gray' : (displayStatus === '예약완료' ? 'badge-green' : 'badge-gray')); let dow = getDow(r.res_date); let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${r.batch||'-'}] ${window.escapeHtml(r.name)}</span><span class="status-badge ${badgeClass}">${displayStatus}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${r.res_date}(${dow}) ${r.res_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${r.center}] ${r.space_equip || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${displayStatus.includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
   
   let qTrn = ($("searchTrn")?.value || "").toLowerCase(); let fTrnList = gTrn.filter(t => { let tDate = new Date(t.created_at); return (tDate >= oneMonthAgo) && (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)); });
-  $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ let displayStatus = t.status || ''; let actBtn = displayStatus.includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('trainings', '${t.id}')">취소</button>`; let cInfo = String(t.content||'').split(' || '); let niceContent = t.content; let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; if(cInfo.length >= 5) { niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; } let dow = getDow(preDate); let badgeClass = displayStatus.includes('취소')?'badge-red':displayStatus==='접수완료'?'badge-green':'badge-gray'; let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${t.batch||'-'}] ${window.escapeHtml(t.name)}</span><span class="status-badge ${badgeClass}">${displayStatus}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${preDate}(${dow}) ${preTime}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${preCenter}] ${window.escapeHtml(preName)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${displayStatus.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(t.name)}</strong></td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
+  if($("trnTableBody")) $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ let displayStatus = t.status || ''; let actBtn = displayStatus.includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('trainings', '${t.id}')">취소</button>`; let cInfo = String(t.content||'').split(' || '); let niceContent = t.content; let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; if(cInfo.length >= 5) { niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; } let dow = getDow(preDate); let badgeClass = displayStatus.includes('취소')?'badge-red':displayStatus==='접수완료'?'badge-green':'badge-gray'; let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${t.batch||'-'}] ${window.escapeHtml(t.name)}</span><span class="status-badge ${badgeClass}">${displayStatus}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${preDate}(${dow}) ${preTime}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${preCenter}] ${window.escapeHtml(preName)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${displayStatus.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(t.name)}</strong></td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
   
   let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
   let fOrd = gOrd.filter(o => { 
@@ -447,10 +556,11 @@ window.renderCenterData = function() {
   
   let thuOrders = fOrd.filter(o => o.item_name && o.item_name.includes('목')); let monOrders = fOrd.filter(o => !(o.item_name && o.item_name.includes('목'))); 
   if (!isOrdFilter) { let isMonHidden = (o) => { if (o.status !== '주문 취소' && o.status !== '센터 도착') return false; let oDate = new Date(o.created_at); if ((now - oDate) / 86400000 >= 5) return true; let dow = now.getDay(); if (dow === 2 || dow === 3 || dow === 4) return true; return false; }; let isThuHidden = (o) => { if (o.status !== '주문 취소' && o.status !== '센터 도착') return false; let oDate = new Date(o.created_at); if ((now - oDate) / 86400000 >= 5) return true; let dow = now.getDay(); if (dow === 5 || dow === 6 || dow === 0) return true; return false; }; monOrders = monOrders.filter(o => !isMonHidden(o)); thuOrders = thuOrders.filter(o => !isThuHidden(o)); }
-  renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon'); renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
+  if($("ordTableBodyMon")) renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon'); 
+  if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
 
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter); 
-  $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
+  if($("blkTableBody")) $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
       let max = b.capacity || '-'; 
       let current = 0; 
       if(max !== '-') {
@@ -470,7 +580,7 @@ window.renderNoticeData = function() {
     if(a.is_pinned === b.is_pinned) return new Date(b.created_at||0) - new Date(a.created_at||0); 
     return a.is_pinned ? -1 : 1; 
   }); 
-  $("noticeTableBody").innerHTML = fNoti.length ? fNoti.map(n => { let pinBadge = n.is_pinned ? `<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>` : `<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`; let statBadge = n.status === '발행' ? `<span class="status-badge badge-green">발행 중</span>` : `<span class="status-badge badge-gray">숨김</span>`; let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${window.escapeHtml(n.title)}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${window.escapeHtml(n.title)}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; }).join("") : `<tr><td colspan="5" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`; 
+  if($("noticeTableBody")) $("noticeTableBody").innerHTML = fNoti.length ? fNoti.map(n => { let pinBadge = n.is_pinned ? `<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>` : `<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`; let statBadge = n.status === '발행' ? `<span class="status-badge badge-green">발행 중</span>` : `<span class="status-badge badge-gray">숨김</span>`; let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${window.escapeHtml(n.title)}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${window.escapeHtml(n.title)}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; }).join("") : `<tr><td colspan="5" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`; 
 }
 window.renderMCalCenter = function(selDate) { 
   $$$("#dash-content .m-cal-date").forEach(el => el.classList.remove('active')); 
@@ -546,18 +656,23 @@ window.renderMCalApp = function(selDate) {
             let descParts = rawTooltip.split('|');
             let descText = descParts.length > 1 ? descParts.slice(1).join('|').trim() : rawTooltip;
 
-            html += `<div class="m-cal-card"><div class="m-cal-card-time" style="color:var(--primary);">${e.time || '종일'}</div><div class="m-cal-card-title">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-desc">${window.escapeHtml(descText)}</div></div>`; 
+            html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left;">
+                <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;">
+                    <div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div>
+                    <div class="m-cal-card-time" style="color:var(--primary); font-weight:800; font-size:13px;">${e.time || '종일'}</div>
+                </div>
+                <div class="m-cal-card-desc" style="font-size:13px; color:var(--text-secondary); margin-top:0;">${window.escapeHtml(descText)}</div>
+            </div>`; 
         }); 
     } 
     let listWrap = $("m-cal-list-app"); 
     if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 👇 동적으로 여백 추가 👇
 window.toggleInsight = function() { 
     isInsightView = !isInsightView; 
     let insightArea = $("app-insight-area");
-    if(insightArea) insightArea.style.paddingTop = "32px"; // 상단 여백 추가
+    if(insightArea) insightArea.style.paddingTop = "32px"; 
     if (isInsightView) { 
         if($("app-table-area")) $("app-table-area").style.display = "none"; 
         if(insightArea) insightArea.style.display = "block"; 
@@ -573,243 +688,6 @@ window.toggleAppDashView = function(view) { currentAppDashView = view; if(view =
 window.changeAppDashMonth = function(offset) { appDashMonthOffset += offset; window.renderAppDashboard(); }
 window.resetAppDashMonth = function() { appDashMonthOffset = 0; window.renderAppDashboard(); }
 
-// 👇 원상 복구된 일일 배너 로직 👇
-window.renderAppDailyBanner = function(data) {
-  let td = new Date(); let mm = td.getMonth() + 1; let dd = td.getDate(); let yy = td.getFullYear(); 
-  let scheduled = data.filter(a => a.status === '상담 일정 확정' && a.call_time); 
-  let todayEvts = scheduled.filter(app => { const m = String(app.call_time||'').match(/(\d+)년\s*(\d+)월\s*(\d+)일/); return m && parseInt(m[1]) === yy && parseInt(m[2]) === mm && parseInt(m[3]) === dd; }); let html = '';
-  
-  if(todayEvts.length === 0) { 
-      html = `<div class="inout-card" style="width:100%;"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">오늘의 상담 일정</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 상담 일정이 없습니다.</div></div>`; 
-  } else { 
-      html = `<div style="width:100%; display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px;">`; 
-      todayEvts.sort((a,b) => String(a.call_time||'').localeCompare(String(b.call_time||''))); 
-      todayEvts.forEach(evt => { 
-          let timeStr = '';
-          const tm = String(evt.call_time||'').match(/(오전|오후)\s+(\d+):(\d+)/);
-          if (tm) {
-              timeStr = `${tm[1]} ${tm[2]}:${tm[3]}`;
-          } else {
-              timeStr = evt.call_time.includes(')') ? evt.call_time.split(')')[1].trim() : evt.call_time;
-          }
-          html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff;">
-              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px;">
-                  <span style="font-weight:800; font-size:15px; color:var(--text-display);">[${evt.desired_batch||'-'}] ${window.escapeHtml(evt.name)}</span>
-                  <span style="color:var(--primary); font-size:13px; font-weight:800;">${timeStr}</span>
-              </div>
-              <div style="font-weight:500; font-size:13px; color:var(--text-secondary);">
-                  ${window.escapeHtml(evt.phone)} <span style="color:var(--border-strong); margin:0 6px;">|</span> 담당: ${window.escapeHtml(evt.counselor_name)||'미정'}
-              </div>
-          </div>`; 
-      }); 
-      html += `</div>`; 
-  }
-  if($("appDailyBanner")) $("appDailyBanner").innerHTML = html;
-}
-
-window.fetchApplications = async function() {
-  try { const { data, error } = await supabaseClient.from('applications').select('*').order('created_at', { ascending: false }); if (error) throw error; globalApps = data || []; const batches = [...new Set(globalApps.map(d => d.desired_batch).filter(Boolean))].sort().reverse(); let optionsHTML = '<option value="all">전체 기수 보기</option>'; batches.forEach(b => optionsHTML += `<option value="${b}">${b}</option>`); if($("batchFilterApp")) $("batchFilterApp").innerHTML = optionsHTML; window.applyFilterApp(); if ($("crmModal") && $("crmModal").classList.contains('show') && $("crmAppId").value) { window.renderCrmInner($("crmAppId").value, isCrmReadOnly); } } catch(e) { if($("appTableBody")) $("appTableBody").innerHTML = `<tr><td colspan="8" class="empty-state">에러 발생</td></tr>`; console.error("신청 리스트 에러:", e); }
-}
-window.applyFilterApp = function() { try { const selected = $("batchFilterApp").value; const filtered = selected === 'all' ? globalApps : globalApps.filter(d => d.desired_batch === selected); if (isInsightView) window.renderStatistics(filtered); else { window.renderAppTable(filtered); window.renderAppDailyBanner(filtered); window.renderAppDashboard(); } } catch(e) { console.error("필터 적용 중 에러:", e); } }
-
-const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed' };
-const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
-
-function parseAcquisitionChannel(rawText) { 
-    if(!rawText) return '-'; 
-    let txt = String(rawText).toLowerCase(); 
-    if(txt.includes('광고') || txt.includes('스폰서드')) return '광고'; 
-    if(txt.includes('인스타')) return '인스타그램'; 
-    if(txt.includes('블로그')) return '네이버 블로그'; 
-    if(txt.includes('블랙워터')) return '블랙워터이슈'; 
-    if(txt.includes('지인')) return '지인 추천'; 
-    return '기타'; 
-}
-
-window.closeCrmModal = function() { if($("crmModal")) $("crmModal").classList.remove('show'); };
-
-window.renderCrmInner = function(id, isReadOnly = false) {
-    const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
-    if($("crmName")) $("crmName").innerText = app.name || '이름 없음';
-    
-    let shortAcq = parseAcquisitionChannel(app.acquisition_channel);
-    
-    let batchTag = `<span style="font-weight:800; color:var(--text-display);">[${app.desired_batch||'미정'}]</span>`;
-    let divider = `<span style="color:var(--border-strong); margin:0 8px;">|</span>`;
-    let phoneTag = `<span style="font-weight:600; color:var(--text-secondary);">${window.escapeHtml(app.phone)||'-'}</span>`;
-    let acqTag = `<span style="font-weight:600; color:var(--text-secondary);">${window.escapeHtml(shortAcq)}</span>`;
-    
-    if($("crmProfile")) $("crmProfile").innerHTML = `${batchTag}${divider}${phoneTag}${divider}${acqTag}`;
-    
-    let timeStr = app.call_time && app.call_time !== 'null' ? window.escapeHtml(app.call_time) : '미정';
-    if($("crmTimeBadge")) {
-        $("crmTimeBadge").innerHTML = `상담 예정일: <span style="color:var(--text-display); font-weight:700;">${timeStr}</span>`;
-        $("crmTimeBadge").style.color = "var(--text-secondary)";
-        $("crmTimeBadge").style.fontWeight = "500";
-    }
-    
-    const job = app.survey_job; const edu = app.survey_edu; const goal = app.survey_goal; const brand = app.survey_brand;
-    if($("crmSurveyResult")) {
-        if (job || edu) {
-            $("crmSurveyResult").innerHTML = `<div class="crm-box"><div class="crm-label">1. 직업 상태</div><div class="crm-answer">${window.escapeHtml(job) || '<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">2. 과거 교육 피드백</div><div class="crm-answer">${window.escapeHtml(edu) || '<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">3. 달성 목표 (니즈)</div><div class="crm-answer">${window.escapeHtml(goal) || '<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${window.escapeHtml(brand) || '<span class="crm-empty">미작성</span>'}</div></div>`;
-        } else {
-            $("crmSurveyResult").innerHTML = `<div style="text-align:center; padding: 40px 20px; background:#fff; border-radius:12px; border:1px dashed var(--border-strong);"><div style="font-size:16px; font-weight:700; color:var(--text-secondary); margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div><button class="btn-outline" style="color:var(--primary); border-color:var(--primary); padding:12px 24px; font-size:15px;" onclick="window.copyTxt('https://www.wecoffee.co.kr/survey?uid=${app.id}&name=${encodeURIComponent(app.name || '')}', '사전 설문 링크가 복사되었습니다.')">고객 전용 설문 링크 복사하기</button></div>`;
-        }
-    }
-
-    let notesHtml = '';
-    if (app.admin_memo) {
-        let notes = app.admin_memo.split('|||'); 
-        notes.forEach(note => {
-            let parts = note.split(':::');
-            if(parts.length === 2) {
-                let q = parts[0].trim();
-                let a = parts[1].trim();
-                if(q || a) {
-                    notesHtml += `<div class="crm-box"><div class="crm-label">${window.escapeHtml(q)}</div><div class="crm-answer">${window.escapeHtml(a).replace(/\n/g, '<br>')}</div></div>`;
-                }
-            } else if (note.trim()) {
-                 notesHtml += `<div class="crm-box"><div class="crm-answer">${window.escapeHtml(note.trim()).replace(/\n/g, '<br>')}</div></div>`;
-            }
-        });
-    }
-    
-    if(!notesHtml) notesHtml = `<div style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:10px;">등록된 상담 기록이 없습니다.</div>`;
-    if($("crmAdminNotes")) $("crmAdminNotes").innerHTML = notesHtml;
-    
-    if($("crmNoteTitle")) $("crmNoteTitle").value = '';
-    if($("crmNoteInput")) $("crmNoteInput").value = '';
-
-    let initialStatus = app.join_status || (app.status === '상담 완료' ? '상담 완료' : ''); if(!initialStatus || initialStatus === '대기') initialStatus = '상담 완료'; 
-    if($("crmStatusSelect")) $("crmStatusSelect").value = initialStatus;
-
-    if (isReadOnly) {
-        if($("crmNoteInputWrap")) $("crmNoteInputWrap").style.display = 'none';
-        if($("crmStatusActionArea")) $("crmStatusActionArea").style.display = 'none';
-    } else {
-        if($("crmNoteInputWrap")) $("crmNoteInputWrap").style.display = 'block';
-        if($("crmStatusActionArea")) $("crmStatusActionArea").style.display = 'flex';
-    }
-}
-
-window.openCrmModal = function(id, readOnly = false) { 
-    isCrmReadOnly = readOnly;
-    if($("crmAppId")) $("crmAppId").value = id; 
-    window.renderCrmInner(id, isCrmReadOnly); 
-    if($("crmModal")) $("crmModal").classList.add('show'); 
-}
-window.saveCrmStatus = function() { const id = $("crmAppId").value; const selected = $("crmStatusSelect").value; if(!id || !selected) return; if(selected === '상담 완료' || selected === '연락 두절') { window.updateAppStatus(id, 'status', selected); } else { window.updateAppStatus(id, 'join_status', selected); window.updateAppStatus(id, 'status', '상담 완료'); } window.closeCrmModal(); }
-window.handleStatusChange = function(id, newStatus, callTime, counselorName) { if (newStatus === '상담 일정 확정') { window.openScheduleModal(id, callTime, counselorName); } else { window.updateAppStatus(id, 'status', newStatus); } };
-
-window.openScheduleModal = function(id, time, name) { 
-    currentScheduleAppId = id; 
-    if($("schedInputDate")) { $("schedInputDate").value = ""; $("schedInputDate").dataset.raw = ""; }
-    if($("schedInputTime")) { $("schedInputTime").value = ""; $("schedInputTime").dataset.raw = ""; }
-    if($("schedInputName")) { $("schedInputName").value = (name && name !== 'null' && name !== 'undefined') ? name : ''; }
-
-    if (time && time !== '미정' && time !== 'null') {
-        let mDate = time.match(/(\d+)월\s*(\d+)일/);
-        if (mDate && $("schedInputDate")) {
-            let dRaw = String(mDate[1]).padStart(2,'0') + String(mDate[2]).padStart(2,'0');
-            $("schedInputDate").dataset.raw = dRaw;
-            $("schedInputDate").value = window.formatCounselDateDisplay(dRaw) || "";
-        }
-        
-        let mTime = time.match(/(오전|오후)\s*(\d+):(\d+)/);
-        if (mTime && $("schedInputTime")) {
-            let ampm = mTime[1];
-            let hh = parseInt(mTime[2], 10);
-            let min = String(mTime[3]).padStart(2, '0');
-            if (ampm === '오후' && hh < 12) hh += 12;
-            if (ampm === '오전' && hh === 12) hh = 0;
-            let tRaw = String(hh).padStart(2,'0') + min;
-            $("schedInputTime").dataset.raw = tRaw;
-            $("schedInputTime").value = window.formatCounselTimeDisplay(tRaw) || "";
-        }
-    }
-    
-    if($("scheduleModal")) $("scheduleModal").classList.add('show'); 
-};
-window.closeScheduleModal = function() { if($("scheduleModal")) $("scheduleModal").classList.remove('show'); currentScheduleAppId = null; };
-
-window.saveScheduleData = async function() {
-    if (!currentScheduleAppId) return;
-    
-    let dVal = $("schedInputDate") ? ($("schedInputDate").dataset.raw || $("schedInputDate").value) : ""; 
-    const tVal = $("schedInputTime") ? ($("schedInputTime").dataset.raw || $("schedInputTime").value) : ""; 
-    const name = $("schedInputName") ? $("schedInputName").value.trim() : "";
-    if (!dVal || !tVal) { showToast("상담 날짜와 시간을 모두 입력해주세요."); return; }
-    
-    let dt = String(dVal).replace(/\D/g, ''); 
-    if (dt.length > 4) dt = dt.slice(-4);
-    
-    const timeRe = String(tVal).replace(/\D/g, '');
-    if(dt.length !== 4) { showToast("날짜는 MMDD 형식(4자리)으로 입력해주세요."); return; }
-    if(timeRe.length < 4) { showToast("시간은 HHMM 형식(4자리)으로 입력해주세요."); return; }
-
-    const now = new Date(); let currentYear = now.getFullYear();
-    const mm = parseInt(dt.slice(0,2), 10); const dd = parseInt(dt.slice(2,4), 10);
-    const hh = parseInt(timeRe.slice(0,2), 10); const min = parseInt(timeRe.slice(2,4), 10);
-
-    if (mm < now.getMonth() + 1 - 2) { currentYear += 1; }
-
-    const parseDate = new Date(currentYear, mm - 1, dd, hh, min);
-    if(isNaN(parseDate.getTime())) { showToast("유효하지 않은 날짜입니다."); return; }
-
-    const dow = ['일','월','화','수','목','금','토'][parseDate.getDay()];
-    let ampm = hh >= 12 ? '오후' : '오전'; let hh12 = hh % 12 || 12;
-    const formattedCallTime = `${currentYear}년 ${mm}월 ${dd}일(${dow}) ${ampm} ${hh12}:${String(min).padStart(2,'0')}`;
-
-    const { error } = await supabaseClient.from('applications').update({ status: '상담 일정 확정', call_time: formattedCallTime, counselor_name: name }).eq('id', currentScheduleAppId);
-    if (error) { 
-        showToast("저장 실패"); 
-    } else { 
-        showToast("상담 일정이 확정되었습니다."); 
-        
-        const app = globalApps.find(a => String(a.id) === String(currentScheduleAppId));
-        const surveyLink = `https://www.wecoffee.co.kr/survey?uid=${currentScheduleAppId}&name=${encodeURIComponent(app.name || '')}`;
-        
-        window.closeScheduleModal(); 
-        window.fetchApplications(); 
-        window.openCustomConfirm("일정 확정 완료", null, `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, surveyLink, "복사하기");
-    }
-};
-
-window.updateAppStatus = async function(id, column, value) {
-    const app = globalApps.find(a => String(a.id) === String(id)); if (!app) return;
-    if (column === 'join_status' && app.join_status === '가입 완료' && value !== '가입 완료') {
-        window.openCustomConfirm("가입 취소 (롤백)", null, `해당 고객의 가입 처리를 취소하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500; display:block; margin-top:8px; line-height:1.5;">멤버 리스트와 결제 내역에서 해당 고객을 완전히 삭제하고,<br>상태를 [${value}](으)로 되돌리시겠습니까?</span>`, async () => {
-            await supabaseClient.from('members').delete().eq('phone', app.phone); await supabaseClient.from('member_history').delete().eq('member_phone', app.phone); await supabaseClient.from('applications').update({ join_status: value }).eq('id', id); showToast("멤버 리스트에서 삭제되고 롤백 되었습니다."); window.fetchApplications(); window.fetchMembers();
-        });
-        return;
-    }
-    if (column === 'join_status' && value === '가입 완료') {
-        window.openCustomConfirm("가입 완료 (멤버 전환)", null, `해당 고객을 멤버 리스트로 이관하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500; display:block; margin-top:8px; line-height:1.5;">당월 15일 기준에 따라 6개월 후 활동 종료일이 자동 세팅됩니다.</span>`, async () => {
-            if (!app.phone) { showToast("연락처가 없는 고객은 이관할 수 없습니다."); return; }
-            
-            const now = new Date();
-            let endY = now.getFullYear();
-            let endM = now.getMonth() + 6; 
-            let endDay = now.getDate() <= 15 ? 1 : 15;
-            let endDateObj = new Date(endY, endM, endDay);
-            const endDateStr = `${endDateObj.getFullYear()}-${String(endDateObj.getMonth()+1).padStart(2,'0')}-${String(endDateObj.getDate()).padStart(2,'0')}`;
-            
-            const targetBatch = app.desired_batch || '미정'; const targetName = app.name || '이름없음';
-            const { data: existingMember, error: checkErr } = await supabaseClient.from('members').select('*').eq('phone', app.phone).limit(1); if (checkErr) { showToast("멤버 조회 중 오류 발생"); return; }
-            let dbErr; if (existingMember && existingMember.length > 0) { const { error: updateErr } = await supabaseClient.from('members').update({ status: '활동 중', end_date: endDateStr, batch: targetBatch, name: targetName }).eq('phone', app.phone); dbErr = updateErr; } else { const { error: insertErr } = await supabaseClient.from('members').insert([{ name: targetName, phone: app.phone, batch: targetBatch, status: '활동 중', end_date: endDateStr }]); dbErr = insertErr; }
-            if(dbErr) { showToast(`이관 실패: members 테이블 오류`); return; }
-            await supabaseClient.from('member_history').insert([{ member_name: targetName, member_phone: app.phone, action_detail: '신규 가입 (6개월)', amount: '1,650,000원' }]); await supabaseClient.from('applications').update({ join_status: '가입 완료' }).eq('id', id); showToast("멤버 이관 및 내역 등록이 완료되었습니다."); window.fetchApplications(); window.fetchMembers();
-        });
-        return;
-    }
-    if (column === 'join_status' && value === '다음 기수 희망') {
-        let nextBatch = app.desired_batch; if (nextBatch && nextBatch.includes('기')) { let num = parseInt(nextBatch.replace(/[^0-9]/g, '')); if (!isNaN(num)) { nextBatch = (num + 1) + '기'; } }
-        window.openCustomConfirm("다음 기수 희망", null, `해당 고객의 희망 기수를 <b>[${nextBatch}]</b>로 자동 변경하시겠습니까?`, async () => { await supabaseClient.from('applications').update({ join_status: '다음 기수 희망', desired_batch: nextBatch }).eq('id', id); showToast("다음 기수로 이월되었습니다."); window.fetchApplications(); });
-        return;
-    }
-    const { error } = await supabaseClient.from('applications').update({ [column]: value }).eq('id', id); if (error) showToast("업데이트 실패"); else { showToast("상태가 업데이트 되었습니다."); window.fetchApplications(); }
-};
-
 window.renderAppTable = function(data) {
   if(!$("appTableBody")) return;
   const tbody = $("appTableBody"); tbody.innerHTML = ''; if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`; return; }
@@ -823,7 +701,6 @@ window.renderAppTable = function(data) {
         timeBadgeHtml = `<div class="edit-schedule-link" onclick="window.openScheduleModal('${row.id}', '${displayTime}', '${row.counselor_name}')">상담 일정 수정</div>`; 
         emptyJoinSpace = `<div class="edit-schedule-link" style="visibility:hidden; pointer-events:none;">-</div>`; 
     }
-    // 👇 호버 시 글자 굵기만 900으로 변경되게 수정 👇
     let hasSurvey = row.survey_job || row.survey_edu; let surveyBadge = hasSurvey ? `<span class="status-badge badge-orange" style="margin-right:8px; font-size:11px; padding:2px 6px;">설문완료</span>` : `<span class="status-badge badge-gray" style="margin-right:8px; font-size:11px; padding:2px 6px;">미응답</span>`; let nameHtml = `${surveyBadge}<strong style="cursor:pointer; color:var(--text-display); font-weight:700; transition:0.2s;" onmouseover="this.style.fontWeight='900'" onmouseout="this.style.fontWeight='700'" onclick="window.openCrmModal('${row.id}')">${window.escapeHtml(row.name) || '-'}</strong>`;
     let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span><span class="status-badge ${cStat}" style="margin:0 !important;">${row.status}</span></div><div class="m-prev-title">[${row.desired_batch || '-'}] ${window.escapeHtml(row.name) || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${window.escapeHtml(row.phone) || '-'})</span></div><div class="m-prev-desc">${window.escapeHtml(row.interest_area) || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     const tr = document.createElement('tr');
