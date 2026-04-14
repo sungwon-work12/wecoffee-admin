@@ -78,6 +78,7 @@ window.formatCounselTimeDisplay = function(val) {
     return `${ampm} ${hh12}:${mm}`;
 }
 
+// 복사 기능 멘트 동적 반영 (기본값 설정)
 window.copyTxt = function(txt, successMsg = "복사되었습니다.") {
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(txt).then(() => { showToast(successMsg); }).catch(err => { fallbackCopyTextToClipboard(txt, successMsg); });
@@ -98,6 +99,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   } catch (error) { return []; }
 };
 
+// 센터별 공간 리스트 동적 변경
 window.updateDashSpaceFilter = function() {
     let filter = $("dashSpaceFilter");
     if(!filter) return;
@@ -128,20 +130,37 @@ window.updateSpaceOptions = function() {
     dl.innerHTML = opts;
 };
 
+// 로그인 성공 시 화면 전환
+function handleLoginSuccess() {
+    var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
+    var dv = $("dashboard-view"); if(dv) dv.style.display = 'block'; 
+    let savedMain = localStorage.getItem('wecoffee_main_tab') || 'page-center'; 
+    let savedSub = localStorage.getItem('wecoffee_sub_tab') || 'sub-res';
+    if(savedSub === 'sub-trn' || savedSub === 'sub-blk') savedSub = 'sub-trn-blk';
+    let mainEl = document.querySelector(`.gnb-item[onclick*="${savedMain}"]`); 
+    if(mainEl) window.switchMainTab(savedMain, mainEl); 
+    else window.switchMainTab('page-center', document.querySelector(`.gnb-item[onclick*="page-center"]`));
+    if(savedMain === 'page-center') { 
+        let subEl = document.querySelector(`.sub-item[onclick*="${savedSub}"]`); 
+        if(subEl) window.switchSubTab(savedSub, subEl); 
+    }
+}
+
 function initializeApp() {
   window.fetchHolidays(new Date().getFullYear());
   if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
   
+  // 새로고침 시 세션 유지 방어 로직
+  supabaseClient.auth.getSession().then(({ data: { session } }) => {
+      if (session) handleLoginSuccess();
+  });
+
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { 
-      var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
-      var dv = $("dashboard-view"); if(dv) dv.style.display = 'block'; 
-      let savedMain = localStorage.getItem('wecoffee_main_tab') || 'page-center'; let savedSub = localStorage.getItem('wecoffee_sub_tab') || 'sub-res';
-      if(savedSub === 'sub-trn' || savedSub === 'sub-blk') savedSub = 'sub-trn-blk';
-      let mainEl = document.querySelector(`.gnb-item[onclick*="${savedMain}"]`); if(mainEl) window.switchMainTab(savedMain, mainEl); else window.switchMainTab('page-center', document.querySelector(`.gnb-item[onclick*="page-center"]`));
-      if(savedMain === 'page-center') { let subEl = document.querySelector(`.sub-item[onclick*="${savedSub}"]`); if(subEl) window.switchSubTab(savedSub, subEl); }
+        handleLoginSuccess();
     } else { 
-      var lv = $("login-view"); if(lv) lv.classList.add('active'); var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; 
+      var lv = $("login-view"); if(lv) lv.classList.add('active'); 
+      var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; 
     }
   });
 }
@@ -266,6 +285,7 @@ window.toggleDashView = function(view) { currentDashView = view; if(view === 'mo
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
 
+// 삭제되었던 일일 현황 배너 UI 개선하여 복원
 function updateDailyInOutBanner() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { 
@@ -285,7 +305,8 @@ function updateDailyInOutBanner() {
           let first = evts[0]; 
           evts.sort((a,b) => String(b.end||'').localeCompare(String(a.end||''))); 
           let last = evts[evts.length-1]; 
-          html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff; align-items:flex-start; text-align:left;">
+          html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff; align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;">
+              <div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px; width:100%;">${c}</div>
               <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px; width:100%;">
                   <span style="font-weight:800; font-size:15px; color:var(--text-display);">[${first.space}] ${window.escapeHtml(first.name)}</span>
                   <span style="color:var(--primary); font-size:13px; font-weight:800;">첫 입실 ${first.start}</span>
@@ -353,7 +374,6 @@ window.renderDashboard = async function() {
     let goEvts = [];
     try { goEvts = await window.fetchGoogleCalendarEvents(yyyy, mm + 1); } catch(e){}
 
-    // 👇 구글 캘린더 일정 필터 연동 👇
     goEvts.forEach(g => {
         let include = true;
         if (currentGlobalCenter !== '전체') {
@@ -555,6 +575,7 @@ window.renderCenterData = function() {
   if($("ordTableBodyMon")) renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon'); 
   if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
 
+  // 잔여 정원 로직 완벽 적용
   let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter); 
   if($("blkTableBody")) $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
       let max = b.capacity || '-'; 
