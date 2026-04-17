@@ -9,6 +9,7 @@ let currentSummaryData = [], currentInsightData = {};
 let isCrmReadOnly = false;
 let quillEditor = null;
 let isAppInitialized = false; 
+let realtimeChannel = null; // 💡 실시간 채널 변수 분리
 
 window.escapeHtml = function(unsafe) {
     if (!unsafe) return '';
@@ -137,9 +138,29 @@ window.updateSpaceOptions = function() {
     dl.innerHTML = opts;
 };
 
+// 💡 실시간(Realtime) 연동을 안전하게 묶어주는 함수
+function startRealtimeSync() {
+    if(realtimeChannel) return; // 중복 연결 방지
+    realtimeChannel = supabaseClient.channel('admin-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trainings' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blocks' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => { window.fetchApplications(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => { window.fetchMembers(); })
+      .subscribe((status) => {
+          console.log('Supabase Realtime Status:', status);
+      });
+}
+
 function handleLoginSuccess() {
     var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
     var dv = $("dashboard-view"); if(dv) dv.style.display = 'block'; 
+    
+    // 💡 로그인 완료 직후 실시간 감지 시작 (보안 정책 회피 및 즉각 반응)
+    startRealtimeSync();
+    
     let savedMain = localStorage.getItem('wecoffee_main_tab') || 'page-center'; 
     let savedSub = localStorage.getItem('wecoffee_sub_tab') || 'sub-res';
     if(savedSub === 'sub-trn' || savedSub === 'sub-blk') savedSub = 'sub-trn-blk';
@@ -173,25 +194,15 @@ function initializeApp() {
       var lv = $("login-view"); if(lv) lv.classList.add('active'); 
       var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; 
       isAppInitialized = false;
+      // 로그아웃 시 실시간 연결 해제
+      if(realtimeChannel) {
+          supabaseClient.removeChannel(realtimeChannel);
+          realtimeChannel = null;
+      }
     }
   });
 }
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
-
-// 💡 즉각적인 실시간 반영을 위한 로직
-supabaseClient.channel('admin-realtime')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, handleRealtimeCenter)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'trainings' }, handleRealtimeCenter)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handleRealtimeCenter)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'blocks' }, handleRealtimeCenter)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, handleRealtimeCenter)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => { window.fetchApplications(); })
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => { window.fetchMembers(); })
-  .subscribe();
-
-function handleRealtimeCenter() {
-    window.fetchCenterData(); 
-}
 
 window.switchMainTab = function(pageId, element) {
   $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
@@ -1211,13 +1222,13 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 텍스트 말줄임 및 단위 보존이 완벽하게 적용된 발주 요약
+// 💡 팝업창 가로 스크롤 완벽 통제 로직 적용
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
 
     let pendingOrders = gOrd.filter(o => {
-        if (o.status === '주문 취소' || o.status === '센터 도착' || o.status === '품절') return false;
+        if (['주문 취소', '센터 도착', '품절'].includes(o.status)) return false;
         let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
         let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
         let matchV = vOrd === '전체' ? true : o.vendor === vOrd;
@@ -1230,17 +1241,13 @@ window.showOrderSummary = function() {
         let summary = {};
         pendingOrders.forEach(o => {
             let center = o.center || '미지정';
-            let vendor = o.vendor;
-            
+            let dayType = String(o.item_name || '').includes('목') ? '목요일 발주' : '월요일 발주';
             let cNm = o.item_name;
             let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
-            if(m) cNm = m[1].trim();
-            else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
+            if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
 
-            let dayType = String(o.item_name || '').includes('목') ? '목요일 발주' : '월요일 발주';
-
-            let key = `${center}:::${dayType}:::${vendor}:::${cNm}`;
-            if(!summary[key]) summary[key] = { center: center, dayType: dayType, vendor: vendor, item: cNm, numQty: 0, unit: '', total: 0, orderers: [] };
+            let key = `${center}:::${dayType}:::${o.vendor}:::${cNm}`;
+            if(!summary[key]) summary[key] = { center, dayType, vendor: o.vendor, item: cNm, numQty: 0, unit: '', total: 0, orderers: [] };
             
             let rawQty = String(o.quantity || '0').trim();
             let numVal = parseFloat(rawQty.replace(/[^0-9.]/g, '')) || 0;
@@ -1252,55 +1259,50 @@ window.showOrderSummary = function() {
             if(!summary[key].unit) summary[key].unit = unitVal; 
             summary[key].total += price;
             
-            let batch = o.batch || '미정';
-            summary[key].orderers.push({ batch: batch, name: o.name, phone: o.phone, rawQty: rawQty, price: o.total_price || '0원' });
+            summary[key].orderers.push({ 
+                batch: o.batch || '미정', 
+                name: o.name, 
+                phone: o.phone, 
+                rawQty: rawQty, 
+                price: o.total_price || '0원' 
+            });
         });
         
         let html = `<div style="display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0;">`;
         let totalQtySum = 0; let grandTotal = 0;
-        
-        let sortedData = Object.values(summary).sort((a,b) => 
-            a.center.localeCompare(b.center) || 
-            a.dayType.localeCompare(b.dayType) || 
-            a.vendor.localeCompare(b.vendor)
-        );
+        let sortedData = Object.values(summary).sort((a,b) => a.center.localeCompare(b.center) || a.dayType.localeCompare(b.dayType) || a.vendor.localeCompare(b.vendor));
         
         let currentGroupLabel = '';
         sortedData.forEach(s => {
             let groupLabel = `${s.center} - ${s.dayType}`;
             if (currentGroupLabel !== groupLabel) {
                 currentGroupLabel = groupLabel;
-                html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:8px; border-bottom:2px solid var(--text-display); word-break:keep-all;">${currentGroupLabel} 요약</div>`;
+                html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:10px; border-bottom:3px solid var(--text-display); letter-spacing:-0.5px;">${currentGroupLabel} 요약</div>`;
             }
 
-            let ordererDetailText = '';
-            if (s.orderers.length === 1) {
-                ordererDetailText = `[${s.orderers[0].batch}] ${s.orderers[0].name}`;
-            } else {
-                ordererDetailText = s.orderers.map(o => `[${o.batch}] ${o.name}(${o.rawQty})`).join(', ');
-            }
+            let ordererDetailText = s.orderers.map(o => `${o.batch} | ${o.name}`).join(', ');
             
-            // 💡 텍스트 말줄임표 처리 및 툴팁을 추가하여 가로 스크롤 완전 차단
+            // 💡 Flexbox 자식 요소가 부모 영역을 뚫지 않도록 강제 (min-width: 0, flex: 1)
             let copyableHtml = `
-                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" title="클릭하여 복사" style="max-width: 100%; min-width:0;">
+                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" style="max-width: 100%; min-width: 0; flex: 1;">
                     <div style="display:flex; align-items:center; width:100%; min-width: 0;">
-                        <span class="copyable-text" style="font-size: 15px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; min-width:0;">${window.escapeHtml(s.item)}</span>
-                        <span class="copyable-hint" style="flex-shrink: 0; min-width: 32px;">복사</span>
+                        <span class="copyable-text" style="font-size: 16px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; min-width: 0;">${window.escapeHtml(s.item)}</span>
+                        <span class="copyable-hint" style="flex-shrink: 0; min-width: 32px; margin-left: 8px;">복사</span>
                     </div>
                 </div>`;
 
             html += `
-            <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); min-width:0;">
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--border); min-width: 0;">
                 <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div>
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; width: 100%; min-width: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; width: 100%; min-width: 0;">
                     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
                         ${copyableHtml}
-                        <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-top: 4px; word-break: break-all; white-space: normal;">
+                        <div style="font-size: 13px; font-weight: 500; color: var(--text-tertiary); margin-top: 6px; word-break: keep-all; white-space: normal;">
                             <span style="color:var(--primary); font-weight:700;">주문자:</span> ${ordererDetailText}
                         </div>
                     </div>
                     <div style="text-align: right; flex-shrink: 0; min-width: 60px;">
-                        <div style="font-size: 22px; font-weight: 900; color: var(--text-display); line-height: 1;">${s.numQty}<span style="font-size: 14px; margin-left: 2px; font-weight: 700;">${s.unit}</span></div>
+                        <div style="font-size: 22px; font-weight: 900; color: var(--text-display); line-height: 1;">${s.numQty}<span style="font-size: 14px; margin-left: 2px; font-weight:700;">${s.unit}</span></div>
                         <div style="font-size: 12px; font-weight: 500; color: var(--text-tertiary); margin-top: 6px;">${comma(s.total)}원</div>
                     </div>
                 </div>
@@ -1311,84 +1313,41 @@ window.showOrderSummary = function() {
         
         html += `
             <div style="margin-top: 12px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border-strong);">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량 합계</span>
-                    <span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalQtySum}</span>
-                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량 합계</span><span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalQtySum}kg/g</span></div>
                 <div style="height: 1px; background: var(--border); opacity: 0.5;"></div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 예상 금액 합계</span>
-                    <span style="font-size: 20px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span>
-                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 예상 금액 합계</span><span style="font-size: 20px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span></div>
             </div>
         </div>`;
         
         $("summaryModalBody").innerHTML = html;
-
-        let exportData = [];
-        sortedData.forEach(s => {
-            s.orderers.forEach(o => {
-                exportData.push({
-                    center: s.center, dayType: s.dayType, vendor: s.vendor, item: s.item, rawQty: o.rawQty, price: o.price,
-                    batch: o.batch, name: o.name, phone: o.phone
-                });
-            });
-        });
+        let exportData = []; sortedData.forEach(s => { s.orderers.forEach(o => { exportData.push({ center: s.center, dayType: s.dayType, vendor: s.vendor, item: s.item, rawQty: o.rawQty, price: o.price, batch: o.batch, name: o.name, phone: o.phone }); }); });
         window.currentSummaryData = exportData;
-
         let footerWrap = document.querySelector('#summaryModal .modal-content > div:last-child');
-        if(footerWrap) {
-            footerWrap.innerHTML = `
-                <button class="btn-outline" style="margin-right:8px; border-color:#32b06a; color:#32b06a;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button>
-                <button class="btn-primary" style="padding: 12px 24px; font-size: 14px;" onclick="window.downloadSummaryExcel()">엑셀 다운로드</button>
-            `;
-        }
+        if(footerWrap) footerWrap.innerHTML = `<button class="btn-outline" style="margin-right:8px; border-color:#32b06a; color:#32b06a;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button><button class="btn-primary" style="padding: 12px 24px; font-size: 14px;" onclick="window.downloadSummaryExcel()">엑셀 다운로드</button>`;
     }
-    
-    const modal = $("summaryModal");
-    if(modal) modal.classList.add('show');
+    const modal = $("summaryModal"); if(modal) modal.classList.add('show');
 };
 
-window.closeSummaryModal = function() {
-    const modal = $("summaryModal");
-    if(modal) modal.classList.remove('show');
-};
+window.closeSummaryModal = function() { const modal = $("summaryModal"); if(modal) modal.classList.remove('show'); };
 
 window.downloadSummaryExcel = function() {
-    if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
-        showToast('다운로드할 데이터가 없습니다.');
-        return;
-    }
+    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
     let csv = "\uFEFF수령 센터,발주 구분,생두사,상품명,수량,예상 금액,기수,성함,연락처\n";
-    window.currentSummaryData.forEach(s => {
-        let itemSafe = String(s.item).replace(/"/g, '""');
-        csv += `"${s.center}","${s.dayType}","${s.vendor}","${itemSafe}","${s.rawQty}","${s.price}","${s.batch}","${s.name}","${s.phone}"\n`;
+    window.currentSummaryData.forEach(s => { 
+        csv += `"${s.center}","${s.dayType}","${s.vendor}","${String(s.item).replace(/"/g, '""')}","${s.rawQty}","${s.price}","${s.batch}","${s.name}","${s.phone}"\n`; 
     });
-    
-    try {
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
-        const link = document.createElement('a'); 
-        link.href = URL.createObjectURL(blob); 
-        link.download = `위커피_센터별_발주명단_${new Date().toISOString().slice(0,10)}.csv`; 
-        document.body.appendChild(link);
-        link.click(); 
-        document.body.removeChild(link);
-        showToast("엑셀 파일이 생성되었습니다.");
-    } catch (e) {
-        showToast("다운로드 중 오류가 발생했습니다.");
-    }
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); 
+    link.download = `위커피_발주명단_${new Date().toISOString().slice(0,10)}.csv`; link.click(); 
 };
 
 window.sendToGoogleSheet = async function() {
-    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('전송할 데이터가 없습니다.'); return; }
-    
-    // 💡 연결된 구글 시트 주소
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxSq6pU9KMz7F97UW_LSX9TfjrfFZtZccQ4a6_9Aq5dcFO56N7lDkZVdXpNoDDUoiMl/exec'; 
+    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzs8edd6hW1wV1KeqTihnC0WDbl-T2Vs1Wu-4aMtwyKiL7zYKmQw2GYdKraEBrFCMP-/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
-    
     try {
         await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(window.currentSummaryData) });
-        showToast("시트로 데이터 전송 요청을 완료했습니다.");
-    } catch(e) { showToast("전송 중 네트워크 오류가 발생했습니다."); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
+        showToast("구글 시트 전송 요청 완료");
+    } catch(e) { showToast("전송 오류"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
