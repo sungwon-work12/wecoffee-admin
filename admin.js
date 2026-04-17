@@ -247,7 +247,7 @@ window.saveNoticeData = async function() {
     content: htmlContent, 
     is_pinned: $("noticePinned")?$("noticePinned").checked:false, 
     status: $("noticeStatus")?$("noticeStatus").value:"발행",
-    target_batch: $("noticeTargetBatch")?$("noticeTargetBatch").value.trim():"" 
+    target_batch: $("noticeTargetBatch")?$("noticeTargetBatch").value.trim():""
   }; 
   if(!payload.title) return showToast("제목을 입력해주세요."); 
   if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); 
@@ -874,7 +874,7 @@ window.renderAppDailyBanner = function(data) {
               timeStr = evt.call_time.includes(')') ? evt.call_time.split(')')[1].trim() : evt.call_time;
           }
           html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff; align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;">
-              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px; width:100%;">
+              <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;">
                   <span style="font-weight:800; font-size:15px; color:var(--text-display);">[${evt.desired_batch||'-'}] ${window.escapeHtml(evt.name)}</span>
                   <span style="color:var(--primary); font-size:13px; font-weight:800;">${timeStr}</span>
               </div>
@@ -1317,12 +1317,13 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
+// 💡 전면 개편된 발주 요약 기능
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
 
     let pendingOrders = gOrd.filter(o => {
-        if (o.status === '주문 취소' || o.status === '센터 도착') return false;
+        if (o.status === '주문 취소' || o.status === '센터 도착' || o.status === '품절') return false;
         let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
         let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
         let matchV = vOrd === '전체' ? true : o.vendor === vOrd;
@@ -1336,7 +1337,6 @@ window.showOrderSummary = function() {
         pendingOrders.forEach(o => {
             let center = o.center || '미지정';
             let vendor = o.vendor;
-            
             let cNm = o.item_name;
             let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
             if(m) cNm = m[1].trim();
@@ -1350,9 +1350,8 @@ window.showOrderSummary = function() {
 
             summary[key].qty += qtyNum;
             summary[key].total += price;
-            
-            let batch = o.batch || '미정';
-            summary[key].orderers.push(`[${batch}] ${window.escapeHtml(o.name)}(${o.quantity})`);
+            // 💡 데이터 전송용: 상세 정보를 객체로 저장
+            summary[key].orderers.push({ batch: o.batch || '미정', name: o.name, phone: o.phone, qty: o.quantity });
         });
         
         let html = `<div style="display: flex; flex-direction: column; gap: 16px; width: 100%;">`;
@@ -1367,8 +1366,10 @@ window.showOrderSummary = function() {
                 html += `<div style="font-size:16px; font-weight:800; color:var(--text-display); margin-top:8px; padding-bottom:8px; border-bottom:2px solid var(--text-display);">${currentCenterLabel} 발주 요약</div>`;
             }
 
-            let ordererStr = s.orderers.join(', ');
+            // UI용 주문자 요약 텍스트
+            let ordererSummaryText = s.orderers.map(o => `${o.name}(${o.qty})`).join(', ');
             
+            // 💡 호버 툴팁 적용된 말줄임 상품명
             let copyableHtml = `
                 <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" title="클릭하여 복사">
                     <div style="display:flex; align-items:center; width:100%; min-width: 0;">
@@ -1380,12 +1381,11 @@ window.showOrderSummary = function() {
             html += `
             <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border);">
                 <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div>
-                
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; width: 100%; min-width: 0;">
                     <div style="flex: 1; min-width: 0; overflow: visible;">
                         ${copyableHtml}
-                        <div style="font-size: 12px; font-weight: 600; color: var(--text-tertiary); margin-top: 6px; line-height: 1.4; word-break: keep-all;">
-                            <span style="color:var(--primary);">주문자:</span> ${ordererStr}
+                        <div style="font-size: 12px; font-weight: 600; color: var(--text-tertiary); margin-top: 6px;">
+                            <span style="color:var(--primary);">주문자:</span> ${ordererSummaryText}
                         </div>
                     </div>
                     <div style="text-align: right; flex-shrink: 0;">
@@ -1413,9 +1413,18 @@ window.showOrderSummary = function() {
         </div>`;
         
         $("summaryModalBody").innerHTML = html;
-        window.currentSummaryData = sortedData.map(s => ({
-            center: s.center, vendor: s.vendor, item: s.item, qty: s.qty, total: s.total, orderers: s.orderers.join(', ')
-        })); 
+
+        // 💡 엑셀/시트용 데이터를 개별 주문 건별로 평탄화(Flatten)
+        let exportData = [];
+        sortedData.forEach(s => {
+            s.orderers.forEach(o => {
+                exportData.push({
+                    center: s.center, vendor: s.vendor, item: s.item, qty: o.qty, total: s.total, // 품목별 합산가 노출
+                    batch: o.batch, name: o.name, phone: o.phone
+                });
+            });
+        });
+        window.currentSummaryData = exportData;
 
         let footerWrap = document.querySelector('#summaryModal .modal-content > div:last-child');
         if(footerWrap) {
@@ -1437,53 +1446,26 @@ window.closeSummaryModal = function() {
 
 window.downloadSummaryExcel = function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
-        showToast('다운로드할 데이터가 없습니다.');
-        return;
+        showToast('다운로드할 데이터가 없습니다.'); return;
     }
-    let csv = "\uFEFF수령 센터,생두사,상품명,합계 수량,예상 총액,주문자 내역\n";
+    let csv = "\uFEFF수령 센터,생두사,상품명,수량,기수,성함,연락처\n";
     window.currentSummaryData.forEach(s => {
-        let ordererSafe = String(s.orderers).replace(/"/g, '""');
-        let itemSafe = String(s.item).replace(/"/g, '""');
-        csv += `"${s.center}","${s.vendor}","${itemSafe}",${s.qty}kg,${s.total}원,"${ordererSafe}"\n`;
+        csv += `"${s.center}","${s.vendor}","${String(s.item).replace(/"/g, '""')}","${s.qty}","${s.batch}","${s.name}","${s.phone}"\n`;
     });
-    
-    try {
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
-        const link = document.createElement('a'); 
-        link.href = URL.createObjectURL(blob); 
-        link.download = `위커피_센터별_발주요약_${new Date().toISOString().slice(0,10)}.csv`; 
-        document.body.appendChild(link);
-        link.click(); 
-        document.body.removeChild(link);
-        showToast("엑셀 파일이 생성되었습니다.");
-    } catch (e) {
-        showToast("다운로드 중 오류가 발생했습니다.");
-    }
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+    const link = document.createElement('a'); 
+    link.href = URL.createObjectURL(blob); 
+    link.download = `위커피_상세_발주명단_${new Date().toISOString().slice(0,10)}.csv`; 
+    link.click(); 
 };
 
 window.sendToGoogleSheet = async function() {
-    if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
-        showToast('전송할 데이터가 없습니다.');
-        return;
-    }
-    
+    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('전송할 데이터가 없습니다.'); return; }
     const GAS_URL = 'https://script.google.com/macros/s/AKfycby46eKdVwOUa6n7U2f4mJ0Yw7aa4UPVs8b_sF3kIjn8g-ZsahxnAk3c60MHaWLa7Jye/exec'; 
-
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
-
     try {
-        await fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(window.currentSummaryData)
-        });
-        showToast("시트로 데이터 전송 요청을 완료했습니다.");
-    } catch(e) {
-        console.error(e);
-        showToast("전송 중 네트워크 오류가 발생했습니다."); 
-    } finally {
-        if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; }
-    }
+        await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(window.currentSummaryData) });
+        showToast("시트로 상세 데이터 전송을 완료했습니다.");
+    } catch(e) { showToast("전송 오류 발생"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
