@@ -108,7 +108,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   } catch (error) { return []; }
 };
 
-// 💡 1. 요청하신 최신 장비/공간 스펙 완벽 업데이트
+// 💡 마포/광진 센터별 최신 스펙 완벽 분리 반영 완료
 window.updateDashSpaceFilter = function() {
     let filter = $("dashSpaceFilter");
     if(!filter) return;
@@ -407,7 +407,6 @@ window.toggleDashView = function(view) { currentDashView = view; if(view === 'mo
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
 
-// 💡 금일 출입 현황 (UI 폰트/컬러 위계 통일 완료)
 function updateDailyInOutBanner() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { 
@@ -850,6 +849,7 @@ window.renderMCalCenter = function(selDate) {
   if(listWrap) listWrap.innerHTML = html; 
 };
 
+// 💡 3. 가입 상담 캘린더 실종 버그 완벽 방어 (Try-Catch 예외 처리)
 window.renderAppDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + appDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentAppDashView === 'month' && $("appDashMonthTitle")) $("appDashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; await window.fetchHolidays(yyyy);
@@ -857,26 +857,32 @@ window.renderAppDashboard = async function() {
     if (currentAppDashView === 'week') { let startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currDay); for(let i = 0; i < 7; i++) { let dObj = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i); let ds = `${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`; calEvts[ds] = []; } } else { for(let d=1; d<=daysInMonth; d++) { let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; calEvts[ds] = []; } }
     
     scheduledApps.forEach(app => { 
-        let callTimeStr = String(app.call_time||'');
-        let m = callTimeStr.match(/(\d+)년\s*(\d+)월\s*(\d+)일/); 
-        let appY, appM, appD;
+        try {
+            let callTimeStr = String(app.call_time||'');
+            if(!callTimeStr || callTimeStr.trim() === '' || callTimeStr === '미정' || callTimeStr === 'null') return;
 
-        if (m) { 
-            appY = parseInt(m[1]); appM = parseInt(m[2]); appD = parseInt(m[3]); 
-        } else {
-            let m2 = callTimeStr.match(/(\d+)월\s*(\d+)일/);
-            if(m2) {
-                appY = now.getFullYear(); appM = parseInt(m2[1]); appD = parseInt(m2[2]);
+            let m = callTimeStr.match(/(\d+)년\s*(\d+)월\s*(\d+)일/); 
+            let appY, appM, appD;
+
+            if (m) { 
+                appY = parseInt(m[1]); appM = parseInt(m[2]); appD = parseInt(m[3]); 
+            } else {
+                let m2 = callTimeStr.match(/(\d+)월\s*(\d+)일/);
+                if(m2) {
+                    appY = now.getFullYear(); appM = parseInt(m2[1]); appD = parseInt(m2[2]);
+                }
             }
-        }
 
-        if(appY && appM && appD) {
-            let ds = `${appY}-${String(appM).padStart(2,'0')}-${String(appD).padStart(2,'0')}`; 
-            if (calEvts[ds]) { 
-                const tm = callTimeStr.match(/(오전|오후)\s+(\d+):(\d+)/); 
-                let timeStr = tm ? `${tm[1]} ${tm[2]}:${tm[3]}` : (callTimeStr.includes(')') ? callTimeStr.split(')')[1].trim() : callTimeStr); 
-                calEvts[ds].push({ time: timeStr, text: `[${app.desired_batch||'-'}] ${app.name}`, tooltip: `${timeStr} | 담당: ${app.counselor_name||'미정'}`}); 
-            } 
+            if(appY && appM && appD) {
+                let ds = `${appY}-${String(appM).padStart(2,'0')}-${String(appD).padStart(2,'0')}`; 
+                if (calEvts[ds]) { 
+                    const tm = callTimeStr.match(/(오전|오후)\s+(\d+):(\d+)/); 
+                    let timeStr = tm ? `${tm[1]} ${tm[2]}:${tm[3]}` : (callTimeStr.includes(')') ? callTimeStr.split(')')[1].trim() : callTimeStr); 
+                    calEvts[ds].push({ time: timeStr, text: `[${app.desired_batch||'-'}] ${app.name}`, tooltip: `${timeStr} | 담당: ${app.counselor_name||'미정'}`}); 
+                } 
+            }
+        } catch (e) {
+            console.warn("캘린더 시간 파싱 에러 (무시됨):", app.call_time);
         }
     });
     
@@ -918,6 +924,48 @@ window.renderMCalApp = function(selDate) {
     if(listWrap) listWrap.innerHTML = html; 
 };
 
+// 💡 3. 가입 상담 배너 렌더링 함수 복원
+window.renderAppDailyBanner = function(filteredApps) {
+    let today = new Date();
+    let y = today.getFullYear();
+    let m = String(today.getMonth() + 1).padStart(2, '0');
+    let d = String(today.getDate()).padStart(2, '0');
+    
+    // 타겟 날짜 문자열 (예: "2026년 04월 18일" 또는 "2026년 4월 18일")
+    let targetDateRegex = new RegExp(`${y}년\\s*0?${parseInt(m)}월\\s*0?${parseInt(d)}일`);
+
+    let todaysApps = filteredApps.filter(app => {
+        if(app.status !== '상담 일정 확정') return false;
+        let cTime = String(app.call_time||'');
+        return targetDateRegex.test(cTime);
+    });
+
+    todaysApps.sort((a,b) => {
+        let tA = String(a.call_time||'').match(/(오전|오후)\s+(\d+):(\d+)/);
+        let tB = String(b.call_time||'').match(/(오전|오후)\s+(\d+):(\d+)/);
+        let timeA = tA ? (tA[1]==='오후' && tA[2]!=='12' ? parseInt(tA[2])+12 : (tA[1]==='오전' && tA[2]==='12' ? 0 : parseInt(tA[2]))) * 60 + parseInt(tA[3]) : 0;
+        let timeB = tB ? (tB[1]==='오후' && tB[2]!=='12' ? parseInt(tB[2])+12 : (tB[1]==='오전' && tB[2]==='12' ? 0 : parseInt(tB[2]))) * 60 + parseInt(tB[3]) : 0;
+        return timeA - timeB;
+    });
+
+    let html = '';
+    if(todaysApps.length === 0) {
+        html = `<div class="inout-card" style="text-align:center; color:var(--text-secondary); width:100%; padding:20px; border-radius:12px; border:1px solid var(--border-strong); background:#fff;">오늘 예정된 상담이 없습니다.</div>`;
+    } else {
+        todaysApps.forEach(app => {
+            let tm = String(app.call_time||'').match(/(오전|오후)\s+(\d+):(\d+)/);
+            let tStr = tm ? `${tm[1]} ${tm[2]}:${tm[3]}` : '시간 미정';
+            html += `<div class="inout-card" style="padding:16px; border:1px solid var(--primary); background:#fffaf5; border-radius:12px; width:calc(50% - 8px); min-width:280px; box-sizing:border-box; margin-bottom:8px;">
+                <div style="font-weight:800; color:var(--primary); margin-bottom:8px;">${tStr}</div>
+                <div style="font-weight:800; color:var(--text-display); font-size:15px;">[${app.desired_batch||'-'}] ${window.escapeHtml(app.name)}</div>
+                <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">담당: ${window.escapeHtml(app.counselor_name||'미정')}</div>
+            </div>`;
+        });
+        html = `<div style="display:flex; flex-wrap:wrap; gap:16px;">${html}</div>`;
+    }
+    if($("appDailyBanner")) $("appDailyBanner").innerHTML = html;
+};
+
 window.toggleInsight = function() { 
     isInsightView = !isInsightView; 
     let insightArea = $("app-insight-area");
@@ -940,7 +988,21 @@ window.fetchApplications = async function() {
       if ($("crmModal") && $("crmModal").classList.contains('show') && $("crmAppId").value) { window.renderCrmInner($("crmAppId").value, isCrmReadOnly); } 
   } catch(e) { console.error(e); }
 }
-window.applyFilterApp = function() { try { const selected = $("batchFilterApp").value; const filtered = selected === 'all' ? globalApps : globalApps.filter(d => d.desired_batch === selected); if (isInsightView) window.renderStatistics(filtered); else { window.renderAppTable(filtered); window.renderAppDailyBanner(filtered); window.renderAppDashboard(); } } catch(e) { console.error(e); } }
+
+window.applyFilterApp = function() { 
+    try { 
+        const selected = $("batchFilterApp").value; 
+        const filtered = selected === 'all' ? globalApps : globalApps.filter(d => d.desired_batch === selected); 
+        
+        if (isInsightView) {
+            window.renderStatistics(filtered); 
+        } else { 
+            window.renderAppTable(filtered); 
+            window.renderAppDailyBanner(filtered); 
+            window.renderAppDashboard(); 
+        } 
+    } catch(e) { console.error(e); } 
+}
 
 const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed', '품절': 'st-ghosted' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
@@ -1253,7 +1315,6 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 팝업창 텍스트 최적화 및 가로 스크롤 방지 
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1308,23 +1369,21 @@ window.showOrderSummary = function() {
             let groupLabel = `${s.center} - ${s.dayType}`;
             if (currentGroupLabel !== groupLabel) {
                 currentGroupLabel = groupLabel;
-                html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:8px; border-bottom:2px solid var(--text-display); word-break:keep-all;">${currentGroupLabel} 요약</div>`;
+                html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:10px; border-bottom:3px solid var(--text-display); letter-spacing:-0.5px;">${currentGroupLabel} 요약</div>`;
             }
 
-            // 💡 수정: 단일 주문자일 경우 수량 중복 표시 제거
             let ordererDetailText = s.orderers.length === 1 
                 ? `[${s.orderers[0].batch}] ${s.orderers[0].name}` 
                 : s.orderers.map(o => `[${o.batch}] ${o.name}(${o.rawQty})`).join(', ');
             
             let copyableHtml = `
-                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" title="클릭하여 복사" style="max-width: 100%; min-width:0;">
+                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" style="max-width: 100%; min-width:0;">
                     <div style="display:flex; align-items:center; width:100%; min-width: 0;">
-                        <span class="copyable-text" style="font-size: 15px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; min-width:0;">${window.escapeHtml(s.item)}</span>
+                        <span class="copyable-text" style="font-size: 16px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; min-width:0;">${window.escapeHtml(s.item)}</span>
                         <span class="copyable-hint" style="flex-shrink: 0; min-width: 32px; margin-left: 8px;">복사</span>
                     </div>
                 </div>`;
 
-            // 💡 수정: 뜬금없는 오렌지색 제거 (var(--text-secondary) 사용)
             html += `
             <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); min-width:0;">
                 <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div>
