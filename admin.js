@@ -108,17 +108,18 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   } catch (error) { return []; }
 };
 
+// 💡 1. 요청하신 최신 장비/공간 스펙 완벽 업데이트
 window.updateDashSpaceFilter = function() {
     let filter = $("dashSpaceFilter");
     if(!filter) return;
     let currentVal = filter.value;
     let html = `<option value="전체">전체 공간</option>`;
     if(currentGlobalCenter === '마포 센터') {
-         html += `<option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
+         html += `<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
     } else if (currentGlobalCenter === '광진 센터') {
-         html += `<option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디룸">스터디룸</option>`;
+         html += `<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디룸">스터디룸</option>`;
     } else {
-         html += `<option value="로스팅존">로스팅존</option><option value="에스프레소존">에스프레소존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디">스터디존/룸</option>`;
+         html += `<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디">스터디존/룸</option>`;
     }
     filter.innerHTML = html;
     if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal;
@@ -131,9 +132,37 @@ window.updateSpaceOptions = function() {
     if(!dl) return;
     let opts = `<option value="전체">전체 (공간 전체)</option>`;
     if (center === '마포 센터') {
-        opts += `<option value="로스팅존"></option><option value="에스프레소존"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디존"></option><option value="아스토리아 스톰 2그룹 / 좌 그룹"></option><option value="아스토리아 스톰 2그룹 / 우 그룹"></option><option value="이지스터 800 1번"></option><option value="이지스터 800 2번"></option><option value="이지스터 1.8"></option><option value="스트롱홀드 S7X"></option>`;
+        opts += `
+            <option value="에스프레소존"></option>
+            <option value="아스토리아 스톰 2그룹 / 좌 그룹"></option>
+            <option value="아스토리아 스톰 2그룹 / 우 그룹"></option>
+            <option value="로스팅존"></option>
+            <option value="이지스터 800 1번 (좌)"></option>
+            <option value="이지스터 800 2번 (우)"></option>
+            <option value="이지스터 1.8"></option>
+            <option value="스트롱홀드 S7X"></option>
+            <option value="브루잉존"></option>
+            <option value="커핑존"></option>
+            <option value="스터디존"></option>
+        `;
     } else {
-        opts += `<option value="로스팅존"></option><option value="에스프레소존"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디룸"></option><option value="시네소 MVP 하이드라 2그룹 / 좌 그룹"></option><option value="시네소 MVP 하이드라 2그룹 / 우 그룹"></option><option value="페마 페미나 1그룹"></option><option value="산레모 You 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 프로 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 EXP 1그룹"></option><option value="이지스터 800 1번"></option><option value="이지스터 800 2번"></option><option value="이지스터 1.8 1번"></option>`;
+        opts += `
+            <option value="에스프레소존"></option>
+            <option value="시네소 MVP 하이드라 1번그룹 (좌)"></option>
+            <option value="시네소 MVP 하이드라 2번그룹 (우)"></option>
+            <option value="페마 페미나 1그룹"></option>
+            <option value="산레모 You 1그룹"></option>
+            <option value="빅토리아 아르두이노 이글원 프리마 프로 1그룹"></option>
+            <option value="빅토리아 아르두이노 이글원 프리마 EXP 1그룹"></option>
+            <option value="로스팅존"></option>
+            <option value="이지스터 800 1번 (좌)"></option>
+            <option value="이지스터 800 2번 (우)"></option>
+            <option value="이지스터 1.8 1번 (좌)"></option>
+            <option value="이지스터 1.8 2번"></option>
+            <option value="브루잉존"></option>
+            <option value="커핑존"></option>
+            <option value="스터디룸"></option>
+        `;
     }
     dl.innerHTML = opts;
 };
@@ -378,7 +407,7 @@ window.toggleDashView = function(view) { currentDashView = view; if(view === 'mo
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
 
-// 💡 금일 출입 현황 (UI 폰트/컬러 위계 통일)
+// 💡 금일 출입 현황 (UI 폰트/컬러 위계 통일 완료)
 function updateDailyInOutBanner() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { 
@@ -1224,6 +1253,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
+// 💡 팝업창 텍스트 최적화 및 가로 스크롤 방지 
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1278,31 +1308,35 @@ window.showOrderSummary = function() {
             let groupLabel = `${s.center} - ${s.dayType}`;
             if (currentGroupLabel !== groupLabel) {
                 currentGroupLabel = groupLabel;
-                html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:10px; border-bottom:3px solid var(--text-display); letter-spacing:-0.5px;">${currentGroupLabel} 요약</div>`;
+                html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:8px; border-bottom:2px solid var(--text-display); word-break:keep-all;">${currentGroupLabel} 요약</div>`;
             }
 
-            let ordererDetailText = s.orderers.map(o => `[${o.batch}] ${o.name}`).join(', ');
+            // 💡 수정: 단일 주문자일 경우 수량 중복 표시 제거
+            let ordererDetailText = s.orderers.length === 1 
+                ? `[${s.orderers[0].batch}] ${s.orderers[0].name}` 
+                : s.orderers.map(o => `[${o.batch}] ${o.name}(${o.rawQty})`).join(', ');
             
             let copyableHtml = `
-                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" style="max-width: 100%; min-width: 0; flex: 1;">
+                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" title="클릭하여 복사" style="max-width: 100%; min-width:0;">
                     <div style="display:flex; align-items:center; width:100%; min-width: 0;">
-                        <span class="copyable-text" style="font-size: 16px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; min-width: 0;">${window.escapeHtml(s.item)}</span>
+                        <span class="copyable-text" style="font-size: 15px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; min-width:0;">${window.escapeHtml(s.item)}</span>
                         <span class="copyable-hint" style="flex-shrink: 0; min-width: 32px; margin-left: 8px;">복사</span>
                     </div>
                 </div>`;
 
+            // 💡 수정: 뜬금없는 오렌지색 제거 (var(--text-secondary) 사용)
             html += `
-            <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--border); min-width: 0;">
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); min-width:0;">
                 <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div>
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; width: 100%; min-width: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; width: 100%; min-width: 0;">
                     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
                         ${copyableHtml}
-                        <div style="font-size: 13px; font-weight: 500; color: var(--text-tertiary); margin-top: 6px; word-break: keep-all; white-space: normal;">
-                            <span style="font-weight:600; color: var(--text-secondary);">주문자:</span> ${ordererDetailText}
+                        <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-top: 4px; word-break: break-all; white-space: normal;">
+                            <span style="font-weight:700; color: var(--text-secondary);">주문자:</span> ${ordererDetailText}
                         </div>
                     </div>
                     <div style="text-align: right; flex-shrink: 0; min-width: 60px;">
-                        <div style="font-size: 22px; font-weight: 900; color: var(--text-display); line-height: 1;">${s.numQty}<span style="font-size: 14px; margin-left: 2px; font-weight:700;">${s.unit}</span></div>
+                        <div style="font-size: 22px; font-weight: 900; color: var(--text-display); line-height: 1;">${s.numQty}<span style="font-size: 14px; margin-left: 2px; font-weight: 700;">${s.unit}</span></div>
                         <div style="font-size: 12px; font-weight: 500; color: var(--text-tertiary); margin-top: 6px;">${comma(s.total)}원</div>
                     </div>
                 </div>
@@ -1313,41 +1347,83 @@ window.showOrderSummary = function() {
         
         html += `
             <div style="margin-top: 12px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border-strong);">
-                <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량 합계</span><span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalQtySum}kg/g</span></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량 합계</span>
+                    <span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalQtySum}</span>
+                </div>
                 <div style="height: 1px; background: var(--border); opacity: 0.5;"></div>
-                <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 예상 금액 합계</span><span style="font-size: 20px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 예상 금액 합계</span>
+                    <span style="font-size: 20px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span>
+                </div>
             </div>
         </div>`;
         
         $("summaryModalBody").innerHTML = html;
-        let exportData = []; sortedData.forEach(s => { s.orderers.forEach(o => { exportData.push({ center: s.center, dayType: s.dayType, vendor: s.vendor, item: s.item, rawQty: o.rawQty, price: o.price, batch: o.batch, name: o.name, phone: o.phone }); }); });
+
+        let exportData = [];
+        sortedData.forEach(s => {
+            s.orderers.forEach(o => {
+                exportData.push({
+                    center: s.center, dayType: s.dayType, vendor: s.vendor, item: s.item, rawQty: o.rawQty, price: o.price,
+                    batch: o.batch, name: o.name, phone: o.phone
+                });
+            });
+        });
         window.currentSummaryData = exportData;
+
         let footerWrap = document.querySelector('#summaryModal .modal-content > div:last-child');
-        if(footerWrap) footerWrap.innerHTML = `<button class="btn-outline" style="margin-right:8px; border-color:#32b06a; color:#32b06a;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button><button class="btn-primary" style="padding: 12px 24px; font-size: 14px;" onclick="window.downloadSummaryExcel()">엑셀 다운로드</button>`;
+        if(footerWrap) {
+            footerWrap.innerHTML = `
+                <button class="btn-outline" style="margin-right:8px; border-color:#32b06a; color:#32b06a;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button>
+                <button class="btn-primary" style="padding: 12px 24px; font-size: 14px;" onclick="window.downloadSummaryExcel()">엑셀 다운로드</button>
+            `;
+        }
     }
-    const modal = $("summaryModal"); if(modal) modal.classList.add('show');
+    
+    const modal = $("summaryModal");
+    if(modal) modal.classList.add('show');
 };
 
-window.closeSummaryModal = function() { const modal = $("summaryModal"); if(modal) modal.classList.remove('show'); };
+window.closeSummaryModal = function() {
+    const modal = $("summaryModal");
+    if(modal) modal.classList.remove('show');
+};
 
 window.downloadSummaryExcel = function() {
-    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
+    if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
+        showToast('다운로드할 데이터가 없습니다.');
+        return;
+    }
     let csv = "\uFEFF수령 센터,발주 구분,생두사,상품명,수량,예상 금액,기수,성함,연락처\n";
-    window.currentSummaryData.forEach(s => { 
-        csv += `"${s.center}","${s.dayType}","${s.vendor}","${String(s.item).replace(/"/g, '""')}","${s.rawQty}","${s.price}","${s.batch}","${s.name}","${s.phone}"\n`; 
+    window.currentSummaryData.forEach(s => {
+        let itemSafe = String(s.item).replace(/"/g, '""');
+        csv += `"${s.center}","${s.dayType}","${s.vendor}","${itemSafe}","${s.rawQty}","${s.price}","${s.batch}","${s.name}","${s.phone}"\n`;
     });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
-    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); 
-    link.download = `위커피_발주명단_${new Date().toISOString().slice(0,10)}.csv`; link.click(); 
+    
+    try {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+        const link = document.createElement('a'); 
+        link.href = URL.createObjectURL(blob); 
+        link.download = `위커피_센터별_발주명단_${new Date().toISOString().slice(0,10)}.csv`; 
+        document.body.appendChild(link);
+        link.click(); 
+        document.body.removeChild(link);
+        showToast("엑셀 파일이 생성되었습니다.");
+    } catch (e) {
+        showToast("다운로드 중 오류가 발생했습니다.");
+    }
 };
 
 window.sendToGoogleSheet = async function() {
-    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
+    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('전송할 데이터가 없습니다.'); return; }
+    
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzs8edd6hW1wV1KeqTihnC0WDbl-T2Vs1Wu-4aMtwyKiL7zYKmQw2GYdKraEBrFCMP-/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
+    
     try {
         await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(window.currentSummaryData) });
-        showToast("구글 시트 전송 요청 완료");
-    } catch(e) { showToast("전송 오류"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
+        showToast("시트로 데이터 전송 요청을 완료했습니다.");
+    } catch(e) { showToast("전송 중 네트워크 오류가 발생했습니다."); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
