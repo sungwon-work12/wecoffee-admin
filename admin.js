@@ -247,7 +247,7 @@ window.saveNoticeData = async function() {
     content: htmlContent, 
     is_pinned: $("noticePinned")?$("noticePinned").checked:false, 
     status: $("noticeStatus")?$("noticeStatus").value:"발행",
-    target_batch: $("noticeTargetBatch")?$("noticeTargetBatch").value.trim():"" 
+    target_batch: $("noticeTargetBatch")?$("noticeTargetBatch").value.trim():""
   }; 
   if(!payload.title) return showToast("제목을 입력해주세요."); 
   if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); 
@@ -404,6 +404,41 @@ function updateDailyInOutBanner() {
   if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; 
 }
 
+// 💡 1. 리스트별 생명주기(만료/숨김)를 판단하는 헬퍼 함수들
+function isOrderExpired(order, now, isThuOrder) {
+    let oDate = new Date(order.created_at);
+    let status = order.status || '주문 접수';
+    
+    // 취소/품절 건은 48시간(이틀) 뒤 완벽 숨김
+    if (status === '주문 취소' || status === '품절') {
+        return (now.getTime() - oDate.getTime()) > 48 * 60 * 60 * 1000;
+    }
+    // 센터 도착 건은 7일 후 완벽 숨김
+    if (status === '센터 도착') {
+        return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
+    }
+    // 입금 관련 프로세스는 절대 숨기지 않음
+    if (['입금 대기', '입금 확인 중', '입금 확인'].includes(status)) {
+        return false;
+    }
+    // 주문 접수 건: 발주 요일(월/목)의 오전 10시 10분이 지나면 마감으로 간주하여 숨김
+    if (status === '주문 접수' || status === '대기') {
+        let deadline = new Date(oDate);
+        deadline.setHours(10, 10, 0, 0);
+        let targetDay = isThuOrder ? 4 : 1; // 4=Thu, 1=Mon
+        let daysToAdd = (targetDay - deadline.getDay() + 7) % 7;
+        
+        // 당일 접수인데 10시 10분이 넘은 경우 다음 주로 이월
+        if (daysToAdd === 0 && (oDate.getHours() > 10 || (oDate.getHours() === 10 && oDate.getMinutes() >= 10))) {
+            daysToAdd = 7;
+        }
+        deadline.setDate(deadline.getDate() + daysToAdd);
+        
+        return now.getTime() > deadline.getTime();
+    }
+    return false;
+}
+
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -443,9 +478,13 @@ window.fetchCenterData = async function() {
 }
 
 window.renderCenterData = function() {
-  const oneMonthAgo = new Date(); oneMonthAgo.setDate(oneMonthAgo.getDate() - 30); const now = new Date(); 
+  const now = new Date(); 
+  const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
+  let todayForBlk = new Date(); todayForBlk.setHours(0,0,0,0);
+
   try { updateDailyInOutBanner(); } catch(e) {}
   
+  // 예약 현황
   try {
       let qRes = ($("searchRes")?.value || "").toLowerCase(); 
       let sRes = $("resSpaceFilter")?.value || "전체";
@@ -457,22 +496,36 @@ window.renderCenterData = function() {
       if($("resTableBody")) $("resTableBody").innerHTML = fRes.length ? fRes.map(r=>{ let displayStatus = r.status || ''; let actBtn = String(displayStatus).includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; let endTimeStr = String(r.res_time||"").split('~')[1]; if (endTimeStr && r.res_date && !String(displayStatus).includes('취소')) { let [hh, mm] = endTimeStr.trim().split(':'); let resEndObj = new Date(`${r.res_date}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`); if (resEndObj < now) displayStatus = '이용완료'; } let badgeClass = String(displayStatus).includes('취소') ? 'badge-red' : (displayStatus === '이용완료' ? 'badge-gray' : (displayStatus === '예약완료' ? 'badge-green' : 'badge-gray')); let dow = getDow(r.res_date); let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${r.batch||'-'}] ${window.escapeHtml(r.name)}</span><span class="status-badge ${badgeClass}">${displayStatus}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${r.res_date}(${dow}) ${r.res_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${r.center}] ${r.space_equip || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
   
+  // 💡 수정됨: 신청자 리스트 생명주기 (수업일이 어제가 되면 숨김)
   try {
       let qTrn = ($("searchTrn")?.value || "").toLowerCase(); 
       let sTrn = $("trnContentFilter")?.value || "전체";
       let fTrnList = gTrn.filter(t => { 
-          let tDate = new Date(t.created_at); 
           let matchContent = true;
+          let cInfo = String(t.content||'').split(' || ');
+          
           if(sTrn !== '전체') {
-              let cInfo = String(t.content||'').split(' || ');
               let targetStr = cInfo.length >= 5 ? `[${cInfo[2]}] ${cInfo[4]}` : String(t.content||'');
               if(targetStr !== sTrn) matchContent = false;
           }
-          return (tDate >= oneMonthAgo) && (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
+          
+          // 수업일이 어제가 되면 숨김
+          if (cInfo.length >= 5) {
+              let tDateObj = new Date(cInfo[0].trim());
+              tDateObj.setHours(0,0,0,0);
+              if (tDateObj < todayForBlk) return false; 
+          } else {
+              // 콘텐츠 포맷이 깨진 옛날 데이터는 30일 기준 적용
+              let tDate = new Date(t.created_at);
+              if (tDate < oneMonthAgo) return false;
+          }
+
+          return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
       });
       if($("trnTableBody")) $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ let displayStatus = t.status || ''; let actBtn = String(displayStatus).includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('trainings', '${t.id}')">취소</button>`; let cInfo = String(t.content||'').split(' || '); let niceContent = t.content; let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; if(cInfo.length >= 5) { niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; } let dow = getDow(preDate); let badgeClass = String(displayStatus).includes('취소')?'badge-red':displayStatus==='접수완료'?'badge-green':'badge-gray'; let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${t.batch||'-'}] ${window.escapeHtml(t.name)}</span><span class="status-badge ${badgeClass}">${displayStatus}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${preDate}(${dow}) ${preTime}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${preCenter}] ${window.escapeHtml(preName)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(t.name)}</strong></td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
   
+  // 💡 수정됨: 생두 주문 관리 생명주기 (상태별 디테일 타이머)
   try {
       let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
       let fOrd = gOrd.filter(o => { 
@@ -484,15 +537,18 @@ window.renderCenterData = function() {
       }); 
       
       let thuOrders = fOrd.filter(o => String(o.item_name||'').includes('목')); let monOrders = fOrd.filter(o => !String(o.item_name||'').includes('목')); 
-      if (!isOrdFilter) { let isMonHidden = (o) => { if (o.status !== '주문 취소' && o.status !== '센터 도착') return false; let oDate = new Date(o.created_at); if ((now - oDate) / 86400000 >= 5) return true; let dow = now.getDay(); if (dow === 2 || dow === 3 || dow === 4) return true; return false; }; let isThuHidden = (o) => { if (o.status !== '주문 취소' && o.status !== '센터 도착') return false; let oDate = new Date(o.created_at); if ((now - oDate) / 86400000 >= 5) return true; let dow = now.getDay(); if (dow === 5 || dow === 6 || dow === 0) return true; return false; }; monOrders = monOrders.filter(o => !isMonHidden(o)); thuOrders = thuOrders.filter(o => !isThuHidden(o)); }
+      
+      if (!isOrdFilter) { 
+          monOrders = monOrders.filter(o => !isOrderExpired(o, now, false)); 
+          thuOrders = thuOrders.filter(o => !isOrderExpired(o, now, true)); 
+      }
+
       if($("ordTableBodyMon")) renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon'); 
       if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
   } catch(e) { console.error(e); }
 
+  // 스케줄 리스트 (어제가 되면 숨김)
   try {
-      let todayForBlk = new Date();
-      todayForBlk.setHours(0,0,0,0);
-      
       let fBlk = gBlk.filter(b => {
           let bDate = new Date(b.block_date);
           bDate.setHours(0,0,0,0);
@@ -1317,12 +1373,41 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-/** 💡 텍스트 말줄임 및 단위 보존이 완벽하게 적용된 발주 요약 */
+// 💡 1. 리스트별 생명주기(만료/숨김)를 판단하는 헬퍼 함수
+function isOrderExpired(order, now, isThuOrder) {
+    let oDate = new Date(order.created_at);
+    let status = order.status || '주문 접수';
+    
+    if (status === '주문 취소' || status === '품절') {
+        return (now.getTime() - oDate.getTime()) > 48 * 60 * 60 * 1000;
+    }
+    if (status === '센터 도착') {
+        return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
+    }
+    if (['입금 대기', '입금 확인 중', '입금 확인'].includes(status)) {
+        return false;
+    }
+    if (status === '주문 접수' || status === '대기') {
+        let deadline = new Date(oDate);
+        deadline.setHours(10, 10, 0, 0);
+        let targetDay = isThuOrder ? 4 : 1; // 4=Thu, 1=Mon
+        let daysToAdd = (targetDay - deadline.getDay() + 7) % 7;
+        
+        if (daysToAdd === 0 && (oDate.getHours() > 10 || (oDate.getHours() === 10 && oDate.getMinutes() >= 10))) {
+            daysToAdd = 7;
+        }
+        deadline.setDate(deadline.getDate() + daysToAdd);
+        
+        return now.getTime() > deadline.getTime();
+    }
+    return false;
+}
+
+// 💡 2. 발주 요약 UI 렌더링 (Toss/현대카드 스타일, 말줄임 호버 적용)
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
 
-    // 1. 상태 및 필터 적용
     let pendingOrders = gOrd.filter(o => {
         if (o.status === '주문 취소' || o.status === '센터 도착' || o.status === '품절') return false;
         let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
@@ -1339,46 +1424,50 @@ window.showOrderSummary = function() {
             let center = o.center || '미지정';
             let vendor = o.vendor;
             
-            // 상품명 추출
             let cNm = o.item_name;
             let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
             if(m) cNm = m[1].trim();
             else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
 
-            let key = `${center}:::${vendor}:::${cNm}`;
-            if(!summary[key]) summary[key] = { center: center, vendor: vendor, item: cNm, numQty: 0, unit: '', total: 0, orderers: [] };
+            // 월/목 발주 구분
+            let dayType = String(o.item_name || '').includes('목') ? '목요일 발주' : '월요일 발주';
+
+            let key = `${center}:::${dayType}:::${vendor}:::${cNm}`;
+            if(!summary[key]) summary[key] = { center: center, dayType: dayType, vendor: vendor, item: cNm, numQty: 0, unit: '', total: 0, orderers: [] };
             
-            // 💡 수정됨: 수량에서 숫자와 단위를 영리하게 분리
             let rawQty = String(o.quantity || '0').trim();
             let numVal = parseFloat(rawQty.replace(/[^0-9.]/g, '')) || 0;
-            let unitVal = rawQty.replace(/[0-9.\s]/g, ''); // kg, g, 개 등 단위만 추출
+            let unitVal = rawQty.replace(/[0-9.\s]/g, '');
 
             let price = parseInt(String(o.total_price || '0').replace(/[^0-9]/g, '')) || 0;
 
             summary[key].numQty += numVal;
-            if(!summary[key].unit) summary[key].unit = unitVal; // 최초 발견된 단위 사용
+            if(!summary[key].unit) summary[key].unit = unitVal; 
             summary[key].total += price;
             
-            // 개별 주문자 상세 데이터 기록
             let batch = o.batch || '미정';
             summary[key].orderers.push({ batch: batch, name: o.name, phone: o.phone, rawQty: rawQty });
         });
         
         let html = `<div style="display: flex; flex-direction: column; gap: 16px; width: 100%;">`;
+        let totalQty = 0; let grandTotal = 0;
         
-        let sortedData = Object.values(summary).sort((a,b) => a.center.localeCompare(b.center) || a.vendor.localeCompare(b.vendor));
+        let sortedData = Object.values(summary).sort((a,b) => 
+            a.center.localeCompare(b.center) || 
+            a.dayType.localeCompare(b.dayType) || 
+            a.vendor.localeCompare(b.vendor)
+        );
         
-        let currentCenterLabel = '';
+        let currentGroupLabel = '';
         sortedData.forEach(s => {
-            if (currentCenterLabel !== s.center) {
-                currentCenterLabel = s.center;
-                html += `<div style="font-size:16px; font-weight:800; color:var(--text-display); margin-top:8px; padding-bottom:8px; border-bottom:2px solid var(--text-display);">${currentCenterLabel} 발주 요약</div>`;
+            let groupLabel = `${s.center} - ${s.dayType}`;
+            if (currentGroupLabel !== groupLabel) {
+                currentGroupLabel = groupLabel;
+                html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:8px; border-bottom:2px solid var(--text-display);">${currentGroupLabel} 요약</div>`;
             }
 
-            // UI 하단에 보여줄 주문자 요약 텍스트
             let ordererSummaryText = s.orderers.map(o => `[${o.batch}] ${o.name}(${o.rawQty})`).join(', ');
             
-            // 💡 수정됨: Flex 영역 안에서 절대 가로 스크롤이 생기지 않도록 완벽 통제 (말줄임표 + 호버 시 말풍선)
             let copyableHtml = `
                 <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" title="클릭하여 복사" style="max-width: 100%;">
                     <div style="display:flex; align-items:center; width:100%; min-width: 0;">
@@ -1390,7 +1479,6 @@ window.showOrderSummary = function() {
             html += `
             <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border);">
                 <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div>
-                
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; width: 100%; min-width: 0;">
                     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
                         ${copyableHtml}
@@ -1416,7 +1504,7 @@ window.showOrderSummary = function() {
         sortedData.forEach(s => {
             s.orderers.forEach(o => {
                 exportData.push({
-                    center: s.center, vendor: s.vendor, item: s.item, rawQty: o.rawQty, 
+                    center: s.center, dayType: s.dayType, vendor: s.vendor, item: s.item, rawQty: o.rawQty, 
                     batch: o.batch, name: o.name, phone: o.phone
                 });
             });
@@ -1441,16 +1529,16 @@ window.closeSummaryModal = function() {
     if(modal) modal.classList.remove('show');
 };
 
-// 💡 수정됨: 다운로드 양식이 구글 시트 양식과 완벽하게 동일하도록 구성
+// 💡 다운로드 시에도 동일하게 컬럼 분리
 window.downloadSummaryExcel = function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
         showToast('다운로드할 데이터가 없습니다.');
         return;
     }
-    let csv = "\uFEFF수령 센터,생두사,상품명,수량,기수,성함,연락처\n";
+    let csv = "\uFEFF수령 센터,발주 구분,생두사,상품명,수량,기수,성함,연락처\n";
     window.currentSummaryData.forEach(s => {
         let itemSafe = String(s.item).replace(/"/g, '""');
-        csv += `"${s.center}","${s.vendor}","${itemSafe}","${s.rawQty}","${s.batch}","${s.name}","${s.phone}"\n`;
+        csv += `"${s.center}","${s.dayType}","${s.vendor}","${itemSafe}","${s.rawQty}","${s.batch}","${s.name}","${s.phone}"\n`;
     });
     
     try {
@@ -1470,8 +1558,7 @@ window.downloadSummaryExcel = function() {
 window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('전송할 데이터가 없습니다.'); return; }
     
-    // 💡 연결된 구글 시트 주소
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzVJLrOiFWANEtzobe9FxjbMNb1uwXeH8BDYFoMzZlWY-luKfyEkt356SUbt00s6uc/exec'; 
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyRnSNqwikpalqCOpl5UOCFgXtC-HcbrALKGBvkIX2dCVROFHSWvziTM9aEvVpQH2J7/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
     
