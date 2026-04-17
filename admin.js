@@ -1292,57 +1292,67 @@ window.openCrmModalFromPhone = async function(phone) {
         showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");
     }
 }
-// 💡 수정됨: 기존 테이블 스타일과 충돌하지 않도록 CSS Grid 레이아웃으로 전면 개편
+/** * ☕ 발주 요약 보기 (Toss & 현대카드 스타일 개편)
+ */
 window.showOrderSummary = function() {
+    // 1. 데이터 필터링 (취소건 제외 미처리 발주건)
     let pendingOrders = gOrd.filter(o => o.status !== '주문 취소' && o.status !== '센터 도착');
     
     if (pendingOrders.length === 0) {
-        $("summaryModalBody").innerHTML = '<div class="empty-state">현재 요약할 미처리 발주 건이 없습니다.</div>';
+        $("summaryModalBody").innerHTML = '<div class="empty-state" style="padding: 80px 0;">현재 요약할 발주 내역이 없습니다.</div>';
     } else {
+        // 2. 데이터 그룹화 (생두사 + 상품명 기준)
         let summary = {};
         pendingOrders.forEach(o => {
             let key = `${o.vendor}:::${o.item_name}`;
             if(!summary[key]) summary[key] = { vendor: o.vendor, item: o.item_name, qty: 0, total: 0 };
             
-            summary[key].qty += parseInt(o.quantity) || 0;
+            // 수량에서 숫자만 추출하여 합산
+            let qtyNum = parseInt(String(o.quantity || '0').replace(/[^0-9]/g, '')) || 0;
+            summary[key].qty += qtyNum;
+            
+            // 금액 합산
             let price = parseInt(String(o.total_price || '0').replace(/[^0-9]/g, '')) || 0;
             summary[key].total += price;
         });
         
-        // table 태그 대신 div와 display:grid를 사용하여 모바일 깨짐 및 가로 스크롤 완벽 방지
-        let html = `
-        <div style="display: flex; flex-direction: column; width: 100%;">
-            <div style="display: grid; grid-template-columns: 2fr 4fr 36px 76px; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--border-strong); font-size: 12px; font-weight: 600; color: var(--text-secondary); align-items: center;">
-                <div>생두사</div>
-                <div>상품명</div>
-                <div style="text-align: center;">수량</div>
-                <div style="text-align: right;">총 금액</div>
-            </div>
-            
-            <div style="max-height: 50vh; overflow-y: auto; overflow-x: hidden; padding-right: 4px;">`;
+        // 3. UI 렌더링 (간결하고 볼드한 스타일)
+        let html = `<div style="display: flex; flex-direction: column; gap: 24px; width: 100%;">`;
         
         let totalQty = 0;
         let grandTotal = 0;
         
         Object.values(summary).forEach(s => {
             html += `
-            <div style="display: grid; grid-template-columns: 2fr 4fr 36px 76px; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; align-items: center;">
-                <div style="color: var(--text-secondary); word-break: keep-all; line-height: 1.35;">${window.escapeHtml(s.vendor)}</div>
-                <div style="font-weight: 600; color: var(--text-display); line-height: 1.4; word-break: keep-all;">${window.escapeHtml(s.item)}</div>
-                <div style="text-align: center; font-weight: 700;">${s.qty}</div>
-                <div style="text-align: right; word-break: keep-all;">${comma(s.total)}원</div>
+            <div style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+                <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                    <div style="font-size: 15px; font-weight: 700; color: var(--text-display); line-height: 1.4; flex: 1; word-break: keep-all;">
+                        ${window.escapeHtml(s.item)}
+                    </div>
+                    <div style="text-align: right; flex-shrink: 0;">
+                        <div style="font-size: 16px; font-weight: 800; color: var(--text-display);">${s.qty}<span style="font-size: 13px; margin-left: 2px;">kg</span></div>
+                        <div style="font-size: 12px; font-weight: 500; color: var(--text-tertiary); margin-top: 2px;">${comma(s.total)}원</div>
+                    </div>
+                </div>
             </div>`;
             totalQty += s.qty;
             grandTotal += s.total;
         });
         
+        // 4. 합계 영역 (현대카드 플레이트 느낌의 강조)
         html += `
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 36px 76px; gap: 10px; padding: 16px 12px; background: #f9fafb; border-radius: 8px; margin-top: 16px; font-size: 14px; align-items: center;">
-                <div style="text-align: right; font-weight: 800; color: var(--text-display);">총 합계</div>
-                <div style="text-align: center; font-weight: 800; color: var(--primary);">${totalQty}</div>
-                <div style="text-align: right; font-weight: 800; color: var(--primary);">${comma(grandTotal)}원</div>
+            <div style="margin-top: 8px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량</span>
+                    <span style="font-size: 18px; font-weight: 800; color: var(--text-display);">${totalQty}kg</span>
+                </div>
+                <div style="height: 1px; background: var(--border-strong); opacity: 0.5;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 합계 금액</span>
+                    <span style="font-size: 22px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span>
+                </div>
             </div>
         </div>`;
         
@@ -1350,5 +1360,38 @@ window.showOrderSummary = function() {
         window.currentSummaryData = Object.values(summary); 
     }
     
-    $("summaryModal").classList.add('show');
+    // 모달 표시
+    const modal = $("summaryModal");
+    if(modal) modal.classList.add('show');
+};
+
+// 💡 닫기 함수 (z-index 및 바인딩 보장)
+window.closeSummaryModal = function() {
+    const modal = $("summaryModal");
+    if(modal) modal.classList.remove('show');
+};
+
+// 💡 엑셀 다운로드 (kg 단위 포함 보존)
+window.downloadSummaryExcel = function() {
+    if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
+        showToast('다운로드할 데이터가 없습니다.');
+        return;
+    }
+    let csv = "\uFEFF생두사,상품명,합계 수량,예상 총액\n";
+    window.currentSummaryData.forEach(s => {
+        csv += `"${s.vendor}","${String(s.item).replace(/"/g, '""')}",${s.qty}kg,${s.total}원\n`;
+    });
+    
+    try {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+        const link = document.createElement('a'); 
+        link.href = URL.createObjectURL(blob); 
+        link.download = `위커피_발주요약_${new Date().toISOString().slice(0,10)}.csv`; 
+        document.body.appendChild(link);
+        link.click(); 
+        document.body.removeChild(link);
+        showToast("엑셀 파일이 생성되었습니다.");
+    } catch (e) {
+        showToast("다운로드 중 오류가 발생했습니다.");
+    }
 };
