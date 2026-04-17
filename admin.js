@@ -108,7 +108,6 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   } catch (error) { return []; }
 };
 
-// 💡 마포/광진 센터별 최신 스펙 완벽 분리 반영 완료
 window.updateDashSpaceFilter = function() {
     let filter = $("dashSpaceFilter");
     if(!filter) return;
@@ -134,8 +133,8 @@ window.updateSpaceOptions = function() {
     if (center === '마포 센터') {
         opts += `
             <option value="에스프레소존"></option>
-            <option value="아스토리아 스톰 2그룹 / 좌 그룹"></option>
-            <option value="아스토리아 스톰 2그룹 / 우 그룹"></option>
+            <option value="아스토리아 스톰 1번그룹 (좌)"></option>
+            <option value="아스토리아 스톰 2번그룹 (우)"></option>
             <option value="로스팅존"></option>
             <option value="이지스터 800 1번 (좌)"></option>
             <option value="이지스터 800 2번 (우)"></option>
@@ -407,6 +406,7 @@ window.toggleDashView = function(view) { currentDashView = view; if(view === 'mo
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
 
+// 💡 금일 출입 현황 (UI 폰트/컬러 위계 통일)
 function updateDailyInOutBanner() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { 
@@ -849,7 +849,7 @@ window.renderMCalCenter = function(selDate) {
   if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 💡 3. 가입 상담 캘린더 실종 버그 완벽 방어 (Try-Catch 예외 처리)
+// 💡 3. 가입 상담 캘린더 예외 처리 완벽 방어 및 호버 툴팁 [신청자 이름] 추가
 window.renderAppDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + appDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentAppDashView === 'month' && $("appDashMonthTitle")) $("appDashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; await window.fetchHolidays(yyyy);
@@ -878,7 +878,13 @@ window.renderAppDashboard = async function() {
                 if (calEvts[ds]) { 
                     const tm = callTimeStr.match(/(오전|오후)\s+(\d+):(\d+)/); 
                     let timeStr = tm ? `${tm[1]} ${tm[2]}:${tm[3]}` : (callTimeStr.includes(')') ? callTimeStr.split(')')[1].trim() : callTimeStr); 
-                    calEvts[ds].push({ time: timeStr, text: `[${app.desired_batch||'-'}] ${app.name}`, tooltip: `${timeStr} | 담당: ${app.counselor_name||'미정'}`}); 
+                    
+                    calEvts[ds].push({ 
+                        time: timeStr, 
+                        text: `[${app.desired_batch||'-'}] ${app.name}`, 
+                        // 💡 캘린더 호버 툴팁 정보 강화
+                        tooltip: `${timeStr} | 신청자: ${app.name} | 담당: ${app.counselor_name||'미정'}`
+                    }); 
                 } 
             }
         } catch (e) {
@@ -909,7 +915,7 @@ window.renderMCalApp = function(selDate) {
         evts.forEach(e => { 
             let rawTooltip = String(e.tooltip||'');
             let descParts = rawTooltip.split('|');
-            let descText = descParts.length > 1 ? descParts.slice(1).join('|').trim() : rawTooltip;
+            let descText = descParts.length > 1 ? descParts.slice(1).join(' | ').trim() : rawTooltip;
 
             html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;">
                 <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;">
@@ -924,14 +930,13 @@ window.renderMCalApp = function(selDate) {
     if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 💡 3. 가입 상담 배너 렌더링 함수 복원
+// 💡 금일 예정된 상담: 주황색 남용 제거 및 콤팩트한 레이아웃으로 변경
 window.renderAppDailyBanner = function(filteredApps) {
     let today = new Date();
     let y = today.getFullYear();
     let m = String(today.getMonth() + 1).padStart(2, '0');
     let d = String(today.getDate()).padStart(2, '0');
     
-    // 타겟 날짜 문자열 (예: "2026년 04월 18일" 또는 "2026년 4월 18일")
     let targetDateRegex = new RegExp(`${y}년\\s*0?${parseInt(m)}월\\s*0?${parseInt(d)}일`);
 
     let todaysApps = filteredApps.filter(app => {
@@ -950,21 +955,37 @@ window.renderAppDailyBanner = function(filteredApps) {
 
     let html = '';
     if(todaysApps.length === 0) {
-        html = `<div class="inout-card" style="text-align:center; color:var(--text-secondary); width:100%; padding:20px; border-radius:12px; border:1px solid var(--border-strong); background:#fff;">오늘 예정된 상담이 없습니다.</div>`;
+        html = `<div class="inout-card" style="text-align:center; color:var(--text-secondary); width:100%; padding:16px; border-radius:12px; border:1px solid var(--border-strong); background:#fff;">오늘 예정된 상담이 없습니다.</div>`;
     } else {
         todaysApps.forEach(app => {
             let tm = String(app.call_time||'').match(/(오전|오후)\s+(\d+):(\d+)/);
             let tStr = tm ? `${tm[1]} ${tm[2]}:${tm[3]}` : '시간 미정';
-            html += `<div class="inout-card" style="padding:16px; border:1px solid var(--primary); background:#fffaf5; border-radius:12px; width:calc(50% - 8px); min-width:280px; box-sizing:border-box; margin-bottom:8px;">
-                <div style="font-weight:800; color:var(--primary); margin-bottom:8px;">${tStr}</div>
-                <div style="font-weight:800; color:var(--text-display); font-size:15px;">[${app.desired_batch||'-'}] ${window.escapeHtml(app.name)}</div>
-                <div style="font-size:13px; color:var(--text-secondary); margin-top:4px;">담당: ${window.escapeHtml(app.counselor_name||'미정')}</div>
+            html += `<div style="padding:12px 16px; border:1px solid var(--border-strong); background:#fff; border-radius:12px; flex: 1; min-width:240px; box-sizing:border-box; display: flex; flex-direction: column; justify-content: center;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="font-weight:800; color:var(--text-display); font-size:15px;">[${app.desired_batch||'-'}] ${window.escapeHtml(app.name)}</div>
+                    <div style="font-weight:800; color:var(--primary); font-size: 13px;">${tStr}</div>
+                </div>
+                <div style="font-size:13px; color:var(--text-secondary);">담당자: <span style="font-weight:600;">${window.escapeHtml(app.counselor_name||'미정')}</span></div>
             </div>`;
         });
-        html = `<div style="display:flex; flex-wrap:wrap; gap:16px;">${html}</div>`;
+        html = `<div style="display:flex; flex-wrap:wrap; gap:12px;">${html}</div>`;
     }
     if($("appDailyBanner")) $("appDailyBanner").innerHTML = html;
 };
+
+// 💡 캘린더 뷰(주/월) 변경 기능 누락 복구
+window.toggleAppDashView = function(view) { 
+    currentAppDashView = view; 
+    if(view === 'month') { 
+        if($("appDashMonthNav")) $("appDashMonthNav").style.display = 'flex'; 
+    } else { 
+        if($("appDashMonthNav")) $("appDashMonthNav").style.display = 'none'; 
+        appDashMonthOffset = 0; 
+    } 
+    window.renderAppDashboard(); 
+}
+window.changeAppDashMonth = function(offset) { appDashMonthOffset += offset; window.renderAppDashboard(); }
+window.resetAppDashMonth = function() { appDashMonthOffset = 0; window.renderAppDashboard(); }
 
 window.toggleInsight = function() { 
     isInsightView = !isInsightView; 
@@ -1315,6 +1336,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
+// 💡 1. 발주 요약: 월/목 먼저 묶기 & kg/g 단위 그램(g) 통일 후 재계산 완벽 적용
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1338,35 +1360,55 @@ window.showOrderSummary = function() {
             let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
             if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
 
-            let key = `${center}:::${dayType}:::${o.vendor}:::${cNm}`;
-            if(!summary[key]) summary[key] = { center, dayType, vendor: o.vendor, item: cNm, numQty: 0, unit: '', total: 0, orderers: [] };
+            let key = `${dayType}:::${center}:::${o.vendor}:::${cNm}`;
+            if(!summary[key]) summary[key] = { center, dayType, vendor: o.vendor, item: cNm, totalGrams: 0, total: 0, orderers: [] };
             
-            let rawQty = String(o.quantity || '0').trim();
+            // 수량을 모두 g(그램)으로 변환해서 합산
+            let rawQty = String(o.quantity || '0').trim().toLowerCase();
             let numVal = parseFloat(rawQty.replace(/[^0-9.]/g, '')) || 0;
-            let unitVal = rawQty.replace(/[0-9.\s]/g, ''); 
+            let grams = 0;
+            if (rawQty.includes('kg')) {
+                grams = numVal * 1000;
+            } else { // 기본적으로 g 단위로 취급
+                grams = numVal;
+            }
 
             let price = parseInt(String(o.total_price || '0').replace(/[^0-9]/g, '')) || 0;
 
-            summary[key].numQty += numVal;
-            if(!summary[key].unit) summary[key].unit = unitVal; 
+            summary[key].totalGrams += grams;
             summary[key].total += price;
             
             summary[key].orderers.push({ 
                 batch: o.batch || '미정', 
                 name: o.name, 
                 phone: o.phone, 
-                rawQty: rawQty, 
+                rawQty: o.quantity || '0', 
                 price: o.total_price || '0원' 
             });
         });
         
         let html = `<div style="display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0;">`;
-        let totalQtySum = 0; let grandTotal = 0;
-        let sortedData = Object.values(summary).sort((a,b) => a.center.localeCompare(b.center) || a.dayType.localeCompare(b.dayType) || a.vendor.localeCompare(b.vendor));
+        let totalGramsSum = 0; let grandTotal = 0;
+        
+        // 💡 요일(월/목) ➔ 센터 ➔ 생두사 순으로 완벽 정렬
+        let dayOrder = { '월요일 발주': 1, '목요일 발주': 2 };
+        let centerOrder = { '마포 센터': 1, '광진 센터': 2 };
+        
+        let sortedData = Object.values(summary).sort((a,b) => {
+            let d1 = dayOrder[a.dayType] || 99;
+            let d2 = dayOrder[b.dayType] || 99;
+            if (d1 !== d2) return d1 - d2;
+            
+            let c1 = centerOrder[a.center] || 99;
+            let c2 = centerOrder[b.center] || 99;
+            if (c1 !== c2) return c1 - c2;
+            
+            return a.vendor.localeCompare(b.vendor);
+        });
         
         let currentGroupLabel = '';
         sortedData.forEach(s => {
-            let groupLabel = `${s.center} - ${s.dayType}`;
+            let groupLabel = `${s.dayType} - ${s.center}`;
             if (currentGroupLabel !== groupLabel) {
                 currentGroupLabel = groupLabel;
                 html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:10px; border-bottom:3px solid var(--text-display); letter-spacing:-0.5px;">${currentGroupLabel} 요약</div>`;
@@ -1377,112 +1419,90 @@ window.showOrderSummary = function() {
                 : s.orderers.map(o => `[${o.batch}] ${o.name}(${o.rawQty})`).join(', ');
             
             let copyableHtml = `
-                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" style="max-width: 100%; min-width:0;">
+                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" style="max-width: 100%; min-width: 0; flex: 1;">
                     <div style="display:flex; align-items:center; width:100%; min-width: 0;">
-                        <span class="copyable-text" style="font-size: 16px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; min-width:0;">${window.escapeHtml(s.item)}</span>
+                        <span class="copyable-text" style="font-size: 16px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; min-width: 0;">${window.escapeHtml(s.item)}</span>
                         <span class="copyable-hint" style="flex-shrink: 0; min-width: 32px; margin-left: 8px;">복사</span>
                     </div>
                 </div>`;
 
+            // g을 kg/g 포맷으로 예쁘게 파싱
+            let displayQty = s.totalGrams >= 1000 
+                ? (s.totalGrams % 1000 === 0 ? (s.totalGrams / 1000) + 'kg' : (s.totalGrams / 1000) + 'kg')
+                : s.totalGrams + 'g';
+            // 소수점 끝자리 깔끔하게 처리
+            displayQty = displayQty.replace('.0kg', 'kg');
+
             html += `
-            <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); min-width:0;">
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); min-width: 0;">
                 <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div>
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; width: 100%; min-width: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; width: 100%; min-width: 0;">
                     <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
                         ${copyableHtml}
-                        <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-top: 4px; word-break: break-all; white-space: normal;">
-                            <span style="font-weight:700; color: var(--text-secondary);">주문자:</span> ${ordererDetailText}
+                        <div style="font-size: 13px; font-weight: 500; color: var(--text-tertiary); margin-top: 6px; word-break: keep-all; white-space: normal;">
+                            <span style="font-weight:600; color: var(--text-secondary);">주문자:</span> ${ordererDetailText}
                         </div>
                     </div>
                     <div style="text-align: right; flex-shrink: 0; min-width: 60px;">
-                        <div style="font-size: 22px; font-weight: 900; color: var(--text-display); line-height: 1;">${s.numQty}<span style="font-size: 14px; margin-left: 2px; font-weight: 700;">${s.unit}</span></div>
+                        <div style="font-size: 22px; font-weight: 900; color: var(--text-display); line-height: 1;">${displayQty.replace(/[a-zA-Z]/g, '')}<span style="font-size: 14px; margin-left: 2px; font-weight:700;">${displayQty.replace(/[0-9.]/g, '')}</span></div>
                         <div style="font-size: 12px; font-weight: 500; color: var(--text-tertiary); margin-top: 6px;">${comma(s.total)}원</div>
                     </div>
                 </div>
             </div>`;
-            totalQtySum += s.numQty;
+            
+            totalGramsSum += s.totalGrams;
             grandTotal += s.total;
         });
         
+        let totalDisplayQty = totalGramsSum >= 1000 ? (totalGramsSum / 1000) + 'kg' : totalGramsSum + 'g';
+        
         html += `
             <div style="margin-top: 12px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border-strong);">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량 합계</span>
-                    <span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalQtySum}</span>
-                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량 합계</span><span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalDisplayQty.replace('.0kg', 'kg')}</span></div>
                 <div style="height: 1px; background: var(--border); opacity: 0.5;"></div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 예상 금액 합계</span>
-                    <span style="font-size: 20px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span>
-                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 예상 금액 합계</span><span style="font-size: 20px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span></div>
             </div>
         </div>`;
         
         $("summaryModalBody").innerHTML = html;
-
-        let exportData = [];
-        sortedData.forEach(s => {
-            s.orderers.forEach(o => {
-                exportData.push({
-                    center: s.center, dayType: s.dayType, vendor: s.vendor, item: s.item, rawQty: o.rawQty, price: o.price,
-                    batch: o.batch, name: o.name, phone: o.phone
-                });
-            });
+        
+        let exportData = []; 
+        sortedData.forEach(s => { 
+            s.orderers.forEach(o => { 
+                exportData.push({ 
+                    dayType: s.dayType, center: s.center, vendor: s.vendor, item: s.item, 
+                    rawQty: o.rawQty, price: o.price, batch: o.batch, name: o.name, phone: o.phone 
+                }); 
+            }); 
         });
         window.currentSummaryData = exportData;
 
         let footerWrap = document.querySelector('#summaryModal .modal-content > div:last-child');
-        if(footerWrap) {
-            footerWrap.innerHTML = `
-                <button class="btn-outline" style="margin-right:8px; border-color:#32b06a; color:#32b06a;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button>
-                <button class="btn-primary" style="padding: 12px 24px; font-size: 14px;" onclick="window.downloadSummaryExcel()">엑셀 다운로드</button>
-            `;
-        }
+        if(footerWrap) footerWrap.innerHTML = `<button class="btn-outline" style="margin-right:8px; border-color:#32b06a; color:#32b06a;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button><button class="btn-primary" style="padding: 12px 24px; font-size: 14px;" onclick="window.downloadSummaryExcel()">엑셀 다운로드</button>`;
     }
-    
-    const modal = $("summaryModal");
-    if(modal) modal.classList.add('show');
+    const modal = $("summaryModal"); if(modal) modal.classList.add('show');
 };
 
-window.closeSummaryModal = function() {
-    const modal = $("summaryModal");
-    if(modal) modal.classList.remove('show');
-};
+window.closeSummaryModal = function() { const modal = $("summaryModal"); if(modal) modal.classList.remove('show'); };
 
 window.downloadSummaryExcel = function() {
-    if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
-        showToast('다운로드할 데이터가 없습니다.');
-        return;
-    }
-    let csv = "\uFEFF수령 센터,발주 구분,생두사,상품명,수량,예상 금액,기수,성함,연락처\n";
-    window.currentSummaryData.forEach(s => {
-        let itemSafe = String(s.item).replace(/"/g, '""');
-        csv += `"${s.center}","${s.dayType}","${s.vendor}","${itemSafe}","${s.rawQty}","${s.price}","${s.batch}","${s.name}","${s.phone}"\n`;
+    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
+    let csv = "\uFEFF발주 구분,수령 센터,생두사,상품명,주문 수량,예상 금액,기수,성함,연락처\n";
+    window.currentSummaryData.forEach(s => { 
+        csv += `"${s.dayType}","${s.center}","${s.vendor}","${String(s.item).replace(/"/g, '""')}","${s.rawQty}","${s.price}","${s.batch}","${s.name}","${s.phone}"\n`; 
     });
-    
-    try {
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
-        const link = document.createElement('a'); 
-        link.href = URL.createObjectURL(blob); 
-        link.download = `위커피_센터별_발주명단_${new Date().toISOString().slice(0,10)}.csv`; 
-        document.body.appendChild(link);
-        link.click(); 
-        document.body.removeChild(link);
-        showToast("엑셀 파일이 생성되었습니다.");
-    } catch (e) {
-        showToast("다운로드 중 오류가 발생했습니다.");
-    }
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); 
+    link.download = `위커피_발주명단_${new Date().toISOString().slice(0,10)}.csv`; link.click(); 
 };
 
 window.sendToGoogleSheet = async function() {
-    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('전송할 데이터가 없습니다.'); return; }
-    
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzs8edd6hW1wV1KeqTihnC0WDbl-T2Vs1Wu-4aMtwyKiL7zYKmQw2GYdKraEBrFCMP-/exec'; 
+    if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwz9G7mgetN8FAUpGpQQustHRliPvC3JJWUrslHXzuTJBgoLPVbZ7o6JBdGqP0SNn5P/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
-    
     try {
         await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(window.currentSummaryData) });
-        showToast("시트로 데이터 전송 요청을 완료했습니다.");
-    } catch(e) { showToast("전송 중 네트워크 오류가 발생했습니다."); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
+        showToast("구글 시트 전송 요청 완료");
+    } catch(e) { showToast("전송 오류"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
