@@ -1040,7 +1040,7 @@ window.downloadSummaryExcel = function() {
 
 window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbw3xbZYkLuFi5HSGZietcRf2c19cWi_SDWsFvbjITltJoV8BIUh5hYyAhRq-xx1JgVI/exec'; 
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwPIhlxDj5iiFU3NN0YCIVf-3alEYxNWQ_7RprQS5fRNEejwueDJg35DTScAP3mZ6k/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
     try {
