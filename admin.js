@@ -1471,7 +1471,7 @@ window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('전송할 데이터가 없습니다.'); return; }
     
     // 💡 연결된 구글 시트 주소
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycby46eKdVwOUa6n7U2f4mJ0Yw7aa4UPVs8b_sF3kIjn8g-ZsahxnAk3c60MHaWLa7Jye/exec'; 
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzVJLrOiFWANEtzobe9FxjbMNb1uwXeH8BDYFoMzZlWY-luKfyEkt356SUbt00s6uc/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
     
