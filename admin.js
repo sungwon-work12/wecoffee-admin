@@ -1474,8 +1474,8 @@ window.sendToGoogleSheet = async function() {
         return;
     }
     // 하단 2번 가이드에서 생성한 Apps Script Web App URL을 여기에 붙여넣으세요.
-    const GAS_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL'; 
-    if(GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycby46eKdVwOUa6n7U2f4mJ0Yw7aa4UPVs8b_sF3kIjn8g-ZsahxnAk3c60MHaWLa7Jye/exec'; 
+    if(GAS_URL === 'https://script.google.com/macros/s/AKfycby46eKdVwOUa6n7U2f4mJ0Yw7aa4UPVs8b_sF3kIjn8g-ZsahxnAk3c60MHaWLa7Jye/exec') {
         showToast('JS 코드 내 GAS_URL에 앱스 스크립트 주소를 먼저 입력해 주세요.');
         return;
     }
