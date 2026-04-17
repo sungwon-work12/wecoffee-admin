@@ -247,7 +247,7 @@ window.saveNoticeData = async function() {
     content: htmlContent, 
     is_pinned: $("noticePinned")?$("noticePinned").checked:false, 
     status: $("noticeStatus")?$("noticeStatus").value:"발행",
-    target_batch: $("noticeTargetBatch")?$("noticeTargetBatch").value.trim():""
+    target_batch: $("noticeTargetBatch")?$("noticeTargetBatch").value.trim():"" 
   }; 
   if(!payload.title) return showToast("제목을 입력해주세요."); 
   if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); 
@@ -874,7 +874,7 @@ window.renderAppDailyBanner = function(data) {
               timeStr = evt.call_time.includes(')') ? evt.call_time.split(')')[1].trim() : evt.call_time;
           }
           html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff; align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;">
-              <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px; width:100%;">
                   <span style="font-weight:800; font-size:15px; color:var(--text-display);">[${evt.desired_batch||'-'}] ${window.escapeHtml(evt.name)}</span>
                   <span style="color:var(--primary); font-size:13px; font-weight:800;">${timeStr}</span>
               </div>
@@ -1317,11 +1317,12 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 전면 개편된 발주 요약 기능
+/** 💡 텍스트 말줄임 및 단위 보존이 완벽하게 적용된 발주 요약 */
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
 
+    // 1. 상태 및 필터 적용
     let pendingOrders = gOrd.filter(o => {
         if (o.status === '주문 취소' || o.status === '센터 도착' || o.status === '품절') return false;
         let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
@@ -1337,25 +1338,33 @@ window.showOrderSummary = function() {
         pendingOrders.forEach(o => {
             let center = o.center || '미지정';
             let vendor = o.vendor;
+            
+            // 상품명 추출
             let cNm = o.item_name;
             let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
             if(m) cNm = m[1].trim();
             else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
 
             let key = `${center}:::${vendor}:::${cNm}`;
-            if(!summary[key]) summary[key] = { center: center, vendor: vendor, item: cNm, qty: 0, total: 0, orderers: [] };
+            if(!summary[key]) summary[key] = { center: center, vendor: vendor, item: cNm, numQty: 0, unit: '', total: 0, orderers: [] };
             
-            let qtyNum = parseFloat(String(o.quantity || '0').replace(/[^0-9.]/g, '')) || 0;
+            // 💡 수정됨: 수량에서 숫자와 단위를 영리하게 분리
+            let rawQty = String(o.quantity || '0').trim();
+            let numVal = parseFloat(rawQty.replace(/[^0-9.]/g, '')) || 0;
+            let unitVal = rawQty.replace(/[0-9.\s]/g, ''); // kg, g, 개 등 단위만 추출
+
             let price = parseInt(String(o.total_price || '0').replace(/[^0-9]/g, '')) || 0;
 
-            summary[key].qty += qtyNum;
+            summary[key].numQty += numVal;
+            if(!summary[key].unit) summary[key].unit = unitVal; // 최초 발견된 단위 사용
             summary[key].total += price;
-            // 💡 데이터 전송용: 상세 정보를 객체로 저장
-            summary[key].orderers.push({ batch: o.batch || '미정', name: o.name, phone: o.phone, qty: o.quantity });
+            
+            // 개별 주문자 상세 데이터 기록
+            let batch = o.batch || '미정';
+            summary[key].orderers.push({ batch: batch, name: o.name, phone: o.phone, rawQty: rawQty });
         });
         
         let html = `<div style="display: flex; flex-direction: column; gap: 16px; width: 100%;">`;
-        let totalQty = 0; let grandTotal = 0;
         
         let sortedData = Object.values(summary).sort((a,b) => a.center.localeCompare(b.center) || a.vendor.localeCompare(b.vendor));
         
@@ -1366,60 +1375,48 @@ window.showOrderSummary = function() {
                 html += `<div style="font-size:16px; font-weight:800; color:var(--text-display); margin-top:8px; padding-bottom:8px; border-bottom:2px solid var(--text-display);">${currentCenterLabel} 발주 요약</div>`;
             }
 
-            // UI용 주문자 요약 텍스트
-            let ordererSummaryText = s.orderers.map(o => `${o.name}(${o.qty})`).join(', ');
+            // UI 하단에 보여줄 주문자 요약 텍스트
+            let ordererSummaryText = s.orderers.map(o => `[${o.batch}] ${o.name}(${o.rawQty})`).join(', ');
             
-            // 💡 호버 툴팁 적용된 말줄임 상품명
+            // 💡 수정됨: Flex 영역 안에서 절대 가로 스크롤이 생기지 않도록 완벽 통제 (말줄임표 + 호버 시 말풍선)
             let copyableHtml = `
-                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" title="클릭하여 복사">
+                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" title="클릭하여 복사" style="max-width: 100%;">
                     <div style="display:flex; align-items:center; width:100%; min-width: 0;">
-                        <span class="copyable-text" style="font-size: 15px; font-weight: 700;">${window.escapeHtml(s.item)}</span>
-                        <span class="copyable-hint">복사</span>
+                        <span class="copyable-text" style="font-size: 15px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%;">${window.escapeHtml(s.item)}</span>
+                        <span class="copyable-hint" style="flex-shrink: 0;">복사</span>
                     </div>
                 </div>`;
 
             html += `
             <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border);">
                 <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div>
+                
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; width: 100%; min-width: 0;">
-                    <div style="flex: 1; min-width: 0; overflow: visible;">
+                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
                         ${copyableHtml}
-                        <div style="font-size: 12px; font-weight: 600; color: var(--text-tertiary); margin-top: 6px;">
-                            <span style="color:var(--primary);">주문자:</span> ${ordererSummaryText}
+                        <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-top: 4px; word-break: break-all; white-space: normal;">
+                            <span style="color:var(--primary); font-weight:700;">주문자:</span> ${ordererSummaryText}
                         </div>
                     </div>
                     <div style="text-align: right; flex-shrink: 0;">
-                        <div style="font-size: 16px; font-weight: 800; color: var(--text-display);">${s.qty}<span style="font-size: 13px; margin-left: 2px;">kg</span></div>
+                        <div style="font-size: 16px; font-weight: 800; color: var(--text-display);">${s.numQty}<span style="font-size: 13px; margin-left: 2px;">${s.unit}</span></div>
                         <div style="font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-top: 4px;">${comma(s.total)}원</div>
                     </div>
                 </div>
             </div>`;
-            totalQty += s.qty;
-            grandTotal += s.total;
         });
         
         html += `
-            <div style="margin-top: 8px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량</span>
-                    <span style="font-size: 18px; font-weight: 800; color: var(--text-display);">${totalQty}kg</span>
-                </div>
-                <div style="height: 1px; background: var(--border-strong); opacity: 0.5;"></div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 예상 금액</span>
-                    <span style="font-size: 22px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span>
-                </div>
-            </div>
         </div>`;
         
         $("summaryModalBody").innerHTML = html;
 
-        // 💡 엑셀/시트용 데이터를 개별 주문 건별로 평탄화(Flatten)
+        // 💡 엑셀/시트용 데이터를 개별 주문 건별로 평탄화 (Flatten)
         let exportData = [];
         sortedData.forEach(s => {
             s.orderers.forEach(o => {
                 exportData.push({
-                    center: s.center, vendor: s.vendor, item: s.item, qty: o.qty, total: s.total, // 품목별 합산가 노출
+                    center: s.center, vendor: s.vendor, item: s.item, rawQty: o.rawQty, 
                     batch: o.batch, name: o.name, phone: o.phone
                 });
             });
@@ -1444,28 +1441,42 @@ window.closeSummaryModal = function() {
     if(modal) modal.classList.remove('show');
 };
 
+// 💡 수정됨: 다운로드 양식이 구글 시트 양식과 완벽하게 동일하도록 구성
 window.downloadSummaryExcel = function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
-        showToast('다운로드할 데이터가 없습니다.'); return;
+        showToast('다운로드할 데이터가 없습니다.');
+        return;
     }
     let csv = "\uFEFF수령 센터,생두사,상품명,수량,기수,성함,연락처\n";
     window.currentSummaryData.forEach(s => {
-        csv += `"${s.center}","${s.vendor}","${String(s.item).replace(/"/g, '""')}","${s.qty}","${s.batch}","${s.name}","${s.phone}"\n`;
+        let itemSafe = String(s.item).replace(/"/g, '""');
+        csv += `"${s.center}","${s.vendor}","${itemSafe}","${s.rawQty}","${s.batch}","${s.name}","${s.phone}"\n`;
     });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
-    const link = document.createElement('a'); 
-    link.href = URL.createObjectURL(blob); 
-    link.download = `위커피_상세_발주명단_${new Date().toISOString().slice(0,10)}.csv`; 
-    link.click(); 
+    
+    try {
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+        const link = document.createElement('a'); 
+        link.href = URL.createObjectURL(blob); 
+        link.download = `위커피_센터별_발주명단_${new Date().toISOString().slice(0,10)}.csv`; 
+        document.body.appendChild(link);
+        link.click(); 
+        document.body.removeChild(link);
+        showToast("엑셀 파일이 생성되었습니다.");
+    } catch (e) {
+        showToast("다운로드 중 오류가 발생했습니다.");
+    }
 };
 
 window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('전송할 데이터가 없습니다.'); return; }
+    
+    // 💡 연결된 구글 시트 주소
     const GAS_URL = 'https://script.google.com/macros/s/AKfycby46eKdVwOUa6n7U2f4mJ0Yw7aa4UPVs8b_sF3kIjn8g-ZsahxnAk3c60MHaWLa7Jye/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
+    
     try {
         await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(window.currentSummaryData) });
-        showToast("시트로 상세 데이터 전송을 완료했습니다.");
-    } catch(e) { showToast("전송 오류 발생"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
+        showToast("시트로 데이터 전송을 완료했습니다.");
+    } catch(e) { showToast("전송 중 네트워크 오류가 발생했습니다."); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
