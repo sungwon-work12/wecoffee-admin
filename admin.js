@@ -1292,7 +1292,7 @@ window.openCrmModalFromPhone = async function(phone) {
         showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");
     }
 }
-
+// 💡 수정됨: 기존 테이블 스타일과 충돌하지 않도록 CSS Grid 레이아웃으로 전면 개편
 window.showOrderSummary = function() {
     let pendingOrders = gOrd.filter(o => o.status !== '주문 취소' && o.status !== '센터 도착');
     
@@ -1309,50 +1309,46 @@ window.showOrderSummary = function() {
             summary[key].total += price;
         });
         
-        let html = `<table style="width:100%; border-collapse:collapse; text-align:left; font-size:13px;">
-            <thead><tr style="border-bottom:1px solid var(--border-strong);"><th style="padding-bottom:8px;">생두사</th><th style="padding-bottom:8px;">상품명</th><th style="text-align:center; padding-bottom:8px;">수량</th><th style="text-align:right; padding-bottom:8px;">총 금액</th></tr></thead>
-            <tbody>`;
+        // table 태그 대신 div와 display:grid를 사용하여 모바일 깨짐 및 가로 스크롤 완벽 방지
+        let html = `
+        <div style="display: flex; flex-direction: column; width: 100%;">
+            <div style="display: grid; grid-template-columns: 2fr 4fr 36px 76px; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--border-strong); font-size: 12px; font-weight: 600; color: var(--text-secondary); align-items: center;">
+                <div>생두사</div>
+                <div>상품명</div>
+                <div style="text-align: center;">수량</div>
+                <div style="text-align: right;">총 금액</div>
+            </div>
+            
+            <div style="max-height: 50vh; overflow-y: auto; overflow-x: hidden; padding-right: 4px;">`;
+        
         let totalQty = 0;
         let grandTotal = 0;
         
         Object.values(summary).forEach(s => {
-            html += `<tr style="border-bottom:1px solid var(--border-strong);">
-                <td style="padding:12px 8px; color:var(--text-secondary);">${window.escapeHtml(s.vendor)}</td>
-                <td style="padding:12px 8px; font-weight:600; color:var(--text-display);">${window.escapeHtml(s.item)}</td>
-                <td style="padding:12px 8px; text-align:center; font-weight:700;">${s.qty}</td>
-                <td style="padding:12px 8px; text-align:right;">${comma(s.total)}원</td>
-            </tr>`;
+            html += `
+            <div style="display: grid; grid-template-columns: 2fr 4fr 36px 76px; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px; align-items: center;">
+                <div style="color: var(--text-secondary); word-break: keep-all; line-height: 1.35;">${window.escapeHtml(s.vendor)}</div>
+                <div style="font-weight: 600; color: var(--text-display); line-height: 1.4; word-break: keep-all;">${window.escapeHtml(s.item)}</div>
+                <div style="text-align: center; font-weight: 700;">${s.qty}</div>
+                <div style="text-align: right; word-break: keep-all;">${comma(s.total)}원</div>
+            </div>`;
             totalQty += s.qty;
             grandTotal += s.total;
         });
         
-        html += `<tr style="background:#f9fafb;"><td colspan="2" style="padding:12px 8px; font-weight:800; text-align:right;">총 합계</td><td style="padding:12px 8px; text-align:center; font-weight:800; color:var(--primary);">${totalQty}</td><td style="padding:12px 8px; text-align:right; font-weight:800; color:var(--primary);">${comma(grandTotal)}원</td></tr>`;
-        html += `</tbody></table>`;
+        html += `
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 36px 76px; gap: 10px; padding: 16px 12px; background: #f9fafb; border-radius: 8px; margin-top: 16px; font-size: 14px; align-items: center;">
+                <div style="text-align: right; font-weight: 800; color: var(--text-display);">총 합계</div>
+                <div style="text-align: center; font-weight: 800; color: var(--primary);">${totalQty}</div>
+                <div style="text-align: right; font-weight: 800; color: var(--primary);">${comma(grandTotal)}원</div>
+            </div>
+        </div>`;
         
         $("summaryModalBody").innerHTML = html;
         window.currentSummaryData = Object.values(summary); 
     }
     
     $("summaryModal").classList.add('show');
-};
-
-window.closeSummaryModal = function() {
-    if($("summaryModal")) $("summaryModal").classList.remove('show');
-};
-
-window.downloadSummaryExcel = function() {
-    if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
-        showToast('다운로드할 데이터가 없습니다.');
-        return;
-    }
-    let csv = "\uFEFF생두사,상품명,수량,총 금액\n";
-    window.currentSummaryData.forEach(s => {
-        csv += `"${s.vendor}","${String(s.item).replace(/"/g, '""')}",${s.qty},${s.total}\n`;
-    });
-    
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
-    const link = document.createElement('a'); 
-    link.href = URL.createObjectURL(blob); 
-    link.download = `생두_발주요약_${new Date().toISOString().slice(0,10)}.csv`; 
-    link.click(); 
 };
