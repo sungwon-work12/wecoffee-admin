@@ -9,7 +9,7 @@ let currentSummaryData = [], currentInsightData = {};
 let isCrmReadOnly = false;
 let quillEditor = null;
 let isAppInitialized = false; 
-let realtimeChannel = null; // 💡 실시간 채널 변수 분리
+let realtimeChannel = null;
 
 window.escapeHtml = function(unsafe) {
     if (!unsafe) return '';
@@ -138,9 +138,8 @@ window.updateSpaceOptions = function() {
     dl.innerHTML = opts;
 };
 
-// 💡 실시간(Realtime) 연동을 안전하게 묶어주는 함수
 function startRealtimeSync() {
-    if(realtimeChannel) return; // 중복 연결 방지
+    if(realtimeChannel) return;
     realtimeChannel = supabaseClient.channel('admin-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => { window.fetchCenterData(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trainings' }, () => { window.fetchCenterData(); })
@@ -158,7 +157,6 @@ function handleLoginSuccess() {
     var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
     var dv = $("dashboard-view"); if(dv) dv.style.display = 'block'; 
     
-    // 💡 로그인 완료 직후 실시간 감지 시작 (보안 정책 회피 및 즉각 반응)
     startRealtimeSync();
     
     let savedMain = localStorage.getItem('wecoffee_main_tab') || 'page-center'; 
@@ -194,7 +192,6 @@ function initializeApp() {
       var lv = $("login-view"); if(lv) lv.classList.add('active'); 
       var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; 
       isAppInitialized = false;
-      // 로그아웃 시 실시간 연결 해제
       if(realtimeChannel) {
           supabaseClient.removeChannel(realtimeChannel);
           realtimeChannel = null;
@@ -383,12 +380,21 @@ window.toggleDashView = function(view) { currentDashView = view; if(view === 'mo
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
 
+// 💡 금일 출입 현황: 오직 예약 데이터(gRes)만 사용
 function updateDailyInOutBanner() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { 
       let evts = []; 
-      gRes.forEach(r => { if(r.res_date === ds && r.center === centerFilter && !String(r.status||'').includes('취소')) { let st = String(r.res_time||"").split('~')[0].trim(); let enParts = String(r.res_time||"").split('~'); let en = enParts.length > 1 ? enParts[1].trim() : ''; let spc = String(r.space_equip||"").split(' ')[0]; evts.push({ start: st, end: en, name: r.name, space: spc }); } }); 
-      gTrn.forEach(t => { let p = String(t.content||"").split(' || '); if(p.length >= 5 && p[0].trim() === ds && p[3].trim() === centerFilter && !String(t.status||'').includes('취소')) { let st = String(p[2]||"").split('~')[0].trim(); let enParts = String(p[2]||"").split('~'); let en = enParts.length > 1 ? enParts[1].trim() : ''; let spc = p[4]; evts.push({ start: st, end: en, name: t.name, space: spc }); } }); 
+      gRes.forEach(r => { 
+          if(r.res_date === ds && r.center === centerFilter && !String(r.status||'').includes('취소')) { 
+              let st = String(r.res_time||"").split('~')[0].trim(); 
+              let enParts = String(r.res_time||"").split('~'); 
+              let en = enParts.length > 1 ? enParts[1].trim() : ''; 
+              let spc = String(r.space_equip||"").split(' ')[0]; 
+              evts.push({ start: st, end: en, name: r.name, space: spc }); 
+          } 
+      }); 
+      // gTrn(수업/훈련) 데이터 푸시 삭제 완료
       return evts; 
   }; 
   let centers = currentGlobalCenter === '전체' ? ['마포 센터', '광진 센터'] : [currentGlobalCenter]; 
@@ -396,12 +402,12 @@ function updateDailyInOutBanner() {
   centers.forEach(c => { 
       let evts = getDailyEvents(c); 
       if(evts.length === 0) { 
-          html += `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 일정이 없습니다.</div></div>`; 
+          html += `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 예약이 없습니다.</div></div>`; 
       } else { 
-          evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||''))); 
-          let first = evts[0]; 
-          evts.sort((a,b) => String(b.end||'').localeCompare(String(a.end||''))); 
-          let last = evts[evts.length-1]; 
+          // 💡 First In 과 Last Out을 독립적으로 완벽하게 정렬하여 추출
+          let first = [...evts].sort((a,b) => String(a.start||'').localeCompare(String(b.start||'')))[0]; 
+          let last = [...evts].sort((a,b) => String(b.end||'').localeCompare(String(a.end||'')))[0]; 
+          
           html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff; align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;">
               <div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px; width:100%;">${c}</div>
               <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px; width:100%;">
@@ -1222,7 +1228,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 팝업창 가로 스크롤 완벽 통제 로직 적용
+// 💡 발주 요약 렌더링
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1282,14 +1288,8 @@ window.showOrderSummary = function() {
 
             let ordererDetailText = s.orderers.map(o => `${o.batch} | ${o.name}`).join(', ');
             
-            // 💡 Flexbox 자식 요소가 부모 영역을 뚫지 않도록 강제 (min-width: 0, flex: 1)
-            let copyableHtml = `
-                <div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" style="max-width: 100%; min-width: 0; flex: 1;">
-                    <div style="display:flex; align-items:center; width:100%; min-width: 0;">
-                        <span class="copyable-text" style="font-size: 16px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; min-width: 0;">${window.escapeHtml(s.item)}</span>
-                        <span class="copyable-hint" style="flex-shrink: 0; min-width: 32px; margin-left: 8px;">복사</span>
-                    </div>
-                </div>`;
+            // 💡 텍스트 말줄임표 처리 및 가로 스크롤 방지를 위한 min-width: 0 설정
+            let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" style="max-width: 100%; min-width: 0;"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text" style="font-size: 16px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 100%; min-width: 0;">${window.escapeHtml(s.item)}</span><span class="copyable-hint" style="flex-shrink: 0; min-width: 32px; margin-left: 8px;">복사</span></div></div>`;
 
             html += `
             <div style="display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--border); min-width: 0;">
@@ -1313,15 +1313,25 @@ window.showOrderSummary = function() {
         
         html += `
             <div style="margin-top: 12px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border-strong);">
-                <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량 합계</span><span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalQtySum}kg/g</span></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 발주 수량 합계</span><span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalQtySum}</span></div>
                 <div style="height: 1px; background: var(--border); opacity: 0.5;"></div>
                 <div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 예상 금액 합계</span><span style="font-size: 20px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span></div>
             </div>
         </div>`;
         
         $("summaryModalBody").innerHTML = html;
-        let exportData = []; sortedData.forEach(s => { s.orderers.forEach(o => { exportData.push({ center: s.center, dayType: s.dayType, vendor: s.vendor, item: s.item, rawQty: o.rawQty, price: o.price, batch: o.batch, name: o.name, phone: o.phone }); }); });
+        
+        let exportData = []; 
+        sortedData.forEach(s => { 
+            s.orderers.forEach(o => { 
+                exportData.push({ 
+                    center: s.center, dayType: s.dayType, vendor: s.vendor, item: s.item, 
+                    rawQty: o.rawQty, price: o.price, batch: o.batch, name: o.name, phone: o.phone 
+                }); 
+            }); 
+        });
         window.currentSummaryData = exportData;
+
         let footerWrap = document.querySelector('#summaryModal .modal-content > div:last-child');
         if(footerWrap) footerWrap.innerHTML = `<button class="btn-outline" style="margin-right:8px; border-color:#32b06a; color:#32b06a;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button><button class="btn-primary" style="padding: 12px 24px; font-size: 14px;" onclick="window.downloadSummaryExcel()">엑셀 다운로드</button>`;
     }
