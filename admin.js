@@ -178,17 +178,20 @@ function initializeApp() {
 }
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
 
+// 💡 실시간 감지 로직 강화: 변경이 감지되면 즉시 데이터를 새로 불러와 화면을 다시 그립니다.
 supabaseClient.channel('admin-realtime')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, handleRealtime)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'trainings' }, handleRealtime)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handleRealtime)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'blocks' }, handleRealtime)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, handleRealtime)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, handleRealtime)
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, handleRealtime)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, handleRealtimeCenter)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'trainings' }, handleRealtimeCenter)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handleRealtimeCenter)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'blocks' }, handleRealtimeCenter)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, handleRealtimeCenter)
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => { window.fetchApplications(); })
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => { window.fetchMembers(); })
   .subscribe();
 
-function handleRealtime(payload) { if (['reservations', 'trainings', 'orders', 'blocks', 'notices'].includes(payload.table)) window.fetchCenterData(); if (payload.table === 'applications') window.fetchApplications(); if (payload.table === 'members') window.fetchMembers(); }
+function handleRealtimeCenter() {
+    window.fetchCenterData(); // 이 함수 안에서 renderCenterData()와 renderDashboard()를 모두 호출함
+}
 
 window.switchMainTab = function(pageId, element) {
   $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
@@ -1208,7 +1211,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 발주 요약 렌더링 로직 (결제 금액 추가, 단위 분리 완료)
+// 💡 발주 요약 렌더링
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1237,7 +1240,7 @@ window.showOrderSummary = function() {
             
             let rawQty = String(o.quantity || '0').trim();
             let numVal = parseFloat(rawQty.replace(/[^0-9.]/g, '')) || 0;
-            let unitVal = rawQty.replace(/[0-9.\s]/g, ''); // kg, g 등 단위 추출
+            let unitVal = rawQty.replace(/[0-9.\s]/g, ''); 
 
             let price = parseInt(String(o.total_price || '0').replace(/[^0-9]/g, '')) || 0;
 
@@ -1245,7 +1248,6 @@ window.showOrderSummary = function() {
             if(!summary[key].unit) summary[key].unit = unitVal; 
             summary[key].total += price;
             
-            // 💡 결제 예상 금액도 함께 저장하여 넘김
             summary[key].orderers.push({ 
                 batch: o.batch || '미정', 
                 name: o.name, 
@@ -1300,7 +1302,6 @@ window.showOrderSummary = function() {
         
         $("summaryModalBody").innerHTML = html;
         
-        // 💡 엑셀 및 시트 전송용 (가격 정보 포함)
         let exportData = []; 
         sortedData.forEach(s => { 
             s.orderers.forEach(o => { 
@@ -1333,7 +1334,7 @@ window.downloadSummaryExcel = function() {
 
 window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbw3xbZYkLuFi5HSGZietcRf2c19cWi_SDWsFvbjITltJoV8BIUh5hYyAhRq-xx1JgVI/exec'; 
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxSq6pU9KMz7F97UW_LSX9TfjrfFZtZccQ4a6_9Aq5dcFO56N7lDkZVdXpNoDDUoiMl/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
     try {
