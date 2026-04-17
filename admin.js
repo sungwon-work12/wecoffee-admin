@@ -40,6 +40,14 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = new Date(dateStr
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2500); }
 
+// 💡 기능 복구: 전체 선택 기능 (체크박스)
+window.toggleAll = function(checkbox, targetClass) {
+    const checkboxes = document.querySelectorAll('.' + targetClass);
+    checkboxes.forEach(cb => {
+        if (!cb.disabled) cb.checked = checkbox.checked;
+    });
+};
+
 window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length >= 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
 window.formatBlockTime = function(v) { let t = String(v).replace(/\D/g, ''); if(t.length === 1) return `0${t}:00`; if(t.length === 2) return `${t.padStart(2,'0')}:00`; if(t.length === 3) return `0${t.slice(0,1)}:${t.slice(1,3)}`; if(t.length >= 4) return `${t.slice(0,2)}:${t.slice(2,4)}`; return v; }
 
@@ -415,12 +423,17 @@ window.fetchCenterData = async function() {
         let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
         if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
 
+        // 💡 디벨롭: 훈련 필터 추출 시 [시간] 정보를 포함하여 분간이 쉽게 처리
         let tSet = new Set(); gTrn.forEach(t => {
             let cInfo = String(t.content||'').split(' || ');
-            if(cInfo.length >= 5) tSet.add(cInfo[4]); 
-            else tSet.add(t.content);
+            if(cInfo.length >= 5) {
+                // cInfo[2]는 시간(예: 14:00~16:00), cInfo[4]는 내용
+                tSet.add(`[${cInfo[2]}] ${cInfo[4]}`); 
+            } else {
+                tSet.add(t.content);
+            }
         });
-        let tHtml = `<option value="전체">전체 콘텐츠</option>` + Array.from(tSet).sort().map(c=>`<option value="${c}">${c}</option>`).join("");
+        let tHtml = `<option value="전체">전체 콘텐츠</option>` + Array.from(tSet).sort().map(c=>`<option value="${window.escapeHtml(c)}">${window.escapeHtml(c)}</option>`).join("");
         if($("trnContentFilter") && $("trnContentFilter").innerHTML.length < 100) $("trnContentFilter").innerHTML = tHtml;
 
     } catch(err) {}
@@ -452,7 +465,13 @@ window.renderCenterData = function() {
       let sTrn = $("trnContentFilter")?.value || "전체";
       let fTrnList = gTrn.filter(t => { 
           let tDate = new Date(t.created_at); 
-          let matchContent = sTrn === '전체' || String(t.content||'').includes(sTrn);
+          let matchContent = true;
+          // 💡 디벨롭: 선택한 필터([시간] 콘텐츠명)와 실제 콘텐츠 데이터 매칭 검사
+          if(sTrn !== '전체') {
+              let cInfo = String(t.content||'').split(' || ');
+              let targetStr = cInfo.length >= 5 ? `[${cInfo[2]}] ${cInfo[4]}` : String(t.content||'');
+              if(targetStr !== sTrn) matchContent = false;
+          }
           return (tDate >= oneMonthAgo) && (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
       });
       if($("trnTableBody")) $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ let displayStatus = t.status || ''; let actBtn = String(displayStatus).includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('trainings', '${t.id}')">취소</button>`; let cInfo = String(t.content||'').split(' || '); let niceContent = t.content; let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; if(cInfo.length >= 5) { niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; } let dow = getDow(preDate); let badgeClass = String(displayStatus).includes('취소')?'badge-red':displayStatus==='접수완료'?'badge-green':'badge-gray'; let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${t.batch||'-'}] ${window.escapeHtml(t.name)}</span><span class="status-badge ${badgeClass}">${displayStatus}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${preDate}(${dow}) ${preTime}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${preCenter}] ${window.escapeHtml(preName)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(t.name)}</strong></td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc"><span class="status-badge ${badgeClass}">${displayStatus}</span></td><td data-label="관리">${actBtn}</td></tr>`; }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
@@ -475,7 +494,16 @@ window.renderCenterData = function() {
   } catch(e) { console.error(e); }
 
   try {
-      let fBlk = gBlk.filter(b => currentGlobalCenter === '전체' || b.center === currentGlobalCenter); 
+      let todayForBlk = new Date();
+      todayForBlk.setHours(0,0,0,0);
+      
+      let fBlk = gBlk.filter(b => {
+          let bDate = new Date(b.block_date);
+          bDate.setHours(0,0,0,0);
+          let matchCenter = (currentGlobalCenter === '전체' || b.center === currentGlobalCenter);
+          return matchCenter && (bDate >= todayForBlk); 
+      }); 
+      
       if($("blkTableBody")) $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
           let max = b.capacity || '-'; 
           let current = 0; 
@@ -487,7 +515,7 @@ window.renderCenterData = function() {
           let dow = getDow(b.block_date); 
           let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">${b.category}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${b.block_date}(${dow}) ${b.start_time}~${b.end_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${b.center}] ${b.space_equip || '전체'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
           return `<tr>${mPreview}<td data-label="날짜"><strong>${b.block_date}</strong></td><td data-label="시간">${b.start_time} ~ ${b.end_time}</td><td data-label="구분"><span style="color:var(--primary);font-weight:600;">${b.category}</span></td><td data-label="공간">${b.center} <span class="sub-text">${b.space_equip}</span></td><td data-label="사유">${window.escapeHtml(b.reason)}</td><td data-label="정원" class="tc">${capDisplay}</td><td data-label="관리" class="tc"><div class="action-wrap-flex"><button class="btn-outline btn-sm" onclick="window.editBlock('${b.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteBlock('${b.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>` 
-      }).join("") : `<tr><td colspan="7" class="empty-state">내역 없음</td></tr>`;
+      }).join("") : `<tr><td colspan="7" class="empty-state">진행 예정인 스케줄이 없습니다.</td></tr>`;
   } catch(e) { console.error(e); }
 }
 
@@ -698,14 +726,16 @@ function renderOrderTableHTML(fOrd, tableId, chkClass) {
   try {
       if(!$(tableId)) return;
       $(tableId).innerHTML = fOrd.length ? fOrd.map(o=>{ 
-        let badgeClass = o.status==='주문 취소'?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
+        // 💡 디벨롭: '품절' 상태 추가 및 스타일 지정 (주문 취소와 같은 red 계열 활용)
+        let badgeClass = (o.status==='주문 취소' || o.status==='품절')?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
         let cNm = o.item_name || ""; let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/); if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); } 
         let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`; 
         let vendorUrl = o.link ? o.link : (o.url ? o.url : '#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`; 
         let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${cNm}</span><span class="copyable-hint">복사</span></div></div>`; 
         let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : ''; 
         let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
-        return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 날짜" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 320px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:12px;"><div style="width: 80px; flex-shrink: 0; text-align: left;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>${copyableHtml}</div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option></select></div></td></tr>` 
+        // 💡 옵션에 '품절' 추가
+        return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 날짜" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 320px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:12px;"><div style="width: 80px; flex-shrink: 0; text-align: left;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>${copyableHtml}</div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
       }).join("") : `<tr><td colspan="10" class="empty-state">해당 요일의 주문 내역이 없습니다.</td></tr>`; 
   } catch(e) { if($(tableId)) $(tableId).innerHTML = `<tr><td colspan="10" class="empty-state">에러 발생</td></tr>`; }
 }
@@ -885,7 +915,7 @@ window.fetchApplications = async function() {
 }
 window.applyFilterApp = function() { try { const selected = $("batchFilterApp").value; const filtered = selected === 'all' ? globalApps : globalApps.filter(d => d.desired_batch === selected); if (isInsightView) window.renderStatistics(filtered); else { window.renderAppTable(filtered); window.renderAppDailyBanner(filtered); window.renderAppDashboard(); } } catch(e) { console.error("필터 적용 중 에러:", e); } }
 
-const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed' };
+const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed', '품절': 'st-ghosted' };
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 
 function parseAcquisitionChannel(rawText) { 
@@ -1292,44 +1322,72 @@ window.openCrmModalFromPhone = async function(phone) {
         showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");
     }
 }
-/** * ☕ 발주 요약 보기 (Toss & 현대카드 스타일 개편)
- */
+
+/** * ☕ 발주 요약 보기 (Toss & 현대카드 스타일 개편 + 주문자 표기 + 필터 동기화) */
 window.showOrderSummary = function() {
-    // 1. 데이터 필터링 (취소건 제외 미처리 발주건)
-    let pendingOrders = gOrd.filter(o => o.status !== '주문 취소' && o.status !== '센터 도착');
+    let qOrd = ($("searchOrd")?.value || "").toLowerCase();
+    let vOrd = $("ordVendorFilter")?.value || "전체";
+
+    // 1. 데이터 필터링 (취소건 제외 미처리 발주건 + 현재 센터/검색/생두사 필터 유지)
+    let pendingOrders = gOrd.filter(o => {
+        if (o.status === '주문 취소' || o.status === '센터 도착') return false;
+        let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
+        let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
+        let matchV = vOrd === '전체' ? true : o.vendor === vOrd;
+        return matchCenter && matchQ && matchV;
+    });
     
     if (pendingOrders.length === 0) {
-        $("summaryModalBody").innerHTML = '<div class="empty-state" style="padding: 80px 0;">현재 요약할 발주 내역이 없습니다.</div>';
+        $("summaryModalBody").innerHTML = '<div class="empty-state" style="padding: 80px 0;">조건에 일치하는 발주 내역이 없습니다.</div>';
     } else {
-        // 2. 데이터 그룹화 (생두사 + 상품명 기준)
+        // 2. 데이터 그룹화 (센터 -> 생두사 -> 상품명 기준)
         let summary = {};
         pendingOrders.forEach(o => {
-            let key = `${o.vendor}:::${o.item_name}`;
-            if(!summary[key]) summary[key] = { vendor: o.vendor, item: o.item_name, qty: 0, total: 0 };
+            let center = o.center || '미지정';
+            let vendor = o.vendor;
             
-            // 수량에서 숫자만 추출하여 합산
+            // 깔끔한 상품명 추출
+            let cNm = o.item_name;
+            let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
+            if(m) cNm = m[1].trim();
+            else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
+
+            let key = `${center}:::${vendor}:::${cNm}`;
+            if(!summary[key]) summary[key] = { center: center, vendor: vendor, item: cNm, qty: 0, total: 0, orderers: [] };
+            
             let qtyNum = parseInt(String(o.quantity || '0').replace(/[^0-9]/g, '')) || 0;
-            summary[key].qty += qtyNum;
-            
-            // 금액 합산
             let price = parseInt(String(o.total_price || '0').replace(/[^0-9]/g, '')) || 0;
+
+            summary[key].qty += qtyNum;
             summary[key].total += price;
+            // 주문자 정보 누적 (ex: 홍길동(2kg))
+            summary[key].orderers.push(`${window.escapeHtml(o.name)}(${qtyNum}kg)`);
         });
         
-        // 3. UI 렌더링 (간결하고 볼드한 스타일)
         let html = `<div style="display: flex; flex-direction: column; gap: 24px; width: 100%;">`;
+        let totalQty = 0; let grandTotal = 0;
         
-        let totalQty = 0;
-        let grandTotal = 0;
+        // 3. 센터명, 생두사 기준 정렬
+        let sortedData = Object.values(summary).sort((a,b) => a.center.localeCompare(b.center) || a.vendor.localeCompare(b.vendor));
         
-        Object.values(summary).forEach(s => {
+        let currentCenterLabel = '';
+        sortedData.forEach(s => {
+            // 센터별 헤더 분리 표시
+            if (currentCenterLabel !== s.center) {
+                currentCenterLabel = s.center;
+                html += `<div style="font-size:16px; font-weight:800; color:var(--text-display); margin-top:8px; padding-bottom:8px; border-bottom:2px solid var(--text-display);">${currentCenterLabel} 발주 요약</div>`;
+            }
+
+            let ordererStr = s.orderers.join(', ');
+
             html += `
-            <div style="display: flex; flex-direction: column; gap: 4px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--border);">
                 <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div>
                 
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
-                    <div style="font-size: 15px; font-weight: 700; color: var(--text-display); line-height: 1.4; flex: 1; word-break: keep-all;">
-                        ${window.escapeHtml(s.item)}
+                    <div style="flex: 1;">
+                        <div style="font-size: 15px; font-weight: 700; color: var(--text-display); line-height: 1.4; word-break: keep-all;">${window.escapeHtml(s.item)}</div>
+                        <div style="font-size: 12px; font-weight: 600; color: var(--primary); margin-top: 4px; line-height: 1.4; word-break: keep-all;">주문자: ${ordererStr}</div>
                     </div>
                     <div style="text-align: right; flex-shrink: 0;">
                         <div style="font-size: 16px; font-weight: 800; color: var(--text-display);">${s.qty}<span style="font-size: 13px; margin-left: 2px;">kg</span></div>
@@ -1341,7 +1399,7 @@ window.showOrderSummary = function() {
             grandTotal += s.total;
         });
         
-        // 4. 합계 영역 (현대카드 플레이트 느낌의 강조)
+        // 4. 총 합계 영역
         html += `
             <div style="margin-top: 8px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1350,43 +1408,56 @@ window.showOrderSummary = function() {
                 </div>
                 <div style="height: 1px; background: var(--border-strong); opacity: 0.5;"></div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 합계 금액</span>
+                    <span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">총 예상 금액</span>
                     <span style="font-size: 22px; font-weight: 900; color: var(--primary);">${comma(grandTotal)}원</span>
                 </div>
             </div>
         </div>`;
         
         $("summaryModalBody").innerHTML = html;
-        window.currentSummaryData = Object.values(summary); 
+        
+        // 엑셀/시트 전송용 데이터 포맷팅
+        window.currentSummaryData = sortedData.map(s => ({
+            center: s.center, vendor: s.vendor, item: s.item, qty: s.qty, total: s.total, orderers: s.orderers.join(', ')
+        })); 
+
+        // 💡 구글 시트 전송 버튼 동적 삽입
+        let footerWrap = document.querySelector('#summaryModal .modal-content > div:last-child');
+        if(footerWrap) {
+            footerWrap.innerHTML = `
+                <button class="btn-outline" style="margin-right:8px; border-color:#32b06a; color:#32b06a;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button>
+                <button class="btn-primary" style="padding: 12px 24px; font-size: 14px;" onclick="window.downloadSummaryExcel()">엑셀 다운로드</button>
+            `;
+        }
     }
     
-    // 모달 표시
     const modal = $("summaryModal");
     if(modal) modal.classList.add('show');
 };
 
-// 💡 닫기 함수 (z-index 및 바인딩 보장)
 window.closeSummaryModal = function() {
     const modal = $("summaryModal");
     if(modal) modal.classList.remove('show');
 };
 
-// 💡 엑셀 다운로드 (kg 단위 포함 보존)
+// 💡 새로 개편된 엑셀 다운로드 양식 (센터/주문자 포함)
 window.downloadSummaryExcel = function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
         showToast('다운로드할 데이터가 없습니다.');
         return;
     }
-    let csv = "\uFEFF생두사,상품명,합계 수량,예상 총액\n";
+    let csv = "\uFEFF수령 센터,생두사,상품명,합계 수량,예상 총액,주문자 내역\n";
     window.currentSummaryData.forEach(s => {
-        csv += `"${s.vendor}","${String(s.item).replace(/"/g, '""')}",${s.qty}kg,${s.total}원\n`;
+        let ordererSafe = String(s.orderers).replace(/"/g, '""');
+        let itemSafe = String(s.item).replace(/"/g, '""');
+        csv += `"${s.center}","${s.vendor}","${itemSafe}",${s.qty}kg,${s.total}원,"${ordererSafe}"\n`;
     });
     
     try {
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
         const link = document.createElement('a'); 
         link.href = URL.createObjectURL(blob); 
-        link.download = `위커피_발주요약_${new Date().toISOString().slice(0,10)}.csv`; 
+        link.download = `위커피_센터별_발주요약_${new Date().toISOString().slice(0,10)}.csv`; 
         document.body.appendChild(link);
         link.click(); 
         document.body.removeChild(link);
@@ -1395,3 +1466,35 @@ window.downloadSummaryExcel = function() {
         showToast("다운로드 중 오류가 발생했습니다.");
     }
 };
+
+// 💡 구글 시트 자동 업데이트 API 발송용 함수
+window.sendToGoogleSheet = async function() {
+    if(!window.currentSummaryData || window.currentSummaryData.length === 0) {
+        showToast('전송할 데이터가 없습니다.');
+        return;
+    }
+    // 하단 2번 가이드에서 생성한 Apps Script Web App URL을 여기에 붙여넣으세요.
+    const GAS_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL'; 
+    if(GAS_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
+        showToast('JS 코드 내 GAS_URL에 앱스 스크립트 주소를 먼저 입력해 주세요.');
+        return;
+    }
+
+    const btn = document.getElementById('btn-send-sheet');
+    if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
+
+    try {
+        await fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors', // CORS 우회용 옵션
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(window.currentSummaryData)
+        });
+        showToast("시트로 데이터 전송 요청을 완료했습니다.");
+    } catch(e) {
+        console.error(e);
+        showToast("전송 중 네트워크 오류가 발생했습니다."); 
+    } finally {
+        if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; }
+    }
+}
