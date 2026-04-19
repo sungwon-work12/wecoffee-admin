@@ -245,6 +245,7 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
+// 💡 버튼명 분기 처리 추가된 CustomConfirm
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrText, btnText = '적용하기') {
     if($("confirmTarget")) $("confirmTarget").innerHTML = title;
     if(statusHtml) { if($("confirmStateBox")) $("confirmStateBox").style.display = 'block'; if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'none'; if($("confirmStatus")) $("confirmStatus").innerHTML = statusHtml; if($("confirmActionState")) $("confirmActionState").innerHTML = actionHtml; } 
@@ -268,13 +269,19 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrTex
                 })();
             }
         };
+
+        // 💡 단순 확인창일 경우 취소(닫기) 버튼 숨김 처리
+        let cancelBtn = newBtn.previousElementSibling;
+        if(cancelBtn && cancelBtn.tagName === 'BUTTON') {
+            cancelBtn.style.display = (btnText === '확인') ? 'none' : 'block';
+        }
     }
     if($("confirmModal")) $("confirmModal").classList.add('show');
 }
 window.closeConfirmModal = function() { if($("confirmModal")) $("confirmModal").classList.remove('show'); }
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId && $(modalId)) $(modalId).classList.remove('show'); }
 
-// 💡 2. 당일 취소 사유 클릭 팝업 노출 함수
+// 💡 당일 취소 사유 클릭 시 팝업
 window.showCancelReason = function(reason) {
     window.openCustomConfirm(
         "당일 취소 사유", 
@@ -405,30 +412,9 @@ window.saveBlockData = async function() {
 }
 window.deleteBlock = function(id) { window.openCustomConfirm("스케줄 삭제", null, `해당 스케줄을 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('blocks').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
 
-// 💡 2. 관리자 취소 액션 시 3분할 팝업 (취소, 정상, 당일) 연결
-window.cancelAction = function(table, id) { 
-    let html = `
-        <div style="text-align:left; margin-bottom:12px;">
-            <label class="input-label" style="font-weight:700;">취소 유형</label>
-            <select id="cancelTypeSelect" class="filter-select" style="width:100%; box-sizing:border-box; margin-bottom:16px;">
-                <option value="취소 (정상)">취소 (정상)</option>
-                <option value="당일 취소">당일 취소 (패널티 누적)</option>
-                <option value="취소">기타 취소</option>
-            </select>
-            <label class="input-label" style="font-weight:700;">취소 사유 (선택)</label>
-            <input type="text" id="cancelReasonInput" class="input-search" style="width:100%; box-sizing:border-box;" placeholder="당일 취소 시 가급적 사유를 입력해주세요">
-        </div>
-    `;
-    window.openCustomConfirm("예약/수업 취소 처리", null, html, async () => { 
-        let type = $("cancelTypeSelect").value;
-        let reason = $("cancelReasonInput").value.trim();
-        await supabaseClient.from(table).update({ status: type, cancel_reason: reason }).eq('id', id); 
-        showToast(type + " 처리되었습니다."); 
-        window.fetchCenterData(); 
-    }); 
-}
-
-window.bulkAction = function(table, type) { let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; } window.openCustomConfirm("일괄 취소", null, `선택한 ${chks.length}건을 일괄 취소하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary);">(일괄 취소는 모두 '취소 (정상)'으로 처리됩니다)</span>`, async () => { let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from(table).update({ status: '취소 (정상)' }).eq('id', chk.value)); }); await Promise.all(promises); showToast("일괄 처리가 완료되었습니다."); window.fetchCenterData(); }); }
+// 💡 관리자 취소 액션 (정상 취소로 처리)
+window.cancelAction = function(table, id) { window.openCustomConfirm("정상 취소 처리", null, `해당 내역을 정상 취소로 처리하시겠습니까?`, async () => { await supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', id); showToast("정상 취소로 처리되었습니다."); window.fetchCenterData(); }); }
+window.bulkAction = function(table, type) { let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; } window.openCustomConfirm("일괄 취소", null, `선택한 ${chks.length}건을 일괄 취소하시겠습니까?`, async () => { let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', chk.value)); }); await Promise.all(promises); showToast("일괄 처리가 완료되었습니다."); window.fetchCenterData(); }); }
 
 window.bulkActionOrd = function(statusValue) { let chks = $$$(`.chk-ord:checked`); if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; } window.openCustomConfirm("생두 상태 일괄 변경", null, `선택한 ${chks.length}건을(를) ${statusValue} 상태로 변경하시겠습니까?`, async () => { let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from('orders').update({ status: statusValue }).eq('id', chk.value)); }); await Promise.all(promises); showToast(`일괄 처리가 완료되었습니다.`); window.fetchCenterData(); }); }
 
@@ -443,7 +429,7 @@ window.toggleDashView = function(view) { currentDashView = view; if(view === 'mo
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
 
-// 💡 1. 상단 2단 레이아웃: 금일 출입 현황 (좌측)
+// 💡 1. 좌측 패널: 금일 출입 현황
 function updateDailyInOutBanner() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { 
@@ -485,7 +471,7 @@ function updateDailyInOutBanner() {
   if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; 
 }
 
-// 💡 1. 상단 2단 레이아웃: 이번 달 당일 취소 누적 현황 (우측 50%)
+// 💡 3. 우측 패널: 이번 달 당일 취소 누적 현황
 window.updateCancelAccumulationBanner = function() {
     let now = new Date();
     let y = now.getFullYear();
@@ -522,7 +508,7 @@ window.updateCancelAccumulationBanner = function() {
             let isWarning = user.count >= 4;
             let style = isWarning ? 'border:1px solid var(--error); background:#fff0f0;' : 'border:1px solid var(--border-strong); background:#fff;';
             let nameColor = isWarning ? 'color:var(--error); font-weight:800;' : 'color:var(--text-display); font-weight:700;';
-            // 💡 3. 강렬한 레드 텍스트 배지 (이모지 없음)
+            // 💡 4회 이상 당일 취소자 빨간색 텍스트 배지 (이모지 없음)
             let warningBadge = isWarning ? `<span style="background:var(--error); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-left:8px; font-weight:700;">경고</span>` : '';
             
             html += `<div style="padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; ${style}">
@@ -531,7 +517,6 @@ window.updateCancelAccumulationBanner = function() {
             </div>`;
         });
     }
-    // HTML에 미리 준비해둔 cancelAccumulationBanner 영역에 렌더링
     if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
 };
 
@@ -607,10 +592,9 @@ window.renderCenterData = function() {
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
   let todayForBlk = new Date(); todayForBlk.setHours(0,0,0,0);
 
-  // 1, 3. 상단 2단 패널 데이터 업데이트
-  try { updateDailyInOutBanner(); window.updateCancelAccumulationBanner(); } catch(e) {}
+  try { updateDailyInOutBanner(); if(window.updateCancelAccumulationBanner) window.updateCancelAccumulationBanner(); } catch(e) {}
   
-  // 💡 1. 1열 밀림 방지 Auto-Inject: HTML 헤더(thead)에 체크박스 칸이 없으면 JS가 강제로 삽입하여 아귀를 맞춤
+  // 💡 1열 밀림 방지 Auto-Inject: HTML 헤더(thead)에 체크박스 칸이 없으면 자동 삽입
   try {
       let resTable = $("resTableBody")?.closest('table');
       if(resTable) {
@@ -640,8 +624,8 @@ window.renderCenterData = function() {
       });
       if($("resTableBody")) $("resTableBody").innerHTML = fRes.length ? fRes.map(r=>{ 
           let displayStatus = r.status || ''; 
-          let actBtn = displayStatus.includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; 
-          if (r.res_time && r.res_date && !displayStatus.includes('취소')) { 
+          let actBtn = String(displayStatus).includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; 
+          if (r.res_time && r.res_date && !String(displayStatus).includes('취소')) { 
               let endTimeStr = String(r.res_time).split('~')[1];
               if(endTimeStr) {
                   let [hh, mm] = endTimeStr.trim().split(':'); 
@@ -652,7 +636,7 @@ window.renderCenterData = function() {
           
           let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '이용완료' ? 'badge-gray' : (displayStatus === '예약완료' ? 'badge-green' : 'badge-gray'))); 
           
-          // 💡 2. 당일 취소 시 클릭하여 사유 보기 (이모지나 밑줄 같은 촌스러운 장식 배제)
+          // 💡 2. 당일 취소 배지 클릭 시 사유 팝업 노출 (텍스트 꾸밈 없음)
           let statHtml = '';
           if(displayStatus === '당일 취소') {
               let safeReason = window.escapeHtml(r.cancel_reason || '사유 미기재').replace(/'/g, "\\'");
@@ -663,7 +647,7 @@ window.renderCenterData = function() {
 
           let dow = getDow(r.res_date); 
           let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${r.batch||'-'}] ${window.escapeHtml(r.name)}</span>${statHtml}</div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${r.res_date}(${dow}) ${r.res_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${r.center}] ${r.space_equip || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
-          return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${displayStatus.includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
+          return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
       }).join("") : `<tr><td colspan="11" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
   
@@ -689,13 +673,13 @@ window.renderCenterData = function() {
       });
       if($("trnTableBody")) $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ 
           let displayStatus = t.status || ''; 
-          let actBtn = displayStatus.includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('trainings', '${t.id}')">취소</button>`; 
+          let actBtn = String(displayStatus).includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('trainings', '${t.id}')">취소</button>`; 
           let cInfo = String(t.content||'').split(' || '); let niceContent = t.content; let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; 
           if(cInfo.length >= 5) { niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; } 
           
           let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '접수완료' ? 'badge-green' : 'badge-gray')); 
           
-          // 💡 2. 당일 취소 시 클릭하여 사유 보기
+          // 💡 2. 당일 취소 배지 클릭 시 사유 팝업 노출
           let statHtml = '';
           if(displayStatus === '당일 취소') {
               let safeReason = window.escapeHtml(t.cancel_reason || '사유 미기재').replace(/'/g, "\\'");
@@ -706,7 +690,7 @@ window.renderCenterData = function() {
 
           let dow = getDow(preDate); 
           let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${t.batch||'-'}] ${window.escapeHtml(t.name)}</span>${statHtml}</div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${preDate}(${dow}) ${preTime}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${preCenter}] ${window.escapeHtml(preName)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
-          return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${displayStatus.includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(t.name)}</strong></td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
+          return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(t.name)}</strong></td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
       }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
 try {
@@ -1002,7 +986,6 @@ window.renderMCalCenter = function(selDate) {
   if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 💡 캘린더 툴팁에 [신청자 이름] 명시
 window.renderAppDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + appDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentAppDashView === 'month' && $("appDashMonthTitle")) $("appDashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; await window.fetchHolidays(yyyy);
@@ -1191,7 +1174,7 @@ function parseAcquisitionChannel(rawText) {
 
 window.closeCrmModal = function() { if($("crmModal")) $("crmModal").classList.remove('show'); };
 
-// 💡 3. CRM 팝업 내 당일 취소 경고 배지 노출 로직 연동
+// 💡 CRM 팝업 내 당일 취소 경고 배지 삽입
 window.renderCrmInner = function(id, isReadOnly = false) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     
@@ -1370,7 +1353,7 @@ window.renderStatistics = function(data) {
 window.fetchMembers = async function() { const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); if (error) return; globalMembers = data; let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); }); let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort().reverse().map(b=>`<option value="${b}">${b}</option>`).join(""); if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml; window.searchMembers(); }
 window.searchMembers = function() { const query = $("memberSearch") ? $("memberSearch").value.trim().toLowerCase() : ""; const statusFilter = $("memberStatusFilter") ? $("memberStatusFilter").value : 'all'; const batchFilter = $("memberBatchFilter") ? $("memberBatchFilter").value : 'all'; const today = new Date(); today.setHours(0,0,0,0); const filtered = globalMembers.filter(m => { let isExpired = true; let isPaused = m.status === '활동 일시정지'; if (m.end_date && m.end_date.length === 10) { let endD = new Date(m.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; } let statusText = m.status || '활동 중'; if (statusText === '패널티 정지') statusText = '패널티 정지'; else if (statusText === '활동 일시정지') statusText = '활동 일시정지'; else if (isExpired) statusText = '활동 종료'; let matchQuery = `${m.batch||''} ${m.name||''} ${m.phone||''} ${statusText}`.toLowerCase().includes(query); let matchBatch = batchFilter === 'all' || m.batch === batchFilter; let matchStatus = false; if (statusFilter === 'all') matchStatus = true; else if (statusFilter === '활동 중 (전체)') matchStatus = ['활동 중', '연장 활동 중', '단일권 이용'].includes(statusText); else matchStatus = statusText === statusFilter; return matchQuery && matchStatus && matchBatch; }); renderMemberTable(filtered); }
 
-// 💡 3. 멤버 리스트: 4회 이상 당일 취소 시 자동 경고 배지 삽입 (이모지 없이 단정하게)
+// 💡 멤버 리스트: 4회 이상 당일 취소 시 자동 경고 배지 삽입 (이모지 없음)
 function renderMemberTable(data) {
   if(!$("memberTableBody")) return;
   const tbody = $("memberTableBody"); tbody.innerHTML = ''; if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="empty-state">내역이 없습니다.</td></tr>`; return; } const today = new Date(); today.setHours(0,0,0,0);
@@ -1523,7 +1506,6 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 발주 요약 & 구글 시트 전송 파트
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
