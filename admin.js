@@ -245,7 +245,6 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
-// 💡 버튼명 분기 처리 추가된 CustomConfirm
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrText, btnText = '적용하기') {
     if($("confirmTarget")) $("confirmTarget").innerHTML = title;
     if(statusHtml) { if($("confirmStateBox")) $("confirmStateBox").style.display = 'block'; if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'none'; if($("confirmStatus")) $("confirmStatus").innerHTML = statusHtml; if($("confirmActionState")) $("confirmActionState").innerHTML = actionHtml; } 
@@ -281,7 +280,6 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrTex
 window.closeConfirmModal = function() { if($("confirmModal")) $("confirmModal").classList.remove('show'); }
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId && $(modalId)) $(modalId).classList.remove('show'); }
 
-// 💡 당일 취소 사유 클릭 시 팝업
 window.showCancelReason = function(reason) {
     window.openCustomConfirm(
         "당일 취소 사유", 
@@ -412,7 +410,6 @@ window.saveBlockData = async function() {
 }
 window.deleteBlock = function(id) { window.openCustomConfirm("스케줄 삭제", null, `해당 스케줄을 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('blocks').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
 
-// 💡 관리자 취소 액션 (정상 취소로 처리)
 window.cancelAction = function(table, id) { window.openCustomConfirm("정상 취소 처리", null, `해당 내역을 정상 취소로 처리하시겠습니까?`, async () => { await supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', id); showToast("정상 취소로 처리되었습니다."); window.fetchCenterData(); }); }
 window.bulkAction = function(table, type) { let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; } window.openCustomConfirm("일괄 취소", null, `선택한 ${chks.length}건을 일괄 취소하시겠습니까?`, async () => { let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', chk.value)); }); await Promise.all(promises); showToast("일괄 처리가 완료되었습니다."); window.fetchCenterData(); }); }
 
@@ -429,7 +426,6 @@ window.toggleDashView = function(view) { currentDashView = view; if(view === 'mo
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); }
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); }
 
-// 💡 1. 좌측 패널: 금일 출입 현황
 function updateDailyInOutBanner() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { 
@@ -471,7 +467,6 @@ function updateDailyInOutBanner() {
   if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; 
 }
 
-// 💡 3. 우측 패널: 이번 달 당일 취소 누적 현황
 window.updateCancelAccumulationBanner = function() {
     let now = new Date();
     let y = now.getFullYear();
@@ -508,7 +503,6 @@ window.updateCancelAccumulationBanner = function() {
             let isWarning = user.count >= 4;
             let style = isWarning ? 'border:1px solid var(--error); background:#fff0f0;' : 'border:1px solid var(--border-strong); background:#fff;';
             let nameColor = isWarning ? 'color:var(--error); font-weight:800;' : 'color:var(--text-display); font-weight:700;';
-            // 💡 4회 이상 당일 취소자 빨간색 텍스트 배지 (이모지 없음)
             let warningBadge = isWarning ? `<span style="background:var(--error); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-left:8px; font-weight:700;">경고</span>` : '';
             
             html += `<div style="padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; ${style}">
@@ -594,22 +588,38 @@ window.renderCenterData = function() {
 
   try { updateDailyInOutBanner(); if(window.updateCancelAccumulationBanner) window.updateCancelAccumulationBanner(); } catch(e) {}
   
-  // 💡 1열 밀림 방지 Auto-Inject: HTML 헤더(thead)에 체크박스 칸이 없으면 자동 삽입
+  // 💡 1. 상세 예약 로그 -> 상세 예약 리스트 자동 네이밍 변경
+  try {
+      let resTitle = document.querySelector('#sub-res .table-toolbar .section-title');
+      if(resTitle && resTitle.innerHTML.includes('로그')) {
+          resTitle.innerHTML = resTitle.innerHTML.replace('로그', '리스트');
+      }
+  } catch(e) {}
+
+  // 💡 2. 1열 밀림 방지 & '전체 선택' 체크박스 완벽 복구
   try {
       let resTable = $("resTableBody")?.closest('table');
       if(resTable) {
-          let ths = resTable.querySelectorAll('thead th');
-          if(ths.length > 0 && ths[0].innerText.includes('접수')) {
-              let th = document.createElement('th'); th.style.width = '48px'; th.style.textAlign = 'center';
-              resTable.querySelector('thead tr').insertBefore(th, ths[0]);
+          let theadTr = resTable.querySelector('thead tr');
+          let firstTh = theadTr.querySelector('th');
+          if(firstTh && firstTh.innerText.includes('접수')) {
+              let chkTh = document.createElement('th');
+              chkTh.style.width = '48px';
+              chkTh.style.textAlign = 'center';
+              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-res\')">';
+              theadTr.insertBefore(chkTh, firstTh);
           }
       }
       let trnTable = $("trnTableBody")?.closest('table');
       if(trnTable) {
-          let ths = trnTable.querySelectorAll('thead th');
-          if(ths.length > 0 && ths[0].innerText.includes('신청')) {
-              let th = document.createElement('th'); th.style.width = '48px'; th.style.textAlign = 'center';
-              trnTable.querySelector('thead tr').insertBefore(th, ths[0]);
+          let theadTr = trnTable.querySelector('thead tr');
+          let firstTh = theadTr.querySelector('th');
+          if(firstTh && firstTh.innerText.includes('신청')) {
+              let chkTh = document.createElement('th');
+              chkTh.style.width = '48px';
+              chkTh.style.textAlign = 'center';
+              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-trn\')">';
+              theadTr.insertBefore(chkTh, firstTh);
           }
       }
   } catch(e) {}
@@ -636,7 +646,6 @@ window.renderCenterData = function() {
           
           let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '이용완료' ? 'badge-gray' : (displayStatus === '예약완료' ? 'badge-green' : 'badge-gray'))); 
           
-          // 💡 2. 당일 취소 배지 클릭 시 사유 팝업 노출 (텍스트 꾸밈 없음)
           let statHtml = '';
           if(displayStatus === '당일 취소') {
               let safeReason = window.escapeHtml(r.cancel_reason || '사유 미기재').replace(/'/g, "\\'");
@@ -679,7 +688,6 @@ window.renderCenterData = function() {
           
           let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '접수완료' ? 'badge-green' : 'badge-gray')); 
           
-          // 💡 2. 당일 취소 배지 클릭 시 사유 팝업 노출
           let statHtml = '';
           if(displayStatus === '당일 취소') {
               let safeReason = window.escapeHtml(t.cancel_reason || '사유 미기재').replace(/'/g, "\\'");
