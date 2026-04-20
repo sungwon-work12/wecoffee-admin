@@ -11,16 +11,16 @@ let quillEditor = null;
 let isAppInitialized = false; 
 let realtimeChannel = null;
 
-// 💡 1. 툴팁 UI 및 N회차 뱃지용 CSS 동적 주입 (디자인 일관성 및 UI 밀림 방지)
+// 💡 1. 툴팁 UI 및 N회차 뱃지용 CSS 동적 주입 (모바일 툴팁 잘림 방지 max-width & pre-wrap 적용)
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
     style.innerHTML = `
         .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; }
         .info-tooltip:hover { color: #505967; border-color: #505967; }
-        .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: nowrap; z-index: 9999; margin-bottom: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; pointer-events: none; transition: 0.2s; text-align: center; }
+        .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: pre-wrap; max-width: 250px; width: max-content; z-index: 9999; margin-bottom: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; pointer-events: none; transition: 0.2s; text-align: center; word-break: keep-all; }
         .info-tooltip:hover::after { opacity: 1; }
-        .info-tooltip.long-text::after { white-space: normal; width: 280px; text-align: left; }
+        .info-tooltip.long-text::after { max-width: 300px; text-align: left; }
         .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
     `;
     document.head.appendChild(style);
@@ -152,7 +152,7 @@ function initializeApp() {
 }
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
 
-// 💡 4. 시스템 안정성 강화 (탭 이동 시 자동 새로고침 강제화)
+// 💡 시스템 안정성: 탭 클릭 시 강제 새로고침(Fetch) 적용 완료
 window.switchMainTab = function(pageId, element) {
   $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
   $$$(".gnb-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.gnb-item[onclick*="${pageId}"]`); if(targetEl) targetEl.classList.add('active');
@@ -270,7 +270,7 @@ window.updateCancelAccumulationBanner = function() {
     if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
 };
 
-// 💡 4. 생두 주문 마감 보호 로직
+// 💡 4. 생두 주문 마감 보호 (접수, 대기 등 영구 유지)
 function isOrderExpired(order, now) {
     let oDate = new Date(order.created_at); let status = order.status || '주문 접수';
     if (['주문 접수', '입금 대기', '입금 확인 중', '입금 확인', '대기'].includes(status)) return false;
@@ -278,6 +278,39 @@ function isOrderExpired(order, now) {
     if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
     return false;
 }
+window.fetchCenterData = async function() {
+  try {
+    const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
+    gRes = res?.data||[]; gTrn = trn?.data||[]; gOrd = ord?.data||[]; gBlk = blk?.data||[]; gNotice = noti?.data||[];
+    
+    try {
+        gRes.forEach(r => { if(r.space_equip) r.space_equip = String(r.space_equip).replace(/로스팅룸/g, '로스팅존'); }); 
+        gBlk.forEach(b => { if(b.space_equip) b.space_equip = String(b.space_equip).replace(/로스팅룸/g, '로스팅존'); }); 
+        gTrn.forEach(t => { if(t.content) t.content = String(t.content).replace(/로스팅룸/g, '로스팅존'); });
+
+        let bSet = new Set(); gRes.forEach(r => { if(r.batch) bSet.add(r.batch); }); gTrn.forEach(t => { if(t.batch) bSet.add(t.batch); });
+        let bHtml = `<option value="전체">전체 기수</option>` + Array.from(bSet).sort().map(b=>`<option value="${b}">${b}</option>`).join("");
+        if($("dashBatchFilter") && $("dashBatchFilter").innerHTML !== bHtml) $("dashBatchFilter").innerHTML = bHtml;
+
+        let sSet = new Set(); gRes.forEach(r => { if(r.space_equip) sSet.add(String(r.space_equip).split(' ')[0]); });
+        let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
+        if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
+
+        // 💡 2. 콘텐츠 필터 날짜 포함 (반복 수업 구분)
+        let tSet = new Set(); gTrn.forEach(t => {
+            let cInfo = String(t.content||'').split(' || ');
+            if(cInfo.length >= 5) { tSet.add(`[${cInfo[0].trim()}] [${cInfo[2].trim()}] ${cInfo[4].trim()}`); } 
+            else { tSet.add(t.content); }
+        });
+        let tHtml = `<option value="전체">전체 콘텐츠</option>` + Array.from(tSet).sort().map(c=>`<option value="${window.escapeHtml(c)}">${window.escapeHtml(c)}</option>`).join("");
+        if($("trnContentFilter") && $("trnContentFilter").innerHTML.length < 100) $("trnContentFilter").innerHTML = tHtml;
+
+    } catch(err) {}
+  } catch(e) { console.error("fetchCenterData Error:", e); }
+
+  try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
+}
+
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -332,7 +365,7 @@ window.renderCenterData = function() {
       }
   } catch(e) {}
 
-  // 💡 [센터 예약 리스트 렌더링 - 취소 버튼 방어 로직 적용]
+  // 💡 [센터 예약 리스트 렌더링 - 이용완료 취소 비활성화 & 당일취소 사유 연동]
   try {
       let qRes = ($("searchRes")?.value || "").toLowerCase(); 
       let sRes = $("resSpaceFilter")?.value || "전체";
@@ -373,7 +406,7 @@ window.renderCenterData = function() {
       }).join("") : `<tr><td colspan="11" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
   
-  // 💡 [수업 신청자 리스트 렌더링 - N회차 표기 & 버튼 디자인 통일]
+  // 💡 [수업 신청자 렌더링 - 버튼 UI 통일 & N회차 로직 & 취소사유 팝업 적용]
   try {
       let qTrn = ($("searchTrn")?.value || "").toLowerCase(); 
       let sTrn = $("trnContentFilter")?.value || "전체";
@@ -382,8 +415,8 @@ window.renderCenterData = function() {
       if(trnSearchInput) {
           let filterWrap = trnSearchInput.closest('.filter-wrap') || trnSearchInput.parentNode;
           if(filterWrap && !document.getElementById('btn-download-attendance')) {
-              // 투박한 스타일을 걷어내고 순수 btn-outline 클래스 적용
-              let btnHtml = `<button id="btn-download-attendance" class="btn-outline" style="margin-left:8px;" onclick="window.downloadAttendanceExcel()">참가자 리스트 다운로드</button>`;
+              // 투박한 하드코딩 스타일 싹 제거, 표준 btn-outline 클래스만 사용
+              let btnHtml = `<button id="btn-download-attendance" class="btn-outline btn-sm" style="margin-left:8px;" onclick="window.downloadAttendanceExcel()">참가자 리스트 다운로드</button>`;
               filterWrap.insertAdjacentHTML('beforeend', btnHtml);
           }
       }
@@ -406,7 +439,7 @@ window.renderCenterData = function() {
           return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
       });
 
-      window.currentFilteredTrn = fTrnList; // 엑셀용 데이터 저장
+      window.currentFilteredTrn = fTrnList; 
 
       if($("trnTableBody")) $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ 
           let displayStatus = t.status || ''; 
@@ -416,18 +449,23 @@ window.renderCenterData = function() {
           let niceContent = t.content; 
           let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; 
           
-          // N회차 계산 로직
-          let baseContent = String(t.content||'').trim();
-          let attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').trim() === baseContent).length;
+          // N회차 계산 로직 (수업 타이틀만 떼어서 꼼꼼히 비교)
+          let attendCount = 1;
+          if(cInfo.length >= 5) { 
+              niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; 
+              let myClassTitle = cInfo[4].trim();
+              attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').includes(myClassTitle)).length;
+          } else {
+              let baseContent = String(t.content||'').trim();
+              attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').trim() === baseContent).length;
+          }
+          
           t._attendCount = attendCount; 
           let nthBadge = attendCount >= 2 ? `<span class="nth-badge">${attendCount}회차</span>` : '';
 
-          if(cInfo.length >= 5) { 
-              niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; 
-          } 
-
           let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '접수완료' ? 'badge-green' : 'badge-gray')); 
           
+          // 당일 취소 뱃지 클릭 시 취소 사유 팝업 노출 연동
           let statHtml = '';
           if(displayStatus === '당일 취소') {
               let safeReason = window.escapeHtml(t.cancel_reason || '사유 미기재').replace(/'/g, "\\'");
@@ -1124,8 +1162,42 @@ window.renderStatistics = function(data) {
   window.currentInsightData = { total, joined, instaCount: channelMap['인스타그램']?channelMap['인스타그램'].total:0, adCount: channelMap['모집 광고']?channelMap['모집 광고'].total:0, instaFollow: safeDataForSummary.instaFollow, instaNonFollow: safeDataForSummary.instaNonFollow, leadTime1M: safeDataForSummary.adNow, leadTime3M: safeDataForSummary.leadTime3M, channelMap: channelMap };
 }
 
+// 💡 5. 멤버 리스트 정렬 (기수 내림차순 -> 성함 가나다순) 적용
 window.fetchMembers = async function() { const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); if (error) return; globalMembers = data; let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); }); let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort().reverse().map(b=>`<option value="${b}">${b}</option>`).join(""); if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml; window.searchMembers(); }
-window.searchMembers = function() { const query = $("memberSearch") ? $("memberSearch").value.trim().toLowerCase() : ""; const statusFilter = $("memberStatusFilter") ? $("memberStatusFilter").value : 'all'; const batchFilter = $("memberBatchFilter") ? $("memberBatchFilter").value : 'all'; const today = new Date(); today.setHours(0,0,0,0); const filtered = globalMembers.filter(m => { let isExpired = true; let isPaused = m.status === '활동 일시정지'; if (m.end_date && m.end_date.length === 10) { let endD = new Date(m.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; } let statusText = m.status || '활동 중'; if (statusText === '패널티 정지') statusText = '패널티 정지'; else if (statusText === '활동 일시정지') statusText = '활동 일시정지'; else if (isExpired) statusText = '활동 종료'; let matchQuery = `${m.batch||''} ${m.name||''} ${m.phone||''} ${statusText}`.toLowerCase().includes(query); let matchBatch = batchFilter === 'all' || m.batch === batchFilter; let matchStatus = false; if (statusFilter === 'all') matchStatus = true; else if (statusFilter === '활동 중 (전체)') matchStatus = ['활동 중', '연장 활동 중', '단일권 이용'].includes(statusText); else matchStatus = statusText === statusFilter; return matchQuery && matchStatus && matchBatch; }); renderMemberTable(filtered); }
+window.searchMembers = function() { 
+    const query = $("memberSearch") ? $("memberSearch").value.trim().toLowerCase() : ""; 
+    const statusFilter = $("memberStatusFilter") ? $("memberStatusFilter").value : 'all'; 
+    const batchFilter = $("memberBatchFilter") ? $("memberBatchFilter").value : 'all'; 
+    const today = new Date(); today.setHours(0,0,0,0); 
+    
+    let filtered = globalMembers.filter(m => { 
+        let isExpired = true; let isPaused = m.status === '활동 일시정지'; 
+        if (m.end_date && m.end_date.length === 10) { let endD = new Date(m.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; } 
+        let statusText = m.status || '활동 중'; 
+        if (statusText === '패널티 정지') statusText = '패널티 정지'; else if (statusText === '활동 일시정지') statusText = '활동 일시정지'; else if (isExpired) statusText = '활동 종료'; 
+        
+        let matchQuery = `${m.batch||''} ${m.name||''} ${m.phone||''} ${statusText}`.toLowerCase().includes(query); 
+        let matchBatch = batchFilter === 'all' || m.batch === batchFilter; 
+        let matchStatus = false; 
+        if (statusFilter === 'all') matchStatus = true; 
+        else if (statusFilter === '활동 중 (전체)') matchStatus = ['활동 중', '연장 활동 중', '단일권 이용'].includes(statusText); 
+        else matchStatus = statusText === statusFilter; 
+        return matchQuery && matchStatus && matchBatch; 
+    }); 
+
+    filtered.sort((a, b) => {
+        let batchA = a.batch || '';
+        let batchB = b.batch || '';
+        if (batchA !== batchB) {
+            return batchB.localeCompare(batchA, undefined, {numeric: true, sensitivity: 'base'});
+        }
+        let nameA = a.name || '';
+        let nameB = b.name || '';
+        return nameA.localeCompare(nameB);
+    });
+
+    renderMemberTable(filtered); 
+}
 
 function renderMemberTable(data) {
   if(!$("memberTableBody")) return;
@@ -1165,7 +1237,7 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
   const opt = selectEl.value; const optText = selectEl.options[selectEl.selectedIndex].text; selectEl.value = ''; if(!opt) return;
   let confirmMsg = ""; let baseDateForUpdate = new Date(); baseDateForUpdate.setHours(0,0,0,0);
   if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDateForUpdate) { baseDateForUpdate = endD; } }
-  if(opt === 'release') { const m = globalMembers.find(x => String(x.id) === String(id)); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; confirmMsg = `상태를 <b style="color:var(--error);">[${newStat}]</b> 상태로 전환하시겠습니까?`; } else if (opt === 'pause') { confirmMsg = `활동을 <b>일시정지</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span>`; } else if (opt === 'resume') { confirmMsg = `활동을 <b>재개</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(이전 정지 기간을 자동 계산하여 연장합니다.)</span>`; } else { let baseDate = new Date(); baseDate.setHours(0,0,0,0); let isActive = false; if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDate) { isActive = true; } } if (isActive) { confirmMsg = `이어서 <b>${optText}</b>을 적용하시겠습니까?`; } else { confirmMsg = `오늘 날짜를 기준으로<br><b>${optText}</b>을 새롭게 적용하시겠습니까?`; } }
+  if(opt === 'release') { const m = globalMembers.find(x => String(x.id) === String(id)); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; confirmMsg = `상태를 <b>[${newStat}]</b> 상태로 전환하시겠습니까?`; } else if (opt === 'pause') { confirmMsg = `활동을 <b>일시정지</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span>`; } else if (opt === 'resume') { confirmMsg = `활동을 <b>재개</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(이전 정지 기간을 자동 계산하여 연장합니다.)</span>`; } else { let baseDate = new Date(); baseDate.setHours(0,0,0,0); let isActive = false; if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDate) { isActive = true; } } if (isActive) { confirmMsg = `이어서 <b>${optText}</b>을 적용하시겠습니까?`; } else { confirmMsg = `오늘 날짜를 기준으로<br><b>${optText}</b>을 새롭게 적용하시겠습니까?`; } }
   let statText = ""; if (opt === 'release' || opt === 'pause' || opt === 'resume') { let cur = opt === 'resume' ? '일시정지' : (opt === 'release' ? '확인요망' : '활동 중'); statText = `현재 상태: <b>${cur}</b>`; } else { if(currentEndDate && new Date(currentEndDate) >= new Date().setHours(0,0,0,0)) { statText = `현재 활동 종료일: <b>${currentEndDate}</b>`;  } else { statText = `현재 활동 종료 상태입니다.`;  } }
   pendingOptionData = { id, name, phone, opt, optText, baseDate: baseDateForUpdate, currentEndDate };
   window.openCustomConfirm(`[${batch || '미정'}] ${name} 님`, statText, confirmMsg, async () => {
@@ -1183,7 +1255,6 @@ window.deleteHistory = async function(id, phone, name, action_detail) { window.o
 window.openHistoryModal = async function(phone, name) { if(!$("historyModalTitle")) return; $("historyModalTitle").innerText = `${name} 님의 내역`; const modal = $("historyModal"); modal.classList.add('show'); const body = $("historyModalBody"); body.innerHTML = '<div class="empty-state">내역을 불러오는 중입니다.</div>'; const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false }); if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state" style="color:var(--text-tertiary);">결제/연장 내역이 없습니다.</div>'; return; } body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>'; }
 window.closeHistoryModal = function() { if($("historyModal")) $("historyModal").classList.remove('show'); }
 
-// 💡 2. 출석부 전용 엑셀 다운로드 함수 (N회차 포함)
 window.downloadAttendanceExcel = function() {
     if(!window.currentFilteredTrn || window.currentFilteredTrn.length === 0) {
         showToast('출력할 데이터가 없습니다.');
