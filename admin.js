@@ -231,6 +231,7 @@ window.switchMainTab = function(pageId, element) {
   $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
   $$$(".gnb-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.gnb-item[onclick*="${pageId}"]`); if(targetEl) targetEl.classList.add('active');
   localStorage.setItem('wecoffee_main_tab', pageId);
+  // 💡 탭 이동 시 무조건 서버 통신을 강제하여 데이터 최신화 (새로고침 문제 해결)
   if(pageId === 'page-center') window.fetchCenterData();
   if(pageId === 'page-applications') { window.fetchApplications(); isInsightView = false; if($("app-table-area")) $("app-table-area").style.display = "block"; if($("app-insight-area")) $("app-insight-area").style.display = "none"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = "인사이트 보기"; }
   if(pageId === 'page-members') window.fetchMembers();
@@ -239,7 +240,12 @@ window.switchSubTab = function(subId, element) {
   $$$(".sub-page").forEach(p => p.classList.remove('active')); if($(subId)) $(subId).classList.add('active');
   $$$(".sub-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.sub-item[onclick*="${subId}"]`); if(targetEl) { targetEl.classList.add('active'); targetEl.classList.remove("tab-pulse"); }
   if (subId === 'sub-notice') { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'none'; } else { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'inline-flex'; }
-  localStorage.setItem('wecoffee_sub_tab', subId); if(subId === 'sub-res') window.renderDashboard(); 
+  localStorage.setItem('wecoffee_sub_tab', subId); 
+  
+  // 💡 서브 탭 이동 시에도 강력한 최신화 강제 적용
+  if(subId === 'sub-res' || subId === 'sub-trn-blk' || subId === 'sub-ord') {
+      window.fetchCenterData();
+  }
 }
 
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
@@ -497,7 +503,7 @@ window.updateCancelAccumulationBanner = function() {
     if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
 };
 
-// 생두 만료 로직 수정: 주문 접수 상태도 무한 유지되도록 변경
+// 💡 생두 만료 로직 수정: 주문 접수 상태도 무한 유지되도록 변경
 function isOrderExpired(order, now, isThuOrder) {
     let oDate = new Date(order.created_at);
     let status = order.status || '주문 접수';
@@ -559,22 +565,16 @@ window.renderCenterData = function() {
 
   try { updateDailyInOutBanner(); if(window.updateCancelAccumulationBanner) window.updateCancelAccumulationBanner(); } catch(e) {}
   
-  // UX 라이팅 자동 주입 로직 (HTML 수정 없이 JS로 텍스트 삽입)
+  // 💡 UX 라이팅 자동 주입 로직 (디자인 해치지 않고 타이틀 옆에 삽입)
   try {
       let resTitle = document.querySelector('#sub-res .table-toolbar .section-title');
-      if(resTitle) resTitle.innerHTML = '상세 예약 리스트 <span class="sub-text" style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:8px;">최근 30일 동안의 예약 내역만 표시됩니다.</span>';
+      if(resTitle) resTitle.innerHTML = '상세 예약 리스트 <span class="sub-text" style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:12px;">최근 30일 동안의 예약 내역만 표시됩니다.</span>';
 
       let trnTitle = document.querySelector('#sub-trn .table-toolbar .section-title');
-      if(trnTitle) trnTitle.innerHTML = '수업 및 훈련 스케줄 등록/관리 <span class="sub-text" style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:8px;">수업이 종료된 명단은 자정에 목록에서 정리됩니다.</span>';
+      if(trnTitle) trnTitle.innerHTML = '수업 및 훈련 스케줄 등록/관리 <span class="sub-text" style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:12px;">수업이 종료된 명단은 자정에 목록에서 정리됩니다.</span>';
 
-      let ordToolbar = document.querySelector('#sub-ord .table-toolbar');
-      if(ordToolbar && !document.getElementById('ordNoticeBanner')) {
-          let banner = document.createElement('div');
-          banner.id = 'ordNoticeBanner';
-          banner.style.cssText = 'background:#f9fafb; padding:12px 16px; border-radius:8px; margin-top:8px; font-size:13px; color:var(--text-secondary); line-height:1.5; border:1px solid var(--border-strong);';
-          banner.innerText = '결제가 진행 중인 주문 내역은 계속 유지됩니다. 수령이 끝난 내역은 7일 뒤에, 취소되거나 품절된 내역은 이틀 뒤에 목록에서 자동 정리됩니다.';
-          ordToolbar.parentNode.insertBefore(banner, ordToolbar.nextSibling);
-      }
+      let ordTitle = document.querySelector('#sub-ord .table-toolbar .section-title');
+      if(ordTitle) ordTitle.innerHTML = '생두 주문 관리 <span class="sub-text" style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:12px; word-break:keep-all;">결제가 진행 중이거나 확인 전인 새 주문은 계속 유지됩니다. 수령이 끝난 내역은 7일 뒤에, 취소되거나 품절된 내역은 이틀 뒤에 목록에서 정리됩니다.</span>';
   } catch(e) {}
 
   try {
@@ -700,7 +700,7 @@ window.renderCenterData = function() {
       if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
   } catch(e) { console.error(e); }
 
-  // 정원 매칭 및 마감 디스플레이 개선 로직
+  // 💡 정원 매칭 및 마감 디스플레이 완벽 개선 로직
   try {
       let fBlk = gBlk.filter(b => {
           let bDate = new Date(b.block_date);
@@ -732,11 +732,10 @@ window.renderCenterData = function() {
           
           let capDisplay = '-';
           if (max > 0) {
-              let remain = max - current;
-              if (remain <= 0) {
-                  capDisplay = `<strong style="color:var(--error);">마감 (${current}/${max})</strong>`;
+              if (current >= max) {
+                  capDisplay = `<strong style="color:var(--error);">마감 (${max}명)</strong>`;
               } else {
-                  capDisplay = `<strong>${remain}</strong> / ${max}`;
+                  capDisplay = `<strong>${current}</strong> / ${max}`;
               }
           }
 
