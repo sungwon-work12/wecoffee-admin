@@ -268,8 +268,6 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrTex
                 })();
             }
         };
-
-        // 💡 단순 확인창일 경우 취소(닫기) 버튼 숨김 처리
         let cancelBtn = newBtn.previousElementSibling;
         if(cancelBtn && cancelBtn.tagName === 'BUTTON') {
             cancelBtn.style.display = (btnText === '확인') ? 'none' : 'block';
@@ -370,46 +368,31 @@ window.saveBlockData = async function() {
     reason: $("blkReason")?$("blkReason").value.trim():"", 
     capacity: parseInt($("blkCapacity")?$("blkCapacity").value:"") || null 
   }; 
-  
   if(!payload.block_date || !payload.start_time || !payload.end_time) { 
     showToast("날짜와 시간을 정확히 입력해주세요."); return; 
   } 
-
   let rType = $("blkRepeatType") ? $("blkRepeatType").value : "none";
   let rCount = parseInt($("blkRepeatCount") ? $("blkRepeatCount").value : "1") || 1;
   if(rType === 'none' || currentBlockId) rCount = 1; 
-
   let payloads = [];
   let baseDateStr = payload.block_date; 
   let [y, m, d] = baseDateStr.split('-').map(Number);
   let baseDate = new Date(y, m - 1, d);
-
   for(let i=0; i<rCount; i++) {
       let currentPayload = { ...payload };
       let targetDate = new Date(baseDate);
-      if(rType === 'weekly') {
-          targetDate.setDate(targetDate.getDate() + (i * 7));
-      } else if(rType === 'monthly') {
-          targetDate.setMonth(targetDate.getMonth() + i);
-      }
+      if(rType === 'weekly') { targetDate.setDate(targetDate.getDate() + (i * 7)); }
+      else if(rType === 'monthly') { targetDate.setMonth(targetDate.getMonth() + i); }
       currentPayload.block_date = `${targetDate.getFullYear()}-${String(targetDate.getMonth()+1).padStart(2,'0')}-${String(targetDate.getDate()).padStart(2,'0')}`;
       payloads.push(currentPayload);
   }
-
   let error; 
-  if(currentBlockId) { 
-    const res = await supabaseClient.from('blocks').update(payload).eq('id', currentBlockId); 
-    error = res.error; 
-  } else { 
-    const res = await supabaseClient.from('blocks').insert(payloads); 
-    error = res.error; 
-  } 
-  
+  if(currentBlockId) { const res = await supabaseClient.from('blocks').update(payload).eq('id', currentBlockId); error = res.error; }
+  else { const res = await supabaseClient.from('blocks').insert(payloads); error = res.error; } 
   if(error) showToast("저장 실패"); 
   else { showToast(`성공적으로 저장되었습니다.`); window.closeBlockModal(); window.fetchCenterData(); } 
 }
 window.deleteBlock = function(id) { window.openCustomConfirm("스케줄 삭제", null, `해당 스케줄을 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('blocks').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
-
 window.cancelAction = function(table, id) { window.openCustomConfirm("정상 취소 처리", null, `해당 내역을 정상 취소로 처리하시겠습니까?`, async () => { await supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', id); showToast("정상 취소로 처리되었습니다."); window.fetchCenterData(); }); }
 window.bulkAction = function(table, type) { let chks = $$$(`.chk-${table==='reservations'?'res':'trn'}:checked`); if(chks.length === 0) { showToast("선택된 항목이 없습니다."); return; } window.openCustomConfirm("일괄 취소", null, `선택한 ${chks.length}건을 일괄 취소하시겠습니까?`, async () => { let promises = []; chks.forEach(chk => { promises.push(supabaseClient.from(table).update({ status: '취소(정상)' }).eq('id', chk.value)); }); await Promise.all(promises); showToast("일괄 처리가 완료되었습니다."); window.fetchCenterData(); }); }
 
@@ -514,6 +497,7 @@ window.updateCancelAccumulationBanner = function() {
     if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
 };
 
+// 생두 만료 로직 수정: 주문 접수 상태도 무한 유지되도록 변경
 function isOrderExpired(order, now, isThuOrder) {
     let oDate = new Date(order.created_at);
     let status = order.status || '주문 접수';
@@ -524,21 +508,8 @@ function isOrderExpired(order, now, isThuOrder) {
     if (status === '센터 도착') {
         return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
     }
-    if (['입금 대기', '입금 확인 중', '입금 확인'].includes(status)) {
+    if (['주문 접수', '입금 대기', '입금 확인 중', '입금 확인', '대기'].includes(status)) {
         return false;
-    }
-    if (status === '주문 접수' || status === '대기') {
-        let deadline = new Date(oDate);
-        deadline.setHours(10, 10, 0, 0);
-        let targetDay = isThuOrder ? 4 : 1; 
-        let daysToAdd = (targetDay - deadline.getDay() + 7) % 7;
-        
-        if (daysToAdd === 0 && (oDate.getHours() > 10 || (oDate.getHours() === 10 && oDate.getMinutes() >= 10))) {
-            daysToAdd = 7;
-        }
-        deadline.setDate(deadline.getDate() + daysToAdd);
-        
-        return now.getTime() > deadline.getTime();
     }
     return false;
 }
@@ -588,15 +559,24 @@ window.renderCenterData = function() {
 
   try { updateDailyInOutBanner(); if(window.updateCancelAccumulationBanner) window.updateCancelAccumulationBanner(); } catch(e) {}
   
-  // 💡 1. 상세 예약 로그 -> 상세 예약 리스트 자동 네이밍 변경
+  // UX 라이팅 자동 주입 로직 (HTML 수정 없이 JS로 텍스트 삽입)
   try {
       let resTitle = document.querySelector('#sub-res .table-toolbar .section-title');
-      if(resTitle && resTitle.innerHTML.includes('로그')) {
-          resTitle.innerHTML = resTitle.innerHTML.replace('로그', '리스트');
+      if(resTitle) resTitle.innerHTML = '상세 예약 리스트 <span class="sub-text" style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:8px;">최근 30일 동안의 예약 내역만 표시됩니다.</span>';
+
+      let trnTitle = document.querySelector('#sub-trn .table-toolbar .section-title');
+      if(trnTitle) trnTitle.innerHTML = '수업 및 훈련 스케줄 등록/관리 <span class="sub-text" style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:8px;">수업이 종료된 명단은 자정에 목록에서 정리됩니다.</span>';
+
+      let ordToolbar = document.querySelector('#sub-ord .table-toolbar');
+      if(ordToolbar && !document.getElementById('ordNoticeBanner')) {
+          let banner = document.createElement('div');
+          banner.id = 'ordNoticeBanner';
+          banner.style.cssText = 'background:#f9fafb; padding:12px 16px; border-radius:8px; margin-top:8px; font-size:13px; color:var(--text-secondary); line-height:1.5; border:1px solid var(--border-strong);';
+          banner.innerText = '결제가 진행 중인 주문 내역은 계속 유지됩니다. 수령이 끝난 내역은 7일 뒤에, 취소되거나 품절된 내역은 이틀 뒤에 목록에서 자동 정리됩니다.';
+          ordToolbar.parentNode.insertBefore(banner, ordToolbar.nextSibling);
       }
   } catch(e) {}
 
-  // 💡 2. 1열 밀림 방지 & '전체 선택' 체크박스 완벽 복구
   try {
       let resTable = $("resTableBody")?.closest('table');
       if(resTable) {
@@ -701,7 +681,8 @@ window.renderCenterData = function() {
           return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(t.name)}</strong></td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
       }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
-try {
+
+  try {
       let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
       let fOrd = gOrd.filter(o => { 
         let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter); 
@@ -719,6 +700,7 @@ try {
       if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
   } catch(e) { console.error(e); }
 
+  // 정원 매칭 및 마감 디스플레이 개선 로직
   try {
       let fBlk = gBlk.filter(b => {
           let bDate = new Date(b.block_date);
@@ -726,14 +708,38 @@ try {
           let matchCenter = (currentGlobalCenter === '전체' || b.center === currentGlobalCenter);
           return matchCenter && (bDate >= todayForBlk); 
       }); 
+      
       if($("blkTableBody")) $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
-          let max = b.capacity || '-'; 
+          let max = parseInt(b.capacity) || 0; 
           let current = 0; 
-          if(max !== '-') {
-              let exactContent = `${b.block_date} || ${b.space_equip||"공간 미정"} || ${b.start_time}~${b.end_time} || ${b.center} || [${b.category}] ${b.reason}`;
-              current = gTrn.filter(t => String(t.content||'') === exactContent && !String(t.status||'').includes('취소')).length;
+          
+          if(max > 0) {
+              let bTime = `${b.start_time}~${b.end_time}`;
+              let bTitle = `[${b.category}] ${b.reason}`;
+              
+              current = gTrn.filter(t => {
+                  if (String(t.status||'').includes('취소')) return false;
+                  let cInfo = String(t.content||'').split('||').map(s => s.trim());
+                  if (cInfo.length >= 5) {
+                      return cInfo[0] === b.block_date && 
+                             cInfo[2] === bTime && 
+                             cInfo[3] === b.center && 
+                             cInfo[4] === bTitle;
+                  }
+                  return false;
+              }).length;
           }
-          let capDisplay = max === '-' ? '-' : `<strong>${max - current}</strong> / ${max}`; 
+          
+          let capDisplay = '-';
+          if (max > 0) {
+              let remain = max - current;
+              if (remain <= 0) {
+                  capDisplay = `<strong style="color:var(--error);">마감 (${current}/${max})</strong>`;
+              } else {
+                  capDisplay = `<strong>${remain}</strong> / ${max}`;
+              }
+          }
+
           let dow = getDow(b.block_date); 
           let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">${b.category}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${b.block_date}(${dow}) ${b.start_time}~${b.end_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${b.center}] ${b.space_equip || '전체'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
           return `<tr>${mPreview}<td data-label="날짜"><strong>${b.block_date}</strong></td><td data-label="시간">${b.start_time} ~ ${b.end_time}</td><td data-label="구분"><span style="color:var(--primary);font-weight:600;">${b.category}</span></td><td data-label="공간">${b.center} <span class="sub-text">${b.space_equip}</span></td><td data-label="사유">${window.escapeHtml(b.reason)}</td><td data-label="정원" class="tc">${capDisplay}</td><td data-label="관리" class="tc"><div class="action-wrap-flex"><button class="btn-outline btn-sm" onclick="window.editBlock('${b.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteBlock('${b.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>` 
@@ -1182,7 +1188,6 @@ function parseAcquisitionChannel(rawText) {
 
 window.closeCrmModal = function() { if($("crmModal")) $("crmModal").classList.remove('show'); };
 
-// 💡 CRM 팝업 내 당일 취소 경고 배지 삽입
 window.renderCrmInner = function(id, isReadOnly = false) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     
@@ -1361,7 +1366,6 @@ window.renderStatistics = function(data) {
 window.fetchMembers = async function() { const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); if (error) return; globalMembers = data; let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); }); let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort().reverse().map(b=>`<option value="${b}">${b}</option>`).join(""); if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml; window.searchMembers(); }
 window.searchMembers = function() { const query = $("memberSearch") ? $("memberSearch").value.trim().toLowerCase() : ""; const statusFilter = $("memberStatusFilter") ? $("memberStatusFilter").value : 'all'; const batchFilter = $("memberBatchFilter") ? $("memberBatchFilter").value : 'all'; const today = new Date(); today.setHours(0,0,0,0); const filtered = globalMembers.filter(m => { let isExpired = true; let isPaused = m.status === '활동 일시정지'; if (m.end_date && m.end_date.length === 10) { let endD = new Date(m.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; } let statusText = m.status || '활동 중'; if (statusText === '패널티 정지') statusText = '패널티 정지'; else if (statusText === '활동 일시정지') statusText = '활동 일시정지'; else if (isExpired) statusText = '활동 종료'; let matchQuery = `${m.batch||''} ${m.name||''} ${m.phone||''} ${statusText}`.toLowerCase().includes(query); let matchBatch = batchFilter === 'all' || m.batch === batchFilter; let matchStatus = false; if (statusFilter === 'all') matchStatus = true; else if (statusFilter === '활동 중 (전체)') matchStatus = ['활동 중', '연장 활동 중', '단일권 이용'].includes(statusText); else matchStatus = statusText === statusFilter; return matchQuery && matchStatus && matchBatch; }); renderMemberTable(filtered); }
 
-// 💡 멤버 리스트: 4회 이상 당일 취소 시 자동 경고 배지 삽입 (이모지 없음)
 function renderMemberTable(data) {
   if(!$("memberTableBody")) return;
   const tbody = $("memberTableBody"); tbody.innerHTML = ''; if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="empty-state">내역이 없습니다.</td></tr>`; return; } const today = new Date(); today.setHours(0,0,0,0);
@@ -1540,13 +1544,12 @@ window.showOrderSummary = function() {
             let key = `${dayType}:::${center}:::${o.vendor}:::${cNm}`;
             if(!summary[key]) summary[key] = { center, dayType, vendor: o.vendor, item: cNm, totalGrams: 0, total: 0, orderers: [] };
             
-            // 수량을 모두 g(그램)으로 변환해서 합산
             let rawQty = String(o.quantity || '0').trim().toLowerCase();
             let numVal = parseFloat(rawQty.replace(/[^0-9.]/g, '')) || 0;
             let grams = 0;
             if (rawQty.includes('kg')) {
                 grams = numVal * 1000;
-            } else { // 기본적으로 g 단위로 취급
+            } else { 
                 grams = numVal;
             }
 
@@ -1567,7 +1570,6 @@ window.showOrderSummary = function() {
         let html = `<div style="display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0;">`;
         let totalGramsSum = 0; let grandTotal = 0;
         
-        // 요일(월/목) ➔ 센터 ➔ 생두사 순으로 완벽 정렬
         let dayOrder = { '월요일 발주': 1, '목요일 발주': 2 };
         let centerOrder = { '마포 센터': 1, '광진 센터': 2 };
         
@@ -1603,11 +1605,9 @@ window.showOrderSummary = function() {
                     </div>
                 </div>`;
 
-            // g을 kg/g 포맷으로 예쁘게 파싱
             let displayQty = s.totalGrams >= 1000 
                 ? (s.totalGrams % 1000 === 0 ? (s.totalGrams / 1000) + 'kg' : (s.totalGrams / 1000) + 'kg')
                 : s.totalGrams + 'g';
-            // 소수점 끝자리 깔끔하게 처리
             displayQty = displayQty.replace('.0kg', 'kg');
 
             html += `
