@@ -519,13 +519,13 @@ window.updateCancelAccumulationBanner = function() {
     if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
 };
 
-// 💡 4. 생두 주문 마감 보호 로직
+// 💡 4. 생두 주문 마감 보호 로직 (접수, 대기 등 관리 전 무한 유지)
 function isOrderExpired(order, now) {
     let oDate = new Date(order.created_at);
     let status = order.status || '주문 접수';
     
     if (['주문 접수', '입금 대기', '입금 확인 중', '입금 확인', '대기'].includes(status)) {
-        return false; // 관리자가 처리하기 전까지 절대 숨기지 않음
+        return false;
     }
     if (status === '주문 취소' || status === '품절') {
         return (now.getTime() - oDate.getTime()) > 48 * 60 * 60 * 1000;
@@ -535,7 +535,6 @@ function isOrderExpired(order, now) {
     }
     return false;
 }
-
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -554,7 +553,7 @@ window.fetchCenterData = async function() {
         let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
         if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
 
-        // 💡 2. 콘텐츠 필터 날짜 포함 (반복 수업 구분)
+        // 💡 [개선] 콘텐츠 필터 날짜 포함 (반복 수업 구분)
         let tSet = new Set(); gTrn.forEach(t => {
             let cInfo = String(t.content||'').split(' || ');
             if(cInfo.length >= 5) {
@@ -582,29 +581,24 @@ window.renderCenterData = function() {
 
   try { updateDailyInOutBanner(); if(window.updateCancelAccumulationBanner) window.updateCancelAccumulationBanner(); } catch(e) {}
   
-  // 💡 1. UX 라이팅 툴팁(ⓘ) 자동 주입 로직
+  // 💡 1. 툴팁(ⓘ) 강제 주입 로직 (HTML 구조에 의존하지 않고 텍스트 기반으로 꽂아 넣음)
   try {
-      const addTooltip = (selector, id, text, newTitle = null, isLong = false) => {
-          let el = document.querySelector(selector);
-          if(el && !document.getElementById(id)) {
-              if(newTitle) {
-                  el.innerHTML = newTitle; 
-              } else {
-                  let sub = el.querySelector('.sub-text');
-                  if(sub) sub.remove();
+      const addTooltipToText = (textMatch, id, tooltipText, isLong = false) => {
+          let titles = document.querySelectorAll('.section-title');
+          titles.forEach(el => {
+              if(el.innerText.includes(textMatch) && !document.getElementById(id)) {
+                  let sub = el.querySelector('.sub-text'); if(sub) sub.remove();
+                  el.innerHTML = `${textMatch} <i id="${id}" class="info-tooltip ${isLong ? 'long-text' : ''}" data-tooltip="${tooltipText}">i</i>`;
               }
-              let icon = document.createElement('i');
-              icon.id = id;
-              icon.className = `info-tooltip ${isLong ? 'long-text' : ''}`;
-              icon.setAttribute('data-tooltip', text);
-              icon.innerText = 'i';
-              el.appendChild(icon);
-          }
+          });
       };
+      // 상세 예약 로그 -> 센터 예약 리스트 변경 처리
+      let resTitle = document.querySelector('#sub-res .table-toolbar .section-title');
+      if(resTitle && resTitle.innerText.includes('상세 예약 로그')) resTitle.innerHTML = '센터 예약 리스트';
       
-      addTooltip('#sub-res .table-toolbar .section-title', 'tt-res', '최근 30일 동안의 예약 내역만 표시됩니다.', '센터 예약 리스트');
-      addTooltip('#sub-trn .table-toolbar .section-title', 'tt-trn', '수업이 종료된 명단은 자정에 목록에서 자동 정리됩니다.');
-      addTooltip('#sub-ord .table-toolbar .section-title', 'tt-ord', '결제 진행 중이거나 확인 전인 새 주문은 유지됩니다. 수령 완료는 7일 뒤, 취소/품절은 이틀 뒤 자동 정리됩니다.', null, true);
+      addTooltipToText('센터 예약 리스트', 'tt-res', '최근 30일 동안의 예약 내역만 표시됩니다.');
+      addTooltipToText('수업 및 훈련', 'tt-trn', '수업이 종료된 명단은 자정에 목록에서 자동 정리됩니다.');
+      addTooltipToText('생두 주문 관리', 'tt-ord', '결제 진행 중이거나 확인 전인 새 주문은 유지됩니다. 수령 완료는 7일 뒤, 취소/품절은 이틀 뒤 자동 정리됩니다.', true);
   } catch(e) {}
 
   try {
@@ -634,7 +628,7 @@ window.renderCenterData = function() {
       }
   } catch(e) {}
 
-  // 💡 3. 센터 예약 리스트 (이용 완료 취소 비활성화)
+  // 💡 [센터 예약 리스트 렌더링 - 취소 버튼 방어 로직 적용]
   try {
       let qRes = ($("searchRes")?.value || "").toLowerCase(); 
       let sRes = $("resSpaceFilter")?.value || "전체";
@@ -674,10 +668,21 @@ window.renderCenterData = function() {
           return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
       }).join("") : `<tr><td colspan="11" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
-// 💡 2. 신청자 리스트 렌더링 (N회차 뱃지 & 출석부 엑셀 연동)
+  
+  // 💡 [수업 및 훈련 스케줄 리스트 렌더링 - N회차 표기 & 엑셀 버튼 연동]
   try {
       let qTrn = ($("searchTrn")?.value || "").toLowerCase(); 
       let sTrn = $("trnContentFilter")?.value || "전체";
+      
+      let trnSearchInput = $("searchTrn");
+      if(trnSearchInput) {
+          let filterWrap = trnSearchInput.closest('.filter-wrap') || trnSearchInput.parentNode;
+          if(filterWrap && !document.getElementById('btn-download-attendance')) {
+              let btnHtml = `<button id="btn-download-attendance" class="btn-outline" style="margin-left:8px; border-color:#32b06a; color:#32b06a; height:48px; padding:0 16px; font-weight:700; white-space:nowrap;" onclick="window.downloadAttendanceExcel()">출석부 엑셀</button>`;
+              filterWrap.insertAdjacentHTML('beforeend', btnHtml);
+          }
+      }
+
       let fTrnList = gTrn.filter(t => { 
           let matchContent = true;
           let cInfo = String(t.content||'').split(' || ');
@@ -693,31 +698,27 @@ window.renderCenterData = function() {
               let tDate = new Date(t.created_at);
               if (tDate < oneMonthAgo) return false;
           }
-          return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone}`.toLowerCase().includes(qTrn)) && matchContent; 
+          return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
       });
 
       window.currentFilteredTrn = fTrnList; // 출석부 엑셀용 데이터 저장
 
-      let trnToolbar = document.querySelector('#sub-trn .filter-wrap');
-      if(trnToolbar && !document.getElementById('btn-download-attendance')) {
-          let btnHtml = `<button id="btn-download-attendance" class="btn-outline" style="margin-left:8px; border-color:#32b06a; color:#32b06a; height:48px; padding:0 16px; font-weight:700; white-space:nowrap;" onclick="window.downloadAttendanceExcel()">출석부 엑셀</button>`;
-          trnToolbar.insertAdjacentHTML('beforeend', btnHtml);
-      }
-
       if($("trnTableBody")) $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ 
           let displayStatus = t.status || ''; 
           let actBtn = String(displayStatus).includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('trainings', '${t.id}')">취소</button>`; 
-          let cInfo = String(t.content||'').split(' || '); let niceContent = t.content; let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; 
           
-          let attendCount = 1;
+          let cInfo = String(t.content||'').split(' || '); 
+          let niceContent = t.content; 
+          let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; 
+          
+          let baseContent = String(t.content||'').trim();
+          let attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').trim() === baseContent).length;
+          t._attendCount = attendCount; 
+          let nthBadge = attendCount >= 2 ? `<span class="nth-badge">${attendCount}회차</span>` : '';
+
           if(cInfo.length >= 5) { 
               niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; 
-              let myClassTitle = cInfo[4].trim();
-              attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').includes(myClassTitle)).length;
           } 
-          
-          let nthBadge = attendCount >= 2 ? `<span class="nth-badge">${attendCount}회차</span>` : '';
-          t._attendCount = attendCount; 
 
           let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '접수완료' ? 'badge-green' : 'badge-gray')); 
           
@@ -731,11 +732,12 @@ window.renderCenterData = function() {
 
           let dow = getDow(preDate); 
           let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${t.batch||'-'}] ${window.escapeHtml(t.name)} ${nthBadge}</span>${statHtml}</div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${preDate}(${dow}) ${preTime}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${preCenter}] ${window.escapeHtml(preName)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
+          
           return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함" style="white-space:nowrap;"><strong style="vertical-align:middle;">${window.escapeHtml(t.name)}</strong>${nthBadge}</td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
       }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
 
-  // 💡 3. 생두 주문 렌더링
+  // [생두 주문 렌더링]
   try {
       let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
       let fOrd = gOrd.filter(o => { 
@@ -754,7 +756,7 @@ window.renderCenterData = function() {
       if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
   } catch(e) { console.error(e); }
 
-  // 💡 4. 정원 마감 디스플레이 개선
+  // [정원 마감 디스플레이 개선]
   try {
       let fBlk = gBlk.filter(b => {
           let bDate = new Date(b.block_date);
@@ -1457,7 +1459,7 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
   const opt = selectEl.value; const optText = selectEl.options[selectEl.selectedIndex].text; selectEl.value = ''; if(!opt) return;
   let confirmMsg = ""; let baseDateForUpdate = new Date(); baseDateForUpdate.setHours(0,0,0,0);
   if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDateForUpdate) { baseDateForUpdate = endD; } }
-  if(opt === 'release') { const m = globalMembers.find(x => String(x.id) === String(id)); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; confirmMsg = `상태를 <b style="color:var(--error);">[${newStat}]</b> 상태로 전환하시겠습니까?`; } else if (opt === 'pause') { confirmMsg = `활동을 <b>일시정지</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">재개 시 정지된 기간만큼 종료일이 연장됩니다.</span>`; } else if (opt === 'resume') { confirmMsg = `활동을 <b>재개</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">이전 정지 기간을 자동 계산하여 연장합니다.</span>`; } else { let baseDate = new Date(); baseDate.setHours(0,0,0,0); let isActive = false; if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDate) { isActive = true; } } if (isActive) { confirmMsg = `이어서 <b>${optText}</b>을 적용하시겠습니까?`; } else { confirmMsg = `오늘 날짜를 기준으로<br><b>${optText}</b>을 새롭게 적용하시겠습니까?`; } }
+  if(opt === 'release') { const m = globalMembers.find(x => String(x.id) === String(id)); let newStat = m.status === '패널티 정지' ? '활동 중' : '패널티 정지'; confirmMsg = `상태를 <b>[${newStat}]</b> 상태로 전환하시겠습니까?`; } else if (opt === 'pause') { confirmMsg = `활동을 <b>일시정지</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(재개 시 정지된 기간만큼 종료일이 연장됩니다.)</span>`; } else if (opt === 'resume') { confirmMsg = `활동을 <b>재개</b>하시겠습니까?<br><span style="font-size:12px; color:var(--text-secondary); font-weight:500;">(이전 정지 기간을 자동 계산하여 연장합니다.)</span>`; } else { let baseDate = new Date(); baseDate.setHours(0,0,0,0); let isActive = false; if (currentEndDate && currentEndDate.length === 10) { let endD = new Date(currentEndDate); endD.setHours(0,0,0,0); if (endD >= baseDate) { isActive = true; } } if (isActive) { confirmMsg = `이어서 <b>${optText}</b>을 적용하시겠습니까?`; } else { confirmMsg = `오늘 날짜를 기준으로<br><b>${optText}</b>을 새롭게 적용하시겠습니까?`; } }
   let statText = ""; if (opt === 'release' || opt === 'pause' || opt === 'resume') { let cur = opt === 'resume' ? '일시정지' : (opt === 'release' ? '확인요망' : '활동 중'); statText = `현재 상태: <b>${cur}</b>`; } else { if(currentEndDate && new Date(currentEndDate) >= new Date().setHours(0,0,0,0)) { statText = `현재 활동 종료일: <b>${currentEndDate}</b>`;  } else { statText = `현재 활동 종료 상태입니다.`;  } }
   pendingOptionData = { id, name, phone, opt, optText, baseDate: baseDateForUpdate, currentEndDate };
   window.openCustomConfirm(`[${batch || '미정'}] ${name} 님`, statText, confirmMsg, async () => {
