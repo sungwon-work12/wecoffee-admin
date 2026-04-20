@@ -11,16 +11,17 @@ let quillEditor = null;
 let isAppInitialized = false; 
 let realtimeChannel = null;
 
-// 💡 툴팁 UI용 CSS 동적 주입
+// 💡 1. 툴팁 UI 및 N회차 뱃지용 CSS 동적 주입 (디자인 일관성 및 UI 밀림 방지)
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
     style.innerHTML = `
-        .info-tooltip { position: relative; display: inline-flex; align-items: center; margin-left: 6px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; }
-        .info-tooltip:hover { color: #505967; }
-        .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: nowrap; z-index: 100; margin-bottom: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; pointer-events: none; transition: 0.2s; }
+        .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; }
+        .info-tooltip:hover { color: #505967; border-color: #505967; }
+        .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: nowrap; z-index: 9999; margin-bottom: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; pointer-events: none; transition: 0.2s; text-align: center; }
         .info-tooltip:hover::after { opacity: 1; }
-        .info-tooltip.long-text::after { white-space: normal; width: 260px; text-align: left; }
+        .info-tooltip.long-text::after { white-space: normal; width: 280px; text-align: left; }
+        .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
     `;
     document.head.appendChild(style);
 }
@@ -241,10 +242,12 @@ function initializeApp() {
 }
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
 
+// 💡 4. 시스템 안정성 강화 (탭 이동 시 자동 새로고침 강제화)
 window.switchMainTab = function(pageId, element) {
   $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
   $$$(".gnb-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.gnb-item[onclick*="${pageId}"]`); if(targetEl) targetEl.classList.add('active');
   localStorage.setItem('wecoffee_main_tab', pageId);
+  
   if(pageId === 'page-center') window.fetchCenterData();
   if(pageId === 'page-applications') { window.fetchApplications(); isInsightView = false; if($("app-table-area")) $("app-table-area").style.display = "block"; if($("app-insight-area")) $("app-insight-area").style.display = "none"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = "인사이트 보기"; }
   if(pageId === 'page-members') window.fetchMembers();
@@ -255,6 +258,7 @@ window.switchSubTab = function(subId, element) {
   $$$(".sub-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.sub-item[onclick*="${subId}"]`); if(targetEl) { targetEl.classList.add('active'); targetEl.classList.remove("tab-pulse"); }
   if (subId === 'sub-notice') { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'none'; } else { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'inline-flex'; }
   localStorage.setItem('wecoffee_sub_tab', subId); 
+  
   if(subId === 'sub-res' || subId === 'sub-trn-blk' || subId === 'sub-ord') {
       window.fetchCenterData();
   }
@@ -515,18 +519,19 @@ window.updateCancelAccumulationBanner = function() {
     if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
 };
 
-function isOrderExpired(order, now, isThuOrder) {
+// 💡 4. 생두 주문 마감 보호 로직
+function isOrderExpired(order, now) {
     let oDate = new Date(order.created_at);
     let status = order.status || '주문 접수';
     
+    if (['주문 접수', '입금 대기', '입금 확인 중', '입금 확인', '대기'].includes(status)) {
+        return false; // 관리자가 처리하기 전까지 절대 숨기지 않음
+    }
     if (status === '주문 취소' || status === '품절') {
         return (now.getTime() - oDate.getTime()) > 48 * 60 * 60 * 1000;
     }
     if (status === '센터 도착') {
         return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
-    }
-    if (['주문 접수', '입금 대기', '입금 확인 중', '입금 확인', '대기'].includes(status)) {
-        return false;
     }
     return false;
 }
@@ -549,6 +554,7 @@ window.fetchCenterData = async function() {
         let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
         if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
 
+        // 💡 2. 콘텐츠 필터 날짜 포함 (반복 수업 구분)
         let tSet = new Set(); gTrn.forEach(t => {
             let cInfo = String(t.content||'').split(' || ');
             if(cInfo.length >= 5) {
@@ -568,6 +574,7 @@ window.fetchCenterData = async function() {
   try { window.renderDashboard(); } catch(e){ console.error(e); }
   try { window.renderNoticeData(); } catch(e){ console.error(e); }
 }
+
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -575,22 +582,29 @@ window.renderCenterData = function() {
 
   try { updateDailyInOutBanner(); if(window.updateCancelAccumulationBanner) window.updateCancelAccumulationBanner(); } catch(e) {}
   
-  // 💡 UX 라이팅 툴팁(ⓘ) 자동 주입 로직 (공간 낭비 없이 통일)
+  // 💡 1. UX 라이팅 툴팁(ⓘ) 자동 주입 로직
   try {
-      const addTooltip = (selector, id, text, isLong = false) => {
+      const addTooltip = (selector, id, text, newTitle = null, isLong = false) => {
           let el = document.querySelector(selector);
           if(el && !document.getElementById(id)) {
-              let icon = document.createElement('span');
+              if(newTitle) {
+                  el.innerHTML = newTitle; 
+              } else {
+                  let sub = el.querySelector('.sub-text');
+                  if(sub) sub.remove();
+              }
+              let icon = document.createElement('i');
               icon.id = id;
               icon.className = `info-tooltip ${isLong ? 'long-text' : ''}`;
               icon.setAttribute('data-tooltip', text);
-              icon.innerText = 'ⓘ';
+              icon.innerText = 'i';
               el.appendChild(icon);
           }
       };
-      addTooltip('#sub-res .table-toolbar .section-title', 'tt-res', '최근 30일 동안의 예약 내역만 표시됩니다.');
+      
+      addTooltip('#sub-res .table-toolbar .section-title', 'tt-res', '최근 30일 동안의 예약 내역만 표시됩니다.', '센터 예약 리스트');
       addTooltip('#sub-trn .table-toolbar .section-title', 'tt-trn', '수업이 종료된 명단은 자정에 목록에서 자동 정리됩니다.');
-      addTooltip('#sub-ord .table-toolbar .section-title', 'tt-ord', '결제 진행 중이거나 새 주문은 유지됩니다. 수령 완료는 7일 뒤, 취소/품절은 이틀 뒤 자동 정리됩니다.', true);
+      addTooltip('#sub-ord .table-toolbar .section-title', 'tt-ord', '결제 진행 중이거나 확인 전인 새 주문은 유지됩니다. 수령 완료는 7일 뒤, 취소/품절은 이틀 뒤 자동 정리됩니다.', null, true);
   } catch(e) {}
 
   try {
@@ -620,6 +634,7 @@ window.renderCenterData = function() {
       }
   } catch(e) {}
 
+  // 💡 3. 센터 예약 리스트 (이용 완료 취소 비활성화)
   try {
       let qRes = ($("searchRes")?.value || "").toLowerCase(); 
       let sRes = $("resSpaceFilter")?.value || "전체";
@@ -630,15 +645,19 @@ window.renderCenterData = function() {
       });
       if($("resTableBody")) $("resTableBody").innerHTML = fRes.length ? fRes.map(r=>{ 
           let displayStatus = r.status || ''; 
-          let actBtn = String(displayStatus).includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; 
+          let isExpired = false;
           if (r.res_time && r.res_date && !String(displayStatus).includes('취소')) { 
               let endTimeStr = String(r.res_time).split('~')[1];
               if(endTimeStr) {
                   let [hh, mm] = endTimeStr.trim().split(':'); 
                   let resEndObj = new Date(`${r.res_date}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`); 
-                  if (resEndObj < now) displayStatus = '이용완료'; 
+                  if (resEndObj < now) { displayStatus = '이용완료'; isExpired = true; }
               }
           } 
+          
+          let actBtn = (String(displayStatus).includes('취소') || displayStatus === '이용완료' || isExpired) 
+            ? `<button class="btn-outline btn-sm" disabled style="opacity:0.5; cursor:not-allowed;">취소</button>` 
+            : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; 
           
           let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '이용완료' ? 'badge-gray' : (displayStatus === '예약완료' ? 'badge-green' : 'badge-gray'))); 
           
@@ -655,8 +674,7 @@ window.renderCenterData = function() {
           return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
       }).join("") : `<tr><td colspan="11" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
-  
-  // 💡 수업 신청자 렌더링 및 N회차 표기 / 출석부 다운로드 로직
+// 💡 2. 신청자 리스트 렌더링 (N회차 뱃지 & 출석부 엑셀 연동)
   try {
       let qTrn = ($("searchTrn")?.value || "").toLowerCase(); 
       let sTrn = $("trnContentFilter")?.value || "전체";
@@ -675,7 +693,7 @@ window.renderCenterData = function() {
               let tDate = new Date(t.created_at);
               if (tDate < oneMonthAgo) return false;
           }
-          return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
+          return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone}`.toLowerCase().includes(qTrn)) && matchContent; 
       });
 
       window.currentFilteredTrn = fTrnList; // 출석부 엑셀용 데이터 저장
@@ -698,7 +716,7 @@ window.renderCenterData = function() {
               attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').includes(myClassTitle)).length;
           } 
           
-          let nthBadge = attendCount >= 2 ? `<span style="margin-left:6px; font-size:12px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block;">${attendCount}회차</span>` : '';
+          let nthBadge = attendCount >= 2 ? `<span class="nth-badge">${attendCount}회차</span>` : '';
           t._attendCount = attendCount; 
 
           let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '접수완료' ? 'badge-green' : 'badge-gray')); 
@@ -717,6 +735,7 @@ window.renderCenterData = function() {
       }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
 
+  // 💡 3. 생두 주문 렌더링
   try {
       let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
       let fOrd = gOrd.filter(o => { 
@@ -728,13 +747,14 @@ window.renderCenterData = function() {
       }); 
       let thuOrders = fOrd.filter(o => String(o.item_name||'').includes('목')); let monOrders = fOrd.filter(o => !String(o.item_name||'').includes('목')); 
       if (!isOrdFilter) { 
-          monOrders = monOrders.filter(o => !isOrderExpired(o, now, false)); 
-          thuOrders = thuOrders.filter(o => !isOrderExpired(o, now, true)); 
+          monOrders = monOrders.filter(o => !isOrderExpired(o, now)); 
+          thuOrders = thuOrders.filter(o => !isOrderExpired(o, now)); 
       }
       if($("ordTableBodyMon")) renderOrderTableHTML(monOrders, 'ordTableBodyMon', 'chk-ord-mon'); 
       if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
   } catch(e) { console.error(e); }
 
+  // 💡 4. 정원 마감 디스플레이 개선
   try {
       let fBlk = gBlk.filter(b => {
           let bDate = new Date(b.block_date);
@@ -1151,7 +1171,7 @@ window.renderAppDailyBanner = function(filteredApps) {
         });
         html = `<div style="display:flex; flex-wrap:wrap; gap:12px;">${html}</div>`;
     }
-    if($("appDailyBanner")) $("appDailyBannerinnerHTML") = html;
+    if($("appDailyBanner")) $("appDailyBanner").innerHTML = html;
 };
 
 window.toggleAppDashView = function(view) { 
@@ -1455,7 +1475,7 @@ window.deleteHistory = async function(id, phone, name, action_detail) { window.o
 window.openHistoryModal = async function(phone, name) { if(!$("historyModalTitle")) return; $("historyModalTitle").innerText = `${name} 님의 내역`; const modal = $("historyModal"); modal.classList.add('show'); const body = $("historyModalBody"); body.innerHTML = '<div class="empty-state">내역을 불러오는 중입니다.</div>'; const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false }); if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state" style="color:var(--text-tertiary);">결제/연장 내역이 없습니다.</div>'; return; } body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>'; }
 window.closeHistoryModal = function() { if($("historyModal")) $("historyModal").classList.remove('show'); }
 
-// 💡 출석부 전용 엑셀 다운로드 함수
+// 💡 2. 출석부 전용 엑셀 다운로드 함수 (N회차 포함)
 window.downloadAttendanceExcel = function() {
     if(!window.currentFilteredTrn || window.currentFilteredTrn.length === 0) {
         showToast('출력할 데이터가 없습니다.');
