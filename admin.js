@@ -27,7 +27,6 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .pagination-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
         .pagination-btn:disabled { opacity:0.5; cursor:not-allowed; }
         
-        /* 💡 캘린더 툴팁 짤림 방지 강제 해제 */
         .dash-cal-grid, .dash-cal-cell, .desktop-cal { overflow: visible !important; }
         .dash-tooltip-custom { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #212529; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 13px; white-space: nowrap; z-index: 999999 !important; visibility: hidden; opacity: 0; transition: 0.2s; text-align: left; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.5; }
         .dash-cal-more-wrap:hover .dash-tooltip-custom { visibility: visible; opacity: 1; }
@@ -216,10 +215,9 @@ window.editBlock = function(id) {
 }
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); currentBlockId = null; }
 
-// 💡 정원 0명 인식 수정 로직 (빈칸은 null, 0은 0으로 정확히 파싱)
 window.saveBlockData = async function() { 
   let capInput = $("blkCapacity") ? $("blkCapacity").value.trim() : "";
-  let capParsed = capInput === "" ? null : parseInt(capInput); // 0을 넣으면 정확히 0으로 인식
+  let capParsed = capInput === "" ? null : parseInt(capInput);
   
   const payload = { 
       category: $("blkCategory")?$("blkCategory").value:"", block_date: window.formatBlockDate($("blkDate")?$("blkDate").value:""), 
@@ -288,8 +286,9 @@ window.fetchCenterData = async function() {
         gBlk.forEach(b => { if(b.space_equip) b.space_equip = String(b.space_equip).replace(/로스팅룸/g, '로스팅존'); }); 
         gTrn.forEach(t => { if(t.content) t.content = String(t.content).replace(/로스팅룸/g, '로스팅존'); });
 
+        // 💡 [개선] 센터 드롭다운 기수 필터 숫자순 정렬 (문자열 파싱)
         let bSet = new Set(); gRes.forEach(r => { if(r.batch) bSet.add(r.batch); }); gTrn.forEach(t => { if(t.batch) bSet.add(t.batch); });
-        let bHtml = `<option value="전체">전체 기수</option>` + Array.from(bSet).sort((a,b) => parseInt(b) - parseInt(a)).map(b=>`<option value="${b}">${b}</option>`).join("");
+        let bHtml = `<option value="전체">전체 기수</option>` + Array.from(bSet).sort((a,b) => parseInt(b.replace(/[^0-9]/g, '') || 0) - parseInt(a.replace(/[^0-9]/g, '') || 0)).map(b=>`<option value="${b}">${b}</option>`).join("");
         if($("dashBatchFilter") && $("dashBatchFilter").innerHTML !== bHtml) $("dashBatchFilter").innerHTML = bHtml;
 
         let sSet = new Set(); gRes.forEach(r => { if(r.space_equip) sSet.add(String(r.space_equip).split(' ')[0]); });
@@ -488,6 +487,7 @@ window.renderCenterData = function() {
       if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
   } catch(e) { console.error(e); }
 
+  // 💡 [개선] 정원 0명 시 "오픈 예정" 티저 UI 적용 완료
   try {
       let fBlk = gBlk.filter(b => {
           let bDate = new Date(b.block_date);
@@ -520,7 +520,10 @@ window.renderCenterData = function() {
           
           let capDisplay = '-';
           if (max !== null) {
-              if (current >= max) {
+              if (max === 0) {
+                  // 💡 0명일 때 오픈 예정 뱃지 노출
+                  capDisplay = `<span style="color:var(--primary); font-weight:800; font-size:12px; border:1px solid var(--primary); padding:4px 8px; border-radius:12px; white-space:nowrap; background:#fff;">오픈 예정</span>`;
+              } else if (current >= max) {
                   capDisplay = `<strong style="color:var(--error);">마감 (${max}명)</strong>`;
               } else {
                   capDisplay = `<strong>${current}</strong> / ${max}`;
@@ -848,11 +851,12 @@ window.resetAppDashMonth = function() { appDashMonthOffset = 0; window.renderApp
 
 window.toggleInsight = function() { isInsightView = !isInsightView; let insightArea = $("app-insight-area"); if(insightArea) { insightArea.style.paddingTop = "32px"; insightArea.style.display = isInsightView ? "block" : "none"; } if($("app-table-area")) $("app-table-area").style.display = isInsightView ? "none" : "block"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = isInsightView ? "리스트 보기" : "인사이트 보기"; if(isInsightView) window.applyFilterApp(); }
 
+// 💡 [개선] 가입 신청 리스트 기수 필터 숫자순 정렬
 window.fetchApplications = async function() {
   try { 
       const { data, error } = await supabaseClient.from('applications').select('*').order('created_at', { ascending: false }); 
       if (error) throw error; globalApps = data || []; 
-      const batches = [...new Set(globalApps.map(d => d.desired_batch).filter(Boolean))].sort((a,b) => parseInt(b) - parseInt(a)); 
+      const batches = [...new Set(globalApps.map(d => d.desired_batch).filter(Boolean))].sort((a,b) => parseInt(b.replace(/[^0-9]/g, '') || 0) - parseInt(a.replace(/[^0-9]/g, '') || 0)); 
       let optionsHTML = '<option value="all">전체 기수 보기</option>'; batches.forEach(b => optionsHTML += `<option value="${b}">${b}</option>`); 
       if($("batchFilterApp")) $("batchFilterApp").innerHTML = optionsHTML; 
       window.applyFilterApp(); if ($("crmModal") && $("crmModal").classList.contains('show') && $("crmAppId").value) { window.renderCrmInner($("crmAppId").value, isCrmReadOnly); } 
@@ -1010,7 +1014,7 @@ window.renderStatistics = function(data) {
   window.currentInsightData = { total, joined, instaCount: channelMap['인스타그램']?channelMap['인스타그램'].total:0, adCount: channelMap['모집 광고']?channelMap['모집 광고'].total:0, instaFollow: safeDataForSummary.instaFollow, instaNonFollow: safeDataForSummary.instaNonFollow, leadTime1M: safeDataForSummary.adNow, leadTime3M: safeDataForSummary.leadTime3M, channelMap: channelMap };
 }
 
-// 💡 5. 멤버 리스트 페이지네이션 및 렌더링 로직
+// 💡 [개선] 멤버 리스트 기수 필터 숫자순 정렬, 대량 데이터 로딩 렉 방지용 페이지네이션 완벽 반영
 window.changeMemberPerPage = function(val) {
     memberItemsPerPage = val === 'all' ? 999999 : parseInt(val);
     currentMemberPage = 1;
@@ -1022,7 +1026,15 @@ window.changeMemberPage = function(page) {
     renderMemberTablePage();
 };
 
-window.fetchMembers = async function() { const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); if (error) return; globalMembers = data; let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); }); let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort((a,b) => parseInt(b) - parseInt(a)).map(b=>`<option value="${b}">${b}</option>`).join(""); if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml; window.searchMembers(); }
+window.fetchMembers = async function() { 
+    const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); 
+    if (error) return; 
+    globalMembers = data; 
+    let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); }); 
+    let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort((a,b) => parseInt(b.replace(/[^0-9]/g, '') || 0) - parseInt(a.replace(/[^0-9]/g, '') || 0)).map(b=>`<option value="${b}">${b}</option>`).join(""); 
+    if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml; 
+    window.searchMembers(); 
+}
 
 window.searchMembers = function() { 
     const query = $("memberSearch") ? $("memberSearch").value.trim().toLowerCase() : ""; 
@@ -1162,8 +1174,6 @@ function updatePaginationUI(totalItems) {
     
     paginationWrap.innerHTML = html;
 }
-
-document.addEventListener('change', function(e) { if (e.target.classList.contains('date-sel') && !e.target.classList.contains('option-btn')) { const group = e.target.closest('.date-select-group'); const y = group.querySelector('.year').value, m = group.querySelector('.month').value, d = group.querySelector('.day').value; if (y && m && d) window.updateMemberEndDate(group.dataset.id, `${y}-${m}-${d}`).then(() => window.fetchMembers()); } });
 
 window.handleMemberOption = function(id, batch, name, phone, currentEndDate, selectEl) {
   const opt = selectEl.value; const optText = selectEl.options[selectEl.selectedIndex].text; selectEl.value = ''; if(!opt) return;
