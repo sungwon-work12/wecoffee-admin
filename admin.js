@@ -11,6 +11,9 @@ let quillEditor = null;
 let isAppInitialized = false; 
 let realtimeChannel = null;
 
+// 💡 멤버 리스트 페이지네이션 글로벌 변수 추가
+let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
+
 // 💡 1. 툴팁 UI 및 N회차 뱃지용 CSS 동적 주입 (모바일 툴팁 잘림 방지 좌측 정렬 & 자동 줄바꿈 적용)
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
@@ -151,7 +154,7 @@ function initializeApp() {
 }
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
 
-// 💡 4. 시스템 안정성 강화 (탭 이동 시 자동 새로고침 강제화)
+// 💡 시스템 안정성 강화 (탭 이동 시 자동 새로고침 강제화)
 window.switchMainTab = function(pageId, element) {
   $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
   $$$(".gnb-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.gnb-item[onclick*="${pageId}"]`); if(targetEl) targetEl.classList.add('active');
@@ -176,6 +179,7 @@ window.switchSubTab = function(subId, element) {
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
 window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
 
+// 💡 결제/연장 중복 클릭 방지 (Disabled) 적용
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrText, btnText = '적용하기') {
     if($("confirmTarget")) $("confirmTarget").innerHTML = title;
     if(statusHtml) { if($("confirmStateBox")) $("confirmStateBox").style.display = 'block'; if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'none'; if($("confirmStatus")) $("confirmStatus").innerHTML = statusHtml; if($("confirmActionState")) $("confirmActionState").innerHTML = actionHtml; } 
@@ -187,7 +191,20 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrTex
         newBtn.onclick = function() {
             if(btnText === '복사하기') { window.copyTxt(callbackOrText, "사전 설문 링크가 복사되었습니다."); window.closeConfirmModal(); } 
             else if(btnText === '확인') { window.closeConfirmModal(); } 
-            else { (async () => { await callbackOrText(); window.closeConfirmModal(); })(); }
+            else { 
+                (async () => { 
+                    newBtn.disabled = true; 
+                    let originalText = newBtn.innerText;
+                    newBtn.innerText = "처리 중..."; 
+                    try { await callbackOrText(); } 
+                    catch(e) { console.error(e); } 
+                    finally { 
+                        newBtn.disabled = false; 
+                        newBtn.innerText = originalText;
+                        window.closeConfirmModal(); 
+                    }
+                })(); 
+            }
         };
         let cancelBtn = newBtn.previousElementSibling; if(cancelBtn && cancelBtn.tagName === 'BUTTON') { cancelBtn.style.display = (btnText === '확인') ? 'none' : 'block'; }
     }
@@ -221,11 +238,26 @@ window.editBlock = function(id) {
     currentBlockId = id; const b = gBlk.find(x => String(x.id) === String(id)); if(!b) return; 
     if($("blockModalTitle")) $("blockModalTitle").innerText = "스케줄 내역 수정"; if($("blkId")) $("blkId").value = b.id; if($("blkCategory")) $("blkCategory").value = b.category; if($("blkDate")) $("blkDate").value = b.block_date; if($("blkStart")) $("blkStart").value = b.start_time; if($("blkEnd")) $("blkEnd").value = b.end_time; 
     if($("blkCenter")) { $("blkCenter").value = b.center; $("blkCenter").onchange = window.updateSpaceOptions; window.updateSpaceOptions(); }
-    if($("blkSpace")) $("blkSpace").value = b.space_equip; if($("blkReason")) $("blkReason").value = b.reason; if($("blkCapacity")) $("blkCapacity").value = b.capacity || ""; if($("blkRepeatType")) $("blkRepeatType").value = "none"; if($("blkRepeatCount")) $("blkRepeatCount").value = ""; if($("blockModal")) $("blockModal").classList.add('show'); 
+    if($("blkSpace")) $("blkSpace").value = b.space_equip; if($("blkReason")) $("blkReason").value = b.reason; if($("blkCapacity")) $("blkCapacity").value = b.capacity === null ? "" : b.capacity; if($("blkRepeatType")) $("blkRepeatType").value = "none"; if($("blkRepeatCount")) $("blkRepeatCount").value = ""; if($("blockModal")) $("blockModal").classList.add('show'); 
 }
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); currentBlockId = null; }
+
+// 💡 정원(capacity) 0명 설정 시 완벽 차단 로직 (null과 0을 명확히 구분)
 window.saveBlockData = async function() { 
-  const payload = { category: $("blkCategory")?$("blkCategory").value:"", block_date: window.formatBlockDate($("blkDate")?$("blkDate").value:""), start_time: window.formatBlockTime($("blkStart")?$("blkStart").value:""), end_time: window.formatBlockTime($("blkEnd")?$("blkEnd").value:""), center: $("blkCenter")?$("blkCenter").value:"", space_equip: $("blkSpace")?$("blkSpace").value.trim():"", reason: $("blkReason")?$("blkReason").value.trim():"", capacity: parseInt($("blkCapacity")?$("blkCapacity").value:"") || null }; 
+  let capInput = $("blkCapacity") ? $("blkCapacity").value.trim() : "";
+  let capParsed = capInput === "" ? null : parseInt(capInput);
+  
+  const payload = { 
+      category: $("blkCategory")?$("blkCategory").value:"", 
+      block_date: window.formatBlockDate($("blkDate")?$("blkDate").value:""), 
+      start_time: window.formatBlockTime($("blkStart")?$("blkStart").value:""), 
+      end_time: window.formatBlockTime($("blkEnd")?$("blkEnd").value:""), 
+      center: $("blkCenter")?$("blkCenter").value:"", 
+      space_equip: $("blkSpace")?$("blkSpace").value.trim():"", 
+      reason: $("blkReason")?$("blkReason").value.trim():"", 
+      capacity: capParsed 
+  }; 
+  
   if(!payload.block_date || !payload.start_time || !payload.end_time) { showToast("날짜와 시간을 정확히 입력해주세요."); return; } 
   let rType = $("blkRepeatType") ? $("blkRepeatType").value : "none"; let rCount = parseInt($("blkRepeatCount") ? $("blkRepeatCount").value : "1") || 1; if(rType === 'none' || currentBlockId) rCount = 1; 
   let payloads = []; let baseDateStr = payload.block_date; let [y, m, d] = baseDateStr.split('-').map(Number); let baseDate = new Date(y, m - 1, d);
@@ -269,7 +301,6 @@ window.updateCancelAccumulationBanner = function() {
     if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
 };
 
-// 💡 4. 생두 주문 마감 보호 로직
 function isOrderExpired(order, now) {
     let oDate = new Date(order.created_at); let status = order.status || '주문 접수';
     if (['주문 접수', '입금 대기', '입금 확인 중', '입금 확인', '대기'].includes(status)) return false;
@@ -330,8 +361,8 @@ window.renderCenterData = function() {
       let resTitle = document.querySelector('#sub-res .table-toolbar .section-title');
       if(resTitle && resTitle.innerText.includes('상세 예약 로그')) resTitle.innerHTML = '센터 예약 리스트';
       
-      addTooltipToText('센터 예약 리스트', 'tt-res', '최근 30일 동안의 예약 내역만 표시됩니다.');
-      addTooltipToText('수업 및 훈련', 'tt-trn', '수업이 종료된 명단은 자정에 목록에서 자동 정리됩니다.');
+      addTooltipToText('센터 예약 리스트', 'tt-res', '최근 30일 동안의 예약 내역만 표시됩니다.', true);
+      addTooltipToText('수업 및 훈련', 'tt-trn', '수업이 종료된 명단은 자정에 목록에서 자동 정리됩니다.', true);
       addTooltipToText('생두 주문 관리', 'tt-ord', '결제 진행 중이거나 확인 전인 새 주문은 유지됩니다. 수령 완료는 7일 뒤, 취소/품절은 이틀 뒤 자동 정리됩니다.', true);
   } catch(e) {}
 
@@ -443,18 +474,14 @@ window.renderCenterData = function() {
           let niceContent = t.content; 
           let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; 
           
-          let attendCount = 1;
-          if(cInfo.length >= 5) { 
-              niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; 
-              let myClassTitle = cInfo[4].trim();
-              attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').includes(myClassTitle)).length;
-          } else {
-              let baseContent = String(t.content||'').trim();
-              attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').trim() === baseContent).length;
-          }
-          
+          let baseContent = String(t.content||'').trim();
+          let attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').trim() === baseContent).length;
           t._attendCount = attendCount; 
           let nthBadge = attendCount >= 2 ? `<span class="nth-badge">${attendCount}회차</span>` : '';
+
+          if(cInfo.length >= 5) { 
+              niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]}</span></div>`; 
+          } 
 
           let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '접수완료' ? 'badge-green' : 'badge-gray')); 
           
@@ -491,6 +518,7 @@ window.renderCenterData = function() {
       if($("ordTableBodyThu")) renderOrderTableHTML(thuOrders, 'ordTableBodyThu', 'chk-ord-thu');
   } catch(e) { console.error(e); }
 
+  // 💡 [개선] 정원 0명 인식 오류 (마감 로직 완벽 적용)
   try {
       let fBlk = gBlk.filter(b => {
           let bDate = new Date(b.block_date);
@@ -500,10 +528,11 @@ window.renderCenterData = function() {
       }); 
       
       if($("blkTableBody")) $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
-          let max = parseInt(b.capacity) || 0; 
+          let capVal = b.capacity;
+          let max = capVal === null ? null : parseInt(capVal); 
           let current = 0; 
           
-          if(max > 0) {
+          if(max !== null) {
               let bTime = `${b.start_time}~${b.end_time}`;
               let bTitle = `[${b.category}] ${b.reason}`;
               
@@ -521,7 +550,7 @@ window.renderCenterData = function() {
           }
           
           let capDisplay = '-';
-          if (max > 0) {
+          if (max !== null) {
               if (current >= max) {
                   capDisplay = `<strong style="color:var(--error);">마감 (${max}명)</strong>`;
               } else {
@@ -1152,7 +1181,18 @@ window.renderStatistics = function(data) {
   window.currentInsightData = { total, joined, instaCount: channelMap['인스타그램']?channelMap['인스타그램'].total:0, adCount: channelMap['모집 광고']?channelMap['모집 광고'].total:0, instaFollow: safeDataForSummary.instaFollow, instaNonFollow: safeDataForSummary.instaNonFollow, leadTime1M: safeDataForSummary.adNow, leadTime3M: safeDataForSummary.leadTime3M, channelMap: channelMap };
 }
 
-// 💡 5. 멤버 리스트 정렬 (기수 내림차순 -> 성함 가나다순) 적용
+// 💡 5. 멤버 리스트 정렬 (기수 내림차순 -> 성함 가나다순) 적용 & 💡 [개선] 페이지네이션 (렉 방지) 로직 추가
+window.changeMemberPerPage = function(val) {
+    memberItemsPerPage = val === 'all' ? 999999 : parseInt(val);
+    currentMemberPage = 1;
+    renderMemberTablePage();
+};
+
+window.changeMemberPage = function(page) {
+    currentMemberPage = page;
+    renderMemberTablePage();
+};
+
 window.fetchMembers = async function() { const { data, error } = await supabaseClient.from('members').select('*').order('created_at', { ascending: false }); if (error) return; globalMembers = data; let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); }); let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort().reverse().map(b=>`<option value="${b}">${b}</option>`).join(""); if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml; window.searchMembers(); }
 window.searchMembers = function() { 
     const query = $("memberSearch") ? $("memberSearch").value.trim().toLowerCase() : ""; 
@@ -1175,7 +1215,6 @@ window.searchMembers = function() {
         return matchQuery && matchStatus && matchBatch; 
     }); 
 
-    // 기수 내림차순(최신순) -> 이름 가나다순 정렬 적용
     filtered.sort((a, b) => {
         let batchA = a.batch || '';
         let batchB = b.batch || '';
@@ -1187,13 +1226,40 @@ window.searchMembers = function() {
         return nameA.localeCompare(nameB);
     });
 
-    renderMemberTable(filtered); 
+    currentFilteredMembers = filtered;
+    currentMemberPage = 1;
+
+    let filterWrap = document.querySelector('#page-members .filter-wrap');
+    if(filterWrap && !document.getElementById('memberPerPage')) {
+        let selectHtml = `<select id="memberPerPage" class="filter-sel" style="margin-left:8px; width:auto;" onchange="window.changeMemberPerPage(this.value)">
+            <option value="10">10명씩 보기</option>
+            <option value="50" selected>50명씩 보기</option>
+            <option value="100">100명씩 보기</option>
+            <option value="all">전체 보기</option>
+        </select>`;
+        filterWrap.insertAdjacentHTML('beforeend', selectHtml);
+    }
+
+    renderMemberTablePage(); 
 }
 
-function renderMemberTable(data) {
+function renderMemberTablePage() {
   if(!$("memberTableBody")) return;
-  const tbody = $("memberTableBody"); tbody.innerHTML = ''; if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="6" class="empty-state">내역이 없습니다.</td></tr>`; return; } const today = new Date(); today.setHours(0,0,0,0);
+  const tbody = $("memberTableBody"); 
+  tbody.innerHTML = ''; 
   
+  let data = currentFilteredMembers;
+  if(data.length === 0) { 
+      tbody.innerHTML = `<tr><td colspan="6" class="empty-state">내역이 없습니다.</td></tr>`; 
+      updatePaginationUI(0);
+      return; 
+  } 
+  
+  let startIndex = (currentMemberPage - 1) * memberItemsPerPage;
+  let endIndex = startIndex + memberItemsPerPage;
+  let pageData = data.slice(startIndex, endIndex);
+
+  const today = new Date(); today.setHours(0,0,0,0);
   let now = new Date();
   let monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   
@@ -1209,7 +1275,7 @@ function renderMemberTable(data) {
       return count;
   };
 
-  data.forEach(row => {
+  pageData.forEach(row => {
     let yy = '', mm = '', dd = ''; let isExpired = true; let isPaused = row.status === '활동 일시정지'; if (row.end_date && row.end_date.length === 10) { [yy, mm, dd] = row.end_date.split('-'); let endD = new Date(row.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; } if (isExpired && !isPaused && row.status !== '패널티 정지') { yy = ''; mm = ''; dd = ''; } 
     let currentStat = row.status || '활동 중'; let statusBadge = ""; if (currentStat === '패널티 정지') statusBadge = `<span class="status-badge badge-red">패널티 정지</span>`; else if (isPaused) statusBadge = `<span class="status-badge badge-gray">일시정지</span>`; else if (isExpired) statusBadge = `<span class="status-badge badge-ended" style="background:#fff0f0;color:var(--error);">활동 종료</span>`; else statusBadge = `<span class="status-badge badge-active" style="background:#e8f5e9;color:var(--success);">${currentStat}</span>`;
     let yearOpts = '<option value="">년도</option>'; for(let i = 2024; i <= 2030; i++) yearOpts += `<option value="${i}" ${yy == i ? 'selected' : ''}>${i}년</option>`; let monthOpts = '<option value="">월</option>'; for(let i = 1; i <= 12; i++) { let val = String(i).padStart(2, '0'); monthOpts += `<option value="${val}" ${mm == val ? 'selected' : ''}>${i}월</option>`; } let dayOpts = '<option value="">일</option>'; for(let i = 1; i <= 31; i++) { let val = String(i).padStart(2, '0'); dayOpts += `<option value="${val}" ${dd == val ? 'selected' : ''}>${i}일</option>`; }
@@ -1221,7 +1287,52 @@ function renderMemberTable(data) {
 
     const tr = document.createElement('tr'); tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group" data-id="${row.id}"><div class="date-inputs"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select></div><div class="action-btns"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; tbody.appendChild(tr);
   });
+
+  updatePaginationUI(data.length);
 }
+
+function updatePaginationUI(totalItems) {
+    let paginationWrap = document.getElementById('memberPaginationWrap');
+    if(!paginationWrap) {
+        let tableWrap = document.querySelector('#page-members .table-wrap');
+        if(tableWrap) {
+            paginationWrap = document.createElement('div');
+            paginationWrap.id = 'memberPaginationWrap';
+            paginationWrap.style.cssText = 'display:flex; justify-content:center; align-items:center; gap:8px; padding:20px 0;';
+            tableWrap.parentNode.insertBefore(paginationWrap, tableWrap.nextSibling);
+        }
+    }
+    
+    if(!paginationWrap) return;
+    
+    if(totalItems === 0 || memberItemsPerPage > totalItems) {
+        paginationWrap.innerHTML = '';
+        return;
+    }
+
+    let totalPages = Math.ceil(totalItems / memberItemsPerPage);
+    let html = '';
+    
+    let startPage = Math.max(1, currentMemberPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    if(endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+    if(currentMemberPage > 1) {
+        html += `<button class="btn-outline btn-sm" style="height:32px; padding:0 10px;" onclick="window.changeMemberPage(${currentMemberPage - 1})">이전</button>`;
+    }
+    
+    for(let i = startPage; i <= endPage; i++) {
+        let activeStyle = i === currentMemberPage ? 'background:var(--primary); color:#fff; border-color:var(--primary);' : '';
+        html += `<button class="btn-outline btn-sm" style="height:32px; width:32px; padding:0; ${activeStyle}" onclick="window.changeMemberPage(${i})">${i}</button>`;
+    }
+    
+    if(currentMemberPage < totalPages) {
+        html += `<button class="btn-outline btn-sm" style="height:32px; padding:0 10px;" onclick="window.changeMemberPage(${currentMemberPage + 1})">다음</button>`;
+    }
+    
+    paginationWrap.innerHTML = html;
+}
+
 document.addEventListener('change', function(e) { if (e.target.classList.contains('date-sel') && !e.target.classList.contains('option-btn')) { const group = e.target.closest('.date-select-group'); const y = group.querySelector('.year').value, m = group.querySelector('.month').value, d = group.querySelector('.day').value; if (y && m && d) window.updateMemberEndDate(group.dataset.id, `${y}-${m}-${d}`).then(() => window.fetchMembers()); } });
 
 window.handleMemberOption = function(id, batch, name, phone, currentEndDate, selectEl) {
