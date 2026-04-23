@@ -13,7 +13,7 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 1. 툴팁, 모바일 폼 이탈 방지, 생두 뱃지용 반응형 CSS
+// 💡 1. 툴팁, 폼 이탈 방지(nowrap 제거 후 flex-wrap 적용) 및 생두 요일 뱃지 CSS
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -31,19 +31,20 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .dash-tooltip-custom { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #212529; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 13px; white-space: nowrap; z-index: 999999 !important; visibility: hidden; opacity: 0; transition: 0.2s; text-align: left; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.5; }
         .dash-cal-more-wrap:hover .dash-tooltip-custom { visibility: visible; opacity: 1; }
         
-        .mem-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
-        .mem-action-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
-        .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 70px; padding-right: 16px !important; }
+        /* 멤버리스트 UI 폼 이탈 방지용 (옵션/적용 스왑) */
+        .mem-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .mem-action-row { display: flex; align-items: center; gap: 4px; }
+        .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 65px; padding-right: 16px !important; }
         
         .order-day-badge { display: none; } /* PC에서는 숨김 */
         
         @media (max-width: 768px) {
             .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; }
-            .mem-action-row { width: 100%; justify-content: space-between; }
+            .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
             .mem-action-row select { flex: 1; min-width: 0; padding-left: 6px !important; padding-right: 20px !important; }
             .apply-date-btn, .action-btns button { flex-shrink: 0; }
             
-            /* 모바일 발주 뱃지 (월/목 분간용) */
+            /* 모바일 생두 발주 뱃지 (월/목 분간용) */
             .order-day-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 6px; vertical-align: middle; }
             .badge-mon { background: #e8f0fe; color: #1a73e8; border: 1px solid #1a73e8; }
             .badge-thu { background: #fce8e6; color: #c5221f; border: 1px solid #c5221f; }
@@ -54,7 +55,7 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
-// 💡 [이슈 해결] 무한 로딩 원천 차단: 공지사항 등 전 구역에서 window.safeKST 통일 호출
+// 💡 [이슈 해결] 무한 로딩 원천 차단: 에러 없는 window.safeKST 통일 적용
 window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr);
@@ -77,7 +78,7 @@ window.getOrderTarget = function(itemName) {
     if (m) return m[1]; 
     let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
     if (m2) return m2[1];
-    return '미지정';
+    return '월'; // 미지정 시 기본값 월요일
 };
 
 window.holidaysCache = {};
@@ -126,7 +127,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
   } catch (error) { return []; }
 };
 
-// 💡 [이슈 해결] 누락되었던 배너 렌더링 로직 완전 복구
+// 💡 [이슈 해결] 누락된 메인 배너 렌더링 로직 완전 복구
 window.updateDailyInOutBanner = function() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { let evts = []; gRes.forEach(r => { if(r.res_date === ds && r.center === centerFilter && !String(r.status||'').includes('취소')) { let st = String(r.res_time||"").split('~')[0].trim(); let enParts = String(r.res_time||"").split('~'); let en = enParts.length > 1 ? enParts[1].trim() : ''; let spc = String(r.space_equip||"").split(' ')[0]; evts.push({ start: st, end: en, name: r.name, space: spc }); } }); return evts; }; 
@@ -142,7 +143,7 @@ window.updateDailyInOutBanner = function() {
   if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; 
 };
 
-// 💡 [이슈 해결] 누락되었던 취소 배너 렌더링 로직 완전 복구
+// 💡 [이슈 해결] 누락된 누적 취소 배너 렌더링 로직 완전 복구
 window.updateCancelAccumulationBanner = function() {
     let now = new Date(); let y = now.getFullYear(); let m = String(now.getMonth() + 1).padStart(2, '0'); let monthPrefix = `${y}-${m}`; let cancelCounts = {};
     let addCancel = (phone, name, batch) => { if(!phone) return; if(!cancelCounts[phone]) cancelCounts[phone] = { name, batch, count: 0 }; cancelCounts[phone].count++; };
@@ -154,7 +155,7 @@ window.updateCancelAccumulationBanner = function() {
     if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
 };
 
-// 💡 [이슈 해결] 공지사항 무한 로딩 방지. window.safeKST 완전 적용 복구
+// 💡 [이슈 해결] 공지사항 무한 로딩 해결 (window.safeKST 통일)
 window.renderNoticeData = function() { 
   let fNoti = [...gNotice]; 
   fNoti.sort((a,b) => { if(a.is_pinned === b.is_pinned) return window.safeKST(b.created_at) - window.safeKST(a.created_at); return a.is_pinned ? -1 : 1; }); 
@@ -294,6 +295,14 @@ window.saveNoticeData = async function() {
   } 
 }
 window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
+
+window.isOrderExpired = function(order, now) {
+    let oDate = window.safeKST(order.created_at); let status = order.status || '주문 접수';
+    if (['주문 접수', '입금 대기', '입금 확인 중', '입금 확인', '대기'].includes(status)) return false;
+    if (status === '주문 취소' || status === '품절') return (now.getTime() - oDate.getTime()) > 48 * 60 * 60 * 1000;
+    if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
+    return false;
+}
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -440,7 +449,7 @@ window.renderCenterData = function() {
       }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
 
-  // 💡 [이슈 해결] 월/목 2개 테이블 완전 분리 및 모바일 뱃지 적용
+  // 💡 [이슈 해결] 생두 주문 관리: 월/목 2개 테이블 완전 분리 및 모바일 뱃지 적용
   try {
       let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
       let fOrd = gOrd.filter(o => { 
@@ -466,18 +475,44 @@ window.renderCenterData = function() {
           }
       });
       
-      if($("ordTableBodyMon")) {
-          $("ordTableBodyMon").innerHTML = monOrders.length > 0 ? generateOrderRows(monOrders, 'chk-ord') : `<tr><td colspan="10" class="empty-state">월요일 발주 내역이 없습니다.</td></tr>`;
+      // 월요일 테이블 렌더링 (호환성을 위해 ordTableBodyMon과 ordTableBody 모두 지원)
+      let monTableBody = $("ordTableBodyMon") || $("ordTableBody");
+      if(monTableBody) {
+          monTableBody.innerHTML = monOrders.length > 0 ? generateOrderRows(monOrders, 'chk-ord') : `<tr><td colspan="11" class="empty-state">월요일 발주 내역이 없습니다.</td></tr>`;
+          
+          // 전체 선택 체크박스 복구
+          let monTable = monTableBody.closest('table');
+          if (monTable) {
+              let theadTr = monTable.querySelector('thead tr');
+              let firstTh = theadTr.querySelector('th');
+              if (firstTh && firstTh.innerText.includes('주문')) {
+                  let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+                  chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-ord\')">';
+                  theadTr.insertBefore(chkTh, firstTh);
+              }
+          }
       }
       
-      // 목요일 전용 테이블 부활 및 렌더링
+      // 목요일 전용 테이블 렌더링
       let thuContainer = $("ordTableBodyThu")?.closest('.table-wrap');
       if(thuContainer) thuContainer.style.display = '';
       let thuTitle = document.querySelector('#sub-ord .section-title:nth-of-type(2)');
       if(thuTitle) thuTitle.style.display = '';
       
       if($("ordTableBodyThu")) {
-          $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord') : `<tr><td colspan="10" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
+          $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
+          
+          // 전체 선택 체크박스 복구
+          let thuTable = $("ordTableBodyThu").closest('table');
+          if (thuTable) {
+              let theadTr = thuTable.querySelector('thead tr');
+              let firstTh = theadTr.querySelector('th');
+              if (firstTh && firstTh.innerText.includes('주문')) {
+                  let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+                  chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-ord-thu\')">';
+                  theadTr.insertBefore(chkTh, firstTh);
+              }
+          }
       }
 
   } catch(e) { console.error(e); }
@@ -866,10 +901,22 @@ function renderMemberTablePage() {
   
   let data = currentFilteredMembers;
   if(data.length === 0) { 
-      tbody.innerHTML = `<tr><td colspan="6" class="empty-state">내역이 없습니다.</td></tr>`; 
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">내역이 없습니다.</td></tr>`; 
       updatePaginationUI(0);
       return; 
   } 
+  
+  // 전체 선택 체크박스 추가/복구 로직
+  let memTable = tbody.closest('table');
+  if (memTable) {
+      let theadTr = memTable.querySelector('thead tr');
+      let firstTh = theadTr.querySelector('th');
+      if (firstTh && firstTh.innerText.includes('등록일')) {
+          let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+          chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-mem\')">';
+          theadTr.insertBefore(chkTh, firstTh);
+      }
+  }
   
   let startIndex = (currentMemberPage - 1) * memberItemsPerPage;
   let endIndex = startIndex + memberItemsPerPage;
@@ -895,16 +942,19 @@ function renderMemberTablePage() {
     let yy = '', mm = '', dd = ''; let isExpired = true; let isPaused = row.status === '활동 일시정지'; if (row.end_date && row.end_date.length === 10) { [yy, mm, dd] = row.end_date.split('-'); let endD = new Date(row.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; } if (isExpired && !isPaused && row.status !== '패널티 정지') { yy = ''; mm = ''; dd = ''; } 
     let currentStat = row.status || '활동 중'; let statusBadge = ""; if (currentStat === '패널티 정지') statusBadge = `<span class="status-badge badge-red">패널티 정지</span>`; else if (isPaused) statusBadge = `<span class="status-badge badge-gray">일시정지</span>`; else if (isExpired) statusBadge = `<span class="status-badge badge-ended" style="background:#fff0f0;color:var(--error);">활동 종료</span>`; else statusBadge = `<span class="status-badge badge-active" style="background:#e8f5e9;color:var(--success);">${currentStat}</span>`;
     let yearOpts = '<option value="">년도</option>'; for(let i = 2024; i <= 2030; i++) yearOpts += `<option value="${i}" ${yy == i ? 'selected' : ''}>${i}년</option>`; let monthOpts = '<option value="">월</option>'; for(let i = 1; i <= 12; i++) { let val = String(i).padStart(2, '0'); monthOpts += `<option value="${val}" ${mm == val ? 'selected' : ''}>${i}월</option>`; } let dayOpts = '<option value="">일</option>'; for(let i = 1; i <= 31; i++) { let val = String(i).padStart(2, '0'); dayOpts += `<option value="${val}" ${dd == val ? 'selected' : ''}>${i}일</option>`; }
-    let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch || '-'}] ${window.escapeHtml(row.name) || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${window.escapeHtml(row.phone) || '-'})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
+    
+    // 💡 [이슈 해결] 폼 스왑 완료 (옵션이 먼저, 날짜 적용이 뒤로)
+    let optionHtml = `<div class="action-btns mem-action-row"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" style="flex-shrink:0; height:32px;" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div>`;
+    let dateActionHtml = `<div class="date-inputs mem-action-row"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select><button class="btn-outline btn-sm apply-date-btn" style="flex-shrink:0; height:32px; padding:0 12px; border-color:var(--primary); color:var(--primary); font-weight:700;" onclick="window.applyMemberDate('${row.id}', this)">적용</button></div>`;
     
     let cCount = getCancelCount(row.phone);
     let warnHtml = cCount >= 4 ? `<span style="background:var(--error); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:700; vertical-align:middle;">경고</span>` : '';
     let nameHtml = `<strong style="color:var(--text-display); cursor:pointer;" onclick="window.openCrmModalFromPhone('${row.phone}')" title="이전 설문/상담 내역 보기">${window.escapeHtml(row.name) || '-'}</strong>${warnHtml}`;
-
-    let dateActionHtml = `<button class="btn-outline btn-sm apply-date-btn" style="flex-shrink:0; height:32px; padding:0 12px; border-color:var(--primary); color:var(--primary); font-weight:700;" onclick="window.applyMemberDate('${row.id}', this)">적용</button>`;
     
+    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch || '-'}] ${window.escapeHtml(row.name) || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${window.escapeHtml(row.phone) || '-'})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
+
     const tr = document.createElement('tr'); 
-    tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group mem-action-wrap" data-id="${row.id}"><div class="date-inputs mem-action-row"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select>${dateActionHtml}</div><div class="action-btns mem-action-row"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" style="flex-shrink:0; height:32px;" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; 
+    tr.innerHTML = `${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-mem" value="${row.id}"></td><td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group mem-action-wrap" data-id="${row.id}">${optionHtml}${dateActionHtml}</div></td>`; 
     tbody.appendChild(tr);
   });
 
