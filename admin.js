@@ -1235,5 +1235,3 @@ window.sendToGoogleSheet = async function() {
         showToast("구글 시트 전송 요청 완료");
     } catch(e) { showToast("전송 오류"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
-
-대답만 해라
