@@ -13,7 +13,7 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 1. 툴팁 UI, N회차 뱃지, 캘린더 짤림 방지 및 멤버리스트 1줄 정렬용 CSS
+// 💡 1. 툴팁, 캘린더 짤림 방지 및 모바일 폼 이탈 방지용 반응형 CSS
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -26,24 +26,42 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .pagination-btn { height:32px; min-width:32px; padding:0 8px; border:1px solid var(--border-strong); background:#fff; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:0.2s; }
         .pagination-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
         .pagination-btn:disabled { opacity:0.5; cursor:not-allowed; }
+        
         .dash-cal-grid, .dash-cal-cell, .desktop-cal { overflow: visible !important; }
         .dash-tooltip-custom { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #212529; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 13px; white-space: nowrap; z-index: 999999 !important; visibility: hidden; opacity: 0; transition: 0.2s; text-align: left; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.5; }
         .dash-cal-more-wrap:hover .dash-tooltip-custom { visibility: visible; opacity: 1; }
-        .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 70px; }
+        
+        /* 💡 모바일 폼 이탈 방지 반응형 CSS */
+        .mem-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+        .mem-action-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; }
+        @media (max-width: 768px) {
+            .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; }
+            .mem-action-row { width: 100%; justify-content: space-between; }
+            .mem-action-row select { flex: 1; min-width: 0; padding-left: 6px !important; padding-right: 20px !important; }
+            .apply-date-btn, .action-btns button { flex-shrink: 0; }
+        }
     `;
     document.head.appendChild(style);
 }
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
-// 💡 [이슈 해결] Safari, iOS 등 모든 환경에서 undefined를 내뱉지 않는 철벽 날짜 파서
-function safeDate(dateStr) {
+// 💡 [이슈 해결] 무한 로딩의 주범이었던 함수명 불일치 해결. Safari 파싱 + KST 시간 보정을 단일 함수로 완벽 통합
+window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
-    let d = new Date(dateStr);
-    if(isNaN(d.getTime())) d = new Date(String(dateStr).replace(/-/g, '/').replace('T', ' ').split('.')[0]);
+    let str = String(dateStr);
+    let d = new Date(str);
+    if(isNaN(d.getTime())) {
+        str = str.replace(/-/g, '/').replace('T', ' ').split('.')[0];
+        d = new Date(str);
+    }
     if(isNaN(d.getTime())) return new Date();
+    
+    if (!String(dateStr).includes('Z') && !String(dateStr).includes('+')) {
+        d = new Date(d.getTime() + (9 * 60 * 60 * 1000));
+    }
     return d;
-}
+};
 
 window.holidaysCache = {};
 window.fetchHolidays = async function(year) {
@@ -60,13 +78,13 @@ window.fetchHolidays = async function(year) {
 window.getHoliday = function(y, m, d) {
   let key = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
   if (window.holidaysCache[key]) return window.holidaysCache[key];
-  return null;
+  const fallbackHolidays = { '2024-01-01': '신정', '2024-02-09': '설날 연휴', '2024-02-10': '설날', '2024-02-11': '설날 연휴', '2024-02-12': '대체공휴일', '2024-03-01': '삼일절', '2024-04-10': '국회의원선거', '2024-05-05': '어린이날', '2024-05-06': '대체공휴일', '2024-05-15': '부처님오신날', '2024-06-06': '현충일', '2024-08-15': '광복절', '2024-09-16': '추석 연휴', '2024-09-17': '추석', '2024-09-18': '추석 연휴', '2024-10-03': '개천절', '2024-10-09': '한글날', '2024-12-25': '기독탄신일' };
+  return fallbackHolidays[key] || null;
 };
 
-// 💡 렌더링 시 전부 safeDate 적용 (undefined 원천 차단)
-function getDow(dStr) { if(!dStr) return ''; const d = safeDate(dStr); return ['일','월','화','수','목','금','토'][d.getDay()]; }
-function formatDtWithDow(dateStr) { if(!dateStr) return "-"; const d = safeDate(dateStr); const dow = ['일','월','화','수','목','금','토'][d.getDay()]; return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${dow}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
-function formatDt(dateStr) { if(!dateStr) return "-"; const d = safeDate(dateStr); return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function getDow(dStr) { if(!dStr) return ''; const d = window.safeKST(dStr); return ['일','월','화','수','목','금','토'][d.getDay()]; }
+function formatDtWithDow(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(dateStr); if(isNaN(d.getTime())) return dateStr; const dow = ['일','월','화','수','목','금','토'][d.getDay()]; return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${dow}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(dateStr); return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
@@ -199,7 +217,6 @@ window.openNoticeModal = function() { if($("noticeModal")) $("noticeModal").clas
 window.editNotice = function(id) { let n = gNotice.find(x => String(x.id) === String(id)); if(!n) return; if($("noticeModal")) $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = n.content || ''; } catch(e) {} }, 50); if($("noticeId")) $("noticeId").value = n.id; if($("noticeTitle")) $("noticeTitle").value = n.title; if($("noticePinned")) $("noticePinned").checked = n.is_pinned; if($("noticeStatus")) $("noticeStatus").value = n.status || '발행'; if($("noticeTargetBatch")) $("noticeTargetBatch").value = n.target_batch || ''; if($("noticeModalTitle")) $("noticeModalTitle").innerText = "공지사항 수정"; }
 window.closeNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.remove('show'); }
 
-// 💡 [이슈 해결] 공지사항 저장 시 에러 팝업 고도화 및 DB 반영 처리
 window.saveNoticeData = async function() { 
   let id = $("noticeId")?$("noticeId").value:""; let htmlContent = quillEditor ? quillEditor.root.innerHTML : ''; 
   let targetBatchVal = $("noticeTargetBatch") ? $("noticeTargetBatch").value.trim() : "";
@@ -221,6 +238,7 @@ window.saveNoticeData = async function() {
 }
 window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
 window.handleNoticeMediaUpload = async function(event) { const files = event.target.files; if (!files || files.length === 0) return; const overlay = $("mediaUploadOverlay"); if(overlay) overlay.style.display = "flex"; try { if(!quillEditor) initQuill(); let range = quillEditor.getSelection(true); if(!range) range = { index: quillEditor.getLength() }; for (let i = 0; i < files.length; i++) { const file = files[i]; const fileExt = file.name.split('.').pop(); const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`; const { error: uploadError } = await supabaseClient.storage.from('notice_media').upload(fileName, file); if (uploadError) continue; const { data: { publicUrl } } = supabaseClient.storage.from('notice_media').getPublicUrl(fileName); if (file.type.startsWith('image/')) { quillEditor.insertEmbed(range.index, 'image', publicUrl); } else if (file.type.startsWith('video/')) { quillEditor.insertEmbed(range.index, 'video', publicUrl); } range.index++; } showToast("미디어가 첨부되었습니다."); } catch (e) { showToast("업로드 중 오류 발생"); } finally { if(overlay) overlay.style.display = "none"; if($("noticeMediaUpload")) $("noticeMediaUpload").value = ''; } }
+
 window.openBlockModal = function() { 
     currentBlockId = null; if($("blockModalTitle")) $("blockModalTitle").innerText = "수업 및 훈련 등 등록"; if($("blkId")) $("blkId").value = ""; if($("blkCategory")) $("blkCategory").value = "기본 수업"; if($("blkDate")) $("blkDate").value = ""; if($("blkStart")) $("blkStart").value = ""; if($("blkEnd")) $("blkEnd").value = ""; 
     if($("blkCenter")) { $("blkCenter").value = currentGlobalCenter === '전체' ? '마포 센터' : currentGlobalCenter; $("blkCenter").onchange = window.updateSpaceOptions; window.updateSpaceOptions(); }
@@ -290,9 +308,8 @@ window.updateCancelAccumulationBanner = function() {
     if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
 };
 
-// 💡 생두 주문 만료 처리 (safeKST 활용)
 function isOrderExpired(order, now) {
-    let oDate = safeKST(order.created_at); let status = order.status || '주문 접수';
+    let oDate = window.safeKST(order.created_at); let status = order.status || '주문 접수';
     if (['주문 접수', '입금 대기', '입금 확인 중', '입금 확인', '대기'].includes(status)) return false;
     if (status === '주문 취소' || status === '품절') return (now.getTime() - oDate.getTime()) > 48 * 60 * 60 * 1000;
     if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
@@ -309,8 +326,9 @@ window.fetchCenterData = async function() {
         gBlk.forEach(b => { if(b.space_equip) b.space_equip = String(b.space_equip).replace(/로스팅룸/g, '로스팅존'); }); 
         gTrn.forEach(t => { if(t.content) t.content = String(t.content).replace(/로스팅룸/g, '로스팅존'); });
 
+        // 💡 [이슈 해결] 1기~34기 오름차순 정렬
         let bSet = new Set(); gRes.forEach(r => { if(r.batch) bSet.add(r.batch); }); gTrn.forEach(t => { if(t.batch) bSet.add(t.batch); });
-        let bHtml = `<option value="전체">전체 기수</option>` + Array.from(bSet).sort((a,b) => parseInt(b.replace(/[^0-9]/g, '') || 0) - parseInt(a.replace(/[^0-9]/g, '') || 0)).map(b=>`<option value="${b}">${b}</option>`).join("");
+        let bHtml = `<option value="전체">전체 기수</option>` + Array.from(bSet).sort((a,b) => parseInt(String(a).replace(/[^0-9]/g, '') || 0) - parseInt(String(b).replace(/[^0-9]/g, '') || 0)).map(b=>`<option value="${b}">${b}</option>`).join("");
         if($("dashBatchFilter") && $("dashBatchFilter").innerHTML !== bHtml) $("dashBatchFilter").innerHTML = bHtml;
 
         let sSet = new Set(); gRes.forEach(r => { if(r.space_equip) sSet.add(String(r.space_equip).split(' ')[0]); });
@@ -383,7 +401,7 @@ window.renderCenterData = function() {
   try {
       let qRes = ($("searchRes")?.value || "").toLowerCase(); let sRes = $("resSpaceFilter")?.value || "전체";
       let fRes = gRes.filter(r => { 
-          let rDate = safeKST(r.res_date || r.created_at); 
+          let rDate = window.safeKST(r.res_date || r.created_at); 
           let matchSpace = sRes === '전체' || String(r.space_equip||'').includes(sRes);
           return (rDate >= oneMonthAgo) && (currentGlobalCenter === '전체' || r.center === currentGlobalCenter) && (`${r.name} ${r.phone}`.toLowerCase().includes(qRes)) && matchSpace; 
       });
@@ -419,7 +437,7 @@ window.renderCenterData = function() {
       let fTrnList = gTrn.filter(t => { 
           let matchContent = true; let cInfo = String(t.content||'').split(' || ');
           if(sTrn !== '전체') { let targetStr = cInfo.length >= 5 ? `[${cInfo[0].trim()}] [${cInfo[2].trim()}] ${cInfo[4].trim()}` : String(t.content||''); if(targetStr !== sTrn) matchContent = false; }
-          if (cInfo.length >= 5) { let tDateObj = new Date(cInfo[0].trim()); tDateObj.setHours(0,0,0,0); if (tDateObj < todayForBlk) return false; } else { let tDate = safeKST(t.created_at); if (tDate < oneMonthAgo) return false; }
+          if (cInfo.length >= 5) { let tDateObj = new Date(cInfo[0].trim()); tDateObj.setHours(0,0,0,0); if (tDateObj < todayForBlk) return false; } else { let tDate = window.safeKST(t.created_at); if (tDate < oneMonthAgo) return false; }
           return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
       });
 
@@ -445,7 +463,7 @@ window.renderCenterData = function() {
       }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
 
-  // 💡 [이슈 해결] 생두 주문 관리: 요일 에러(undefined) 해결 및 [날짜 기반 다이내믹 그룹핑] 완벽 적용 (이모지 제외)
+  // 💡 [이슈 해결] 생두 주문 관리: 요일 에러(undefined) 해결 및 이모지 삭제, KST 날짜 기반 다이내믹 그룹핑
   try {
       let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
       let fOrd = gOrd.filter(o => { 
@@ -458,7 +476,7 @@ window.renderCenterData = function() {
       
       let orderGroups = {};
       fOrd.forEach(o => {
-          let dObj = safeKST(o.created_at);
+          let dObj = window.safeKST(o.created_at);
           let dateKey = `${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`;
           let dateLabel = `${dObj.getMonth()+1}월 ${dObj.getDate()}일 ${getDow(o.created_at)}요일 발주건`;
           if(!orderGroups[dateKey]) orderGroups[dateKey] = { label: dateLabel, items: [] };
@@ -473,14 +491,13 @@ window.renderCenterData = function() {
       } else {
           sortedDateKeys.forEach(dk => {
               let group = orderGroups[dk];
-              finalOrdHtml += `<tr style="background:#f4f5f7;"><td colspan="10" style="font-weight:800; font-size:15px; color:var(--text-display); text-align:left; padding:16px; border-top:1px solid var(--border-strong); border-bottom:1px solid var(--border-strong);">[ ${group.label} ]</td></tr>`;
+              finalOrdHtml += `<tr style="background:#f4f5f7;"><td colspan="10" style="font-weight:800; font-size:15px; color:var(--text-display); text-align:left; padding:16px; border-top:1px solid var(--border-strong); border-bottom:1px solid var(--border-strong);">${group.label}</td></tr>`;
               finalOrdHtml += generateOrderRows(group.items, 'chk-ord');
           });
       }
       
       if($("ordTableBodyMon")) $("ordTableBodyMon").innerHTML = finalOrdHtml;
       
-      // 기존 하드코딩된 두 번째 테이블 영역은 완전히 숨김 처리하여 다이내믹 통합 렌더링 체제 적용
       let thuContainer = $("ordTableBodyThu")?.closest('.table-wrap');
       if(thuContainer) thuContainer.style.display = 'none';
       let thuTitle = document.querySelector('#sub-ord .section-title:nth-of-type(2)');
@@ -669,11 +686,12 @@ window.resetAppDashMonth = function() { appDashMonthOffset = 0; window.renderApp
 
 window.toggleInsight = function() { isInsightView = !isInsightView; let insightArea = $("app-insight-area"); if(insightArea) { insightArea.style.paddingTop = "32px"; insightArea.style.display = isInsightView ? "block" : "none"; } if($("app-table-area")) $("app-table-area").style.display = isInsightView ? "none" : "block"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = isInsightView ? "리스트 보기" : "인사이트 보기"; if(isInsightView) window.applyFilterApp(); }
 
+// 💡 [이슈 해결] 가입 신청 리스트 오름차순(1기 ~ 10기) 필터 정렬 적용
 window.fetchApplications = async function() {
   try { 
       const { data, error } = await supabaseClient.from('applications').select('*').order('created_at', { ascending: false }); 
       if (error) throw error; globalApps = data || []; 
-      const batches = [...new Set(globalApps.map(d => d.desired_batch).filter(Boolean))].sort((a,b) => parseInt(b.replace(/[^0-9]/g, '') || 0) - parseInt(a.replace(/[^0-9]/g, '') || 0)); 
+      const batches = [...new Set(globalApps.map(d => d.desired_batch).filter(Boolean))].sort((a,b) => parseInt(String(a).replace(/[^0-9]/g, '') || 0) - parseInt(String(b).replace(/[^0-9]/g, '') || 0)); 
       let optionsHTML = '<option value="all">전체 기수 보기</option>'; batches.forEach(b => optionsHTML += `<option value="${b}">${b}</option>`); 
       if($("batchFilterApp")) $("batchFilterApp").innerHTML = optionsHTML; 
       window.applyFilterApp(); if ($("crmModal") && $("crmModal").classList.contains('show') && $("crmAppId").value) { window.renderCrmInner($("crmAppId").value, isCrmReadOnly); } 
@@ -793,6 +811,7 @@ window.renderStatistics = function(data) {
   window.currentInsightData = { total, joined, instaCount: channelMap['인스타그램']?channelMap['인스타그램'].total:0, adCount: channelMap['모집 광고']?channelMap['모집 광고'].total:0, instaFollow: safeDataForSummary.instaFollow, instaNonFollow: safeDataForSummary.instaNonFollow, leadTime1M: safeDataForSummary.adNow, leadTime3M: safeDataForSummary.leadTime3M, channelMap: channelMap };
 }
 
+// 💡 [이슈 해결] 기수 필터 숫자(1기~10기) 오름차순 정렬 완벽 적용
 window.changeMemberPerPage = function(val) {
     memberItemsPerPage = val === 'all' ? 999999 : parseInt(val);
     currentMemberPage = 1;
@@ -809,7 +828,7 @@ window.fetchMembers = async function() {
     if (error) return; 
     globalMembers = data; 
     let bSet = new Set(); globalMembers.forEach(m => { if(m.batch) bSet.add(m.batch); }); 
-    let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort((a,b) => parseInt(b.replace(/[^0-9]/g, '') || 0) - parseInt(a.replace(/[^0-9]/g, '') || 0)).map(b=>`<option value="${b}">${b}</option>`).join(""); 
+    let bHtml = `<option value="all">기수 전체</option>` + Array.from(bSet).sort((a,b) => parseInt(String(a).replace(/[^0-9]/g, '') || 0) - parseInt(String(b).replace(/[^0-9]/g, '') || 0)).map(b=>`<option value="${b}">${b}</option>`).join(""); 
     if($("memberBatchFilter")) $("memberBatchFilter").innerHTML = bHtml; 
     window.searchMembers(); 
 }
@@ -839,7 +858,7 @@ window.searchMembers = function() {
         let batchA = a.batch || '';
         let batchB = b.batch || '';
         if (batchA !== batchB) {
-            return parseInt(batchB.replace(/[^0-9]/g, '') || 0) - parseInt(batchA.replace(/[^0-9]/g, '') || 0);
+            return parseInt(batchA.replace(/[^0-9]/g, '') || 0) - parseInt(batchB.replace(/[^0-9]/g, '') || 0);
         }
         let nameA = a.name || '';
         let nameB = b.name || '';
@@ -905,10 +924,12 @@ function renderMemberTablePage() {
     let warnHtml = cCount >= 4 ? `<span style="background:var(--error); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:700; vertical-align:middle;">경고</span>` : '';
     let nameHtml = `<strong style="color:var(--text-display); cursor:pointer;" onclick="window.openCrmModalFromPhone('${row.phone}')" title="이전 설문/상담 내역 보기">${window.escapeHtml(row.name) || '-'}</strong>${warnHtml}`;
 
-    // 💡 [이슈 해결] 멤버 리스트 날짜 관리부 UI 1줄(flex-wrap: nowrap)로 완벽 고정
+    // 💡 [이슈 해결] 멤버 리스트 날짜 관리부 UI 1줄 정렬 완벽 적용 (CSS + Inline Flex)
     let dateActionHtml = `<button class="btn-outline btn-sm apply-date-btn" style="flex-shrink:0; height:32px; padding:0 12px; border-color:var(--primary); color:var(--primary); font-weight:700;" onclick="window.applyMemberDate('${row.id}', this)">적용</button>`;
     
-    const tr = document.createElement('tr'); tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action" style="white-space:nowrap;"><div class="date-select-group" data-id="${row.id}" style="display:flex; align-items:center; gap:8px;"><div class="date-inputs" style="display:flex; align-items:center; gap:4px; flex-wrap:nowrap;"><select class="date-sel year" style="width:auto; padding-right:20px;">${yearOpts}</select><select class="date-sel month" style="width:auto; padding-right:20px;">${monthOpts}</select><select class="date-sel day" style="width:auto; padding-right:20px;">${dayOpts}</select>${dateActionHtml}</div><div class="action-btns" style="display:flex; align-items:center; gap:4px; flex-wrap:nowrap;"><select class="date-sel option-btn" style="width:120px; padding-right:20px;" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" style="flex-shrink:0; height:32px;" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; tbody.appendChild(tr);
+    const tr = document.createElement('tr'); 
+    tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action" style="white-space:nowrap;"><div class="date-select-group mem-action-wrap" data-id="${row.id}"><div class="date-inputs mem-action-row"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select>${dateActionHtml}</div><div class="action-btns mem-action-row"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" style="flex-shrink:0; height:32px;" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; 
+    tbody.appendChild(tr);
   });
 
   updatePaginationUI(data.length);
@@ -1082,7 +1103,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 [이슈 해결] 발주 요약 모달 - 이모지 제거, 신규 건 필터링, g/kg 완벽 합산 로직
+// 💡 [이슈 해결] 발주 요약 모달 - '신규 접수' 건 필터링 및 숫자(g/kg) 완벽 합산 로직 적용
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1105,13 +1126,13 @@ window.showOrderSummary = function() {
             let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/);
             if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
 
-            let dObj = safeDate(o.created_at);
-            let dateGroup = `${dObj.getMonth()+1}/${dObj.getDate()}(${getDow(o.created_at)}) 신규 발주`;
+            let dObj = window.safeKST(o.created_at);
+            let dateGroup = `${dObj.getMonth()+1}월 ${dObj.getDate()}일 ${getDow(o.created_at)}요일 신규 발주건`;
 
             let key = `${dateGroup}:::${center}:::${o.vendor}:::${cNm}`;
             if(!summary[key]) summary[key] = { center, dateGroup, vendor: o.vendor, item: cNm, totalGrams: 0, orderers: [], timestamp: new Date(dObj.getFullYear(), dObj.getMonth(), dObj.getDate()).getTime() };
             
-            // 💡 숫자만 완벽히 추출 (0g 오류 해결)
+            // 💡 [이슈 해결] 정규식을 통해 숫자만 추출하여 0g 표기 버그 완벽 차단
             let rawQty = String(o.quantity || '0').trim().toLowerCase();
             let numMatch = rawQty.match(/[0-9.]+/);
             let numVal = numMatch ? parseFloat(numMatch[0]) : 0;
@@ -1135,6 +1156,7 @@ window.showOrderSummary = function() {
             let groupLabel = `[${s.dateGroup}] ${s.center}`;
             if (currentGroupLabel !== groupLabel) {
                 currentGroupLabel = groupLabel;
+                // 💡 [이슈 해결] 요약뷰 헤더에서도 이모지 완전 제거
                 html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:10px; border-bottom:3px solid var(--text-display); letter-spacing:-0.5px;">${currentGroupLabel}</div>`;
             }
 
