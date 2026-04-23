@@ -13,7 +13,7 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 1. CSS 수정: 툴팁, 생두 요일 뱃지 및 멤버리스트 UI 1렬 강제 고정
+// 💡 1. 툴팁, 멤버리스트 UI 1줄 강제 고정(nowrap) 및 생두 요일 뱃지 CSS
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -31,7 +31,7 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .dash-tooltip-custom { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #212529; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 13px; white-space: nowrap; z-index: 999999 !important; visibility: hidden; opacity: 0; transition: 0.2s; text-align: left; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.5; }
         .dash-cal-more-wrap:hover .dash-tooltip-custom { visibility: visible; opacity: 1; }
         
-        /* 💡 멤버리스트 UI 폼 1렬(1줄) 강제 고정 */
+        /* 멤버리스트 UI 폼 1렬(1줄) 강제 고정 */
         .mem-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap !important; overflow-x: auto; }
         .mem-action-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap !important; white-space: nowrap; }
         .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 65px; padding-right: 16px !important; }
@@ -39,7 +39,7 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .order-day-badge { display: none; } /* PC에서는 숨김 */
         
         @media (max-width: 1024px) {
-            .mem-action-wrap { flex-wrap: nowrap !important; }
+            .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; }
         }
 
         @media (max-width: 768px) {
@@ -75,12 +75,20 @@ window.safeKST = function(dateStr) {
     return d;
 };
 
-window.getOrderTarget = function(itemName) {
+// 💡 2. [UX 개선] 생두 요일 '날짜 포함' 전체 파싱기
+window.getOrderTargetFull = function(itemName) {
+    let m = String(itemName).match(/\[(?:희망:\s*)?(\d+)\/(\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);
+    if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
+    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
+    if (m2) return `${m2[1]}요일`;
+    return '월요일'; 
+};
+window.getOrderTargetDay = function(itemName) {
     let m = String(itemName).match(/\[(?:희망:\s*)?\d+\/\d+\s*\((월|화|수|목|금|토|일)\).*?\]/);
-    if (m) return m[1]; 
+    if(m) return m[3];
     let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
     if (m2) return m2[1];
-    return '월'; 
+    return '월';
 };
 
 window.holidaysCache = {};
@@ -271,7 +279,6 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrTex
 }
 window.closeConfirmModal = function() { if($("confirmModal")) $("confirmModal").classList.remove('show'); }
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId && $(modalId)) $(modalId).classList.remove('show'); }
-
 window.showCancelReason = function(reason) { window.openCustomConfirm("당일 취소 사유", null, `<div style="padding:16px; background:#f9fafb; border-radius:8px; text-align:left; font-size:14px; line-height:1.5; color:var(--text-display); border:1px solid var(--border-strong); white-space:pre-wrap;">${window.escapeHtml(reason || '사유가 기재되지 않았습니다.')}</div>`, () => {}, "확인"); };
 
 function initQuill() { if(!quillEditor && $('editor-container')) { quillEditor = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'align': [] }], [{ 'color': [] }, { 'background': [] }], ['clean'] ] }, placeholder: '내용을 자유롭게 적어주세요.' }); } }
@@ -339,6 +346,7 @@ window.fetchCenterData = async function() {
 
   try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
 }
+
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -467,12 +475,15 @@ window.renderCenterData = function() {
       let thuOrders = [];
 
       fOrd.forEach(o => {
-          let targetDay = window.getOrderTarget(o.item_name); 
-          if (targetDay === '목') {
-              o._targetBadge = `<span class="order-day-badge badge-thu">[목요일 발주]</span>`;
+          // 💡 날짜 추출 적용
+          let targetDayStr = window.getOrderTargetFull(o.item_name);
+          let dayOnly = window.getOrderTargetDay(o.item_name);
+          
+          if (dayOnly === '목') {
+              o._targetBadge = `<span class="order-day-badge badge-thu">[${targetDayStr}]</span>`;
               thuOrders.push(o);
           } else {
-              o._targetBadge = `<span class="order-day-badge badge-mon">[월요일 발주]</span>`;
+              o._targetBadge = `<span class="order-day-badge badge-mon">[${targetDayStr}]</span>`;
               monOrders.push(o);
           }
       });
@@ -1143,12 +1154,12 @@ window.showOrderSummary = function() {
         pendingOrders.forEach(o => {
             let center = o.center || '미지정';
             let cNm = o.item_name;
-            let targetDay = window.getOrderTarget(cNm); 
+            let targetDay = window.getOrderTargetFull(cNm); 
             
             let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);
             if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
 
-            let dateGroup = targetDay === '목' ? '목요일 발주' : '월요일 발주';
+            let dateGroup = targetDay;
 
             let key = `${dateGroup}:::${center}:::${o.vendor}:::${cNm}`;
             if(!summary[key]) summary[key] = { center, dateGroup, vendor: o.vendor, item: cNm, totalGrams: 0, orderers: [] };
@@ -1173,7 +1184,7 @@ window.showOrderSummary = function() {
         let html = `<div style="display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0;">`;
         let currentGroupLabel = '';
         sortedData.forEach(s => {
-            let groupLabel = `[${s.dateGroup}] ${s.center}`;
+            let groupLabel = `[${s.dateGroup} 발주] ${s.center}`;
             if (currentGroupLabel !== groupLabel) {
                 currentGroupLabel = groupLabel;
                 html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:10px; border-bottom:3px solid var(--text-display); letter-spacing:-0.5px;">${currentGroupLabel}</div>`;
@@ -1295,7 +1306,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 [수정] 중복 클릭 방지 Lock 적용 및 "전체" 값 null 치환 제거
+// 💡 1. [UX 개선] 중복 클릭 방지 Lock 적용 및 "전체" 값 null 치환 제거 (수정 1+1 덮어쓰기 오류 해결)
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
