@@ -13,7 +13,7 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 1. 툴팁, 멤버리스트 UI 1줄 강제 고정(nowrap) 및 생두 요일 뱃지 CSS
+// 💡 1. CSS 수정: 툴팁, 생두 요일 뱃지 및 멤버리스트 UI 1렬 강제 고정
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -461,6 +461,7 @@ window.renderCenterData = function() {
       }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
 
+  // 💡 [이슈 해결] 생두 날짜 상세 파싱 및 월/목 확실한 분리
   try {
       let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
       let fOrd = gOrd.filter(o => { 
@@ -475,15 +476,14 @@ window.renderCenterData = function() {
       let thuOrders = [];
 
       fOrd.forEach(o => {
-          // 💡 날짜 추출 적용
-          let targetDayStr = window.getOrderTargetFull(o.item_name);
-          let dayOnly = window.getOrderTargetDay(o.item_name);
+          let targetDayStr = window.getOrderTargetFull(o.item_name); 
+          let dayOnly = window.getOrderTargetDay(o.item_name); 
           
           if (dayOnly === '목') {
-              o._targetBadge = `<span class="order-day-badge badge-thu">[${targetDayStr}]</span>`;
+              o._targetBadge = `<span class="order-day-badge badge-thu">[${targetDayStr} 발주]</span>`;
               thuOrders.push(o);
           } else {
-              o._targetBadge = `<span class="order-day-badge badge-mon">[${targetDayStr}]</span>`;
+              o._targetBadge = `<span class="order-day-badge badge-mon">[${targetDayStr} 발주]</span>`;
               monOrders.push(o);
           }
       });
@@ -1019,7 +1019,29 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
   });
 }
 window.updateMemberEndDate = async function(id, dateStr) { const { error } = await supabaseClient.from('members').update({ end_date: dateStr }).eq('id', id); if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다."); }
-window.deleteHistory = async function(id, phone, name, action_detail) { window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => { await supabaseClient.from('member_history').delete().eq('id', id); const m = globalMembers.find(x => String(x.phone) === String(phone)); if (m && m.end_date) { let d = new Date(m.end_date); let isChanged = false; if (action_detail.includes('1개월 연장') || action_detail.includes('보너스 1개월')) { d.setMonth(d.getMonth() - 1); isChanged = true; } else if (action_detail.includes('3개월 연장')) { d.setMonth(d.getMonth() - 3); isChanged = true; } else if (action_detail.includes('6개월 연장')) { d.setMonth(d.getMonth() - 6); isChanged = true; } else if (action_detail.includes('당일권 추가')) { d.setDate(d.getDate() - 1); isChanged = true; } if (isChanged) { let newEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; m.end_date = newEndDate; await supabaseClient.from('members').update({ end_date: newEndDate }).eq('phone', phone); } } showToast("내역이 삭제되고 종료일이 복구되었습니다."); window.searchMembers(); window.openHistoryModal(phone, name); }); };
+
+// 💡 3. 내역 삭제 시 역산 계산 로직
+window.deleteHistory = async function(id, phone, name, action_detail) { 
+    window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => { 
+        await supabaseClient.from('member_history').delete().eq('id', id); 
+        const m = globalMembers.find(x => String(x.phone) === String(phone)); 
+        if (m && m.end_date) { 
+            let d = new Date(m.end_date); 
+            let isChanged = false; 
+            if (action_detail.includes('1개월 연장') || action_detail.includes('보너스 1개월')) { d.setMonth(d.getMonth() - 1); isChanged = true; } 
+            else if (action_detail.includes('3개월 연장')) { d.setMonth(d.getMonth() - 3); isChanged = true; } 
+            else if (action_detail.includes('6개월 연장')) { d.setMonth(d.getMonth() - 6); isChanged = true; } 
+            else if (action_detail.includes('당일권 추가')) { d.setDate(d.getDate() - 1); isChanged = true; } 
+            if (isChanged) { 
+                let newEndDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; 
+                m.end_date = newEndDate; 
+                await supabaseClient.from('members').update({ end_date: newEndDate }).eq('phone', phone); 
+            } 
+        } 
+        showToast("내역이 삭제되고 종료일이 복구되었습니다."); window.searchMembers(); window.openHistoryModal(phone, name); 
+    }); 
+};
+
 window.openHistoryModal = async function(phone, name) { if(!$("historyModalTitle")) return; $("historyModalTitle").innerText = `${name} 님의 내역`; const modal = $("historyModal"); modal.classList.add('show'); const body = $("historyModalBody"); body.innerHTML = '<div class="empty-state">내역을 불러오는 중입니다.</div>'; const { data, error } = await supabaseClient.from('member_history').select('*').eq('member_phone', phone).order('created_at', { ascending: false }); if (error || !data || data.length === 0) { body.innerHTML = '<div class="empty-state" style="color:var(--text-tertiary);">결제/연장 내역이 없습니다.</div>'; return; } body.innerHTML = '<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">' + data.map(item => `<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex; align-items:center; gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation(); window.deleteHistory('${item.id}', '${phone}', '${name}', '${item.action_detail}')">삭제</button></div></div>`).join('') + '</div>'; }
 window.closeHistoryModal = function() { if($("historyModal")) $("historyModal").classList.remove('show'); }
 
@@ -1207,7 +1229,7 @@ window.showOrderSummary = function() {
         
         let exportData = []; 
         sortedData.forEach(s => { 
-            s.orderers.forEach(o => { exportData.push({ dateGroup: s.dateGroup, center: s.center, vendor: s.vendor, item: s.item, rawQty: o.rawQty, batch: o.batch, name: o.name, phone: o.phone }); }); 
+            s.orderers.forEach(o => { exportData.push({ dateGroup: s.dateGroup + " 발주", center: s.center, vendor: s.vendor, item: s.item, rawQty: o.rawQty, batch: o.batch, name: o.name, phone: o.phone }); }); 
         });
         window.currentSummaryData = exportData;
 
@@ -1306,7 +1328,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 1. [UX 개선] 중복 클릭 방지 Lock 적용 및 "전체" 값 null 치환 제거 (수정 1+1 덮어쓰기 오류 해결)
+// 💡 1. [수정 완료] 중복 저장 방지 Lock 적용 및 스케줄 수정 시 1+1 생성 덮어쓰기 로직 
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
@@ -1330,8 +1352,6 @@ window.saveBlockData = async function() {
         return showToast("필수 항목을 모두 입력해주세요.");
     }
     
-    // 💡 기존에 "전체"를 강제로 null로 바꾸던 로직을 완전히 삭제하여 필터가 꼬이지 않도록 조치함.
-
     let error;
     if(id) { const res = await supabaseClient.from('blocks').update(payload).eq('id', id); error = res.error; }
     else { const res = await supabaseClient.from('blocks').insert([payload]); error = res.error; }
