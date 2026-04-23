@@ -13,7 +13,9 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 1. CSS 수정: 폼 이탈 방지(nowrap) 및 생두 요일 뱃지
+// 💡 [버그수정 1] 스케줄 1+1 덮어쓰기 오류 방지용 전역 변수
+window.currentEditingBlockId = null;
+
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -21,23 +23,32 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; }
         .info-tooltip:hover { color: #505967; border-color: #505967; }
         .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 130%; left: -10px; background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: pre-wrap; width: max-content; max-width: 260px; z-index: 9999; margin-bottom: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; pointer-events: none; transition: 0.2s; text-align: left; word-break: keep-all; }
+        .info-tooltip:hover::after { opacity: 1; }
         .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
         .pagination-btn { height:32px; min-width:32px; padding:0 8px; border:1px solid var(--border-strong); background:#fff; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:0.2s; }
         .pagination-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
         .pagination-btn:disabled { opacity:0.5; cursor:not-allowed; }
+        
         .dash-cal-grid, .dash-cal-cell, .desktop-cal { overflow: visible !important; }
         .dash-tooltip-custom { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #212529; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 13px; white-space: nowrap; z-index: 999999 !important; visibility: hidden; opacity: 0; transition: 0.2s; text-align: left; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.5; }
         .dash-cal-more-wrap:hover .dash-tooltip-custom { visibility: visible; opacity: 1; }
         
-        /* 💡 멤버리스트 UI 1줄 강제 고정 */
-        .mem-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap !important; }
+        .mem-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap !important; overflow-x: auto; }
         .mem-action-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap !important; white-space: nowrap; }
-        .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 68px; padding-right: 16px !important; }
+        .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 65px; padding-right: 16px !important; }
         
         .order-day-badge { display: none; }
+        
+        @media (max-width: 1024px) {
+            .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; }
+        }
+
         @media (max-width: 768px) {
-            .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; }
+            .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; overflow-x: visible; }
             .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: nowrap !important; }
+            .mem-action-row select { flex: 1; min-width: 0; padding-left: 6px !important; padding-right: 20px !important; }
+            .apply-date-btn, .action-btns button { flex-shrink: 0; }
+            
             .order-day-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 6px; vertical-align: middle; }
             .badge-mon { background: #e8f0fe; color: #1a73e8; border: 1px solid #1a73e8; }
             .badge-thu { background: #fce8e6; color: #c5221f; border: 1px solid #c5221f; }
@@ -52,26 +63,32 @@ window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr);
     let d = new Date(str);
-    if(isNaN(d.getTime())) { str = str.replace(/-/g, '/').replace('T', ' ').split('.')[0]; d = new Date(str); }
+    if(isNaN(d.getTime())) {
+        str = str.replace(/-/g, '/').replace('T', ' ').split('.')[0];
+        d = new Date(str);
+    }
     if(isNaN(d.getTime())) return new Date();
-    if (!String(dateStr).includes('Z') && !String(dateStr).includes('+')) { d = new Date(d.getTime() + (9 * 60 * 60 * 1000)); }
+    
+    if (!String(dateStr).includes('Z') && !String(dateStr).includes('+')) {
+        d = new Date(d.getTime() + (9 * 60 * 60 * 1000));
+    }
     return d;
 };
 
-// 💡 2. [교정] 생두 날짜/요일 정확한 파싱기 (쏠림 버그 수정)
+// 💡 [버그수정 2] 생두 요일/날짜 '4월 23일 목요일 발주' 정확하게 파싱 및 분리
 window.getOrderTargetFull = function(itemName) {
-    let m = String(itemName).match(/\[(?:희망:\s*)?(\d+)\/(\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);
-    if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`;
+    let m = String(itemName).match(/(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
+    if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
     let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
     if (m2) return `${m2[1]}요일`;
-    return '미정';
+    return '월요일'; 
 };
 window.getOrderTargetDay = function(itemName) {
-    let m = String(itemName).match(/\[(?:희망:\s*)?\d+\/\d+\s*\((월|화|수|목|금|토|일)\).*?\]/);
+    let m = String(itemName).match(/(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
     if(m) return m[3];
     let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
     if (m2) return m2[1];
-    return '월'; // 기본값 월요일
+    return '월'; // 괄호 정규식 실패시 안전하게 월요일로
 };
 
 window.holidaysCache = {};
@@ -113,18 +130,133 @@ window.formatCounselTimeDisplay = function(val) { if(!val) return ''; let t = St
 window.copyTxt = function(txt, successMsg = "복사되었습니다.") { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(txt).then(() => { showToast(successMsg); }).catch(err => { fallbackCopyTextToClipboard(txt, successMsg); }); } else { fallbackCopyTextToClipboard(txt, successMsg); } };
 function fallbackCopyTextToClipboard(text, successMsg) { var textArea = document.createElement("textarea"); textArea.value = text; textArea.style.top = "0"; textArea.style.left = "0"; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { document.execCommand('copy'); showToast(successMsg); } catch (err) { showToast("복사 실패"); } document.body.removeChild(textArea); }
 
+window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
+  const API_KEY = 'AIzaSyAjtrSlv56VPhtqMYGsQd0L4q1AlZTW1Ng'; const CALENDAR_ID = 'wecoffeekorea@gmail.com';
+  try {
+    const timeMin = new Date(yyyy, mm - 1, 1).toISOString(); const timeMax = new Date(yyyy, mm, 0, 23, 59, 59).toISOString();
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events?key=${API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;
+    const response = await fetch(url); if (!response.ok) return []; const data = await response.json();
+    return (data.items || []).map(event => { let dateStr, timeStr; if (event.start.date) { dateStr = event.start.date; timeStr = '종일'; } else if (event.start.dateTime) { dateStr = event.start.dateTime.split('T')[0]; timeStr = event.start.dateTime.split('T')[1].substring(0, 5); } else return null; return { date: dateStr, time: timeStr, start: timeStr, text: event.summary || '일정', type: 'google' }; }).filter(Boolean);
+  } catch (error) { return []; }
+};
+
+window.updateDailyInOutBanner = function() { 
+  let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
+  const getDailyEvents = (centerFilter) => { let evts = []; gRes.forEach(r => { if(r.res_date === ds && r.center === centerFilter && !String(r.status||'').includes('취소')) { let st = String(r.res_time||"").split('~')[0].trim(); let enParts = String(r.res_time||"").split('~'); let en = enParts.length > 1 ? enParts[1].trim() : ''; let spc = String(r.space_equip||"").split(' ')[0]; evts.push({ start: st, end: en, name: r.name, space: spc }); } }); return evts; }; 
+  let centers = currentGlobalCenter === '전체' ? ['마포 센터', '광진 센터'] : [currentGlobalCenter]; let html = ``; 
+  centers.forEach(c => { 
+      let evts = getDailyEvents(c); 
+      if(evts.length === 0) { html += `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 예약이 없습니다.</div></div>`; } 
+      else { 
+          let first = [...evts].sort((a,b) => String(a.start||'').localeCompare(String(b.start||'')))[0]; let last = [...evts].sort((a,b) => String(b.end||'').localeCompare(String(a.end||'')))[0]; 
+          html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff; align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px; width:100%;">${c}</div><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px; width:100%;"><span style="font-weight:600; font-size:14px; color:var(--text-display);">[${first.space||''}] ${window.escapeHtml(first.name||'')}</span><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">첫 입실 <strong style="color:var(--text-display); font-weight:600;">${first.start||''}</strong></span></div><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 0px; width:100%;"><span style="font-weight:600; font-size:14px; color:var(--text-display);">[${last.space||''}] ${window.escapeHtml(last.name||'')}</span><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">최종 퇴실 <strong style="color:var(--text-display); font-weight:600;">${last.end||''}</strong></span></div></div>`; 
+      } 
+  }); 
+  if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; 
+};
+
+window.updateCancelAccumulationBanner = function() {
+    let now = new Date(); let y = now.getFullYear(); let m = String(now.getMonth() + 1).padStart(2, '0'); let monthPrefix = `${y}-${m}`; let cancelCounts = {};
+    let addCancel = (phone, name, batch) => { if(!phone) return; if(!cancelCounts[phone]) cancelCounts[phone] = { name, batch, count: 0 }; cancelCounts[phone].count++; };
+    gRes.forEach(r => { if (r.status === '당일 취소' && String(r.res_date || r.created_at).startsWith(monthPrefix)) addCancel(r.phone, r.name, r.batch); });
+    gTrn.forEach(t => { if (t.status === '당일 취소') { let cInfo = String(t.content||'').split(' || '); let dateStr = cInfo.length >= 5 ? cInfo[0].trim() : String(t.created_at); if(dateStr.startsWith(monthPrefix)) addCancel(t.phone, t.name, t.batch); } });
+    let sorted = Object.values(cancelCounts).sort((a,b) => b.count - a.count); let html = '';
+    if (sorted.length === 0) { html = `<div class="inout-card" style="text-align:center; color:var(--text-secondary); padding:16px; background:#fff; border:1px solid var(--border-strong); border-radius:12px;">이번 달 당일 취소 내역이 없습니다.</div>`; } 
+    else { sorted.forEach(user => { let isWarning = user.count >= 4; let style = isWarning ? 'border:1px solid var(--error); background:#fff0f0;' : 'border:1px solid var(--border-strong); background:#fff;'; let nameColor = isWarning ? 'color:var(--error); font-weight:800;' : 'color:var(--text-display); font-weight:700;'; let warningBadge = isWarning ? `<span style="background:var(--error); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-left:8px; font-weight:700;">경고</span>` : ''; html += `<div style="padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; ${style}"><div style="${nameColor}">[${user.batch||'-'}] ${window.escapeHtml(user.name)} ${warningBadge}</div><div style="font-size:14px; font-weight:800; ${isWarning ? 'color:var(--error);' : 'color:var(--text-secondary);'}">${user.count}회</div></div>`; }); }
+    if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
+};
+
+window.renderNoticeData = function() { 
+  let fNoti = [...gNotice]; 
+  fNoti.sort((a,b) => { if(a.is_pinned === b.is_pinned) return window.safeKST(b.created_at) - window.safeKST(a.created_at); return a.is_pinned ? -1 : 1; }); 
+  if($("noticeTableBody")) $("noticeTableBody").innerHTML = fNoti.length ? fNoti.map(n => { 
+      let pinBadge = n.is_pinned ? `<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>` : `<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`; 
+      let statBadge = n.status === '발행' ? `<span class="status-badge badge-green">발행 중</span>` : `<span class="status-badge badge-gray">숨김</span>`; 
+      let targetBadge = n.target_batch ? `<span class="status-badge badge-blue">${window.escapeHtml(n.target_batch)}</span>` : `<span class="status-badge badge-gray">전체</span>`;
+      let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${window.escapeHtml(n.title)}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`; 
+      return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="대상" class="tc">${targetBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${window.escapeHtml(n.title)}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; 
+    }).join("") : `<tr><td colspan="6" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`; 
+};
+
+window.updateDashSpaceFilter = function() {
+    let filter = $("dashSpaceFilter"); if(!filter) return; let currentVal = filter.value; let html = `<option value="전체">전체 공간</option>`;
+    if(currentGlobalCenter === '마포 센터') html += `<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
+    else if (currentGlobalCenter === '광진 센터') html += `<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디룸">스터디룸</option>`;
+    else html += `<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디">스터디존/룸</option>`;
+    filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
+}
+
+window.updateSpaceOptions = function() {
+    let center = $("blkCenter") ? $("blkCenter").value : "마포 센터"; let dl = $("spaceOptions"); if(!dl) return; let opts = `<option value="전체">전체 (공간 전체)</option>`;
+    if (center === '마포 센터') opts += `<option value="에스프레소존"></option><option value="아스토리아 스톰 1번그룹 (좌)"></option><option value="아스토리아 스톰 2번그룹 (우)"></option><option value="로스팅존"></option><option value="이지스터 800 1번 (좌)"></option><option value="이지스터 800 2번 (우)"></option><option value="이지스터 1.8"></option><option value="스트롱홀드 S7X"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디존"></option>`;
+    else opts += `<option value="에스프레소존"></option><option value="시네소 MVP 하이드라 1번그룹 (좌)"></option><option value="시네소 MVP 하이드라 2번그룹 (우)"></option><option value="페마 페미나 1그룹"></option><option value="산레모 You 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 프로 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 EXP 1그룹"></option><option value="로스팅존"></option><option value="이지스터 800 1번 (좌)"></option><option value="이지스터 800 2번 (우)"></option><option value="이지스터 1.8 1번 (좌)"></option><option value="이지스터 1.8 2번"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디룸"></option>`;
+    dl.innerHTML = opts;
+};
+
+function startRealtimeSync() {
+    if(realtimeChannel) return;
+    realtimeChannel = supabaseClient.channel('admin-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trainings' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blocks' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => { window.fetchApplications(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => { window.fetchMembers(); })
+      .subscribe();
+}
+
+function handleLoginSuccess() {
+    var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
+    var dv = $("dashboard-view"); if(dv) dv.style.display = 'block'; 
+    startRealtimeSync();
+    
+    let savedMain = localStorage.getItem('wecoffee_main_tab') || 'page-center'; 
+    let savedSub = localStorage.getItem('wecoffee_sub_tab') || 'sub-res';
+    if(savedSub === 'sub-trn' || savedSub === 'sub-blk') savedSub = 'sub-trn-blk';
+    let mainEl = document.querySelector(`.gnb-item[onclick*="${savedMain}"]`); 
+    if(mainEl) window.switchMainTab(savedMain, mainEl); 
+    else window.switchMainTab('page-center', document.querySelector(`.gnb-item[onclick*="page-center"]`));
+    if(savedMain === 'page-center') { let subEl = document.querySelector(`.sub-item[onclick*="${savedSub}"]`); if(subEl) window.switchSubTab(savedSub, subEl); }
+}
+
+function initializeApp() {
+  window.fetchHolidays(new Date().getFullYear());
+  if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
+  supabaseClient.auth.getSession().then(({ data: { session } }) => { if (session && !isAppInitialized) { handleLoginSuccess(); isAppInitialized = true; } });
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (session) { if(!isAppInitialized) { handleLoginSuccess(); isAppInitialized = true; } } 
+    else { var lv = $("login-view"); if(lv) lv.classList.add('active'); var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; isAppInitialized = false; if(realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; } }
+  });
+}
+if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
+
+window.switchMainTab = function(pageId, element) {
+  $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
+  $$$(".gnb-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.gnb-item[onclick*="${pageId}"]`); if(targetEl) targetEl.classList.add('active');
+  localStorage.setItem('wecoffee_main_tab', pageId);
+  
+  if(pageId === 'page-center') window.fetchCenterData();
+  if(pageId === 'page-applications') { window.fetchApplications(); isInsightView = false; if($("app-table-area")) $("app-table-area").style.display = "block"; if($("app-insight-area")) $("app-insight-area").style.display = "none"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = "인사이트 보기"; }
+  if(pageId === 'page-members') window.fetchMembers();
+}
+
+window.switchSubTab = function(subId, element) {
+  $$$(".sub-page").forEach(p => p.classList.remove('active')); if($(subId)) $(subId).classList.add('active');
+  $$$(".sub-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.sub-item[onclick*="${subId}"]`); if(targetEl) { targetEl.classList.add('active'); targetEl.classList.remove("tab-pulse"); }
+  if (subId === 'sub-notice') { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'none'; } else { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'inline-flex'; }
+  localStorage.setItem('wecoffee_sub_tab', subId); 
+  if(subId === 'sub-res' || subId === 'sub-trn-blk' || subId === 'sub-ord') { window.fetchCenterData(); }
+}
+
+window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
+window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
+
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrText, btnText = '적용하기') {
     if($("confirmTarget")) $("confirmTarget").innerHTML = title;
-    if(statusHtml) { 
-        if($("confirmStateBox")) $("confirmStateBox").style.display = 'block'; 
-        if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'none'; 
-        if($("confirmStatus")) $("confirmStatus").innerHTML = statusHtml; 
-        if($("confirmActionState")) $("confirmActionState").innerHTML = actionHtml; 
-    } else { 
-        if($("confirmStateBox")) $("confirmStateBox").style.display = 'none'; 
-        if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'block'; 
-        if($("confirmActionSimple")) $("confirmActionSimple").innerHTML = actionHtml; 
-    }
+    if(statusHtml) { if($("confirmStateBox")) $("confirmStateBox").style.display = 'block'; if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'none'; if($("confirmStatus")) $("confirmStatus").innerHTML = statusHtml; if($("confirmActionState")) $("confirmActionState").innerHTML = actionHtml; } 
+    else { if($("confirmStateBox")) $("confirmStateBox").style.display = 'none'; if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'block'; if($("confirmActionSimple")) $("confirmActionSimple").innerHTML = actionHtml; }
+    
     let btn = $("confirmBtn");
     if(btn) {
         btn.innerText = btnText; let newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
@@ -132,26 +264,24 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrTex
             if(btnText === '복사하기') { window.copyTxt(callbackOrText, "사전 설문 링크가 복사되었습니다."); window.closeConfirmModal(); } 
             else if(btnText === '확인' || btnText === '취소 확정') { 
                 (async () => {
-                    newBtn.disabled = true; let orig = newBtn.innerText; newBtn.innerText = "처리 중..."; 
+                    newBtn.disabled = true; let originalText = newBtn.innerText; newBtn.innerText = "처리 중..."; 
                     try { await callbackOrText(); } catch(e) { console.error(e); } 
-                    finally { newBtn.disabled = false; newBtn.innerText = orig; window.closeConfirmModal(); }
+                    finally { newBtn.disabled = false; newBtn.innerText = originalText; window.closeConfirmModal(); }
                 })();
             } else { 
                 (async () => {
-                    newBtn.disabled = true; let orig = newBtn.innerText; newBtn.innerText = "처리 중..."; 
+                    newBtn.disabled = true; let originalText = newBtn.innerText; newBtn.innerText = "처리 중..."; 
                     try { await callbackOrText(); } catch(e) { console.error(e); } 
-                    finally { newBtn.disabled = false; newBtn.innerText = orig; window.closeConfirmModal(); }
+                    finally { newBtn.disabled = false; newBtn.innerText = originalText; window.closeConfirmModal(); }
                 })();
             }
         };
         let cancelBtn = newBtn.previousElementSibling; if(cancelBtn && cancelBtn.tagName === 'BUTTON') { cancelBtn.style.display = (btnText === '확인') ? 'none' : 'block'; }
     }
     if($("confirmModal")) $("confirmModal").classList.add('show');
-};
-
-window.closeConfirmModal = function() { if($("confirmModal")) $("confirmModal").classList.remove('show'); };
-window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId && $(modalId)) $(modalId).classList.remove('show'); };
-
+}
+window.closeConfirmModal = function() { if($("confirmModal")) $("confirmModal").classList.remove('show'); }
+window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId && $(modalId)) $(modalId).classList.remove('show'); }
 window.showCancelReason = function(reason) { window.openCustomConfirm("당일 취소 사유", null, `<div style="padding:16px; background:#f9fafb; border-radius:8px; text-align:left; font-size:14px; line-height:1.5; color:var(--text-display); border:1px solid var(--border-strong); white-space:pre-wrap;">${window.escapeHtml(reason || '사유가 기재되지 않았습니다.')}</div>`, () => {}, "확인"); };
 
 function initQuill() { if(!quillEditor && $('editor-container')) { quillEditor = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'align': [] }], [{ 'color': [] }, { 'background': [] }], ['clean'] ] }, placeholder: '내용을 자유롭게 적어주세요.' }); } }
@@ -334,7 +464,6 @@ window.renderCenterData = function() {
       }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
 
-  // 💡 [이슈 해결] 생두 날짜 파싱 고도화 및 월/목 쏠림 현상, 전체선택 버그 수정 완료
   try {
       let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
       let fOrd = gOrd.filter(o => { 
@@ -431,7 +560,7 @@ window.renderCenterData = function() {
 function generateOrderRows(fOrd, chkClass) { 
   return fOrd.map(o=>{ 
     let badgeClass = (o.status==='주문 취소' || o.status==='품절')?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
-    let cNm = o.item_name || ""; let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\((월|화|수|목|금|토|일)\).*?\]/); if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); } 
+    let cNm = o.item_name || ""; let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/); if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); } 
     let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`; 
     let vendorUrl = o.link ? o.link : (o.url ? o.url : '#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`; 
     let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${cNm}</span><span class="copyable-hint">복사</span></div></div>`; 
@@ -780,7 +909,7 @@ window.renderMemberTablePage = function() {
   
   let data = currentFilteredMembers;
   if(data.length === 0) { 
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">내역이 없습니다.</td></tr>`; 
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`; 
       updatePaginationUI(0);
       return; 
   } 
@@ -893,7 +1022,7 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
 }
 window.updateMemberEndDate = async function(id, dateStr) { const { error } = await supabaseClient.from('members').update({ end_date: dateStr }).eq('id', id); if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다."); }
 
-// 💡 3. 내역 삭제 시 역산 계산 로직
+// 💡 3. 내역 삭제 시 역산 복구 로직 (월 빼기 연산 안전장치)
 window.deleteHistory = async function(id, phone, name, action_detail) { 
     window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => { 
         await supabaseClient.from('member_history').delete().eq('id', id); 
@@ -1051,7 +1180,7 @@ window.showOrderSummary = function() {
             let cNm = o.item_name;
             let targetDayStr = window.getOrderTargetFull(cNm); 
             
-            let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);
+            let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);
             if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
 
             let dateGroup = targetDayStr;
@@ -1136,3 +1265,155 @@ window.sendToGoogleSheet = async function() {
     } catch(e) { showToast("전송 오류"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
 
+window.cancelAction = function(table, id) {
+    window.openCustomConfirm("일정 취소", null, `<div style="margin-bottom:12px; font-size:14px; font-weight:600;">취소 사유를 입력해주세요 (선택)</div><textarea id="cancelReasonInput" placeholder="당일 취소 등 사유를 간단히 적어주세요." style="width:100%; height:80px; padding:12px; border:1px solid var(--border-strong); border-radius:8px; resize:none; font-family:inherit; font-size:14px; outline:none; box-sizing:border-box;"></textarea>`, async () => {
+        let reason = $("cancelReasonInput") ? $("cancelReasonInput").value.trim() : "";
+        const { error } = await supabaseClient.from(table).update({ status: '당일 취소', cancel_reason: reason }).eq('id', id);
+        if(error) showToast("취소 처리 실패");
+        else { showToast("당일 취소 처리되었습니다."); window.fetchCenterData(); }
+    }, "취소 확정");
+};
+
+window.openScheduleModal = function(id, callTime, counselorName) {
+    currentScheduleAppId = id;
+    if($("scheduleModal")) $("scheduleModal").classList.add('show');
+    if($("schedDate")) {
+        if(callTime && callTime !== 'null' && callTime.includes('년')) {
+            $("schedDate").value = window.formatCounselDateRaw(callTime);
+            $("schedTime").value = window.formatCounselTimeDisplay(callTime);
+        } else { $("schedDate").value = ''; $("schedTime").value = ''; }
+    }
+    if($("counselorName")) $("counselorName").value = counselorName && counselorName !== 'null' ? counselorName : '';
+};
+window.closeScheduleModal = function() { if($("scheduleModal")) $("scheduleModal").classList.remove('show'); };
+window.saveSchedule = async function() {
+    if(!currentScheduleAppId) return;
+    let dVal = $("schedDate").value.trim(); let tVal = $("schedTime").value.trim(); let cName = $("counselorName").value.trim();
+    if(!dVal || !tVal) return showToast("날짜와 시간을 입력해주세요.");
+    let formattedDate = window.formatCounselDateDisplay(dVal);
+    let finalTimeStr = `${formattedDate} ${tVal}`;
+    const { error } = await supabaseClient.from('applications').update({ call_time: finalTimeStr, counselor_name: cName, status: '상담 일정 확정' }).eq('id', currentScheduleAppId);
+    if(error) showToast("저장 실패");
+    else { showToast("상담 일정이 저장되었습니다."); window.closeScheduleModal(); window.fetchApplications(); }
+};
+
+window.openBlockModal = function(dateStr, timeStr) {
+    if($("blockModal")) $("blockModal").classList.add('show');
+    if($("blockId")) $("blockId").value = '';
+    if($("blkId")) $("blkId").value = ''; // 추가 바인딩
+    if($("blkDate")) $("blkDate").value = window.formatBlockDate(dateStr || currentCalDate.toISOString().split('T')[0]);
+    if($("blkStart")) $("blkStart").value = window.formatBlockTime(timeStr || '09:00');
+    if($("blkEnd")) $("blkEnd").value = window.formatBlockTime(timeStr ? String(parseInt(timeStr.split(':')[0])+2).padStart(2,'0')+':00' : '11:00');
+    if($("blkCategory")) $("blkCategory").value = '수업';
+    if($("blkCenter")) $("blkCenter").value = currentGlobalCenter === '전체' ? '마포 센터' : currentGlobalCenter;
+    if(window.updateSpaceOptions) window.updateSpaceOptions();
+    if($("blkSpace")) $("blkSpace").value = '전체';
+    if($("blkReason")) $("blkReason").value = '';
+    if($("blkCapacity")) $("blkCapacity").value = '';
+    if($("blockModalTitle")) $("blockModalTitle").innerText = "신규 스케줄 등록";
+};
+
+window.editBlock = function(id) {
+    let b = gBlk.find(x => String(x.id) === String(id)); if(!b) return;
+    if($("blockModal")) $("blockModal").classList.add('show');
+    if($("blockId")) $("blockId").value = b.id;
+    if($("blkId")) $("blkId").value = b.id; // 추가 바인딩
+    if($("blkDate")) $("blkDate").value = b.block_date;
+    if($("blkStart")) $("blkStart").value = b.start_time;
+    if($("blkEnd")) $("blkEnd").value = b.end_time;
+    if($("blkCategory")) $("blkCategory").value = b.category;
+    if($("blkCenter")) $("blkCenter").value = b.center || '마포 센터';
+    if(window.updateSpaceOptions) window.updateSpaceOptions();
+    if($("blkSpace")) $("blkSpace").value = b.space_equip || '전체';
+    if($("blkReason")) $("blkReason").value = b.reason;
+    if($("blkCapacity")) $("blkCapacity").value = b.capacity === null ? '' : b.capacity;
+    if($("blockModalTitle")) $("blockModalTitle").innerText = "스케줄 수정";
+};
+
+window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
+
+window.isSavingBlock = false;
+window.saveBlockData = async function() {
+    if (window.isSavingBlock) return;
+    window.isSavingBlock = true;
+
+    // 💡 [버그수정 1] 스케줄 ID 바인딩 확실하게 잡아서 1+1 버그 방지
+    let id = $("blockId") ? $("blockId").value : ($("blkId") ? $("blkId").value : "");
+    let capVal = $("blkCapacity") ? $("blkCapacity").value.trim() : "";
+    let payload = {
+        block_date: $("blkDate") ? $("blkDate").value : "",
+        start_time: $("blkStart") ? $("blkStart").value : "",
+        end_time: $("blkEnd") ? $("blkEnd").value : "",
+        category: $("blkCategory") ? $("blkCategory").value : "수업",
+        center: $("blkCenter") ? $("blkCenter").value : "마포 센터",
+        space_equip: $("blkSpace") ? $("blkSpace").value : "전체",
+        reason: $("blkReason") ? $("blkReason").value : "",
+        capacity: capVal === "" ? null : parseInt(capVal)
+    };
+    
+    if(!payload.block_date || !payload.start_time || !payload.end_time || !payload.reason) {
+        window.isSavingBlock = false;
+        return showToast("필수 항목을 모두 입력해주세요.");
+    }
+    
+    let error;
+    if(id && id !== "") { const res = await supabaseClient.from('blocks').update(payload).eq('id', id); error = res.error; }
+    else { const res = await supabaseClient.from('blocks').insert([payload]); error = res.error; }
+    
+    window.isSavingBlock = false;
+
+    if(error) showToast("저장 실패");
+    else { showToast("저장되었습니다."); window.closeBlockModal(); window.fetchCenterData(); }
+};
+
+window.deleteBlock = function(id) {
+    window.openCustomConfirm("스케줄 삭제", null, "이 스케줄을 삭제하시겠습니까?", async () => {
+        const { error } = await supabaseClient.from('blocks').delete().eq('id', id);
+        if(error) showToast("삭제 실패");
+        else { showToast("삭제되었습니다."); window.fetchCenterData(); }
+    });
+};
+
+function initQuill() { if(!quillEditor && $('editor-container')) { quillEditor = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'align': [] }], [{ 'color': [] }, { 'background': [] }], ['clean'] ] }, placeholder: '내용을 자유롭게 적어주세요.' }); } }
+window.openNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = ''; } catch(e) {} }, 50); if($("noticeId")) $("noticeId").value = ''; if($("noticeTitle")) $("noticeTitle").value = ''; if($("noticePinned")) $("noticePinned").checked = false; if($("noticeStatus")) $("noticeStatus").value = '발행'; if($("noticeTargetBatch")) $("noticeTargetBatch").value = ''; if($("noticeModalTitle")) $("noticeModalTitle").innerText = "새 공지사항 등록"; }
+window.editNotice = function(id) { let n = gNotice.find(x => String(x.id) === String(id)); if(!n) return; if($("noticeModal")) $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = n.content || ''; } catch(e) {} }, 50); if($("noticeId")) $("noticeId").value = n.id; if($("noticeTitle")) $("noticeTitle").value = n.title; if($("noticePinned")) $("noticePinned").checked = n.is_pinned; if($("noticeStatus")) $("noticeStatus").value = n.status || '발행'; if($("noticeTargetBatch")) $("noticeTargetBatch").value = n.target_batch || ''; if($("noticeModalTitle")) $("noticeModalTitle").innerText = "공지사항 수정"; }
+window.closeNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.remove('show'); }
+
+window.saveNoticeData = async function() { 
+  let id = $("noticeId")?$("noticeId").value:""; let htmlContent = quillEditor ? quillEditor.root.innerHTML : ''; 
+  let targetBatchVal = $("noticeTargetBatch") ? $("noticeTargetBatch").value.trim() : "";
+  let payload = { 
+      title: $("noticeTitle")?$("noticeTitle").value.trim():"", 
+      content: htmlContent, 
+      is_pinned: $("noticePinned")?$("noticePinned").checked:false, 
+      status: $("noticeStatus")?$("noticeStatus").value:"발행", 
+      target_batch: targetBatchVal === "" ? null : targetBatchVal 
+  }; 
+  if(!payload.title) return showToast("제목을 입력해주세요."); if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); 
+  let error; if(id) { const res = await supabaseClient.from('notices').update(payload).eq('id', id); error = res.error; } else { const res = await supabaseClient.from('notices').insert([payload]); error = res.error; } 
+  if(error) { 
+      showToast("저장 실패: " + (error.message || error.details || "알 수 없는 오류")); 
+      console.error("Notice Save Error:", error);
+  } else { 
+      showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); 
+  } 
+}
+window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
+
+window.renderMCalCenter = function(selDate) {
+    $$$("#m-cal-strip-center .m-cal-date").forEach(el => el.classList.remove('active'));
+    let target = document.getElementById(`m-date-center-${selDate}`);
+    if(target) { target.classList.add('active'); try { target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } catch(e){} }
+    let evts = window.centerCalEvts && window.centerCalEvts[selDate] ? window.centerCalEvts[selDate] : [];
+    evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||'')));
+    let html = '';
+    if(evts.length === 0) { html = `<div class="empty-state" style="padding:40px 0;">예정된 스케줄이 없습니다.</div>`; }
+    else {
+        evts.forEach(e => {
+            let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk'));
+            let timeStr = e.time || '종일';
+            html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;"><div class="m-cal-card-title" style="margin:0;"><span class="dash-item ${badgeClass}" style="display:inline-block; margin-right:6px; padding:2px 6px; font-size:11px; vertical-align:middle; line-height:1;"></span>${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary); font-weight:800; font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px; color:var(--text-secondary); margin-top:0; width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;
+        });
+    }
+    let listWrap = $("m-cal-list-center"); if(listWrap) listWrap.innerHTML = html;
+};
