@@ -13,7 +13,7 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 1. 툴팁, 캘린더 짤림 방지, 폼 이탈 방지 및 모바일용 요일 뱃지 CSS 추가
+// 💡 1. 툴팁, 모바일 폼 이탈 방지, 생두 뱃지용 반응형 CSS
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -73,14 +73,10 @@ window.safeKST = function(dateStr) {
 
 // 💡 [이슈 해결] 발주 타겟일(월/목) 완벽 추출기
 window.getOrderTarget = function(itemName) {
-    // 상품명에서 [희망: 4/27(월)] 또는 [4/27(월)] 형태의 요일만 족집게 추출
     let m = String(itemName).match(/\[(?:희망:\s*)?\d+\/\d+\s*\((월|화|수|목|금|토|일)\).*?\]/);
-    if (m) return m[1]; // '월' 또는 '목' 리턴
-    
-    // 만약 양식이 조금 다를 경우를 대비한 2차 추출
+    if (m) return m[1]; 
     let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
     if (m2) return m2[1];
-    
     return '미지정';
 };
 
@@ -128,6 +124,47 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
     const response = await fetch(url); if (!response.ok) return []; const data = await response.json();
     return (data.items || []).map(event => { let dateStr, timeStr; if (event.start.date) { dateStr = event.start.date; timeStr = '종일'; } else if (event.start.dateTime) { dateStr = event.start.dateTime.split('T')[0]; timeStr = event.start.dateTime.split('T')[1].substring(0, 5); } else return null; return { date: dateStr, time: timeStr, start: timeStr, text: event.summary || '일정', type: 'google' }; }).filter(Boolean);
   } catch (error) { return []; }
+};
+
+// 💡 [이슈 해결] 누락되었던 배너 렌더링 로직 완전 복구
+window.updateDailyInOutBanner = function() { 
+  let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
+  const getDailyEvents = (centerFilter) => { let evts = []; gRes.forEach(r => { if(r.res_date === ds && r.center === centerFilter && !String(r.status||'').includes('취소')) { let st = String(r.res_time||"").split('~')[0].trim(); let enParts = String(r.res_time||"").split('~'); let en = enParts.length > 1 ? enParts[1].trim() : ''; let spc = String(r.space_equip||"").split(' ')[0]; evts.push({ start: st, end: en, name: r.name, space: spc }); } }); return evts; }; 
+  let centers = currentGlobalCenter === '전체' ? ['마포 센터', '광진 센터'] : [currentGlobalCenter]; let html = ``; 
+  centers.forEach(c => { 
+      let evts = getDailyEvents(c); 
+      if(evts.length === 0) { html += `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 예약이 없습니다.</div></div>`; } 
+      else { 
+          let first = [...evts].sort((a,b) => String(a.start||'').localeCompare(String(b.start||'')))[0]; let last = [...evts].sort((a,b) => String(b.end||'').localeCompare(String(a.end||'')))[0]; 
+          html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff; align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px; width:100%;">${c}</div><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px; width:100%;"><span style="font-weight:600; font-size:14px; color:var(--text-display);">[${first.space||''}] ${window.escapeHtml(first.name||'')}</span><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">첫 입실 <strong style="color:var(--text-display); font-weight:600;">${first.start||''}</strong></span></div><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 0px; width:100%;"><span style="font-weight:600; font-size:14px; color:var(--text-display);">[${last.space||''}] ${window.escapeHtml(last.name||'')}</span><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">최종 퇴실 <strong style="color:var(--text-display); font-weight:600;">${last.end||''}</strong></span></div></div>`; 
+      } 
+  }); 
+  if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; 
+};
+
+// 💡 [이슈 해결] 누락되었던 취소 배너 렌더링 로직 완전 복구
+window.updateCancelAccumulationBanner = function() {
+    let now = new Date(); let y = now.getFullYear(); let m = String(now.getMonth() + 1).padStart(2, '0'); let monthPrefix = `${y}-${m}`; let cancelCounts = {};
+    let addCancel = (phone, name, batch) => { if(!phone) return; if(!cancelCounts[phone]) cancelCounts[phone] = { name, batch, count: 0 }; cancelCounts[phone].count++; };
+    gRes.forEach(r => { if (r.status === '당일 취소' && String(r.res_date || r.created_at).startsWith(monthPrefix)) addCancel(r.phone, r.name, r.batch); });
+    gTrn.forEach(t => { if (t.status === '당일 취소') { let cInfo = String(t.content||'').split(' || '); let dateStr = cInfo.length >= 5 ? cInfo[0].trim() : String(t.created_at); if(dateStr.startsWith(monthPrefix)) addCancel(t.phone, t.name, t.batch); } });
+    let sorted = Object.values(cancelCounts).sort((a,b) => b.count - a.count); let html = '';
+    if (sorted.length === 0) { html = `<div class="inout-card" style="text-align:center; color:var(--text-secondary); padding:16px; background:#fff; border:1px solid var(--border-strong); border-radius:12px;">이번 달 당일 취소 내역이 없습니다.</div>`; } 
+    else { sorted.forEach(user => { let isWarning = user.count >= 4; let style = isWarning ? 'border:1px solid var(--error); background:#fff0f0;' : 'border:1px solid var(--border-strong); background:#fff;'; let nameColor = isWarning ? 'color:var(--error); font-weight:800;' : 'color:var(--text-display); font-weight:700;'; let warningBadge = isWarning ? `<span style="background:var(--error); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-left:8px; font-weight:700;">경고</span>` : ''; html += `<div style="padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; ${style}"><div style="${nameColor}">[${user.batch||'-'}] ${window.escapeHtml(user.name)} ${warningBadge}</div><div style="font-size:14px; font-weight:800; ${isWarning ? 'color:var(--error);' : 'color:var(--text-secondary);'}">${user.count}회</div></div>`; }); }
+    if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
+};
+
+// 💡 [이슈 해결] 공지사항 무한 로딩 방지. window.safeKST 완전 적용 복구
+window.renderNoticeData = function() { 
+  let fNoti = [...gNotice]; 
+  fNoti.sort((a,b) => { if(a.is_pinned === b.is_pinned) return window.safeKST(b.created_at) - window.safeKST(a.created_at); return a.is_pinned ? -1 : 1; }); 
+  if($("noticeTableBody")) $("noticeTableBody").innerHTML = fNoti.length ? fNoti.map(n => { 
+      let pinBadge = n.is_pinned ? `<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>` : `<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`; 
+      let statBadge = n.status === '발행' ? `<span class="status-badge badge-green">발행 중</span>` : `<span class="status-badge badge-gray">숨김</span>`; 
+      let targetBadge = n.target_batch ? `<span class="status-badge badge-blue">${window.escapeHtml(n.target_batch)}</span>` : `<span class="status-badge badge-gray">전체</span>`;
+      let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${window.escapeHtml(n.title)}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`; 
+      return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="대상" class="tc">${targetBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${window.escapeHtml(n.title)}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; 
+    }).join("") : `<tr><td colspan="6" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`; 
 };
 
 window.updateDashSpaceFilter = function() {
@@ -267,7 +304,6 @@ window.fetchCenterData = async function() {
         gBlk.forEach(b => { if(b.space_equip) b.space_equip = String(b.space_equip).replace(/로스팅룸/g, '로스팅존'); }); 
         gTrn.forEach(t => { if(t.content) t.content = String(t.content).replace(/로스팅룸/g, '로스팅존'); });
 
-        // 💡 필터용 드롭다운: 오름차순 정렬 (1기 -> 34기) 유지
         let bSet = new Set(); gRes.forEach(r => { if(r.batch) bSet.add(r.batch); }); gTrn.forEach(t => { if(t.batch) bSet.add(t.batch); });
         let bHtml = `<option value="전체">전체 기수</option>` + Array.from(bSet).sort((a,b) => parseInt(String(a).replace(/[^0-9]/g, '') || 0) - parseInt(String(b).replace(/[^0-9]/g, '') || 0)).map(b=>`<option value="${b}">${b}</option>`).join("");
         if($("dashBatchFilter") && $("dashBatchFilter").innerHTML !== bHtml) $("dashBatchFilter").innerHTML = bHtml;
@@ -295,7 +331,7 @@ window.renderCenterData = function() {
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
   let todayForBlk = new Date(); todayForBlk.setHours(0,0,0,0);
 
-  try { updateDailyInOutBanner(); if(window.updateCancelAccumulationBanner) window.updateCancelAccumulationBanner(); } catch(e) {}
+  try { window.updateDailyInOutBanner(); if(window.updateCancelAccumulationBanner) window.updateCancelAccumulationBanner(); } catch(e) {}
   
   try {
       const addTooltipToText = (textMatch, id, tooltipText, isLong = false) => {
@@ -419,9 +455,8 @@ window.renderCenterData = function() {
       let thuOrders = [];
 
       fOrd.forEach(o => {
-          let targetDay = window.getOrderTarget(o.item_name); // '월' 또는 '목' 추출
+          let targetDay = window.getOrderTarget(o.item_name); 
           
-          // 모바일용 뱃지 데이터 생성 주입
           if (targetDay === '목') {
               o._targetBadge = `<span class="order-day-badge badge-thu">[목요일 발주]</span>`;
               thuOrders.push(o);
@@ -431,12 +466,11 @@ window.renderCenterData = function() {
           }
       });
       
-      // 월요일 테이블 렌더링
       if($("ordTableBodyMon")) {
           $("ordTableBodyMon").innerHTML = monOrders.length > 0 ? generateOrderRows(monOrders, 'chk-ord') : `<tr><td colspan="10" class="empty-state">월요일 발주 내역이 없습니다.</td></tr>`;
       }
       
-      // 목요일 테이블 렌더링 (과거 숨겼던 껍데기 확실히 복구)
+      // 목요일 전용 테이블 부활 및 렌더링
       let thuContainer = $("ordTableBodyThu")?.closest('.table-wrap');
       if(thuContainer) thuContainer.style.display = '';
       let thuTitle = document.querySelector('#sub-ord .section-title:nth-of-type(2)');
@@ -487,7 +521,7 @@ function generateOrderRows(fOrd, chkClass) {
     let vendorUrl = o.link ? o.link : (o.url ? o.url : '#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`; 
     let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${cNm}</span><span class="copyable-hint">복사</span></div></div>`; 
     let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : ''; 
-    let targetBadgeHtml = o._targetBadge || ''; // 💡 주입된 뱃지 출력 (모바일)
+    let targetBadgeHtml = o._targetBadge || ''; 
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 320px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:12px;"><div style="width: 80px; flex-shrink: 0; text-align: left;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>${copyableHtml}</div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
   }).join("");
@@ -796,7 +830,7 @@ window.searchMembers = function() {
         return matchQuery && matchStatus && matchBatch; 
     }); 
 
-    // 💡 [이슈 해결] 리스트 정렬을 최신 기수(34, 33...)가 무조건 위로 오도록 내림차순(b - a) 정렬
+    // 💡 [이슈 해결] 가장 최근 멤버(34기 등)가 무조건 최상단에 노출되도록 내림차순(b - a) 정렬
     filtered.sort((a, b) => {
         let batchA = a.batch || '';
         let batchB = b.batch || '';
@@ -870,7 +904,7 @@ function renderMemberTablePage() {
     let dateActionHtml = `<button class="btn-outline btn-sm apply-date-btn" style="flex-shrink:0; height:32px; padding:0 12px; border-color:var(--primary); color:var(--primary); font-weight:700;" onclick="window.applyMemberDate('${row.id}', this)">적용</button>`;
     
     const tr = document.createElement('tr'); 
-    tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action" style="white-space:nowrap;"><div class="date-select-group mem-action-wrap" data-id="${row.id}"><div class="date-inputs mem-action-row"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select>${dateActionHtml}</div><div class="action-btns mem-action-row"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" style="flex-shrink:0; height:32px;" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; 
+    tr.innerHTML = `${mPreview}<td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group mem-action-wrap" data-id="${row.id}"><div class="date-inputs mem-action-row"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select>${dateActionHtml}</div><div class="action-btns mem-action-row"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" style="flex-shrink:0; height:32px;" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div></div></td>`; 
     tbody.appendChild(tr);
   });
 
@@ -1045,7 +1079,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 [이슈 해결] 발주 요약 모달 - 신규 접수건 필터링, 월/목 정확한 타겟 그룹핑, 0g 합산 오류 해결
+// 💡 [이슈 해결] 발주 요약 모달 - 신규 접수건 필터, 월/목 정확한 타겟 그룹핑, 0g 합산 오류 완벽 차단
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1065,7 +1099,7 @@ window.showOrderSummary = function() {
         pendingOrders.forEach(o => {
             let center = o.center || '미지정';
             let cNm = o.item_name;
-            let targetDay = window.getOrderTarget(cNm); // '월' 또는 '목'
+            let targetDay = window.getOrderTarget(cNm); 
             
             let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)\/(\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);
             if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
