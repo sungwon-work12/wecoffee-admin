@@ -13,24 +13,37 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 [버그수정] 스케줄 1+1 덮어쓰기 오류 방지용 전역 변수
+// 💡 [버그수정 1] 스케줄 1+1 덮어쓰기 오류 방지용 전역 변수
 window.currentEditingBlockId = null;
 
-// 💡 [피드백 6] 마포/광진 센터 글로벌 필터 동기화 트리거 함수
+// 💡 [피드백 6] 마포/광진 센터 글로벌 필터 동기화 트리거 함수 및 자동 감지 리스너
 window.changeGlobalCenter = function(centerValue) {
     currentGlobalCenter = centerValue;
     if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
-    window.fetchCenterData(); // 즉각적인 데이터 리렌더링
+    window.fetchCenterData(); // 즉각적인 데이터 리렌더링 트리거
 };
+
+// HTML 요소에 onchange가 누락되어 있더라도 자동으로 감지해서 필터링을 작동시키는 안전장치
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.tagName === 'SELECT') {
+        // 셀렉트 박스 내용에 센터 이름들이 있고, 대시보드 하위 필터가 아닌 경우 글로벌 필터로 간주
+        if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
+            window.changeGlobalCenter(e.target.value);
+        }
+    }
+});
 
 // 💡 CSS 주입: 툴팁, 멤버리스트 모바일 폼 레이아웃 교정
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
     style.innerHTML = `
+        /* 💡 툴팁 투명도(opacity: 1)가 hover 시 정상 작동하도록 CSS 복구 */
         .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; }
         .info-tooltip:hover { color: #505967; border-color: #505967; }
         .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 130%; left: -10px; background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: pre-wrap; width: max-content; max-width: 260px; z-index: 9999; margin-bottom: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; pointer-events: none; transition: 0.2s; text-align: left; word-break: keep-all; }
+        .info-tooltip:hover::after { opacity: 1; }
+        
         .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
         .pagination-btn { height:32px; min-width:32px; padding:0 8px; border:1px solid var(--border-strong); background:#fff; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:0.2s; }
         .pagination-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
@@ -123,7 +136,7 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(d
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
-// 💡 [피드백 3] 전체 선택 기능 스크립트 연결
+// 💡 [피드백 3] 전체 선택 기능 스크립트 클래스 맵핑 정상화
 window.toggleAll = function(checkbox, targetClass) { 
     const checkboxes = document.querySelectorAll('.' + targetClass); 
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
@@ -195,18 +208,24 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
-// 💡 [피드백 7] 공간 다중 선택을 위해 속성 처리(HTML에서 multiple 적용을 권장하나 JS로도 지원)
+// 💡 [피드백 7] 공간 다중 선택을 위해 속성 처리
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터"; let dl = $("spaceOptions"); if(!dl) return; let opts = `<option value="전체">전체 (공간 전체)</option>`;
-    if (center === '마포 센터') opts += `<option value="에스프레소존"></option><option value="아스토리아 스톰 1번그룹 (좌)"></option><option value="아스토리아 스톰 2번그룹 (우)"></option><option value="로스팅존"></option><option value="이지스터 800 1번 (좌)"></option><option value="이지스터 800 2번 (우)"></option><option value="이지스터 1.8"></option><option value="스트롱홀드 S7X"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디존"></option>`;
-    else opts += `<option value="에스프레소존"></option><option value="시네소 MVP 하이드라 1번그룹 (좌)"></option><option value="시네소 MVP 하이드라 2번그룹 (우)"></option><option value="페마 페미나 1그룹"></option><option value="산레모 You 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 프로 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 EXP 1그룹"></option><option value="로스팅존"></option><option value="이지스터 800 1번 (좌)"></option><option value="이지스터 800 2번 (우)"></option><option value="이지스터 1.8 1번 (좌)"></option><option value="이지스터 1.8 2번"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디룸"></option>`;
-    dl.innerHTML = opts;
+    if (center === '마포 센터') opts += `<option value="에스프레소존">에스프레소존</option><option value="아스토리아 스톰 1번그룹 (좌)">아스토리아 스톰 1번그룹 (좌)</option><option value="아스토리아 스톰 2번그룹 (우)">아스토리아 스톰 2번그룹 (우)</option><option value="로스팅존">로스팅존</option><option value="이지스터 800 1번 (좌)">이지스터 800 1번 (좌)</option><option value="이지스터 800 2번 (우)">이지스터 800 2번 (우)</option><option value="이지스터 1.8">이지스터 1.8</option><option value="스트롱홀드 S7X">스트롱홀드 S7X</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
+    else opts += `<option value="에스프레소존">에스프레소존</option><option value="시네소 MVP 하이드라 1번그룹 (좌)">시네소 MVP 하이드라 1번그룹 (좌)</option><option value="시네소 MVP 하이드라 2번그룹 (우)">시네소 MVP 하이드라 2번그룹 (우)</option><option value="페마 페미나 1그룹">페마 페미나 1그룹</option><option value="산레모 You 1그룹">산레모 You 1그룹</option><option value="빅토리아 아르두이노 이글원 프리마 프로 1그룹">이글원 프리마 프로 1그룹</option><option value="빅토리아 아르두이노 이글원 프리마 EXP 1그룹">이글원 프리마 EXP 1그룹</option><option value="로스팅존">로스팅존</option><option value="이지스터 800 1번 (좌)">이지스터 800 1번 (좌)</option><option value="이지스터 800 2번 (우)">이지스터 800 2번 (우)</option><option value="이지스터 1.8 1번 (좌)">이지스터 1.8 1번 (좌)</option><option value="이지스터 1.8 2번">이지스터 1.8 2번</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디룸">스터디룸</option>`;
     
-    // 만약 셀렉트 박스가 있다면 다중 선택 모드로 전환 보조
-    let blkSpaceSelect = $("blkSpace");
-    if(blkSpaceSelect && !blkSpaceSelect.multiple) {
-        blkSpaceSelect.multiple = true;
-        blkSpaceSelect.style.height = "80px"; // 다중 선택이 보이도록 높이 조절
+    // HTML에 있는 <datalist> 요소를 찾아 <select multiple> 로 갈아끼워주는 핵심 로직
+    let blkSpaceInput = $("blkSpace");
+    if(blkSpaceInput && blkSpaceInput.tagName.toLowerCase() === 'input') {
+        let newSpaceSelect = document.createElement('select');
+        newSpaceSelect.id = 'blkSpace';
+        newSpaceSelect.multiple = true;
+        newSpaceSelect.className = blkSpaceInput.className;
+        newSpaceSelect.style.height = "120px";
+        blkSpaceInput.parentNode.replaceChild(newSpaceSelect, blkSpaceInput);
+        $("blkSpace").innerHTML = opts;
+    } else if ($("blkSpace") && $("blkSpace").tagName.toLowerCase() === 'select') {
+        $("blkSpace").innerHTML = opts;
     }
 };
 
@@ -1485,6 +1504,7 @@ window.renderMCalCenter = function(selDate) {
         evts.forEach(e => {
             let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk'));
             let timeStr = e.time || '종일';
+            // 💡 모바일 스케줄 리스트 빈 뱃지 태그 완전 제거
             html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary); font-weight:800; font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px; color:var(--text-secondary); margin-top:0; width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;
         });
     }
