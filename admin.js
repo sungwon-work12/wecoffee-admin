@@ -13,17 +13,17 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 [버그수정 1] 스케줄 1+1 덮어쓰기 오류 방지용 전역 변수
+// 💡 [버그수정] 스케줄 1+1 덮어쓰기 오류 방지용 전역 변수
 window.currentEditingBlockId = null;
 
-// 💡 [추가 1] 마포/광진 센터 필터 동기화 (트리거 함수)
+// 💡 [피드백 6] 마포/광진 센터 글로벌 필터 동기화 트리거 함수
 window.changeGlobalCenter = function(centerValue) {
     currentGlobalCenter = centerValue;
     if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
-    window.fetchCenterData(); // 데이터 새로고침 트리거
+    window.fetchCenterData(); // 즉각적인 데이터 리렌더링
 };
 
-// 💡 [개선 1 & 수정 3] CSS 수정: 툴팁, 멤버리스트 UI 폼 레이아웃 교정
+// 💡 CSS 주입: 툴팁, 멤버리스트 모바일 폼 레이아웃 교정
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -53,7 +53,6 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
         @media (max-width: 768px) {
             .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; overflow-x: visible; }
-            /* 💡 [수정 3] flex-wrap: wrap 허용으로 오버플로우 방지 */
             .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: wrap !important; gap: 6px; }
             .mem-action-row select { flex: 1; min-width: 0; padding-left: 8px !important; padding-right: 28px !important; }
             .apply-date-btn, .action-btns button { flex-shrink: 0; }
@@ -85,7 +84,6 @@ window.safeKST = function(dateStr) {
     return d;
 };
 
-// 💡 [개선 2] 생두 요일/날짜 '4월 23일 목요일' 정확하게 파싱
 window.getOrderTargetFull = function(itemName) {
     let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
     if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
@@ -98,7 +96,7 @@ window.getOrderTargetDay = function(itemName) {
     if(m) return m[3];
     let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
     if (m2) return m2[1];
-    return '월'; // 괄호 정규식 실패시 안전하게 월요일로
+    return '월';
 };
 
 window.holidaysCache = {};
@@ -125,8 +123,8 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(d
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
+// 💡 [피드백 3] 전체 선택 기능 스크립트 연결
 window.toggleAll = function(checkbox, targetClass) { 
-    // 💡 [수정] 클래스를 정확히 타겟팅 하도록 보완
     const checkboxes = document.querySelectorAll('.' + targetClass); 
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
 };
@@ -197,11 +195,19 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
+// 💡 [피드백 7] 공간 다중 선택을 위해 속성 처리(HTML에서 multiple 적용을 권장하나 JS로도 지원)
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터"; let dl = $("spaceOptions"); if(!dl) return; let opts = `<option value="전체">전체 (공간 전체)</option>`;
     if (center === '마포 센터') opts += `<option value="에스프레소존"></option><option value="아스토리아 스톰 1번그룹 (좌)"></option><option value="아스토리아 스톰 2번그룹 (우)"></option><option value="로스팅존"></option><option value="이지스터 800 1번 (좌)"></option><option value="이지스터 800 2번 (우)"></option><option value="이지스터 1.8"></option><option value="스트롱홀드 S7X"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디존"></option>`;
     else opts += `<option value="에스프레소존"></option><option value="시네소 MVP 하이드라 1번그룹 (좌)"></option><option value="시네소 MVP 하이드라 2번그룹 (우)"></option><option value="페마 페미나 1그룹"></option><option value="산레모 You 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 프로 1그룹"></option><option value="빅토리아 아르두이노 이글원 프리마 EXP 1그룹"></option><option value="로스팅존"></option><option value="이지스터 800 1번 (좌)"></option><option value="이지스터 800 2번 (우)"></option><option value="이지스터 1.8 1번 (좌)"></option><option value="이지스터 1.8 2번"></option><option value="브루잉존"></option><option value="커핑존"></option><option value="스터디룸"></option>`;
     dl.innerHTML = opts;
+    
+    // 만약 셀렉트 박스가 있다면 다중 선택 모드로 전환 보조
+    let blkSpaceSelect = $("blkSpace");
+    if(blkSpaceSelect && !blkSpaceSelect.multiple) {
+        blkSpaceSelect.multiple = true;
+        blkSpaceSelect.style.height = "80px"; // 다중 선택이 보이도록 높이 조절
+    }
 };
 
 function startRealtimeSync() {
@@ -371,19 +377,22 @@ window.renderCenterData = function() {
       const addTooltipToText = (textMatch, id, tooltipText, isLong = false) => {
           let titles = document.querySelectorAll('.section-title');
           titles.forEach(el => {
-              if(el.innerText.includes(textMatch) && !document.getElementById(id)) {
+              // HTML 태그가 섞여 있을 수 있으므로 textContent로 안전하게 비교
+              if(el.textContent.includes(textMatch) && !document.getElementById(id)) {
                   let sub = el.querySelector('.sub-text'); if(sub) sub.remove();
-                  el.innerHTML = `${textMatch} <i id="${id}" class="info-tooltip ${isLong ? 'long-text' : ''}" data-tooltip="${tooltipText}">i</i>`;
+                  // 기존 내부 HTML(검은 뱃지 등)을 유지하면서 툴팁만 추가
+                  el.innerHTML = el.innerHTML + ` <i id="${id}" class="info-tooltip ${isLong ? 'long-text' : ''}" data-tooltip="${tooltipText}">i</i>`;
               }
           });
       };
       
       let resTitle = document.querySelector('#sub-res .table-toolbar .section-title');
-      if(resTitle && resTitle.innerText.includes('상세 예약 로그')) resTitle.innerHTML = '센터 예약 리스트';
+      if(resTitle && resTitle.textContent.includes('상세 예약 로그')) resTitle.innerHTML = '센터 예약 리스트';
       
-      addTooltipToText('센터 예약 리스트', 'tt-res', '최근 30일 동안의 예약 내역만 표시됩니다.', true);
-      addTooltipToText('수업 및 훈련', 'tt-trn', '수업이 종료된 명단은 자정에 목록에서 자동 정리됩니다.', true);
-      addTooltipToText('생두 주문 관리', 'tt-ord', '결제 진행 중이거나 확인 전인 새 주문은 유지됩니다. 수령 완료는 7일 뒤, 취소/품절은 이틀 뒤 자동 정리됩니다.', true);
+      // 💡 [수정 1] UX 라이팅 고도화 적용
+      addTooltipToText('센터 예약 리스트', 'tt-res', '최근 1개월(30일) 내의 예약만 표시됩니다. 이전 내역은 서버에 안전하게 보관됩니다.', true);
+      addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
+      addTooltipToText('생두 주문 관리', 'tt-ord', '주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, \'취소/품절\' 건은 2일 뒤, \'센터 도착\' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.', true);
   } catch(e) {}
 
   try {
@@ -391,7 +400,7 @@ window.renderCenterData = function() {
       if(resTable) {
           let theadTr = resTable.querySelector('thead tr');
           let firstTh = theadTr.querySelector('th');
-          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.innerText.includes('접수')) {
+          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.textContent.includes('접수')) {
               let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
               chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-res\')">';
               theadTr.insertBefore(chkTh, firstTh);
@@ -401,9 +410,30 @@ window.renderCenterData = function() {
       if(trnTable) {
           let theadTr = trnTable.querySelector('thead tr');
           let firstTh = theadTr.querySelector('th');
-          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.innerText.includes('신청')) {
+          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.textContent.includes('신청')) {
               let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
               chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-trn\')">';
+              theadTr.insertBefore(chkTh, firstTh);
+          }
+      }
+      // 💡 [수정 3] 생두 주문 리스트 '전체 선택' 마스터 체크박스 헤더 삽입
+      let ordMonTable = $("ordTableBodyMon")?.closest('table') || $("ordTableBody")?.closest('table');
+      if(ordMonTable) {
+          let theadTr = ordMonTable.querySelector('thead tr');
+          let firstTh = theadTr.querySelector('th');
+          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.textContent.includes('주문')) {
+              let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-ord\')">';
+              theadTr.insertBefore(chkTh, firstTh);
+          }
+      }
+      let ordThuTable = $("ordTableBodyThu")?.closest('table');
+      if(ordThuTable) {
+          let theadTr = ordThuTable.querySelector('thead tr');
+          let firstTh = theadTr.querySelector('th');
+          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.textContent.includes('주문')) {
+              let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-ord-thu\')">';
               theadTr.insertBefore(chkTh, firstTh);
           }
       }
@@ -507,11 +537,24 @@ window.renderCenterData = function() {
       
       let thuContainer = $("ordTableBodyThu")?.closest('.table-wrap');
       if(thuContainer) thuContainer.style.display = '';
-      let thuTitle = document.querySelector('#sub-ord .section-title:nth-of-type(2)');
-      if(thuTitle) thuTitle.style.display = '';
       
       if($("ordTableBodyThu")) {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
+      }
+
+      // 💡 [수정 5] 발주 섹션 헤더(검은색 블럭) 정확한 날짜 동적 매핑
+      let ordTitles = document.querySelectorAll('#sub-ord .section-title');
+      if (monOrders.length > 0 && ordTitles[0]) {
+          let tStr = window.getOrderTargetFull(monOrders[0].item_name);
+          if(!ordTitles[0].innerHTML.includes('background:#212529')) { 
+              ordTitles[0].innerHTML = `<span style="background:#212529; color:#fff; padding:4px 10px; border-radius:6px; font-size:14px; margin-right:8px; display:inline-block; vertical-align:middle; letter-spacing:-0.5px;">${tStr} 발주</span> 주문 리스트`;
+          }
+      }
+      if (thuOrders.length > 0 && ordTitles[1]) {
+          let tStr = window.getOrderTargetFull(thuOrders[0].item_name);
+          if(!ordTitles[1].innerHTML.includes('background:#212529')) {
+              ordTitles[1].innerHTML = `<span style="background:#212529; color:#fff; padding:4px 10px; border-radius:6px; font-size:14px; margin-right:8px; display:inline-block; vertical-align:middle; letter-spacing:-0.5px;">${tStr} 발주</span> 주문 리스트`;
+          }
       }
 
   } catch(e) { console.error(e); }
@@ -558,8 +601,8 @@ function generateOrderRows(fOrd, chkClass) {
     let targetBadgeHtml = o._targetBadge || ''; 
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
     
-    // 💡 [개선 2] 생두사-상품명 너비 110px 및 간격 16px로 넓게 조정하여 언밸런스 여백 해결
-    return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:16px;"><div style="width: 110px; flex-shrink: 0; text-align: left;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>${copyableHtml}</div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
+    // 💡 [수정 2] 생두사-상품명 너비 고정 해제 및 gap:8px 쫀쫀한 대칭 정렬로 교정
+    return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:8px;"><div style="flex-shrink: 0; text-align: right;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span><div style="flex:1; min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
   }).join("");
 }
 
@@ -1151,7 +1194,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 3. [개선 3] 선택된 항목만 쏙 뽑아서 요약하는 스마트 요약 기능 추가
+// 💡 [수정 4] 아무것도 선택 안했을 시 '주문 접수' 상태만 긁어오도록 타겟 조건 변경
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1160,12 +1203,11 @@ window.showOrderSummary = function() {
     let checkedIds = Array.from(checkedBoxes).map(cb => String(cb.value));
 
     let pendingOrders = gOrd.filter(o => {
-        if (o.status !== '주문 접수') return false; 
-        
-        // 💡 체크된 박스가 하나라도 있다면 오직 그것들만 추출
         if (checkedIds.length > 0) {
             return checkedIds.includes(String(o.id));
         } else {
+            // 아무것도 선택하지 않았을 때는 '주문 접수' 상태인 발주건만 긁어옴
+            if (o.status !== '주문 접수') return false; 
             let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
             let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
             let matchV = vOrd === '전체' ? true : o.vendor === vOrd;
@@ -1234,7 +1276,6 @@ window.showOrderSummary = function() {
         let exportData = []; 
         sortedData.forEach(s => { 
             s.orderers.forEach(o => { 
-                // 💡 [개선 4] '발주 구분' 등 구글 시트가 인식할 한글 이름표(Key)로 정확히 매핑
                 exportData.push({ 
                     "발주 구분": s.dateGroup + " 발주", 
                     "수령 센터": s.center, 
@@ -1321,12 +1362,13 @@ window.openBlockModal = function(dateStr, timeStr) {
     if($("blkCategory")) $("blkCategory").value = '수업';
     if($("blkCenter")) $("blkCenter").value = currentGlobalCenter === '전체' ? '마포 센터' : currentGlobalCenter;
     if(window.updateSpaceOptions) window.updateSpaceOptions();
-    if($("blkSpace")) $("blkSpace").value = '전체';
+    if($("blkSpace")) $("blkSpace").value = '';
     if($("blkReason")) $("blkReason").value = '';
     if($("blkCapacity")) $("blkCapacity").value = '';
     if($("blockModalTitle")) $("blockModalTitle").innerText = "신규 스케줄 등록";
 };
 
+// 💡 [피드백 7] editBlock 시 다중 선택된 장비값 불러오기 복구
 window.editBlock = function(id) {
     let b = gBlk.find(x => String(x.id) === String(id)); if(!b) return;
     if($("blockModal")) $("blockModal").classList.add('show');
@@ -1338,7 +1380,15 @@ window.editBlock = function(id) {
     if($("blkCategory")) $("blkCategory").value = b.category;
     if($("blkCenter")) $("blkCenter").value = b.center || '마포 센터';
     if(window.updateSpaceOptions) window.updateSpaceOptions();
-    if($("blkSpace")) $("blkSpace").value = b.space_equip || '전체';
+    
+    if(b.space_equip) {
+        let spaces = b.space_equip.split(',').map(s => s.trim());
+        let opts = $("blkSpace").options;
+        for(let i=0; i<opts.length; i++) {
+            opts[i].selected = spaces.includes(opts[i].value);
+        }
+    }
+    
     if($("blkReason")) $("blkReason").value = b.reason;
     if($("blkCapacity")) $("blkCapacity").value = b.capacity === null ? '' : b.capacity;
     if($("blockModalTitle")) $("blockModalTitle").innerText = "스케줄 수정";
@@ -1346,6 +1396,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
+// 💡 [피드백 7] saveBlockData 시 다중 선택된 장비값 합쳐서 저장
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
@@ -1353,13 +1404,22 @@ window.saveBlockData = async function() {
 
     let id = $("blockId") ? $("blockId").value : ($("blkId") ? $("blkId").value : "");
     let capVal = $("blkCapacity") ? $("blkCapacity").value.trim() : "";
+    
+    let spaceVals = [];
+    if($("blkSpace") && $("blkSpace").multiple) {
+        Array.from($("blkSpace").selectedOptions).forEach(opt => spaceVals.push(opt.value));
+    } else {
+        spaceVals.push($("blkSpace") ? $("blkSpace").value : "전체");
+    }
+    let finalSpaceStr = spaceVals.join(', ');
+
     let payload = {
         block_date: $("blkDate") ? $("blkDate").value : "",
         start_time: $("blkStart") ? $("blkStart").value : "",
         end_time: $("blkEnd") ? $("blkEnd").value : "",
         category: $("blkCategory") ? $("blkCategory").value : "수업",
         center: $("blkCenter") ? $("blkCenter").value : "마포 센터",
-        space_equip: $("blkSpace") ? $("blkSpace").value : "전체",
+        space_equip: finalSpaceStr || "전체",
         reason: $("blkReason") ? $("blkReason").value : "",
         capacity: capVal === "" ? null : parseInt(capVal)
     };
@@ -1425,7 +1485,6 @@ window.renderMCalCenter = function(selDate) {
         evts.forEach(e => {
             let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk'));
             let timeStr = e.time || '종일';
-            // 💡 [수정 2] 모바일 스케줄 리스트 빈 뱃지 태그 완전 제거
             html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary); font-weight:800; font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px; color:var(--text-secondary); margin-top:0; width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;
         });
     }
