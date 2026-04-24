@@ -168,8 +168,7 @@ window.changeGlobalCenter = function(centerName) {
     
     if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
     window.fetchCenterData(); 
-};
-window.showCancelReason = function(reason) { window.openCustomConfirm("당일 취소 사유", null, `<div style="padding:16px; background:#f9fafb; border-radius:8px; text-align:left; font-size:14px; line-height:1.5; color:var(--text-display); border:1px solid var(--border-strong); white-space:pre-wrap;">${window.escapeHtml(reason || '사유가 기재되지 않았습니다.')}</div>`, () => {}, "확인"); };
+};window.showCancelReason = function(reason) { window.openCustomConfirm("당일 취소 사유", null, `<div style="padding:16px; background:#f9fafb; border-radius:8px; text-align:left; font-size:14px; line-height:1.5; color:var(--text-display); border:1px solid var(--border-strong); white-space:pre-wrap;">${window.escapeHtml(reason || '사유가 기재되지 않았습니다.')}</div>`, () => {}, "확인"); };
 
 function initQuill() { if(!quillEditor && $('editor-container')) { quillEditor = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'align': [] }], [{ 'color': [] }, { 'background': [] }], ['clean'] ] }, placeholder: '내용을 자유롭게 적어주세요.' }); } }
 window.openNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = ''; } catch(e) {} }, 50); if($("noticeId")) $("noticeId").value = ''; if($("noticeTitle")) $("noticeTitle").value = ''; if($("noticePinned")) $("noticePinned").checked = false; if($("noticeStatus")) $("noticeStatus").value = '발행'; if($("noticeTargetBatch")) $("noticeTargetBatch").value = ''; if($("noticeModalTitle")) $("noticeModalTitle").innerText = "새 공지사항 등록"; }
