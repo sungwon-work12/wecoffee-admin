@@ -13,9 +13,10 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 5. [고질적 버그 완치] 스케줄 1+1 덮어쓰기 오류 방지용 전역 변수
+// 💡 [버그수정 1] 스케줄 1+1 덮어쓰기 오류 방지용 전역 변수
 window.currentEditingBlockId = null;
 
+// 💡 [개선 1] CSS 수정: 툴팁, 멤버리스트 UI 1렬 강제 고정 및 Select 화살표 겹침 방지 여백 추가
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -32,25 +33,27 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .dash-tooltip-custom { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #212529; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 13px; white-space: nowrap; z-index: 999999 !important; visibility: hidden; opacity: 0; transition: 0.2s; text-align: left; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.5; }
         .dash-cal-more-wrap:hover .dash-tooltip-custom { visibility: visible; opacity: 1; }
         
+        /* 💡 멤버리스트 UI 폼 1렬(1줄) 강제 고정 및 화살표 겹침 방지 넉넉한 Padding 우측 확보 */
         .mem-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap !important; overflow-x: auto; }
         .mem-action-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap !important; white-space: nowrap; }
         .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 75px; padding-left: 8px !important; padding-right: 28px !important; background-position: right 8px center; }
         
-        .order-day-badge { display: none; }
+        .order-day-badge { display: none; } /* PC에서는 숨김 */
         
         @media (max-width: 1024px) {
             .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; }
         }
 
         @media (max-width: 768px) {
-            /* 💡 3. [모바일 최적화] 멤버리스트 UI 모바일 이탈 방지용 wrap 교정 */
-            .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; overflow-x: hidden; }
-            .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: wrap !important; gap: 6px; } 
-            .mem-action-row select { flex: 1; min-width: 80px; padding-left: 8px !important; padding-right: 28px !important; }
+            .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; overflow-x: visible; }
+            .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: nowrap !important; }
+            .mem-action-row select { flex: 1; min-width: 0; padding-left: 8px !important; padding-right: 28px !important; }
             .apply-date-btn, .action-btns button { flex-shrink: 0; }
             
-            /* 💡 4. [모바일 생두 발주 뱃지] 컬러 통일 및 괄호 제거 상시 노출 */
-            .order-day-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; background: #e8f0fe; color: #1a73e8; border: 1px solid #1a73e8; margin-right: 6px; vertical-align: middle; }
+            /* 모바일 생두 발주 뱃지 */
+            .order-day-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 6px; vertical-align: middle; }
+            .badge-mon { background: #e8f0fe; color: #1a73e8; border: 1px solid #1a73e8; }
+            .badge-thu { background: #fce8e6; color: #c5221f; border: 1px solid #c5221f; }
         }
     `;
     document.head.appendChild(style);
@@ -74,7 +77,7 @@ window.safeKST = function(dateStr) {
     return d;
 };
 
-// 💡 [개선] 4월 23일 목요일 정확한 파싱 및 괄호 제거형 포맷
+// 💡 [개선 2] 생두 요일/날짜 '4월 23일 목요일' 정확하게 파싱
 window.getOrderTargetFull = function(itemName) {
     let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
     if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
@@ -87,7 +90,7 @@ window.getOrderTargetDay = function(itemName) {
     if(m) return m[3];
     let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
     if (m2) return m2[1];
-    return '월';
+    return '월'; // 괄호 정규식 실패시 안전하게 월요일로
 };
 
 window.holidaysCache = {};
@@ -114,8 +117,8 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(d
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
-// 💡 4. [전체 선택 분리] targetClass를 매개변수로 정확히 타겟팅
 window.toggleAll = function(checkbox, targetClass) { 
+    // 💡 [수정] 클래스를 정확히 타겟팅 하도록 보완
     const checkboxes = document.querySelectorAll('.' + targetClass); 
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
 };
@@ -282,19 +285,6 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrTex
 }
 window.closeConfirmModal = function() { if($("confirmModal")) $("confirmModal").classList.remove('show'); }
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId && $(modalId)) $(modalId).classList.remove('show'); }
-
-// 💡 1. [필터 트리거 해결] 센터 변경 시 렌더링 즉각 동기화
-window.changeGlobalCenter = function(centerName) {
-    currentGlobalCenter = centerName;
-    let buttons = document.querySelectorAll('.filter-btn');
-    buttons.forEach(btn => btn.classList.remove('active'));
-    let activeBtn = document.querySelector(`.filter-btn[onclick*="${centerName}"]`);
-    if(activeBtn) activeBtn.classList.add('active');
-    
-    if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
-    window.fetchCenterData(); 
-};
-
 window.showCancelReason = function(reason) { window.openCustomConfirm("당일 취소 사유", null, `<div style="padding:16px; background:#f9fafb; border-radius:8px; text-align:left; font-size:14px; line-height:1.5; color:var(--text-display); border:1px solid var(--border-strong); white-space:pre-wrap;">${window.escapeHtml(reason || '사유가 기재되지 않았습니다.')}</div>`, () => {}, "확인"); };
 
 function initQuill() { if(!quillEditor && $('editor-container')) { quillEditor = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'align': [] }], [{ 'color': [] }, { 'background': [] }], ['clean'] ] }, placeholder: '내용을 자유롭게 적어주세요.' }); } }
@@ -491,28 +481,21 @@ window.renderCenterData = function() {
       let thuOrders = [];
 
       fOrd.forEach(o => {
+          let targetDayStr = window.getOrderTargetFull(o.item_name); 
           let dayOnly = window.getOrderTargetDay(o.item_name); 
+          
           if (dayOnly === '목') {
+              o._targetBadge = `<span class="order-day-badge badge-thu">[${targetDayStr} 발주]</span>`;
               thuOrders.push(o);
           } else {
+              o._targetBadge = `<span class="order-day-badge badge-mon">[${targetDayStr} 발주]</span>`;
               monOrders.push(o);
           }
       });
       
-      // 💡 4. [전체 선택 분리] 월요일/목요일 테이블 렌더링 시 체크박스 클래스 완벽하게 분리
       let monTableBody = $("ordTableBodyMon") || $("ordTableBody");
       if(monTableBody) {
-          monTableBody.innerHTML = monOrders.length > 0 ? generateOrderRows(monOrders, 'chk-ord-mon') : `<tr><td colspan="11" class="empty-state">월요일 발주 내역이 없습니다.</td></tr>`;
-          let monTable = monTableBody.closest('table');
-          if (monTable) {
-              let theadTr = monTable.querySelector('thead tr');
-              let firstTh = theadTr.querySelector('th');
-              if (firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.innerText.includes('주문')) {
-                  let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
-                  chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-ord-mon\')">';
-                  theadTr.insertBefore(chkTh, firstTh);
-              }
-          }
+          monTableBody.innerHTML = monOrders.length > 0 ? generateOrderRows(monOrders, 'chk-ord') : `<tr><td colspan="11" class="empty-state">월요일 발주 내역이 없습니다.</td></tr>`;
       }
       
       let thuContainer = $("ordTableBodyThu")?.closest('.table-wrap');
@@ -522,16 +505,6 @@ window.renderCenterData = function() {
       
       if($("ordTableBodyThu")) {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
-          let thuTable = $("ordTableBodyThu").closest('table');
-          if (thuTable) {
-              let theadTr = thuTable.querySelector('thead tr');
-              let firstTh = theadTr.querySelector('th');
-              if (firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.innerText.includes('주문')) {
-                  let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
-                  chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-ord-thu\')">';
-                  theadTr.insertBefore(chkTh, firstTh);
-              }
-          }
       }
 
   } catch(e) { console.error(e); }
@@ -567,31 +540,22 @@ window.renderCenterData = function() {
   } catch(e) { console.error(e); }
 }
 
-// 💡 4. [생두 UI/로직 완전체] 여백 해결, 날짜 위치 조정 및 뱃지 최적화
 function generateOrderRows(fOrd, chkClass) { 
   return fOrd.map(o=>{ 
     let badgeClass = (o.status==='주문 취소' || o.status==='품절')?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
     let cNm = o.item_name || ""; let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/); if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); } 
-    
-    // 모바일/PC 모두 동일하게 대괄호 뺀 깔끔한 텍스트
-    let targetDayText = window.getOrderTargetFull(o.item_name) + " 발주";
-    
-    // PC 버전 뱃지: 수령 센터 앞에 배치
-    let pcDateBadge = `<span style="background:#e8f0fe; color:#1a73e8; border:1px solid #1a73e8; padding:2px 6px; border-radius:4px; font-size:12px; font-weight:800; margin-right:8px; display:inline-block; vertical-align:middle;">${targetDayText}</span>`;
-    let centerBadge = `<div style="display:flex; align-items:center; justify-content:flex-start;">${pcDateBadge}<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span></div>`; 
-    
+    let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`; 
     let vendorUrl = o.link ? o.link : (o.url ? o.url : '#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`; 
     let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${cNm}</span><span class="copyable-hint">복사</span></div></div>`; 
     let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : ''; 
+    let targetBadgeHtml = o._targetBadge || ''; 
+    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
     
-    // 모바일 버전 뱃지: 상품명 위 (소프트 블루 통일, 대괄호 제거)
-    let mDateBadge = `<span class="order-day-badge" style="margin-bottom:6px;">${targetDayText}</span><br>`;
-    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title" style="margin-top:2px;">${mDateBadge}[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
-    
-    // 1:1 대칭 완벽 밸런스 여백 (gap 16px, width 110px)
-    return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 380px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:16px;"><div style="width: 110px; flex-shrink: 0; text-align: left;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>${copyableHtml}</div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
+    // 💡 [개선 2] 생두사-상품명 너비 110px 및 간격 16px로 넓게 조정하여 언밸런스 여백 해결
+    return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:16px;"><div style="width: 110px; flex-shrink: 0; text-align: left;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span>${copyableHtml}</div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
   }).join("");
 }
+
 window.renderDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentDashView === 'month' && $("dashMonthTitle")) { $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; }
@@ -1043,6 +1007,7 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
 }
 window.updateMemberEndDate = async function(id, dateStr) { const { error } = await supabaseClient.from('members').update({ end_date: dateStr }).eq('id', id); if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다."); }
 
+// 💡 3. 내역 삭제 시 역산 복구 로직 (월 빼기 연산 안전장치)
 window.deleteHistory = async function(id, phone, name, action_detail) { 
     window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => { 
         await supabaseClient.from('member_history').delete().eq('id', id); 
@@ -1068,10 +1033,14 @@ window.openHistoryModal = async function(phone, name) { if(!$("historyModalTitle
 window.closeHistoryModal = function() { if($("historyModal")) $("historyModal").classList.remove('show'); }
 
 window.downloadAttendanceExcel = function() {
-    if(!window.currentFilteredTrn || window.currentFilteredTrn.length === 0) { showToast('출력할 데이터가 없습니다.'); return; }
+    if(!window.currentFilteredTrn || window.currentFilteredTrn.length === 0) {
+        showToast('출력할 데이터가 없습니다.');
+        return;
+    }
     let csv = "\uFEFF기수,성함,연락처,참여 회차,상태,수업 정보\n";
     window.currentFilteredTrn.forEach(t => {
-        let cInfo = String(t.content||'').split(' || '); let classInfo = cInfo.length >= 5 ? `[${cInfo[0]}] ${cInfo[2]} ${cInfo[4]}` : t.content;
+        let cInfo = String(t.content||'').split(' || ');
+        let classInfo = cInfo.length >= 5 ? `[${cInfo[0]}] ${cInfo[2]} ${cInfo[4]}` : t.content;
         csv += `"${t.batch||'-'}","${String(t.name).replace(/"/g, '""')}","${String(t.phone).replace(/"/g, '""')}","${t._attendCount || 1}회차","${t.status}","${String(classInfo).replace(/"/g, '""')}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
@@ -1081,10 +1050,37 @@ window.downloadAttendanceExcel = function() {
 
 window.downloadExcel = function(type) {
   if (type === 'applications' && isInsightView) { 
-    const d = window.currentInsightData || {}; let csv = "\uFEFF카테고리,세부 항목,수치,비고\n"; csv += `전체 요약,총 신청 건수,${d.total||0}건,-\n`; csv += `전체 요약,최종 가입 완료,${d.joined||0}건,(전환율 ${d.total > 0 ? Math.round(d.joined/d.total*100) : 0}%)\n`; csv += `유입 채널,인스타그램 총 유입,${d.instaCount||0}건,-\n`; csv += `인스타 상세,팔로워 유입,${d.instaFollow||0}건,-\n`; csv += `인스타 상세,비팔로워 유입,${d.instaNonFollow||0}건,-\n`; csv += `유입 채널,모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`; csv += `광고 리드타임,단기 유입 (1개월 이내),${d.leadTime1M||0}건,-\n`; csv += `광고 리드타임,장기 유입 (3개월 이상),${d.leadTime3M||0}건,-\n`; 
-    if (d.channelMap) { csv += `\n상세 채널별 트래킹,상세 내역,건수,비고\n`; for (let ch in d.channelMap) { let chData = d.channelMap[ch]; csv += `[${ch}],(총 ${chData.total}건),-,-\n`; for (let det in chData.details) { let detSafe = String(det).replace(/"/g, '""'); csv += `ㄴ,${detSafe},${chData.details[det]}건,-\n`; } } }
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`; link.click(); return; 
+    const d = window.currentInsightData || {}; 
+    let csv = "\uFEFF카테고리,세부 항목,수치,비고\n"; 
+    csv += `전체 요약,총 신청 건수,${d.total||0}건,-\n`; 
+    csv += `전체 요약,최종 가입 완료,${d.joined||0}건,(전환율 ${d.total > 0 ? Math.round(d.joined/d.total*100) : 0}%)\n`; 
+    csv += `유입 채널,인스타그램 총 유입,${d.instaCount||0}건,-\n`; 
+    csv += `인스타 상세,팔로워 유입,${d.instaFollow||0}건,-\n`; 
+    csv += `인스타 상세,비팔로워 유입,${d.instaNonFollow||0}건,-\n`; 
+    csv += `유입 채널,모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`; 
+    csv += `광고 리드타임,단기 유입 (1개월 이내),${d.leadTime1M||0}건,-\n`; 
+    csv += `광고 리드타임,장기 유입 (3개월 이상),${d.leadTime3M||0}건,-\n`; 
+    
+    if (d.channelMap) {
+        csv += `\n상세 채널별 트래킹,상세 내역,건수,비고\n`;
+        for (let ch in d.channelMap) {
+            let chData = d.channelMap[ch];
+            csv += `[${ch}],(총 ${chData.total}건),-,-\n`;
+            for (let det in chData.details) {
+                let detSafe = String(det).replace(/"/g, '""');
+                csv += `ㄴ,${detSafe},${chData.details[det]}건,-\n`;
+            }
+        }
+    }
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
+    const link = document.createElement('a'); 
+    link.href = URL.createObjectURL(blob); 
+    link.download = `위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`; 
+    link.click(); 
+    return; 
   }
+  
   let data = []; let headers = []; let filename = "";
   if(type === 'applications') { data = globalApps; filename = "가입신청"; headers = ['신청일', '기수', '성함', '연락처', '관심분야', '유입경로', '진행상황', '가입여부', '상담일시', '담당자']; } else if(type === 'members') { globalMembers.forEach(m => m.batch = m.batch || '미정'); data = globalMembers; filename = "멤버리스트"; headers = ['등록일', '상태', '기수', '성함', '연락처', '활동종료일']; } else if(type === 'reservations') { data = gRes; filename = "예약현황"; headers = ['접수일', '기수', '성함', '연락처', '예약날짜', '예약시간', '센터', '장비', '상태', '취소사유']; } else if(type === 'trainings') { data = gTrn; filename = "수업훈련"; headers = ['신청일', '기수', '성함', '연락처', '콘텐츠', '상태', '취소사유']; } else if(type === 'orders') { data = gOrd; filename = "생두주문"; headers = ['주문일', '주문번호', '기수', '성함', '연락처', '생두사', '상품명', '수량', '총금액', '상태']; }
   if(data.length === 0) { showToast('다운로드할 데이터가 없습니다.'); return; }
@@ -1116,33 +1112,50 @@ window.saveAdminNote = async function() {
     if(error) {
         app.admin_memo = originalMemo; 
         window.renderCrmInner(id, isCrmReadOnly);
-        showToast("기록 추가에 실패했습니다."); console.error(error);
-    } else { showToast("상담 기록이 추가되었습니다."); }
+        showToast("기록 추가에 실패했습니다.");
+        console.error(error);
+    } else {
+        showToast("상담 기록이 추가되었습니다.");
+    }
 }
 
 window.openCrmModalFromPhone = async function(phone) {
     if(!phone || phone === '-') return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");
+    
     const normalizePhone = p => String(p).replace(/\D/g, '');
     const targetPhone = normalizePhone(phone);
+    
     let app = globalApps.find(a => normalizePhone(a.phone) === targetPhone);
-    if (app) { window.openCrmModal(app.id, true); } else {
+    
+    if (app) {
+        window.openCrmModal(app.id, true);
+    } else {
         showToast("내역을 불러오는 중입니다...");
         const { data, error } = await supabaseClient.from('applications').select('*');
-        if (!error && data) { let matched = data.find(a => normalizePhone(a.phone) === targetPhone); if (matched) { if(!globalApps.find(a => String(a.id) === String(matched.id))) globalApps.push(matched); window.openCrmModal(matched.id, true); return; } }
+        if (!error && data) {
+            let matched = data.find(a => normalizePhone(a.phone) === targetPhone);
+            if (matched) {
+                if(!globalApps.find(a => String(a.id) === String(matched.id))) globalApps.push(matched);
+                window.openCrmModal(matched.id, true);
+                return;
+            }
+        }
         showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");
     }
 }
 
-// 💡 4. [스마트 요약 모달] 한글 키 매핑('발주 구분')으로 데이터 증발 완전 방지
+// 💡 3. [개선 3] 선택된 항목만 쏙 뽑아서 요약하는 스마트 요약 기능 추가
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
 
-    let checkedBoxes = document.querySelectorAll('.chk-ord-mon:checked, .chk-ord-thu:checked');
+    let checkedBoxes = document.querySelectorAll('.chk-ord:checked, .chk-ord-thu:checked');
     let checkedIds = Array.from(checkedBoxes).map(cb => String(cb.value));
 
     let pendingOrders = gOrd.filter(o => {
         if (o.status !== '주문 접수') return false; 
+        
+        // 💡 체크된 박스가 하나라도 있다면 오직 그것들만 추출
         if (checkedIds.length > 0) {
             return checkedIds.includes(String(o.id));
         } else {
@@ -1154,7 +1167,7 @@ window.showOrderSummary = function() {
     });
     
     if (pendingOrders.length === 0) {
-        $("summaryModalBody").innerHTML = '<div class="empty-state" style="padding: 80px 0;">요약할 발주 내역이 없습니다.<br>(주문 접수 상태인 건을 체크해보세요)</div>';
+        $("summaryModalBody").innerHTML = '<div class="empty-state" style="padding: 80px 0;">요약할 발주 내역이 없습니다. (주문 접수 상태인 건을 체크해보세요)</div>';
     } else {
         let summary = {};
         pendingOrders.forEach(o => {
@@ -1207,14 +1220,14 @@ window.showOrderSummary = function() {
         });
         
         let totalDisplayQty = totalGramsSum >= 1000 ? (totalGramsSum / 1000) + 'kg' : totalGramsSum + 'g';
-        let sumTitle = checkedIds.length > 0 ? "선택된 발주 총 수량" : "신규 발주 총 수량";
-        html += `<div style="margin-top: 12px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border-strong);"><div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">${sumTitle}</span><span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalDisplayQty.replace('.0kg', 'kg')}</span></div></div></div>`;
+        html += `<div style="margin-top: 12px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border-strong);"><div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">선택된 발주 총 수량</span><span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalDisplayQty.replace('.0kg', 'kg')}</span></div></div></div>`;
         
         $("summaryModalBody").innerHTML = html;
         
         let exportData = []; 
         sortedData.forEach(s => { 
             s.orderers.forEach(o => { 
+                // 💡 [개선 4] '발주 구분' 등 구글 시트가 인식할 한글 이름표(Key)로 정확히 매핑
                 exportData.push({ 
                     "발주 구분": s.dateGroup + " 발주", 
                     "수령 센터": s.center, 
@@ -1245,7 +1258,7 @@ window.downloadSummaryExcel = function() {
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); 
-    link.download = `위커피_발주명단_${new Date().toISOString().slice(0,10)}.csv`; link.click(); 
+    link.download = `위커피_선택발주명단_${new Date().toISOString().slice(0,10)}.csv`; link.click(); 
 };
 
 window.sendToGoogleSheet = async function() {
@@ -1295,7 +1308,6 @@ window.openBlockModal = function(dateStr, timeStr) {
     if($("blockModal")) $("blockModal").classList.add('show');
     if($("blockId")) $("blockId").value = '';
     if($("blkId")) $("blkId").value = ''; 
-    window.currentEditingBlockId = null; 
     if($("blkDate")) $("blkDate").value = window.formatBlockDate(dateStr || currentCalDate.toISOString().split('T')[0]);
     if($("blkStart")) $("blkStart").value = window.formatBlockTime(timeStr || '09:00');
     if($("blkEnd")) $("blkEnd").value = window.formatBlockTime(timeStr ? String(parseInt(timeStr.split(':')[0])+2).padStart(2,'0')+':00' : '11:00');
@@ -1313,7 +1325,6 @@ window.editBlock = function(id) {
     if($("blockModal")) $("blockModal").classList.add('show');
     if($("blockId")) $("blockId").value = b.id;
     if($("blkId")) $("blkId").value = b.id; 
-    window.currentEditingBlockId = b.id; 
     if($("blkDate")) $("blkDate").value = b.block_date;
     if($("blkStart")) $("blkStart").value = b.start_time;
     if($("blkEnd")) $("blkEnd").value = b.end_time;
@@ -1333,7 +1344,7 @@ window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
     window.isSavingBlock = true;
 
-    let id = $("blockId") ? $("blockId").value : ($("blkId") ? $("blkId").value : window.currentEditingBlockId);
+    let id = $("blockId") ? $("blockId").value : ($("blkId") ? $("blkId").value : "");
     let capVal = $("blkCapacity") ? $("blkCapacity").value.trim() : "";
     let payload = {
         block_date: $("blkDate") ? $("blkDate").value : "",
@@ -1395,7 +1406,6 @@ window.saveNoticeData = async function() {
 }
 window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
 
-// 💡 2. [모바일 대시보드 찌꺼기 완치] 렌더링 함수 완전 복구
 window.renderMCalCenter = function(selDate) {
     $$$("#m-cal-strip-center .m-cal-date").forEach(el => el.classList.remove('active'));
     let target = document.getElementById(`m-date-center-${selDate}`);
@@ -1408,8 +1418,7 @@ window.renderMCalCenter = function(selDate) {
         evts.forEach(e => {
             let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk'));
             let timeStr = e.time || '종일';
-            // 💡 찌꺼기 원인: 모바일에서는 의미 없는 빈 뱃지 태그 완전 삭제 (text만 깔끔하게 노출)
-            html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary); font-weight:800; font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px; color:var(--text-secondary); margin-top:0; width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;
+            html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;"><div class="m-cal-card-title" style="margin:0;"><span class="dash-item ${badgeClass}" style="display:inline-block; margin-right:6px; padding:2px 6px; font-size:11px; vertical-align:middle; line-height:1;"></span>${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary); font-weight:800; font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px; color:var(--text-secondary); margin-top:0; width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;
         });
     }
     let listWrap = $("m-cal-list-center"); if(listWrap) listWrap.innerHTML = html;
