@@ -15,14 +15,14 @@ let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
 window.currentEditingBlockId = null;
 
-// 💡 [피드백 6] 마포/광진 센터 글로벌 필터 동기화 트리거 함수 및 자동 감지 리스너
+// 💡 마포/광진 센터 글로벌 필터 동기화 트리거 및 버튼 텍스트 감지 리스너
 window.changeGlobalCenter = function(centerValue) {
     currentGlobalCenter = centerValue;
     if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
     window.fetchCenterData(); 
 };
 
-// 상단 "전체 센터", "마포 센터" 등 커스텀 텍스트 버튼 클릭 시 즉각 필터링 감지
+// 상단 탭 형태의 센터 버튼 클릭 시 전역 필터링 적용
 document.addEventListener('click', function(e) {
     let txt = e.target.innerText || '';
     if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
@@ -32,11 +32,20 @@ document.addEventListener('click', function(e) {
             if (currentGlobalCenter !== val) {
                 window.changeGlobalCenter(val);
             }
+            if(e.target.parentElement) {
+                Array.from(e.target.parentElement.children).forEach(child => {
+                    if(child.style) {
+                        child.style.fontWeight = '500';
+                        child.style.color = 'var(--text-secondary)';
+                    }
+                });
+                e.target.style.fontWeight = '800';
+                e.target.style.color = 'var(--text-display)';
+            }
         }
     }
 });
 
-// 혹시 모를 기존 Select 방식도 이중으로 방어
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
         if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
@@ -45,12 +54,11 @@ document.addEventListener('change', function(e) {
     }
 });
 
-// 💡 CSS 주입
+// 💡 CSS 주입 (툴팁 hover 오류 복구)
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
     style.innerHTML = `
-        /* 💡 툴팁 투명도(opacity: 1) 및 visibility 복구하여 hover 시 정상 출력 */
         .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; }
         .info-tooltip:hover { color: #505967; border-color: #505967; }
         .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 130%; left: -10px; background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: pre-wrap; width: max-content; max-width: 260px; z-index: 9999; margin-bottom: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; visibility: hidden; pointer-events: none; transition: 0.2s; text-align: left; word-break: keep-all; }
@@ -91,6 +99,7 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
+// 💡 [최종 수정 5번 반영] 타임존 오차 교정 (9시간 강제 덧셈 삭제)
 window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr);
@@ -99,12 +108,7 @@ window.safeKST = function(dateStr) {
         str = str.replace(/-/g, '/').replace('T', ' ').split('.')[0];
         d = new Date(str);
     }
-    if(isNaN(d.getTime())) return new Date();
-    
-    if (!String(dateStr).includes('Z') && !String(dateStr).includes('+')) {
-        d = new Date(d.getTime() + (9 * 60 * 60 * 1000));
-    }
-    return d;
+    return isNaN(d.getTime()) ? new Date() : d;
 };
 
 window.getOrderTargetFull = function(itemName) {
@@ -146,10 +150,29 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(d
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
-// 💡 [피드백 3] 전체 선택 기능 스크립트 연결
+// 💡 일괄 선택 토글
 window.toggleAll = function(checkbox, targetClass) { 
     const checkboxes = document.querySelectorAll('.' + targetClass); 
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
+};
+
+// 💡 [최종 수정 4번 반영] 선택된 주문건 일괄 상태 업데이트 함수 신규 추가
+window.batchUpdateOrderStatus = async function(statusText) {
+    let checkedBoxes = document.querySelectorAll('.chk-ord:checked, .chk-ord-thu:checked');
+    let idsToUpdate = Array.from(checkedBoxes).map(cb => String(cb.value));
+    
+    if (idsToUpdate.length === 0) return showToast("선택된 발주 건이 없습니다.");
+    
+    window.openCustomConfirm("일괄 상태 변경", null, `선택한 ${idsToUpdate.length}건을 일괄 <b>[${statusText}]</b> 처리하시겠습니까?`, async () => {
+        const { error } = await supabaseClient.from('orders').update({ status: statusText }).in('id', idsToUpdate);
+        if (error) { 
+            showToast("일괄 변경에 실패했습니다."); 
+            console.error(error); 
+        } else { 
+            showToast(`${idsToUpdate.length}건이 [${statusText}] 상태로 변경되었습니다.`); 
+            window.fetchCenterData(); 
+        }
+    }, "일괄 변경");
 };
 
 window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length >= 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
@@ -218,7 +241,7 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
-// 💡 [피드백 7] 데이터리스트 방식을 유지하며 다중 선택(쉼표 추가) 지원
+// 💡 [최종 수정 1번 반영] 기본 UI(datalist)를 유지하면서 다중 선택(쉼표 누적) 지원
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터"; let dl = $("spaceOptions"); if(!dl) return; let opts = `<option value="전체">전체 (공간 전체)</option>`;
     if (center === '마포 센터') opts += `<option value="에스프레소존">에스프레소존</option><option value="아스토리아 스톰 1번그룹 (좌)">아스토리아 스톰 1번그룹 (좌)</option><option value="아스토리아 스톰 2번그룹 (우)">아스토리아 스톰 2번그룹 (우)</option><option value="로스팅존">로스팅존</option><option value="이지스터 800 1번 (좌)">이지스터 800 1번 (좌)</option><option value="이지스터 800 2번 (우)">이지스터 800 2번 (우)</option><option value="이지스터 1.8">이지스터 1.8</option><option value="스트롱홀드 S7X">스트롱홀드 S7X</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
@@ -229,24 +252,31 @@ window.updateSpaceOptions = function() {
     let blkSpaceInput = $("blkSpace");
     if(blkSpaceInput && !blkSpaceInput.dataset.multiBound) {
         blkSpaceInput.dataset.multiBound = "true";
+        blkSpaceInput.dataset.selectedValues = "";
+
         blkSpaceInput.addEventListener('change', function(e) {
-            let currentVal = this.value;
-            // 사용자가 선택한 값이 마지막에 입력되었는지 체크 (쉼표 유무로 판단)
-            if(!currentVal.includes(', ') && dl.innerHTML.includes(`value="${currentVal}"`)) {
-                let existingVals = this.dataset.prevValue ? this.dataset.prevValue.split(', ').filter(v => v) : [];
-                if(!existingVals.includes(currentVal)) {
-                    existingVals.push(currentVal);
+            let newVal = this.value.trim();
+            if (newVal === '') {
+                this.dataset.selectedValues = '';
+                return;
+            }
+            
+            // datalist에서 선택 시 대부분 value 전체가 교체되므로, 마지막 단어만 추출
+            let lastTerm = newVal.split(',').pop().trim();
+
+            if(dl.innerHTML.includes(`"${lastTerm}"`) && lastTerm !== '') {
+                let currentArr = this.dataset.selectedValues ? this.dataset.selectedValues.split(',').map(s=>s.trim()).filter(Boolean) : [];
+                if(!currentArr.includes(lastTerm)) {
+                    currentArr.push(lastTerm);
                 }
-                this.value = existingVals.join(', ');
-                this.dataset.prevValue = this.value;
-            } else if (currentVal === '') {
-                this.dataset.prevValue = '';
-            } else {
-                this.dataset.prevValue = currentVal;
+                this.value = currentArr.join(', ') + (currentArr.length > 0 ? ', ' : '');
+                this.dataset.selectedValues = this.value;
             }
         });
+
         blkSpaceInput.addEventListener('input', function(e) {
-            this.dataset.prevValue = this.value;
+             // 사용자가 직접 지우거나 수정할 때 기준점 동기화
+             this.dataset.selectedValues = this.value;
         });
     }
 };
@@ -407,6 +437,10 @@ window.fetchCenterData = async function() {
 
   try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
 }
+// ==========================================
+// 💡 여기서부터 파트 1의 끝부분 바로 아래에 붙여넣으세요.
+// ==========================================
+
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -428,55 +462,36 @@ window.renderCenterData = function() {
       let resTitle = document.querySelector('#sub-res .table-toolbar .section-title');
       if(resTitle && resTitle.textContent.includes('상세 예약 로그')) resTitle.innerHTML = '센터 예약 리스트';
       
-      // 💡 [피드백 반영] UX 라이팅 고도화 적용
       addTooltipToText('센터 예약 리스트', 'tt-res', '최근 1개월(30일) 내의 예약만 표시됩니다. 이전 내역은 서버에 안전하게 보관됩니다.', true);
       addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
-      // 생두 주문 관리는 동적으로 날짜 렌더링 시 주입됩니다.
   } catch(e) {}
 
+  // 💡 [최종 수정 3번 반영] DOM 강제 생성 코드 삭제, 기존에 존재하는 마스터 체크박스에 이벤트 바인딩
   try {
       let resTable = $("resTableBody")?.closest('table');
-      if(resTable) {
-          let theadTr = resTable.querySelector('thead tr');
-          let firstTh = theadTr.querySelector('th');
-          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.textContent.includes('접수')) {
-              let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
-              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-res\')">';
-              theadTr.insertBefore(chkTh, firstTh);
-          }
-      }
+      if(resTable) { let masterChk = resTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-res'); }; }
+
       let trnTable = $("trnTableBody")?.closest('table');
-      if(trnTable) {
-          let theadTr = trnTable.querySelector('thead tr');
-          let firstTh = theadTr.querySelector('th');
-          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.textContent.includes('신청')) {
-              let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
-              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-trn\')">';
-              theadTr.insertBefore(chkTh, firstTh);
-          }
-      }
-      
-      // 💡 [피드백 반영] 생두 주문 리스트 '전체 선택' 마스터 체크박스 헤더 삽입
+      if(trnTable) { let masterChk = trnTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-trn'); }; }
+
       let ordMonTable = $("ordTableBodyMon")?.closest('table') || $("ordTableBody")?.closest('table');
-      if(ordMonTable) {
-          let theadTr = ordMonTable.querySelector('thead tr');
-          let firstTh = theadTr.querySelector('th');
-          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.textContent.includes('주문')) {
-              let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
-              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-ord\')">';
-              theadTr.insertBefore(chkTh, firstTh);
-          }
-      }
+      if(ordMonTable) { let masterChk = ordMonTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord'); }; }
+
       let ordThuTable = $("ordTableBodyThu")?.closest('table');
-      if(ordThuTable) {
-          let theadTr = ordThuTable.querySelector('thead tr');
-          let firstTh = theadTr.querySelector('th');
-          if(firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.textContent.includes('주문')) {
-              let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
-              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-ord-thu\')">';
-              theadTr.insertBefore(chkTh, firstTh);
+      if(ordThuTable) { let masterChk = ordThuTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord-thu'); }; }
+  } catch(e) {}
+
+  // 💡 [최종 수정 4번 반영] HTML에 이미 존재하는 '일괄 처리' 버튼에 이벤트 리스너 연결
+  try {
+      let subOrdBtns = document.querySelectorAll('#sub-ord button, #sub-ord .btn');
+      subOrdBtns.forEach(btn => {
+          let txt = btn.textContent.trim();
+          if (txt.includes('일괄 입금확인')) {
+              btn.onclick = () => window.batchUpdateOrderStatus('입금 확인');
+          } else if (txt.includes('일괄 센터도착')) {
+              btn.onclick = () => window.batchUpdateOrderStatus('센터 도착');
           }
-      }
+      });
   } catch(e) {}
 
   try {
@@ -582,18 +597,21 @@ window.renderCenterData = function() {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
       }
 
-      // 💡 [피드백 반영] 발주 섹션 헤더(검은색 블럭) 정확한 날짜 동적 매핑 및 기존 위치 교체
-      let ordTitles = document.querySelectorAll('#sub-ord .section-title');
-      let tooltipTextOrd = "주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, '취소/품절' 건은 2일 뒤, '센터 도착' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.";
-      
-      if (monOrders.length > 0 && ordTitles[0]) {
-          let tStr = window.getOrderTargetFull(monOrders[0].item_name);
-          ordTitles[0].innerHTML = `<span style="background:#212529; color:#fff; padding:4px 10px; border-radius:6px; font-size:14px; margin-right:8px; display:inline-block; vertical-align:middle; letter-spacing:-0.5px;">${tStr} 발주</span> 주문 리스트 <i id="tt-ord-mon" class="info-tooltip long-text" data-tooltip="${tooltipTextOrd}">i</i>`;
-      }
-      if (thuOrders.length > 0 && ordTitles[1]) {
-          let tStr = window.getOrderTargetFull(thuOrders[0].item_name);
-          ordTitles[1].innerHTML = `<span style="background:#212529; color:#fff; padding:4px 10px; border-radius:6px; font-size:14px; margin-right:8px; display:inline-block; vertical-align:middle; letter-spacing:-0.5px;">${tStr} 발주</span> 주문 리스트 <i id="tt-ord-thu" class="info-tooltip long-text" data-tooltip="${tooltipTextOrd}">i</i>`;
-      }
+      // 💡 [최종 수정 2번 반영] '주문 리스트' 타이틀 건드리지 않고 핀셋으로 타겟팅하여 날짜만 치환
+      try {
+          let allSpans = document.querySelectorAll('#sub-ord span, #sub-ord div');
+          allSpans.forEach(el => {
+              let txt = el.textContent.trim();
+              // 다른 요소가 포함되지 않은 순수 텍스트 뱃지 노드만 필터링
+              if (txt.includes('월요일 발주') && monOrders.length > 0 && el.children.length === 0) {
+                  let tStr = window.getOrderTargetFull(monOrders[0].item_name);
+                  el.textContent = `${tStr} 발주`;
+              } else if (txt.includes('목요일 발주') && thuOrders.length > 0 && el.children.length === 0) {
+                  let tStr = window.getOrderTargetFull(thuOrders[0].item_name);
+                  el.textContent = `${tStr} 발주`;
+              }
+          });
+      } catch(e) {}
 
   } catch(e) { console.error(e); }
 
@@ -639,7 +657,6 @@ function generateOrderRows(fOrd, chkClass) {
     let targetBadgeHtml = o._targetBadge || ''; 
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
     
-    // 💡 [피드백 반영] 생두사-상품명 너비 강제 고정 해제, flex-shrink:0 및 gap:8px 쫀쫀한 대칭 정렬로 교정
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:8px;"><div style="flex-shrink: 0; text-align: right;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span><div style="flex:1; min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
   }).join("");
 }
@@ -1231,7 +1248,6 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 [피드백 4] 스마트 요약: 미선택 시 '주문 접수' 타겟팅 확립
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1398,13 +1414,12 @@ window.openBlockModal = function(dateStr, timeStr) {
     if($("blkCategory")) $("blkCategory").value = '수업';
     if($("blkCenter")) $("blkCenter").value = currentGlobalCenter === '전체' ? '마포 센터' : currentGlobalCenter;
     if(window.updateSpaceOptions) window.updateSpaceOptions();
-    if($("blkSpace")) { $("blkSpace").value = ''; $("blkSpace").dataset.prevValue = ''; }
+    if($("blkSpace")) { $("blkSpace").value = ''; $("blkSpace").dataset.selectedValues = ''; }
     if($("blkReason")) $("blkReason").value = '';
     if($("blkCapacity")) $("blkCapacity").value = '';
     if($("blockModalTitle")) $("blockModalTitle").innerText = "신규 스케줄 등록";
 };
 
-// 💡 [피드백 7] editBlock 시 다중 선택된 장비값 불러오기 복구
 window.editBlock = function(id) {
     let b = gBlk.find(x => String(x.id) === String(id)); if(!b) return;
     if($("blockModal")) $("blockModal").classList.add('show');
@@ -1419,7 +1434,7 @@ window.editBlock = function(id) {
     
     if($("blkSpace")) {
         $("blkSpace").value = b.space_equip || '';
-        $("blkSpace").dataset.prevValue = b.space_equip || '';
+        $("blkSpace").dataset.selectedValues = b.space_equip || '';
     }
     
     if($("blkReason")) $("blkReason").value = b.reason;
@@ -1429,7 +1444,6 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 [피드백 7] saveBlockData 시 다중 선택된 장비값(문자열 그대로) 합쳐서 저장
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
