@@ -13,36 +13,48 @@ let realtimeChannel = null;
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
-// 💡 [버그수정 1] 스케줄 1+1 덮어쓰기 오류 방지용 전역 변수
 window.currentEditingBlockId = null;
 
 // 💡 [피드백 6] 마포/광진 센터 글로벌 필터 동기화 트리거 함수 및 자동 감지 리스너
 window.changeGlobalCenter = function(centerValue) {
     currentGlobalCenter = centerValue;
     if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
-    window.fetchCenterData(); // 즉각적인 데이터 리렌더링 트리거
+    window.fetchCenterData(); 
 };
 
-// HTML 요소에 onchange가 누락되어 있더라도 자동으로 감지해서 필터링을 작동시키는 안전장치
+// 상단 "전체 센터", "마포 센터" 등 커스텀 텍스트 버튼 클릭 시 즉각 필터링 감지
+document.addEventListener('click', function(e) {
+    let txt = e.target.innerText || '';
+    if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
+        let cleanTxt = txt.trim();
+        if (cleanTxt === '전체 센터' || cleanTxt === '마포 센터' || cleanTxt === '광진 센터') {
+            let val = cleanTxt === '전체 센터' ? '전체' : cleanTxt;
+            if (currentGlobalCenter !== val) {
+                window.changeGlobalCenter(val);
+            }
+        }
+    }
+});
+
+// 혹시 모를 기존 Select 방식도 이중으로 방어
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
-        // 셀렉트 박스 내용에 센터 이름들이 있고, 대시보드 하위 필터가 아닌 경우 글로벌 필터로 간주
         if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
             window.changeGlobalCenter(e.target.value);
         }
     }
 });
 
-// 💡 CSS 주입: 툴팁, 멤버리스트 모바일 폼 레이아웃 교정
+// 💡 CSS 주입
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
     style.innerHTML = `
-        /* 💡 툴팁 투명도(opacity: 1)가 hover 시 정상 작동하도록 CSS 복구 */
+        /* 💡 툴팁 투명도(opacity: 1) 및 visibility 복구하여 hover 시 정상 출력 */
         .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; }
         .info-tooltip:hover { color: #505967; border-color: #505967; }
-        .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 130%; left: -10px; background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: pre-wrap; width: max-content; max-width: 260px; z-index: 9999; margin-bottom: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; pointer-events: none; transition: 0.2s; text-align: left; word-break: keep-all; }
-        .info-tooltip:hover::after { opacity: 1; }
+        .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 130%; left: -10px; background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: pre-wrap; width: max-content; max-width: 260px; z-index: 9999; margin-bottom: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; visibility: hidden; pointer-events: none; transition: 0.2s; text-align: left; word-break: keep-all; }
+        .info-tooltip:hover::after { opacity: 1; visibility: visible; }
         
         .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
         .pagination-btn { height:32px; min-width:32px; padding:0 8px; border:1px solid var(--border-strong); background:#fff; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:0.2s; }
@@ -53,12 +65,11 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .dash-tooltip-custom { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #212529; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 13px; white-space: nowrap; z-index: 999999 !important; visibility: hidden; opacity: 0; transition: 0.2s; text-align: left; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.5; }
         .dash-cal-more-wrap:hover .dash-tooltip-custom { visibility: visible; opacity: 1; }
         
-        /* 멤버리스트 UI 폼 강제 고정 및 화살표 겹침 방지 */
         .mem-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap !important; overflow-x: auto; }
         .mem-action-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap !important; white-space: nowrap; }
         .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 75px; padding-left: 8px !important; padding-right: 28px !important; background-position: right 8px center; }
         
-        .order-day-badge { display: none; } /* PC에서는 숨김 */
+        .order-day-badge { display: none; } 
         
         @media (max-width: 1024px) {
             .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; }
@@ -70,7 +81,6 @@ if (!document.getElementById('wecoffee-custom-styles')) {
             .mem-action-row select { flex: 1; min-width: 0; padding-left: 8px !important; padding-right: 28px !important; }
             .apply-date-btn, .action-btns button { flex-shrink: 0; }
             
-            /* 모바일 생두 발주 뱃지 */
             .order-day-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 6px; vertical-align: middle; }
             .badge-mon { background: #e8f0fe; color: #1a73e8; border: 1px solid #1a73e8; }
             .badge-thu { background: #fce8e6; color: #c5221f; border: 1px solid #c5221f; }
@@ -136,7 +146,7 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(d
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
-// 💡 [피드백 3] 전체 선택 기능 스크립트 클래스 맵핑 정상화
+// 💡 [피드백 3] 전체 선택 기능 스크립트 연결
 window.toggleAll = function(checkbox, targetClass) { 
     const checkboxes = document.querySelectorAll('.' + targetClass); 
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
@@ -208,24 +218,36 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
-// 💡 [피드백 7] 공간 다중 선택을 위해 속성 처리
+// 💡 [피드백 7] 데이터리스트 방식을 유지하며 다중 선택(쉼표 추가) 지원
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터"; let dl = $("spaceOptions"); if(!dl) return; let opts = `<option value="전체">전체 (공간 전체)</option>`;
     if (center === '마포 센터') opts += `<option value="에스프레소존">에스프레소존</option><option value="아스토리아 스톰 1번그룹 (좌)">아스토리아 스톰 1번그룹 (좌)</option><option value="아스토리아 스톰 2번그룹 (우)">아스토리아 스톰 2번그룹 (우)</option><option value="로스팅존">로스팅존</option><option value="이지스터 800 1번 (좌)">이지스터 800 1번 (좌)</option><option value="이지스터 800 2번 (우)">이지스터 800 2번 (우)</option><option value="이지스터 1.8">이지스터 1.8</option><option value="스트롱홀드 S7X">스트롱홀드 S7X</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
     else opts += `<option value="에스프레소존">에스프레소존</option><option value="시네소 MVP 하이드라 1번그룹 (좌)">시네소 MVP 하이드라 1번그룹 (좌)</option><option value="시네소 MVP 하이드라 2번그룹 (우)">시네소 MVP 하이드라 2번그룹 (우)</option><option value="페마 페미나 1그룹">페마 페미나 1그룹</option><option value="산레모 You 1그룹">산레모 You 1그룹</option><option value="빅토리아 아르두이노 이글원 프리마 프로 1그룹">이글원 프리마 프로 1그룹</option><option value="빅토리아 아르두이노 이글원 프리마 EXP 1그룹">이글원 프리마 EXP 1그룹</option><option value="로스팅존">로스팅존</option><option value="이지스터 800 1번 (좌)">이지스터 800 1번 (좌)</option><option value="이지스터 800 2번 (우)">이지스터 800 2번 (우)</option><option value="이지스터 1.8 1번 (좌)">이지스터 1.8 1번 (좌)</option><option value="이지스터 1.8 2번">이지스터 1.8 2번</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디룸">스터디룸</option>`;
     
-    // HTML에 있는 <datalist> 요소를 찾아 <select multiple> 로 갈아끼워주는 핵심 로직
+    dl.innerHTML = opts;
+    
     let blkSpaceInput = $("blkSpace");
-    if(blkSpaceInput && blkSpaceInput.tagName.toLowerCase() === 'input') {
-        let newSpaceSelect = document.createElement('select');
-        newSpaceSelect.id = 'blkSpace';
-        newSpaceSelect.multiple = true;
-        newSpaceSelect.className = blkSpaceInput.className;
-        newSpaceSelect.style.height = "120px";
-        blkSpaceInput.parentNode.replaceChild(newSpaceSelect, blkSpaceInput);
-        $("blkSpace").innerHTML = opts;
-    } else if ($("blkSpace") && $("blkSpace").tagName.toLowerCase() === 'select') {
-        $("blkSpace").innerHTML = opts;
+    if(blkSpaceInput && !blkSpaceInput.dataset.multiBound) {
+        blkSpaceInput.dataset.multiBound = "true";
+        blkSpaceInput.addEventListener('change', function(e) {
+            let currentVal = this.value;
+            // 사용자가 선택한 값이 마지막에 입력되었는지 체크 (쉼표 유무로 판단)
+            if(!currentVal.includes(', ') && dl.innerHTML.includes(`value="${currentVal}"`)) {
+                let existingVals = this.dataset.prevValue ? this.dataset.prevValue.split(', ').filter(v => v) : [];
+                if(!existingVals.includes(currentVal)) {
+                    existingVals.push(currentVal);
+                }
+                this.value = existingVals.join(', ');
+                this.dataset.prevValue = this.value;
+            } else if (currentVal === '') {
+                this.dataset.prevValue = '';
+            } else {
+                this.dataset.prevValue = currentVal;
+            }
+        });
+        blkSpaceInput.addEventListener('input', function(e) {
+            this.dataset.prevValue = this.value;
+        });
     }
 };
 
@@ -396,10 +418,8 @@ window.renderCenterData = function() {
       const addTooltipToText = (textMatch, id, tooltipText, isLong = false) => {
           let titles = document.querySelectorAll('.section-title');
           titles.forEach(el => {
-              // HTML 태그가 섞여 있을 수 있으므로 textContent로 안전하게 비교
               if(el.textContent.includes(textMatch) && !document.getElementById(id)) {
                   let sub = el.querySelector('.sub-text'); if(sub) sub.remove();
-                  // 기존 내부 HTML(검은 뱃지 등)을 유지하면서 툴팁만 추가
                   el.innerHTML = el.innerHTML + ` <i id="${id}" class="info-tooltip ${isLong ? 'long-text' : ''}" data-tooltip="${tooltipText}">i</i>`;
               }
           });
@@ -408,10 +428,10 @@ window.renderCenterData = function() {
       let resTitle = document.querySelector('#sub-res .table-toolbar .section-title');
       if(resTitle && resTitle.textContent.includes('상세 예약 로그')) resTitle.innerHTML = '센터 예약 리스트';
       
-      // 💡 [수정 1] UX 라이팅 고도화 적용
+      // 💡 [피드백 반영] UX 라이팅 고도화 적용
       addTooltipToText('센터 예약 리스트', 'tt-res', '최근 1개월(30일) 내의 예약만 표시됩니다. 이전 내역은 서버에 안전하게 보관됩니다.', true);
       addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
-      addTooltipToText('생두 주문 관리', 'tt-ord', '주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, \'취소/품절\' 건은 2일 뒤, \'센터 도착\' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.', true);
+      // 생두 주문 관리는 동적으로 날짜 렌더링 시 주입됩니다.
   } catch(e) {}
 
   try {
@@ -435,7 +455,8 @@ window.renderCenterData = function() {
               theadTr.insertBefore(chkTh, firstTh);
           }
       }
-      // 💡 [수정 3] 생두 주문 리스트 '전체 선택' 마스터 체크박스 헤더 삽입
+      
+      // 💡 [피드백 반영] 생두 주문 리스트 '전체 선택' 마스터 체크박스 헤더 삽입
       let ordMonTable = $("ordTableBodyMon")?.closest('table') || $("ordTableBody")?.closest('table');
       if(ordMonTable) {
           let theadTr = ordMonTable.querySelector('thead tr');
@@ -561,19 +582,17 @@ window.renderCenterData = function() {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
       }
 
-      // 💡 [수정 5] 발주 섹션 헤더(검은색 블럭) 정확한 날짜 동적 매핑
+      // 💡 [피드백 반영] 발주 섹션 헤더(검은색 블럭) 정확한 날짜 동적 매핑 및 기존 위치 교체
       let ordTitles = document.querySelectorAll('#sub-ord .section-title');
+      let tooltipTextOrd = "주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, '취소/품절' 건은 2일 뒤, '센터 도착' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.";
+      
       if (monOrders.length > 0 && ordTitles[0]) {
           let tStr = window.getOrderTargetFull(monOrders[0].item_name);
-          if(!ordTitles[0].innerHTML.includes('background:#212529')) { 
-              ordTitles[0].innerHTML = `<span style="background:#212529; color:#fff; padding:4px 10px; border-radius:6px; font-size:14px; margin-right:8px; display:inline-block; vertical-align:middle; letter-spacing:-0.5px;">${tStr} 발주</span> 주문 리스트`;
-          }
+          ordTitles[0].innerHTML = `<span style="background:#212529; color:#fff; padding:4px 10px; border-radius:6px; font-size:14px; margin-right:8px; display:inline-block; vertical-align:middle; letter-spacing:-0.5px;">${tStr} 발주</span> 주문 리스트 <i id="tt-ord-mon" class="info-tooltip long-text" data-tooltip="${tooltipTextOrd}">i</i>`;
       }
       if (thuOrders.length > 0 && ordTitles[1]) {
           let tStr = window.getOrderTargetFull(thuOrders[0].item_name);
-          if(!ordTitles[1].innerHTML.includes('background:#212529')) {
-              ordTitles[1].innerHTML = `<span style="background:#212529; color:#fff; padding:4px 10px; border-radius:6px; font-size:14px; margin-right:8px; display:inline-block; vertical-align:middle; letter-spacing:-0.5px;">${tStr} 발주</span> 주문 리스트`;
-          }
+          ordTitles[1].innerHTML = `<span style="background:#212529; color:#fff; padding:4px 10px; border-radius:6px; font-size:14px; margin-right:8px; display:inline-block; vertical-align:middle; letter-spacing:-0.5px;">${tStr} 발주</span> 주문 리스트 <i id="tt-ord-thu" class="info-tooltip long-text" data-tooltip="${tooltipTextOrd}">i</i>`;
       }
 
   } catch(e) { console.error(e); }
@@ -620,7 +639,7 @@ function generateOrderRows(fOrd, chkClass) {
     let targetBadgeHtml = o._targetBadge || ''; 
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
     
-    // 💡 [수정 2] 생두사-상품명 너비 고정 해제 및 gap:8px 쫀쫀한 대칭 정렬로 교정
+    // 💡 [피드백 반영] 생두사-상품명 너비 강제 고정 해제, flex-shrink:0 및 gap:8px 쫀쫀한 대칭 정렬로 교정
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:8px;"><div style="flex-shrink: 0; text-align: right;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span><div style="flex:1; min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
   }).join("");
 }
@@ -1076,7 +1095,6 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
 }
 window.updateMemberEndDate = async function(id, dateStr) { const { error } = await supabaseClient.from('members').update({ end_date: dateStr }).eq('id', id); if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다."); }
 
-// 💡 3. 내역 삭제 시 역산 복구 로직 (월 빼기 연산 안전장치)
 window.deleteHistory = async function(id, phone, name, action_detail) { 
     window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => { 
         await supabaseClient.from('member_history').delete().eq('id', id); 
@@ -1213,7 +1231,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 [수정 4] 아무것도 선택 안했을 시 '주문 접수' 상태만 긁어오도록 타겟 조건 변경
+// 💡 [피드백 4] 스마트 요약: 미선택 시 '주문 접수' 타겟팅 확립
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1225,7 +1243,6 @@ window.showOrderSummary = function() {
         if (checkedIds.length > 0) {
             return checkedIds.includes(String(o.id));
         } else {
-            // 아무것도 선택하지 않았을 때는 '주문 접수' 상태인 발주건만 긁어옴
             if (o.status !== '주문 접수') return false; 
             let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
             let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
@@ -1381,7 +1398,7 @@ window.openBlockModal = function(dateStr, timeStr) {
     if($("blkCategory")) $("blkCategory").value = '수업';
     if($("blkCenter")) $("blkCenter").value = currentGlobalCenter === '전체' ? '마포 센터' : currentGlobalCenter;
     if(window.updateSpaceOptions) window.updateSpaceOptions();
-    if($("blkSpace")) $("blkSpace").value = '';
+    if($("blkSpace")) { $("blkSpace").value = ''; $("blkSpace").dataset.prevValue = ''; }
     if($("blkReason")) $("blkReason").value = '';
     if($("blkCapacity")) $("blkCapacity").value = '';
     if($("blockModalTitle")) $("blockModalTitle").innerText = "신규 스케줄 등록";
@@ -1400,12 +1417,9 @@ window.editBlock = function(id) {
     if($("blkCenter")) $("blkCenter").value = b.center || '마포 센터';
     if(window.updateSpaceOptions) window.updateSpaceOptions();
     
-    if(b.space_equip) {
-        let spaces = b.space_equip.split(',').map(s => s.trim());
-        let opts = $("blkSpace").options;
-        for(let i=0; i<opts.length; i++) {
-            opts[i].selected = spaces.includes(opts[i].value);
-        }
+    if($("blkSpace")) {
+        $("blkSpace").value = b.space_equip || '';
+        $("blkSpace").dataset.prevValue = b.space_equip || '';
     }
     
     if($("blkReason")) $("blkReason").value = b.reason;
@@ -1415,7 +1429,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 [피드백 7] saveBlockData 시 다중 선택된 장비값 합쳐서 저장
+// 💡 [피드백 7] saveBlockData 시 다중 선택된 장비값(문자열 그대로) 합쳐서 저장
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
@@ -1423,14 +1437,7 @@ window.saveBlockData = async function() {
 
     let id = $("blockId") ? $("blockId").value : ($("blkId") ? $("blkId").value : "");
     let capVal = $("blkCapacity") ? $("blkCapacity").value.trim() : "";
-    
-    let spaceVals = [];
-    if($("blkSpace") && $("blkSpace").multiple) {
-        Array.from($("blkSpace").selectedOptions).forEach(opt => spaceVals.push(opt.value));
-    } else {
-        spaceVals.push($("blkSpace") ? $("blkSpace").value : "전체");
-    }
-    let finalSpaceStr = spaceVals.join(', ');
+    let spaceVal = $("blkSpace") ? $("blkSpace").value.trim() : "전체";
 
     let payload = {
         block_date: $("blkDate") ? $("blkDate").value : "",
@@ -1438,7 +1445,7 @@ window.saveBlockData = async function() {
         end_time: $("blkEnd") ? $("blkEnd").value : "",
         category: $("blkCategory") ? $("blkCategory").value : "수업",
         center: $("blkCenter") ? $("blkCenter").value : "마포 센터",
-        space_equip: finalSpaceStr || "전체",
+        space_equip: spaceVal || "전체",
         reason: $("blkReason") ? $("blkReason").value : "",
         capacity: capVal === "" ? null : parseInt(capVal)
     };
@@ -1504,7 +1511,6 @@ window.renderMCalCenter = function(selDate) {
         evts.forEach(e => {
             let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk'));
             let timeStr = e.time || '종일';
-            // 💡 모바일 스케줄 리스트 빈 뱃지 태그 완전 제거
             html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary); font-weight:800; font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px; color:var(--text-secondary); margin-top:0; width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;
         });
     }
