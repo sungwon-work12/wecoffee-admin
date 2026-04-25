@@ -21,19 +21,6 @@ window.changeGlobalCenter = function(centerValue) {
     window.fetchCenterData(); 
 };
 
-// 미처리 건 보기 필터 체인지 등 즉각 감지 이벤트
-document.addEventListener('change', function(e) {
-    if (e.target && e.target.tagName === 'SELECT') {
-        if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
-            window.changeGlobalCenter(e.target.value);
-        }
-    }
-    // 미처리 건 보기 체크박스 클릭 시 즉각 렌더링
-    if (e.target && e.target.id === 'filterPendingOrd') {
-        if(window.renderCenterData) window.renderCenterData();
-    }
-});
-
 // 상단 탭 형태의 센터 버튼 클릭 시 전역 필터링 적용
 document.addEventListener('click', function(e) {
     let txt = e.target.innerText || '';
@@ -58,7 +45,15 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// 💡 CSS 주입 (테스트 중 추가했던 모바일 레이아웃 강제 지정 CSS는 모두 삭제, 드롭다운만 유지)
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.tagName === 'SELECT') {
+        if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
+            window.changeGlobalCenter(e.target.value);
+        }
+    }
+});
+
+// 💡 CSS 주입 (툴팁 hover, 커스텀 공간 드롭다운 스타일 포함)
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -85,13 +80,28 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         
         .space-opt-item:hover { background: #f9fafb; color: var(--primary); font-weight: 700; }
         .space-opt-item.selected { background: #e8f0fe; color: var(--primary); font-weight: 700; }
+
+        @media (max-width: 1024px) {
+            .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; }
+        }
+
+        @media (max-width: 768px) {
+            .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; overflow-x: visible; }
+            .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: wrap !important; gap: 6px; }
+            .mem-action-row select { flex: 1; min-width: 0; padding-left: 8px !important; padding-right: 28px !important; }
+            .apply-date-btn, .action-btns button { flex-shrink: 0; }
+            
+            .order-day-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 6px; vertical-align: middle; }
+            .badge-mon { background: #e8f0fe; color: #1a73e8; border: 1px solid #1a73e8; }
+            .badge-thu { background: #fce8e6; color: #c5221f; border: 1px solid #c5221f; }
+        }
     `;
     document.head.appendChild(style);
 }
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
-// 서버 시간 KST 오차 완벽 방어 (이중 덧셈 원천 삭제)
+// 💡 [수정 2번 반영] +9시간 이중 계산 원천 삭제 (정확한 서버 시간 로드)
 window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr);
@@ -100,22 +110,17 @@ window.safeKST = function(dateStr) {
         str = str.replace(/-/g, '/').replace('T', ' ').split('.')[0];
         d = new Date(str);
     }
-    if(isNaN(d.getTime())) return new Date();
-    
-    if (!String(dateStr).includes('Z') && !String(dateStr).includes('+')) {
-        d = new Date(d.getTime() + (9 * 60 * 60 * 1000));
-    }
-    return d;
+    return isNaN(d.getTime()) ? new Date() : d;
 };
 
-// 💡 [수정 3번 반영] "4/23(목)" 완벽 파싱, "미정" 및 2001년 요일 원천 차단
+// 💡 [수정 2번 반영] 2001년 금요일 파싱 방어! 올해 연도(2026) 강제 주입 로직
 window.parseDeliveryDate = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr).trim();
-    let currentYear = 2026; // 올해 연도 무조건 강제 주입
+    let currentYear = new Date().getFullYear();
     
-    // (목) 같은 한글 요일이 뒤에 붙어있어도 숫자만 영리하게 추출
-    let m1 = str.match(/(\d{1,2})[\/\-](\d{1,2})/);
+    // "04/27", "4/27", "04-27" 형태일 경우 강제로 올해 연도 주입
+    let m1 = str.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
     if (m1) {
         return new Date(currentYear, parseInt(m1[1])-1, parseInt(m1[2]));
     }
@@ -126,11 +131,7 @@ window.parseDeliveryDate = function(dateStr) {
     }
     
     let d = new Date(str);
-    if (!isNaN(d.getTime())) {
-        d.setFullYear(currentYear);
-        return d;
-    }
-    return new Date();
+    return isNaN(d.getTime()) ? new Date() : d;
 };
 
 window.formatDeliveryDateFull = function(dateStr) {
@@ -180,29 +181,23 @@ window.getHoliday = function(y, m, d) {
   return null;
 };
 
-// 💡 시간 포맷 (MM/DD HH:mm 복구 완벽 처리)
-function formatDt(dateStr) { 
-    if(!dateStr) return "-"; 
-    const d = window.safeKST(dateStr); 
-    return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; 
-}
-function formatDtFull(dateStr) { 
-    if(!dateStr) return "-"; 
-    const d = window.safeKST(dateStr); 
-    return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; 
-}
 function getDow(dStr) { if(!dStr) return ''; const d = window.safeKST(dStr); return ['일','월','화','수','목','금','토'][d.getDay()]; }
+function formatDtWithDow(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(dateStr); if(isNaN(d.getTime())) return dateStr; const dow = ['일','월','화','수','목','금','토'][d.getDay()]; return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${dow}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(dateStr); return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
+// 일괄 선택 토글
 window.toggleAll = function(checkbox, targetClass) { 
     const checkboxes = document.querySelectorAll('.' + targetClass); 
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
 };
 
+// 선택된 주문건 일괄 상태 업데이트 함수
 window.batchUpdateOrderStatus = async function(statusText) {
     let checkedBoxes = document.querySelectorAll('.chk-ord:checked, .chk-ord-thu:checked');
     let idsToUpdate = Array.from(checkedBoxes).map(cb => String(cb.value));
+    
     if (idsToUpdate.length === 0) return showToast("선택된 발주 건이 없습니다.");
     
     window.openCustomConfirm("일괄 상태 변경", null, `선택한 ${idsToUpdate.length}건을 일괄 <b>[${statusText}]</b> 처리하시겠습니까?`, async () => {
@@ -270,7 +265,8 @@ window.renderNoticeData = function() {
       let pinBadge = n.is_pinned ? `<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>` : `<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`; 
       let statBadge = n.status === '발행' ? `<span class="status-badge badge-green">발행 중</span>` : `<span class="status-badge badge-gray">숨김</span>`; 
       let targetBadge = n.target_batch ? `<span class="status-badge badge-blue">${window.escapeHtml(n.target_batch)}</span>` : `<span class="status-badge badge-gray">전체</span>`;
-      return `<tr><td data-label="구분" class="tc">${pinBadge}</td><td data-label="대상" class="tc">${targetBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${window.escapeHtml(n.title)}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDtFull(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; 
+      let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${window.escapeHtml(n.title)}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`; 
+      return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="대상" class="tc">${targetBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${window.escapeHtml(n.title)}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; 
     }).join("") : `<tr><td colspan="6" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`; 
 };
 
@@ -282,6 +278,7 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
+// 💡 [수정 1번 반영] 실시간 타이핑 검색 기능(Filter)이 완벽히 복구된 커스텀 드롭다운
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터";
     let opts = ['전체 (공간 전체)'];
@@ -319,6 +316,7 @@ window.updateSpaceOptions = function() {
         let currentArr = blkSpaceInput.value ? blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
         let filteredOpts = opts;
         
+        // 검색어가 있으면 해당 키워드가 포함된 장비만 필터링
         if (searchTerm) {
             filteredOpts = opts.filter(opt => opt.toLowerCase().includes(searchTerm.toLowerCase()));
         }
@@ -340,6 +338,7 @@ window.updateSpaceOptions = function() {
                 let currentVal = blkSpaceInput.value;
                 let parts = currentVal.split(',').map(s=>s.trim());
                 
+                // 타자 치던 검색어 찌꺼기를 날림
                 if(searchTerm) parts.pop();
 
                 if(clickedVal === '전체 (공간 전체)') {
@@ -349,17 +348,18 @@ window.updateSpaceOptions = function() {
                     if(!arr.includes(clickedVal)) {
                         arr.push(clickedVal);
                     } else {
-                        arr = arr.filter(v => v !== clickedVal);
+                        arr = arr.filter(v => v !== clickedVal); // 이미 있으면 토글 해제
                     }
                     blkSpaceInput.value = arr.join(', ') + (arr.length > 0 ? ', ' : '');
                 }
                 
                 blkSpaceInput.focus();
-                renderCustomOptions(""); 
+                renderCustomOptions(""); // 선택 후 전체 목록으로 리셋
             });
         });
     };
 
+    // 사용자가 타이핑할 때마다 감지하여 리스트 필터링
     blkSpaceInput.addEventListener('input', function(e) {
          let val = this.value;
          let parts = val.split(',');
@@ -531,27 +531,6 @@ window.fetchCenterData = async function() {
 // 💡 여기서부터 파트 1의 끝부분 바로 아래에 붙여넣으세요.
 // ==========================================
 
-// 💡 [수정 1번&2번 반영] <thead>에 체크박스 헤더가 없으면 강제로 꽂아 넣어 UI 밀림을 방지하는 유틸 함수
-function ensureCheckboxHeader(tbodyId, chkClass) {
-    let tbody = document.getElementById(tbodyId);
-    if (!tbody) return;
-    let table = tbody.closest('table');
-    if (table) {
-        let theadTr = table.querySelector('thead tr');
-        if (theadTr) {
-            let firstTh = theadTr.querySelector('th');
-            // 첫 번째 헤더에 체크박스가 없으면 강제 생성 (밀림 방지)
-            if (firstTh && !firstTh.querySelector('input[type="checkbox"]')) {
-                let chkTh = document.createElement('th');
-                chkTh.style.width = '48px';
-                chkTh.style.textAlign = 'center';
-                chkTh.innerHTML = `<input type="checkbox" onchange="window.toggleAll(this, '${chkClass}')">`;
-                theadTr.insertBefore(chkTh, firstTh);
-            }
-        }
-    }
-}
-
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -577,13 +556,22 @@ window.renderCenterData = function() {
       addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
   } catch(e) {}
 
-  // 💡 강제 체크박스 헤더 삽입 실행
-  ensureCheckboxHeader('resTableBody', 'chk-res');
-  ensureCheckboxHeader('trnTableBody', 'chk-trn');
-  ensureCheckboxHeader('ordTableBodyMon', 'chk-ord');
-  ensureCheckboxHeader('ordTableBodyThu', 'chk-ord-thu');
+  // 💡 기존 마스터 체크박스 전체 선택 바인딩
+  try {
+      let resTable = $("resTableBody")?.closest('table');
+      if(resTable) { let masterChk = resTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-res'); }; }
 
-  // 일괄 처리 버튼 이벤트 리스너 연결
+      let trnTable = $("trnTableBody")?.closest('table');
+      if(trnTable) { let masterChk = trnTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-trn'); }; }
+
+      let ordMonTable = $("ordTableBodyMon")?.closest('table') || $("ordTableBody")?.closest('table');
+      if(ordMonTable) { let masterChk = ordMonTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord'); }; }
+
+      let ordThuTable = $("ordTableBodyThu")?.closest('table');
+      if(ordThuTable) { let masterChk = ordThuTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord-thu'); }; }
+  } catch(e) {}
+
+  // 💡 상단 '일괄 처리' 버튼 이벤트 리스너 연결 (중복 바인딩 방지)
   try {
       let subOrdBtns = document.querySelectorAll('#sub-ord button, #sub-ord .btn');
       subOrdBtns.forEach(btn => {
@@ -617,19 +605,10 @@ window.renderCenterData = function() {
           let statHtml = '';
           if(displayStatus === '당일 취소') { let safeReason = window.escapeHtml(r.cancel_reason || '사유 미기재').replace(/'/g, "\\'"); statHtml = `<span class="status-badge ${badgeClass}" style="cursor:pointer;" onclick="event.stopPropagation(); window.showCancelReason('${safeReason}')" title="클릭하여 사유 확인">${displayStatus}</span>`; } else { statHtml = `<span class="status-badge ${badgeClass}">${displayStatus}</span>`; }
 
-          return `<tr>
-            <td class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td>
-            <td>${formatDt(r.created_at)}</td>
-            <td class="tc">${r.batch||'-'}</td>
-            <td><strong>${window.escapeHtml(r.name)}</strong></td>
-            <td>${window.escapeHtml(r.phone)}</td>
-            <td class="tc">${r.res_date}</td>
-            <td class="tc">${r.res_time}</td>
-            <td>${r.center}<br><span style="color:var(--text-secondary);font-size:13px;">${r.space_equip || '-'}</span></td>
-            <td class="tc">${statHtml}</td>
-            <td class="tc">${actBtn}</td>
-          </tr>`; 
-      }).join("") : `<tr><td colspan="10" class="empty-state">내역 없음</td></tr>`;
+          let dow = getDow(r.res_date); 
+          let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${r.batch||'-'}] ${window.escapeHtml(r.name)}</span>${statHtml}</div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${r.res_date}(${dow}) ${r.res_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${r.center}] ${r.space_equip || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
+          return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
+      }).join("") : `<tr><td colspan="11" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
   
   try {
@@ -654,7 +633,7 @@ window.renderCenterData = function() {
 
       if($("trnTableBody")) $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ 
           let displayStatus = t.status || ''; let actBtn = String(displayStatus).includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('trainings', '${t.id}')">취소</button>`; 
-          let cInfo = String(t.content||'').split(' || '); let niceContent = t.content; 
+          let cInfo = String(t.content||'').split(' || '); let niceContent = t.content; let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; 
           
           let baseContent = String(t.content||'').trim();
           let attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').trim() === baseContent).length;
@@ -666,35 +645,17 @@ window.renderCenterData = function() {
           let statHtml = '';
           if(displayStatus === '당일 취소') { let safeReason = window.escapeHtml(t.cancel_reason || '사유 미기재').replace(/'/g, "\\'"); statHtml = `<span class="status-badge ${badgeClass}" style="cursor:pointer;" onclick="event.stopPropagation(); window.showCancelReason('${safeReason}')" title="클릭하여 사유 확인">${displayStatus}</span>`; } else { statHtml = `<span class="status-badge ${badgeClass}">${displayStatus}</span>`; }
 
-          return `<tr>
-            <td class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td>
-            <td>${formatDt(t.created_at)}</td>
-            <td class="tc">${t.batch||'-'}</td>
-            <td><strong style="vertical-align:middle;">${window.escapeHtml(t.name)}</strong>${nthBadge}</td>
-            <td>${window.escapeHtml(t.phone)}</td>
-            <td>${niceContent}</td>
-            <td class="tc">${statHtml}</td>
-            <td class="tc">${actBtn}</td>
-          </tr>`; 
-      }).join("") : `<tr><td colspan="8" class="empty-state">내역 없음</td></tr>`;
+          let dow = getDow(preDate); 
+          let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${t.batch||'-'}] ${window.escapeHtml(t.name)} ${nthBadge}</span>${statHtml}</div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${preDate}(${dow}) ${preTime}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${preCenter}] ${window.escapeHtml(preName)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
+          return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함" style="white-space:nowrap;"><strong style="vertical-align:middle;">${window.escapeHtml(t.name)}</strong>${nthBadge}</td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
+      }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
 
   try {
-      let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; 
-      let isOrdFilter = $("filterPendingOrd")?.checked; 
-      
+      let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
       let fOrd = gOrd.filter(o => { 
-        let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter); 
-        let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
-        let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
-        
-        let matchS = true; 
-        if (isOrdFilter) {
-            let priceVal = o.total_price || '';
-            let isUnprocessedStatus = ['주문 접수', '입금 대기', '입금 확인 중'].includes(o.status);
-            let isUnprocessedPrice = priceVal === '' || priceVal.includes('확인 중');
-            matchS = isUnprocessedStatus || isUnprocessedPrice;
-        }
+        let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter); let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
+        let matchV = vOrd === '전체' ? true : o.vendor === vOrd; let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인 중'||o.status==='입금 확인') : true; 
         return matchCenter && matchQ && matchV && matchS; 
       }); 
       
@@ -703,12 +664,16 @@ window.renderCenterData = function() {
       let monOrders = [];
       let thuOrders = [];
 
+      // 💡 [피드백 2번 완벽 반영] delivery_date DB 컬럼을 기준으로 요일을 판별 (올해 연도 강제 주입 완료)
       fOrd.forEach(o => {
           let dayOnly = window.formatDeliveryDay(o.delivery_date);
+          let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
           
           if (dayOnly === '목') {
+              o._targetBadge = `<span class="order-day-badge badge-thu">[${targetDayStr} 발주]</span>`;
               thuOrders.push(o);
           } else {
+              o._targetBadge = `<span class="order-day-badge badge-mon">[${targetDayStr} 발주]</span>`;
               monOrders.push(o);
           }
       });
@@ -725,23 +690,23 @@ window.renderCenterData = function() {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
       }
 
-      // 💡 "미정 발주" 등 오표기 뱃지 무자비하게 덮어쓰기 로직
+      // 💡 [피드백 반영] '주문 리스트' 타이틀 핀셋 타겟팅하여 날짜만 교체 (delivery_date 기준)
       try {
-          let allElements = document.querySelectorAll('#sub-ord *');
-          allElements.forEach(el => {
-              if (el.children.length === 0) {
-                  let txt = el.textContent.trim();
-                  if (txt.includes('발주')) {
-                      // 월/일 텍스트나 '미정' 이라는 텍스트가 포함된 요소라면
-                      if (txt.match(/\d+월\s*\d+일/) || txt.includes('미정')) {
-                          if (monOrders.length > 0 && !el.dataset.replacedThu) {
-                              el.textContent = window.formatDeliveryDateFull(monOrders[0].delivery_date) + ' 발주';
-                          } else if (thuOrders.length > 0) {
-                              el.textContent = window.formatDeliveryDateFull(thuOrders[0].delivery_date) + ' 발주';
-                              el.dataset.replacedThu = "true";
-                          }
-                      }
+          let allSpans = document.querySelectorAll('#sub-ord span, #sub-ord div');
+          allSpans.forEach(el => {
+              let txt = el.textContent.trim();
+              if (txt.includes('월요일 발주') && monOrders.length > 0 && el.children.length === 0 && !el.classList.contains('order-day-badge')) {
+                  let tStr = window.formatDeliveryDateFull(monOrders[0].delivery_date);
+                  el.textContent = `${tStr} 발주`;
+                  
+                  let titleWrapper = el.closest('.section-title');
+                  if (titleWrapper && !document.getElementById('tt-ord-mon')) {
+                      let tooltipTextOrd = "주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, '취소/품절' 건은 2일 뒤, '센터 도착' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.";
+                      titleWrapper.innerHTML += ` <i id="tt-ord-mon" class="info-tooltip long-text" data-tooltip="${tooltipTextOrd}">i</i>`;
                   }
+              } else if (txt.includes('목요일 발주') && thuOrders.length > 0 && el.children.length === 0 && !el.classList.contains('order-day-badge')) {
+                  let tStr = window.formatDeliveryDateFull(thuOrders[0].delivery_date);
+                  el.textContent = `${tStr} 발주`;
               }
           });
       } catch(e) {}
@@ -772,16 +737,10 @@ window.renderCenterData = function() {
               else { capDisplay = `<strong>${current}</strong> / ${max}`; }
           }
 
-          return `<tr>
-            <td data-label="날짜"><strong>${b.block_date}</strong></td>
-            <td data-label="시간">${b.start_time} ~ ${b.end_time}</td>
-            <td data-label="구분"><span style="color:var(--primary);font-weight:600;">${b.category}</span></td>
-            <td data-label="공간">${b.center} <span class="sub-text">${b.space_equip || '전체'}</span></td>
-            <td data-label="사유">${window.escapeHtml(b.reason)}</td>
-            <td data-label="정원" class="tc">${capDisplay}</td>
-            <td data-label="관리" class="tc"><div class="action-wrap-flex"><button class="btn-outline btn-sm" onclick="window.editBlock('${b.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteBlock('${b.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td>
-          </tr>` 
-      }).join("") : `<tr><td colspan="7" class="empty-state">진행 예정인 스케줄이 없습니다.</td></tr>`;
+          let dow = getDow(b.block_date); 
+          let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">${b.category}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${b.block_date}(${dow}) ${b.start_time}~${b.end_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${b.center}] ${b.space_equip || '전체'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
+          return `<tr>${mPreview}<td data-label="날짜"><strong>${b.block_date}</strong></td><td data-label="시간">${b.start_time} ~ ${b.end_time}</td><td data-label="구분"><span style="color:var(--primary);font-weight:600;">${b.category}</span></td><td data-label="공간">${b.center} <span class="sub-text">${b.space_equip || '전체'}</span></td><td data-label="사유">${window.escapeHtml(b.reason)}</td><td data-label="정원" class="tc">${capDisplay}</td><td data-label="관리" class="tc"><div class="action-wrap-flex"><button class="btn-outline btn-sm" onclick="window.editBlock('${b.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteBlock('${b.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>` 
+      }).join("") : `<tr><td colspan="8" class="empty-state">진행 예정인 스케줄이 없습니다.</td></tr>`;
   } catch(e) { console.error(e); }
 }
 
@@ -789,31 +748,14 @@ function generateOrderRows(fOrd, chkClass) {
   return fOrd.map(o=>{ 
     let badgeClass = (o.status==='주문 취소' || o.status==='품절')?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
     let cNm = o.item_name || ""; let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/); if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); } 
-    let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:4px 8px; border-radius:6px; font-size:13px; font-weight:700;">${o.center||'미지정'}</span>`; 
-    let vendorHtml = `<a href="${o.link || o.url || '#'}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none;">${o.vendor}</a>`; 
-    let copyableHtml = `<span onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}')" style="cursor:pointer;" title="클릭하여 복사">${cNm}</span>`; 
+    let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`; 
+    let vendorUrl = o.link ? o.link : (o.url ? o.url : '#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`; 
+    let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${cNm}</span><span class="copyable-hint">복사</span></div></div>`; 
+    let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : ''; 
+    let targetBadgeHtml = o._targetBadge || ''; 
+    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
     
-    return `<tr>
-        <td class="tc"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td>
-        <td>${formatDt(o.created_at)}</td>
-        <td class="tc">${centerBadge}</td>
-        <td class="tc">${o.batch||'-'}</td>
-        <td><strong>${o.name}</strong></td>
-        <td>${o.phone}</td>
-        <td>${vendorHtml}</td>
-        <td>${copyableHtml}</td>
-        <td class="tc"><strong>${o.quantity}</strong></td>
-        <td class="tc"><input type="text" value="${o.total_price||''}" placeholder="확인 중" style="width:90px; padding:8px; text-align:right; border:1px solid var(--border-strong); border-radius:6px;" onblur="window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td>
-        <td class="tc"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)">
-            <option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option>
-            <option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option>
-            <option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option>
-            <option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option>
-            <option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option>
-            <option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option>
-            <option value="품절" ${o.status==='품절'?'selected':''}>품절</option>
-        </select></td>
-    </tr>`; 
+    return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:8px;"><div style="flex-shrink: 0; text-align: right;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span><div style="flex:1; min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
   }).join("");
 }
 
@@ -914,7 +856,7 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
     if(newStatus !== currentStatus) { 
         let row = inputEl.closest('tr'); 
         let selectEl = row.querySelector('.status-select'); 
-        if(selectEl) { selectEl.value = newStatus; selectEl.className = 'status-select st-arranging'; } 
+        if(selectEl) { selectEl.value = newStatus; selectEl.className = 'status-select st-arranging'; let badgeEl = row.querySelector('.m-prev-top .status-badge'); if(badgeEl) { badgeEl.className = 'status-badge st-arranging'; badgeEl.innerText = newStatus; } } 
     } 
     await supabaseClient.from('orders').update(updates).eq('id', id); 
     showToast("저장되었습니다."); 
@@ -1032,9 +974,9 @@ window.renderAppTable = function(data) {
     let timeBadgeHtml = (row.status === '상담 일정 확정' || row.status === '설문 완료') ? `<div class="edit-schedule-link" onclick="window.openScheduleModal('${row.id}', '${row.call_time}', '${row.counselor_name}')">상담 일정 수정</div>` : '';
     let surveyBadge = (row.survey_job || row.survey_edu) ? `<span class="status-badge badge-orange" style="margin-right:8px; font-size:11px;">설문완료</span>` : `<span class="status-badge badge-gray" style="margin-right:8px; font-size:11px;">미응답</span>`;
     let nameHtml = `${surveyBadge}<strong style="cursor:pointer;" onclick="window.openCrmModal('${row.id}')">${window.escapeHtml(row.name)}</strong>`;
-    
+    let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span><span class="status-badge ${cStat}">${row.status}</span></div><div class="m-prev-title">[${row.desired_batch || '-'}] ${window.escapeHtml(row.name)} <span style="font-size:13px; color:var(--text-secondary);">(${window.escapeHtml(row.phone)})</span></div><div class="m-prev-desc">${window.escapeHtml(row.interest_area)}</div></td>`;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${formatDt(row.created_at)}</td><td>${row.desired_batch || '-'}</td><td>${nameHtml}</td><td>${window.escapeHtml(row.phone)}</td><td>${interestFull}</td><td>${routeDisplay}</td><td><div class="action-wrap"><select class="status-select ${cStat}" onchange="window.handleStatusChange('${row.id}', this.value, '${row.call_time}', '${row.counselor_name}')"><option value="대기" ${row.status === '대기' ? 'selected' : ''}>대기</option><option value="상담 일정 조율 중" ${row.status === '상담 일정 조율 중' ? 'selected' : ''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status === '상담 일정 확정' ? 'selected' : ''}>상담 일정 확정</option><option value="설문 완료" ${row.status === '설문 완료' ? 'selected' : ''}>설문 완료 (확정)</option><option value="상담 완료" ${row.status === '상담 완료' ? 'selected' : ''}>상담 완료</option><option value="연락 두절" ${row.status === '연락 두절' ? 'selected' : ''}>연락 두절</option></select>${timeBadgeHtml}</div></td><td><div class="action-wrap"><select class="status-select ${cJoin}" onchange="window.updateAppStatus('${row.id}', 'join_status', this.value)" ${row.status === '상담 완료' ? '' : 'disabled'}><option value="" ${!row.join_status ? 'selected' : ''}>선택 전</option><option value="고민 중" ${row.join_status === '고민 중' ? 'selected' : ''}>고민 중</option><option value="가입 완료" ${row.join_status === '가입 완료' ? 'selected' : ''}>가입 완료</option><option value="미가입" ${row.join_status === '미가입' ? 'selected' : ''}>미가입</option><option value="다음 기수 희망" ${row.join_status === '다음 기수 희망' ? 'selected' : ''}>다음 기수 희망</option></select></div></td>`;
+    tr.innerHTML = `${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch || '-'}</td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone)}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="상담 진행 상황"><div class="action-wrap"><select class="status-select ${cStat}" onchange="window.handleStatusChange('${row.id}', this.value, '${row.call_time}', '${row.counselor_name}')"><option value="대기" ${row.status === '대기' ? 'selected' : ''}>대기</option><option value="상담 일정 조율 중" ${row.status === '상담 일정 조율 중' ? 'selected' : ''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status === '상담 일정 확정' ? 'selected' : ''}>상담 일정 확정</option><option value="설문 완료" ${row.status === '설문 완료' ? 'selected' : ''}>설문 완료 (확정)</option><option value="상담 완료" ${row.status === '상담 완료' ? 'selected' : ''}>상담 완료</option><option value="연락 두절" ${row.status === '연락 두절' ? 'selected' : ''}>연락 두절</option></select>${timeBadgeHtml}</div></td><td data-label="가입 여부"><div class="action-wrap"><select class="status-select ${cJoin}" onchange="window.updateAppStatus('${row.id}', 'join_status', this.value)" ${row.status === '상담 완료' ? '' : 'disabled'}><option value="" ${!row.join_status ? 'selected' : ''}>선택 전</option><option value="고민 중" ${row.join_status === '고민 중' ? 'selected' : ''}>고민 중</option><option value="가입 완료" ${row.join_status === '가입 완료' ? 'selected' : ''}>가입 완료</option><option value="미가입" ${row.join_status === '미가입' ? 'selected' : ''}>미가입</option><option value="다음 기수 희망" ${row.join_status === '다음 기수 희망' ? 'selected' : ''}>다음 기수 희망</option></select></div></td>`;
     tbody.appendChild(tr);
   });
 }
@@ -1155,20 +1097,44 @@ window.renderMemberTablePage = function() {
   
   let data = currentFilteredMembers;
   if(data.length === 0) { 
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">내역이 없습니다.</td></tr>`; 
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`; 
       updatePaginationUI(0);
       return; 
   } 
   
-  // 💡 강제 체크박스 삽입 로직
-  ensureCheckboxHeader('memberTableBody', 'chk-mem');
+  let memTable = tbody.closest('table');
+  if (memTable) {
+      let theadTr = memTable.querySelector('thead tr');
+      if (theadTr) {
+          let firstTh = theadTr.querySelector('th');
+          if (firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.innerText.includes('등록일')) {
+              let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-mem\')">';
+              theadTr.insertBefore(chkTh, firstTh);
+          }
+      }
+  }
   
   let startIndex = (currentMemberPage - 1) * memberItemsPerPage;
   let endIndex = startIndex + memberItemsPerPage;
   let pageData = data.slice(startIndex, endIndex);
 
   const today = new Date(); today.setHours(0,0,0,0);
+  let now = new Date();
+  let monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   
+  let getCancelCount = (phone) => {
+      let count = 0;
+      gRes.forEach(r => { if(r.phone === phone && r.status === '당일 취소' && String(r.res_date || r.created_at).startsWith(monthPrefix)) count++; });
+      gTrn.forEach(t => { 
+          if(t.phone === phone && t.status === '당일 취소') {
+              let dStr = String(t.content||'').split(' || ')[0] || String(t.created_at);
+              if(dStr.startsWith(monthPrefix)) count++;
+          } 
+      });
+      return count;
+  };
+
   pageData.forEach(row => {
     let yy = '', mm = '', dd = ''; let isExpired = true; let isPaused = row.status === '활동 일시정지'; if (row.end_date && row.end_date.length === 10) { [yy, mm, dd] = row.end_date.split('-'); let endD = new Date(row.end_date); endD.setHours(0,0,0,0); if (endD >= today) isExpired = false; } if (isExpired && !isPaused && row.status !== '패널티 정지') { yy = ''; mm = ''; dd = ''; } 
     let currentStat = row.status || '활동 중'; let statusBadge = ""; if (currentStat === '패널티 정지') statusBadge = `<span class="status-badge badge-red">패널티 정지</span>`; else if (isPaused) statusBadge = `<span class="status-badge badge-gray">일시정지</span>`; else if (isExpired) statusBadge = `<span class="status-badge badge-ended" style="background:#fff0f0;color:var(--error);">활동 종료</span>`; else statusBadge = `<span class="status-badge badge-active" style="background:#e8f5e9;color:var(--success);">${currentStat}</span>`;
@@ -1176,16 +1142,15 @@ window.renderMemberTablePage = function() {
     
     let optionHtml = `<div class="action-btns mem-action-row"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}', '${row.batch || '미정'}', '${window.escapeHtml(row.name)}', '${window.escapeHtml(row.phone)}', '${row.end_date || ''}', this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" style="flex-shrink:0; height:32px;" onclick="event.stopPropagation(); window.openHistoryModal('${window.escapeHtml(row.phone)}', '${window.escapeHtml(row.name)}')">내역</button></div>`;
     let dateActionHtml = `<div class="date-inputs mem-action-row"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select><button class="btn-outline btn-sm apply-date-btn" style="flex-shrink:0; height:32px; padding:0 12px; border-color:var(--primary); color:var(--primary); font-weight:700;" onclick="window.applyMemberDate('${row.id}', this)">적용</button></div>`;
-    let nameHtml = `<strong style="color:var(--text-display); cursor:pointer;" onclick="window.openCrmModalFromPhone('${row.phone}')" title="이전 설문/상담 내역 보기">${window.escapeHtml(row.name) || '-'}</strong>`;
+    
+    let cCount = getCancelCount(row.phone);
+    let warnHtml = cCount >= 4 ? `<span style="background:var(--error); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-left:6px; font-weight:700; vertical-align:middle;">경고</span>` : '';
+    let nameHtml = `<strong style="color:var(--text-display); cursor:pointer;" onclick="window.openCrmModalFromPhone('${row.phone}')" title="이전 설문/상담 내역 보기">${window.escapeHtml(row.name) || '-'}</strong>${warnHtml}`;
+    
+    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch || '-'}] ${window.escapeHtml(row.name) || '-'} <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${window.escapeHtml(row.phone) || '-'})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 
     const tr = document.createElement('tr'); 
-    tr.innerHTML = `<td class="tc"><input type="checkbox" class="chk-mem" value="${row.id}"></td>
-    <td>${formatDt(row.created_at)}</td>
-    <td class="tc">${statusBadge}</td>
-    <td class="tc"><strong>${row.batch || '-'}</strong></td>
-    <td>${nameHtml}</td>
-    <td>${window.escapeHtml(row.phone) || '-'}</td>
-    <td class="col-action"><div class="date-select-group mem-action-wrap" data-id="${row.id}">${optionHtml}${dateActionHtml}</div></td>`; 
+    tr.innerHTML = `${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-mem" value="${row.id}"></td><td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch || '-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone) || '-'}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group mem-action-wrap" data-id="${row.id}">${optionHtml}${dateActionHtml}</div></td>`; 
     tbody.appendChild(tr);
   });
 
@@ -1388,25 +1353,15 @@ window.showOrderSummary = function() {
     let checkedBoxes = document.querySelectorAll('.chk-ord:checked, .chk-ord-thu:checked');
     let checkedIds = Array.from(checkedBoxes).map(cb => String(cb.value));
 
-    let isOrdFilter = $("filterPendingOrd")?.checked;
-
     let pendingOrders = gOrd.filter(o => {
         if (checkedIds.length > 0) {
             return checkedIds.includes(String(o.id));
         } else {
+            if (o.status !== '주문 접수') return false; 
             let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
             let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
             let matchV = vOrd === '전체' ? true : o.vendor === vOrd;
-            let matchS = true;
-            if (isOrdFilter) {
-                let priceVal = o.total_price || '';
-                let isUnprocessedStatus = ['주문 접수', '입금 대기', '입금 확인 중'].includes(o.status);
-                let isUnprocessedPrice = priceVal === '' || priceVal.includes('확인 중');
-                matchS = isUnprocessedStatus || isUnprocessedPrice;
-            } else {
-                if (o.status !== '주문 접수') return false; 
-            }
-            return matchCenter && matchQ && matchV && matchS;
+            return matchCenter && matchQ && matchV;
         }
     });
     
@@ -1418,6 +1373,7 @@ window.showOrderSummary = function() {
             let center = o.center || '미지정';
             let cNm = o.item_name;
             
+            // 💡 요약 모달에서도 DB의 delivery_date를 기반으로 요일/날짜 표기
             let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
             let dateGroup = targetDayStr;
 
