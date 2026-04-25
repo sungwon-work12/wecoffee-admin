@@ -53,7 +53,7 @@ document.addEventListener('change', function(e) {
     }
 });
 
-// 💡 CSS 주입
+// 💡 CSS 주입 (툴팁 hover, 커스텀 공간 드롭다운 스타일 포함)
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -101,7 +101,7 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
-// 💡 [피드백 3번 반영] 서버 시간(created_at) 타임존 오차 복구 (9시간 보정 로직 원상복구)
+// 💡 [수정 2번 반영] +9시간 이중 계산 원천 삭제 (정확한 서버 시간 로드)
 window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr);
@@ -110,28 +110,24 @@ window.safeKST = function(dateStr) {
         str = str.replace(/-/g, '/').replace('T', ' ').split('.')[0];
         d = new Date(str);
     }
-    if(isNaN(d.getTime())) return new Date();
-    
-    // Supabase에서 타임존 마커 없이 들어온 UTC 시간의 경우 KST(로컬)로 강제 보정
-    if (!String(dateStr).includes('Z') && !String(dateStr).includes('+')) {
-        d = new Date(d.getTime() + (9 * 60 * 60 * 1000));
-    }
-    return d;
+    return isNaN(d.getTime()) ? new Date() : d;
 };
 
-// 💡 [피드백 2번 반영] 연도 누락 방어 및 delivery_date 파싱 완벽 적용
+// 💡 [수정 2번 반영] 2001년 금요일 파싱 방어! 올해 연도(2026) 강제 주입 로직
 window.parseDeliveryDate = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr).trim();
-    let currentYear = new Date().getFullYear(); // 2026년으로 덧붙임
+    let currentYear = new Date().getFullYear();
     
-    // 만약 "04/27" 또는 "4-27" 같이 연도가 생략된 형식이라면
-    if (/^\d{1,2}[\/\-]\d{1,2}$/.test(str)) {
-        str = `${currentYear}/${str.replace('-', '/')}`;
-    } else if (/^\d{1,2}월\s*\d{1,2}일$/.test(str)) {
-        // "4월 27일" 같은 형태도 방어
-        let m = str.match(/(\d+)월\s*(\d+)일/);
-        if(m) str = `${currentYear}/${m[1]}/${m[2]}`;
+    // "04/27", "4/27", "04-27" 형태일 경우 강제로 올해 연도 주입
+    let m1 = str.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+    if (m1) {
+        return new Date(currentYear, parseInt(m1[1])-1, parseInt(m1[2]));
+    }
+    // "4월 27일" 형태일 경우
+    let m2 = str.match(/(\d+)월\s*(\d+)일/);
+    if (m2) {
+        return new Date(currentYear, parseInt(m2[1])-1, parseInt(m2[2]));
     }
     
     let d = new Date(str);
@@ -151,7 +147,7 @@ window.formatDeliveryDay = function(dateStr) {
     return ['일','월','화','수','목','금','토'][d.getDay()];
 };
 
-// 폴백용으로 남겨둠
+// 폴백용 (혹시 모를 대비)
 window.getOrderTargetFull = function(itemName) {
     let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
     if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
@@ -282,7 +278,7 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
-// 커스텀 공간 다중선택 UI (datalist 대체)
+// 💡 [수정 1번 반영] 실시간 타이핑 검색 기능(Filter)이 완벽히 복구된 커스텀 드롭다운
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터";
     let opts = ['전체 (공간 전체)'];
@@ -306,8 +302,8 @@ window.updateSpaceOptions = function() {
         blkSpaceInput.parentNode.style.position = 'relative';
         blkSpaceInput.parentNode.appendChild(wrapper);
 
-        blkSpaceInput.addEventListener('focus', () => { wrapper.style.display = 'block'; renderCustomOptions(); });
-        blkSpaceInput.addEventListener('click', () => { wrapper.style.display = 'block'; renderCustomOptions(); });
+        blkSpaceInput.addEventListener('focus', () => { wrapper.style.display = 'block'; renderCustomOptions(""); });
+        blkSpaceInput.addEventListener('click', () => { wrapper.style.display = 'block'; renderCustomOptions(""); });
 
         document.addEventListener('click', (e) => {
             if(e.target !== blkSpaceInput && !wrapper.contains(e.target)) {
@@ -316,36 +312,63 @@ window.updateSpaceOptions = function() {
         });
     }
 
-    const renderCustomOptions = () => {
+    const renderCustomOptions = (searchTerm = "") => {
         let currentArr = blkSpaceInput.value ? blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
-        wrapper.innerHTML = opts.map(opt => {
-            let isSelected = currentArr.includes(opt);
-            let bgStyle = isSelected ? 'background:#e8f0fe; color:var(--primary); font-weight:800;' : '';
-            return `<div class="space-opt-item" style="padding:10px 12px; cursor:pointer; font-size:14px; border-bottom:1px solid #f2f4f6; transition:0.1s; ${bgStyle}">${opt}</div>`;
-        }).join('');
+        let filteredOpts = opts;
+        
+        // 검색어가 있으면 해당 키워드가 포함된 장비만 필터링
+        if (searchTerm) {
+            filteredOpts = opts.filter(opt => opt.toLowerCase().includes(searchTerm.toLowerCase()));
+        }
+
+        if(filteredOpts.length === 0) {
+            wrapper.innerHTML = `<div style="padding:10px 12px; font-size:13px; color:var(--text-secondary);">검색 결과가 없습니다.</div>`;
+        } else {
+            wrapper.innerHTML = filteredOpts.map(opt => {
+                let isSelected = currentArr.includes(opt);
+                let bgStyle = isSelected ? 'background:#e8f0fe; color:var(--primary); font-weight:800;' : '';
+                return `<div class="space-opt-item" style="padding:10px 12px; cursor:pointer; font-size:14px; border-bottom:1px solid #f2f4f6; transition:0.1s; ${bgStyle}">${opt}</div>`;
+            }).join('');
+        }
 
         wrapper.querySelectorAll('.space-opt-item').forEach(item => {
             item.addEventListener('click', function(e) {
                 e.preventDefault(); e.stopPropagation();
                 let clickedVal = this.innerText.trim();
-                let currentVal = blkSpaceInput.value.trim();
+                let currentVal = blkSpaceInput.value;
+                let parts = currentVal.split(',').map(s=>s.trim());
+                
+                // 타자 치던 검색어 찌꺼기를 날림
+                if(searchTerm) parts.pop();
 
                 if(clickedVal === '전체 (공간 전체)') {
                     blkSpaceInput.value = '전체 (공간 전체)';
                 } else {
-                    let arr = currentVal ? currentVal.split(',').map(s=>s.trim()).filter(s => s !== '전체 (공간 전체)' && s !== '') : [];
+                    let arr = parts.filter(s => s !== '전체 (공간 전체)' && s !== '');
                     if(!arr.includes(clickedVal)) {
                         arr.push(clickedVal);
                     } else {
-                        arr = arr.filter(v => v !== clickedVal);
+                        arr = arr.filter(v => v !== clickedVal); // 이미 있으면 토글 해제
                     }
-                    blkSpaceInput.value = arr.join(', ');
+                    blkSpaceInput.value = arr.join(', ') + (arr.length > 0 ? ', ' : '');
                 }
-                renderCustomOptions(); 
+                
+                blkSpaceInput.focus();
+                renderCustomOptions(""); // 선택 후 전체 목록으로 리셋
             });
         });
     };
-    renderCustomOptions();
+
+    // 사용자가 타이핑할 때마다 감지하여 리스트 필터링
+    blkSpaceInput.addEventListener('input', function(e) {
+         let val = this.value;
+         let parts = val.split(',');
+         let lastTerm = parts[parts.length - 1].trim(); 
+         wrapper.style.display = 'block';
+         renderCustomOptions(lastTerm);
+    });
+    
+    renderCustomOptions("");
 };
 
 function startRealtimeSync() {
@@ -533,7 +556,7 @@ window.renderCenterData = function() {
       addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
   } catch(e) {}
 
-  // 기존에 존재하는 마스터 체크박스에 전체 선택 이벤트 바인딩
+  // 💡 기존 마스터 체크박스 전체 선택 바인딩
   try {
       let resTable = $("resTableBody")?.closest('table');
       if(resTable) { let masterChk = resTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-res'); }; }
@@ -548,7 +571,7 @@ window.renderCenterData = function() {
       if(ordThuTable) { let masterChk = ordThuTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord-thu'); }; }
   } catch(e) {}
 
-  // HTML 상단 '일괄 처리' 버튼에 이벤트 리스너 연결
+  // 💡 상단 '일괄 처리' 버튼 이벤트 리스너 연결 (중복 바인딩 방지)
   try {
       let subOrdBtns = document.querySelectorAll('#sub-ord button, #sub-ord .btn');
       subOrdBtns.forEach(btn => {
@@ -641,7 +664,7 @@ window.renderCenterData = function() {
       let monOrders = [];
       let thuOrders = [];
 
-      // 💡 [피드백 반영] delivery_date DB 컬럼을 기준으로 요일을 판별하여 정확히 분류
+      // 💡 [피드백 2번 완벽 반영] delivery_date DB 컬럼을 기준으로 요일을 판별 (올해 연도 강제 주입 완료)
       fOrd.forEach(o => {
           let dayOnly = window.formatDeliveryDay(o.delivery_date);
           let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
@@ -667,7 +690,7 @@ window.renderCenterData = function() {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
       }
 
-      // 💡 [피드백 반영] '주문 리스트' 타이틀은 건드리지 않고 핀셋으로 타겟팅하여 날짜만 교체 (delivery_date 기준)
+      // 💡 [피드백 반영] '주문 리스트' 타이틀 핀셋 타겟팅하여 날짜만 교체 (delivery_date 기준)
       try {
           let allSpans = document.querySelectorAll('#sub-ord span, #sub-ord div');
           allSpans.forEach(el => {
@@ -1350,6 +1373,7 @@ window.showOrderSummary = function() {
             let center = o.center || '미지정';
             let cNm = o.item_name;
             
+            // 💡 요약 모달에서도 DB의 delivery_date를 기반으로 요일/날짜 표기
             let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
             let dateGroup = targetDayStr;
 
