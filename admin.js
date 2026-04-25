@@ -21,14 +21,14 @@ window.changeGlobalCenter = function(centerValue) {
     window.fetchCenterData(); 
 };
 
-// 💡 [수정 2번 반영] 미처리 건 보기 필터 체인지 즉각 감지 이벤트
+// 미처리 건 보기 필터 체인지 등 즉각 감지 이벤트
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
         if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
             window.changeGlobalCenter(e.target.value);
         }
     }
-    // 체크박스 클릭 시 즉각 리스트 렌더링 함수 호출
+    // 미처리 건 보기 체크박스 클릭 시 즉각 렌더링
     if (e.target && e.target.id === 'filterPendingOrd') {
         if(window.renderCenterData) window.renderCenterData();
     }
@@ -58,7 +58,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// 💡 CSS 주입 (리스트를 박살내던 .m-preview 관련 불필요한 속성 전면 삭제)
+// 💡 CSS 주입 (테스트 중 추가했던 모바일 레이아웃 강제 지정 CSS는 모두 삭제, 드롭다운만 유지)
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -91,7 +91,7 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
-// 💡 [수정 3번 반영] 서버 시간에 쓸데없이 9시간을 더하던 멍청한 로직 전면 폐기
+// 서버 시간 KST 오차 완벽 방어 (이중 덧셈 원천 삭제)
 window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr);
@@ -100,27 +100,34 @@ window.safeKST = function(dateStr) {
         str = str.replace(/-/g, '/').replace('T', ' ').split('.')[0];
         d = new Date(str);
     }
-    // 브라우저가 알아서 KST로 맞춰주므로 억지 덧셈 삭제
-    return isNaN(d.getTime()) ? new Date() : d;
+    if(isNaN(d.getTime())) return new Date();
+    
+    if (!String(dateStr).includes('Z') && !String(dateStr).includes('+')) {
+        d = new Date(d.getTime() + (9 * 60 * 60 * 1000));
+    }
+    return d;
 };
 
-// 💡 [수정 3번 반영] 연도 누락 시 무조건 2026년으로 덮어씌워 2001년 금요일 버그 원천 차단
+// 💡 [수정 3번 반영] "4/23(목)" 완벽 파싱, "미정" 및 2001년 요일 원천 차단
 window.parseDeliveryDate = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr).trim();
-    let currentYear = 2026; // 2026년 강제 주입
+    let currentYear = 2026; // 올해 연도 무조건 강제 주입
     
-    // "04/27", "4/27", "04-27" 형태일 경우
-    let m1 = str.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
-    if (m1) return new Date(currentYear, parseInt(m1[1])-1, parseInt(m1[2]));
-    
+    // (목) 같은 한글 요일이 뒤에 붙어있어도 숫자만 영리하게 추출
+    let m1 = str.match(/(\d{1,2})[\/\-](\d{1,2})/);
+    if (m1) {
+        return new Date(currentYear, parseInt(m1[1])-1, parseInt(m1[2]));
+    }
     // "4월 27일" 형태일 경우
     let m2 = str.match(/(\d+)월\s*(\d+)일/);
-    if (m2) return new Date(currentYear, parseInt(m2[1])-1, parseInt(m2[2]));
+    if (m2) {
+        return new Date(currentYear, parseInt(m2[1])-1, parseInt(m2[2]));
+    }
     
     let d = new Date(str);
     if (!isNaN(d.getTime())) {
-        d.setFullYear(currentYear); // 기존 객체에도 2026년 덮어쓰기
+        d.setFullYear(currentYear);
         return d;
     }
     return new Date();
@@ -137,6 +144,22 @@ window.formatDeliveryDay = function(dateStr) {
     if(!dateStr) return '미정';
     let d = window.parseDeliveryDate(dateStr);
     return ['일','월','화','수','목','금','토'][d.getDay()];
+};
+
+// 폴백용 (혹시 모를 대비)
+window.getOrderTargetFull = function(itemName) {
+    let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
+    if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
+    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
+    if (m2) return `${m2[1]}요일`;
+    return '월요일'; 
+};
+window.getOrderTargetDay = function(itemName) {
+    let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
+    if(m) return m[3];
+    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
+    if (m2) return m2[1];
+    return '월';
 };
 
 window.holidaysCache = {};
@@ -157,7 +180,7 @@ window.getHoliday = function(y, m, d) {
   return null;
 };
 
-// 시간 포맷 (09:28 처럼 시간만 잘리지 않게 MM/DD HH:mm 복구)
+// 💡 시간 포맷 (MM/DD HH:mm 복구 완벽 처리)
 function formatDt(dateStr) { 
     if(!dateStr) return "-"; 
     const d = window.safeKST(dateStr); 
@@ -508,6 +531,27 @@ window.fetchCenterData = async function() {
 // 💡 여기서부터 파트 1의 끝부분 바로 아래에 붙여넣으세요.
 // ==========================================
 
+// 💡 [수정 1번&2번 반영] <thead>에 체크박스 헤더가 없으면 강제로 꽂아 넣어 UI 밀림을 방지하는 유틸 함수
+function ensureCheckboxHeader(tbodyId, chkClass) {
+    let tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    let table = tbody.closest('table');
+    if (table) {
+        let theadTr = table.querySelector('thead tr');
+        if (theadTr) {
+            let firstTh = theadTr.querySelector('th');
+            // 첫 번째 헤더에 체크박스가 없으면 강제 생성 (밀림 방지)
+            if (firstTh && !firstTh.querySelector('input[type="checkbox"]')) {
+                let chkTh = document.createElement('th');
+                chkTh.style.width = '48px';
+                chkTh.style.textAlign = 'center';
+                chkTh.innerHTML = `<input type="checkbox" onchange="window.toggleAll(this, '${chkClass}')">`;
+                theadTr.insertBefore(chkTh, firstTh);
+            }
+        }
+    }
+}
+
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -533,22 +577,13 @@ window.renderCenterData = function() {
       addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
   } catch(e) {}
 
-  // 마스터 체크박스 전체 선택 바인딩
-  try {
-      let resTable = $("resTableBody")?.closest('table');
-      if(resTable) { let masterChk = resTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-res'); }; }
+  // 💡 강제 체크박스 헤더 삽입 실행
+  ensureCheckboxHeader('resTableBody', 'chk-res');
+  ensureCheckboxHeader('trnTableBody', 'chk-trn');
+  ensureCheckboxHeader('ordTableBodyMon', 'chk-ord');
+  ensureCheckboxHeader('ordTableBodyThu', 'chk-ord-thu');
 
-      let trnTable = $("trnTableBody")?.closest('table');
-      if(trnTable) { let masterChk = trnTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-trn'); }; }
-
-      let ordMonTable = $("ordTableBodyMon")?.closest('table') || $("ordTableBody")?.closest('table');
-      if(ordMonTable) { let masterChk = ordMonTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord'); }; }
-
-      let ordThuTable = $("ordTableBodyThu")?.closest('table');
-      if(ordThuTable) { let masterChk = ordThuTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord-thu'); }; }
-  } catch(e) {}
-
-  // 상단 '일괄 처리' 버튼 이벤트 리스너 연결
+  // 일괄 처리 버튼 이벤트 리스너 연결
   try {
       let subOrdBtns = document.querySelectorAll('#sub-ord button, #sub-ord .btn');
       subOrdBtns.forEach(btn => {
@@ -582,7 +617,6 @@ window.renderCenterData = function() {
           let statHtml = '';
           if(displayStatus === '당일 취소') { let safeReason = window.escapeHtml(r.cancel_reason || '사유 미기재').replace(/'/g, "\\'"); statHtml = `<span class="status-badge ${badgeClass}" style="cursor:pointer;" onclick="event.stopPropagation(); window.showCancelReason('${safeReason}')" title="클릭하여 사유 확인">${displayStatus}</span>`; } else { statHtml = `<span class="status-badge ${badgeClass}">${displayStatus}</span>`; }
 
-          // 💡 [수정 1번 반영] UI 붕괴 원인이던 .m-preview 완전 삭제 및 깔끔한 표(Grid)로 원상복구
           return `<tr>
             <td class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td>
             <td>${formatDt(r.created_at)}</td>
@@ -632,7 +666,6 @@ window.renderCenterData = function() {
           let statHtml = '';
           if(displayStatus === '당일 취소') { let safeReason = window.escapeHtml(t.cancel_reason || '사유 미기재').replace(/'/g, "\\'"); statHtml = `<span class="status-badge ${badgeClass}" style="cursor:pointer;" onclick="event.stopPropagation(); window.showCancelReason('${safeReason}')" title="클릭하여 사유 확인">${displayStatus}</span>`; } else { statHtml = `<span class="status-badge ${badgeClass}">${displayStatus}</span>`; }
 
-          // 💡 [수정 1번 반영] UI 붕괴 원인이던 .m-preview 완전 삭제
           return `<tr>
             <td class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td>
             <td>${formatDt(t.created_at)}</td>
@@ -650,7 +683,6 @@ window.renderCenterData = function() {
       let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; 
       let isOrdFilter = $("filterPendingOrd")?.checked; 
       
-      // 💡 [수정 2번 반영] 미처리 건 필터 로직 100% 정상화
       let fOrd = gOrd.filter(o => { 
         let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter); 
         let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
@@ -661,7 +693,6 @@ window.renderCenterData = function() {
             let priceVal = o.total_price || '';
             let isUnprocessedStatus = ['주문 접수', '입금 대기', '입금 확인 중'].includes(o.status);
             let isUnprocessedPrice = priceVal === '' || priceVal.includes('확인 중');
-            // 상태가 미처리이거나 금액이 아직 확인중/비어있을 때만 통과
             matchS = isUnprocessedStatus || isUnprocessedPrice;
         }
         return matchCenter && matchQ && matchV && matchS; 
@@ -674,7 +705,6 @@ window.renderCenterData = function() {
 
       fOrd.forEach(o => {
           let dayOnly = window.formatDeliveryDay(o.delivery_date);
-          let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
           
           if (dayOnly === '목') {
               thuOrders.push(o);
@@ -695,19 +725,21 @@ window.renderCenterData = function() {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
       }
 
-      // 💡 [수정 3번 반영] 기존에 텍스트가 어떻게 박혀있든 뱃지를 찾아내서 완벽한 DB 날짜로 강제 덮어쓰기
+      // 💡 "미정 발주" 등 오표기 뱃지 무자비하게 덮어쓰기 로직
       try {
           let allElements = document.querySelectorAll('#sub-ord *');
           allElements.forEach(el => {
               if (el.children.length === 0) {
                   let txt = el.textContent.trim();
-                  // '발주'라는 단어와 날짜 형태가 보이면 무조건 타겟팅
-                  if (txt.includes('발주') && txt.match(/\d+월\s*\d+일/)) {
-                      if (monOrders.length > 0 && !el.dataset.replacedThu) {
-                          el.textContent = window.formatDeliveryDateFull(monOrders[0].delivery_date) + ' 발주';
-                      } else if (thuOrders.length > 0) {
-                          el.textContent = window.formatDeliveryDateFull(thuOrders[0].delivery_date) + ' 발주';
-                          el.dataset.replacedThu = "true";
+                  if (txt.includes('발주')) {
+                      // 월/일 텍스트나 '미정' 이라는 텍스트가 포함된 요소라면
+                      if (txt.match(/\d+월\s*\d+일/) || txt.includes('미정')) {
+                          if (monOrders.length > 0 && !el.dataset.replacedThu) {
+                              el.textContent = window.formatDeliveryDateFull(monOrders[0].delivery_date) + ' 발주';
+                          } else if (thuOrders.length > 0) {
+                              el.textContent = window.formatDeliveryDateFull(thuOrders[0].delivery_date) + ' 발주';
+                              el.dataset.replacedThu = "true";
+                          }
                       }
                   }
               }
@@ -761,7 +793,6 @@ function generateOrderRows(fOrd, chkClass) {
     let vendorHtml = `<a href="${o.link || o.url || '#'}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none;">${o.vendor}</a>`; 
     let copyableHtml = `<span onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}')" style="cursor:pointer;" title="클릭하여 복사">${cNm}</span>`; 
     
-    // 💡 [수정 1번 및 3번 반영] 주문 시간은 잘리지 않게 formatDt, UI는 데스크톱 1줄 표로 복구
     return `<tr>
         <td class="tc"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td>
         <td>${formatDt(o.created_at)}</td>
@@ -1129,18 +1160,8 @@ window.renderMemberTablePage = function() {
       return; 
   } 
   
-  let memTable = tbody.closest('table');
-  if (memTable) {
-      let theadTr = memTable.querySelector('thead tr');
-      if (theadTr) {
-          let firstTh = theadTr.querySelector('th');
-          if (firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.innerText.includes('등록일')) {
-              let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
-              chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-mem\')">';
-              theadTr.insertBefore(chkTh, firstTh);
-          }
-      }
-  }
+  // 💡 강제 체크박스 삽입 로직
+  ensureCheckboxHeader('memberTableBody', 'chk-mem');
   
   let startIndex = (currentMemberPage - 1) * memberItemsPerPage;
   let endIndex = startIndex + memberItemsPerPage;
