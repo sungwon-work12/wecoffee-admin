@@ -53,7 +53,7 @@ document.addEventListener('change', function(e) {
     }
 });
 
-// 💡 CSS 주입 (툴팁 hover, 커스텀 공간 드롭다운 스타일 포함)
+// 💡 CSS 주입
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -101,7 +101,7 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
-// 타임존 오차 교정 (9시간 강제 덧셈 완전 삭제)
+// 💡 [피드백 3번 반영] 서버 시간(created_at) 타임존 오차 복구 (9시간 보정 로직 원상복구)
 window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr);
@@ -110,21 +110,61 @@ window.safeKST = function(dateStr) {
         str = str.replace(/-/g, '/').replace('T', ' ').split('.')[0];
         d = new Date(str);
     }
+    if(isNaN(d.getTime())) return new Date();
+    
+    // Supabase에서 타임존 마커 없이 들어온 UTC 시간의 경우 KST(로컬)로 강제 보정
+    if (!String(dateStr).includes('Z') && !String(dateStr).includes('+')) {
+        d = new Date(d.getTime() + (9 * 60 * 60 * 1000));
+    }
+    return d;
+};
+
+// 💡 [피드백 2번 반영] 연도 누락 방어 및 delivery_date 파싱 완벽 적용
+window.parseDeliveryDate = function(dateStr) {
+    if(!dateStr) return new Date();
+    let str = String(dateStr).trim();
+    let currentYear = new Date().getFullYear(); // 2026년으로 덧붙임
+    
+    // 만약 "04/27" 또는 "4-27" 같이 연도가 생략된 형식이라면
+    if (/^\d{1,2}[\/\-]\d{1,2}$/.test(str)) {
+        str = `${currentYear}/${str.replace('-', '/')}`;
+    } else if (/^\d{1,2}월\s*\d{1,2}일$/.test(str)) {
+        // "4월 27일" 같은 형태도 방어
+        let m = str.match(/(\d+)월\s*(\d+)일/);
+        if(m) str = `${currentYear}/${m[1]}/${m[2]}`;
+    }
+    
+    let d = new Date(str);
     return isNaN(d.getTime()) ? new Date() : d;
 };
 
-// 💡 [피드백 반영] delivery_date DB 컬럼 기준 날짜 포맷 함수 신설
 window.formatDeliveryDateFull = function(dateStr) {
     if(!dateStr) return '미정';
-    let d = window.safeKST(dateStr);
+    let d = window.parseDeliveryDate(dateStr);
     let dow = ['일','월','화','수','목','금','토'][d.getDay()];
     return `${d.getMonth()+1}월 ${d.getDate()}일 ${dow}요일`;
 };
 
 window.formatDeliveryDay = function(dateStr) {
     if(!dateStr) return '미정';
-    let d = window.safeKST(dateStr);
+    let d = window.parseDeliveryDate(dateStr);
     return ['일','월','화','수','목','금','토'][d.getDay()];
+};
+
+// 폴백용으로 남겨둠
+window.getOrderTargetFull = function(itemName) {
+    let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
+    if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
+    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
+    if (m2) return `${m2[1]}요일`;
+    return '월요일'; 
+};
+window.getOrderTargetDay = function(itemName) {
+    let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
+    if(m) return m[3];
+    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
+    if (m2) return m2[1];
+    return '월';
 };
 
 window.holidaysCache = {};
@@ -157,7 +197,7 @@ window.toggleAll = function(checkbox, targetClass) {
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
 };
 
-// 💡 선택된 주문건 일괄 상태 업데이트 함수
+// 선택된 주문건 일괄 상태 업데이트 함수
 window.batchUpdateOrderStatus = async function(statusText) {
     let checkedBoxes = document.querySelectorAll('.chk-ord:checked, .chk-ord-thu:checked');
     let idsToUpdate = Array.from(checkedBoxes).map(cb => String(cb.value));
@@ -242,7 +282,7 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
-// 💡 [피드백 반영] 목록이 안 꺼지는 커스텀 공간 다중선택 UI (datalist 대체)
+// 커스텀 공간 다중선택 UI (datalist 대체)
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터";
     let opts = ['전체 (공간 전체)'];
@@ -255,7 +295,6 @@ window.updateSpaceOptions = function() {
     let blkSpaceInput = $("blkSpace");
     if (!blkSpaceInput) return;
 
-    // 네이티브 datalist 속성을 날려서 브라우저 필터링 간섭 차단
     blkSpaceInput.removeAttribute('list');
 
     let wrapper = document.getElementById('custom-space-dropdown');
@@ -267,11 +306,9 @@ window.updateSpaceOptions = function() {
         blkSpaceInput.parentNode.style.position = 'relative';
         blkSpaceInput.parentNode.appendChild(wrapper);
 
-        // 클릭하거나 포커스가 가면 커스텀 리스트 무조건 등장
         blkSpaceInput.addEventListener('focus', () => { wrapper.style.display = 'block'; renderCustomOptions(); });
         blkSpaceInput.addEventListener('click', () => { wrapper.style.display = 'block'; renderCustomOptions(); });
 
-        // 외부 영역 클릭 시 목록 닫기
         document.addEventListener('click', (e) => {
             if(e.target !== blkSpaceInput && !wrapper.contains(e.target)) {
                 wrapper.style.display = 'none';
@@ -300,12 +337,11 @@ window.updateSpaceOptions = function() {
                     if(!arr.includes(clickedVal)) {
                         arr.push(clickedVal);
                     } else {
-                        // 이미 선택된 걸 다시 클릭하면 해제 (토글)
                         arr = arr.filter(v => v !== clickedVal);
                     }
                     blkSpaceInput.value = arr.join(', ');
                 }
-                renderCustomOptions(); // UI 즉각 갱신
+                renderCustomOptions(); 
             });
         });
     };
@@ -497,7 +533,7 @@ window.renderCenterData = function() {
       addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
   } catch(e) {}
 
-  // 💡 [최종 수정 3번 반영] 기존에 존재하는 마스터 체크박스에 전체 선택 이벤트 바인딩
+  // 기존에 존재하는 마스터 체크박스에 전체 선택 이벤트 바인딩
   try {
       let resTable = $("resTableBody")?.closest('table');
       if(resTable) { let masterChk = resTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-res'); }; }
@@ -512,12 +548,11 @@ window.renderCenterData = function() {
       if(ordThuTable) { let masterChk = ordThuTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord-thu'); }; }
   } catch(e) {}
 
-  // 💡 [최종 수정 4번 반영] HTML 상단 '일괄 처리' 버튼에 이벤트 리스너 연결
+  // HTML 상단 '일괄 처리' 버튼에 이벤트 리스너 연결
   try {
       let subOrdBtns = document.querySelectorAll('#sub-ord button, #sub-ord .btn');
       subOrdBtns.forEach(btn => {
           let txt = btn.textContent.trim();
-          // 중복 바인딩 방지
           if (txt.includes('일괄 입금확인') && !btn.dataset.bound) {
               btn.dataset.bound = 'true';
               btn.onclick = () => window.batchUpdateOrderStatus('입금 확인');
@@ -606,7 +641,7 @@ window.renderCenterData = function() {
       let monOrders = [];
       let thuOrders = [];
 
-      // 💡 [최종 수정 2번 반영] delivery_date DB 컬럼을 기준으로 요일을 판별하여 정확히 분류
+      // 💡 [피드백 반영] delivery_date DB 컬럼을 기준으로 요일을 판별하여 정확히 분류
       fOrd.forEach(o => {
           let dayOnly = window.formatDeliveryDay(o.delivery_date);
           let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
@@ -615,7 +650,6 @@ window.renderCenterData = function() {
               o._targetBadge = `<span class="order-day-badge badge-thu">[${targetDayStr} 발주]</span>`;
               thuOrders.push(o);
           } else {
-              // 목요일이 아니면 모두 월요일 리스트로 (기본값)
               o._targetBadge = `<span class="order-day-badge badge-mon">[${targetDayStr} 발주]</span>`;
               monOrders.push(o);
           }
@@ -633,7 +667,7 @@ window.renderCenterData = function() {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
       }
 
-      // 💡 [최종 수정 2번 반영] '주문 리스트' 타이틀은 건드리지 않고 핀셋으로 타겟팅하여 날짜만 교체
+      // 💡 [피드백 반영] '주문 리스트' 타이틀은 건드리지 않고 핀셋으로 타겟팅하여 날짜만 교체 (delivery_date 기준)
       try {
           let allSpans = document.querySelectorAll('#sub-ord span, #sub-ord div');
           allSpans.forEach(el => {
@@ -642,7 +676,6 @@ window.renderCenterData = function() {
                   let tStr = window.formatDeliveryDateFull(monOrders[0].delivery_date);
                   el.textContent = `${tStr} 발주`;
                   
-                  // 툴팁 삽입 (기존 내용 덮어쓰기 방지용)
                   let titleWrapper = el.closest('.section-title');
                   if (titleWrapper && !document.getElementById('tt-ord-mon')) {
                       let tooltipTextOrd = "주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, '취소/품절' 건은 2일 뒤, '센터 도착' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.";
@@ -1317,7 +1350,6 @@ window.showOrderSummary = function() {
             let center = o.center || '미지정';
             let cNm = o.item_name;
             
-            // 요약 모달에서도 DB의 delivery_date를 기반으로 분류
             let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
             let dateGroup = targetDayStr;
 
