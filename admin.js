@@ -551,22 +551,6 @@ window.renderCenterData = function() {
   } catch(e) {}
 
   try {
-      // 💡 1. [빈 껍데기 UI 완벽 타겟팅 삭제] 부모 탭 전체가 날아가는 현상을 방지하고, 타겟팅된 더미 데이터만 안전하게 숨김 처리
-      let ordTab = document.getElementById('sub-ord');
-      if (ordTab) {
-          let legacyTitles = ordTab.querySelectorAll('.section-title');
-          legacyTitles.forEach(el => {
-              let txt = el.textContent.trim();
-              if ((txt.includes('월요일 발주') || txt.includes('목요일 발주') || txt.includes('4월 23일')) && !el.closest('#dynamic-ord-container')) {
-                  el.style.display = 'none';
-                  let nextTable = el.nextElementSibling;
-                  if(nextTable && nextTable.classList.contains('table-wrap')) {
-                      nextTable.style.display = 'none';
-                  }
-              }
-          });
-      }
-      
       let resTable = $("resTableBody")?.closest('table');
       if(resTable) { 
           let theadTr = resTable.querySelector('thead tr');
@@ -639,7 +623,6 @@ window.renderCenterData = function() {
           let cInfo = String(t.content||'').split('||').map(s=>s.trim());
           if(sTrn !== '전체') { 
               let targetStr = cInfo.length >= 5 ? `[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}` : String(t.content||'').trim(); 
-              // 💡 2. [수정 완벽 반영] 띄어쓰기가 1칸이라도 다르면 튕기는 버그를 막기 위해 양쪽 공백 완벽 제거 비교
               if(targetStr.replace(/\s+/g, '') !== sTrn.replace(/\s+/g, '')) matchContent = false; 
           }
           if (cInfo.length >= 5) { let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0); if (tDateObj < todayForBlk) return false; } else { let tDate = window.safeKST(t.created_at); if (tDate < oneMonthAgo) return false; }
@@ -678,7 +661,6 @@ window.renderCenterData = function() {
         let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
         let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
         
-        // 💡 2. [발주 필터 수정] 미처리 건 보기 시 '입금 확인' 상태는 배열에서 완벽히 제외
         let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인 중') : true; 
         return matchCenter && matchQ && matchV && matchS; 
       }); 
@@ -702,7 +684,6 @@ window.renderCenterData = function() {
       if (sortedKeys.length === 0) {
           dynamicHtml = `<div class="table-wrap" style="margin-bottom: 32px;"><div class="empty-state">발주 내역이 없습니다.</div></div>`;
       } else {
-          // 💡 1. [동적 날짜 그룹화] DB의 Delivery_date를 기반으로 독립된 컨테이너 블록을 생성
           sortedKeys.forEach((key) => {
               let list = groupedOrders[key];
               dynamicHtml += `<div class="section-title" style="margin-bottom:12px; display:flex; align-items:center; flex-wrap:wrap;"><span style="background:#212529;color:#fff;padding:6px 12px;border-radius:8px;font-size:14px;font-weight:700;display:inline-block; letter-spacing:-0.5px;">${key} 발주</span></div>`;
@@ -736,11 +717,22 @@ window.renderCenterData = function() {
           if (!container) {
               container = document.createElement('div');
               container.id = 'dynamic-ord-container';
+              // 필터 랩 바로 밑에 꽂기
               let filterWrap = ordTab.querySelector('.filter-wrap');
               if (filterWrap) filterWrap.parentNode.insertBefore(container, filterWrap.nextSibling);
               else ordTab.appendChild(container);
           }
           container.innerHTML = dynamicHtml;
+
+          // 💡 1. [구형 껍데기 UI 완벽 적출] 생두 탭 안에서 툴바, 필터랩, 동적컨테이너를 뺀 모든 낡은 돔을 안 보이게 싹 밀어버림.
+          Array.from(ordTab.children).forEach(child => {
+              if (child.id !== 'dynamic-ord-container' && 
+                  !child.classList.contains('filter-wrap') && 
+                  !child.classList.contains('table-toolbar') &&
+                  !child.querySelector('.filter-wrap')) {
+                  child.style.display = 'none';
+              }
+          });
       }
   } catch(e) { console.error(e); }
 
@@ -1533,7 +1525,7 @@ window.saveSchedule = async function() {
     else { showToast("상담 일정이 저장되었습니다."); window.closeScheduleModal(); window.fetchApplications(); }
 };
 
-// 💡 3. [안전한 모달 UI 반복 제어 로직 적용] 
+// 💡 [안전한 모달 UI 반복 제어 로직 적용] 
 window.openBlockModal = function(dateStr, timeStr) {
     if($("blockModal")) $("blockModal").classList.add('show');
     if($("blockId")) $("blockId").value = '';
@@ -1604,7 +1596,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 3. [Batch Insert 기반 일괄 반복 등록 로직]
+// 💡 [Batch Insert 기반 일괄 반복 등록 로직]
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
