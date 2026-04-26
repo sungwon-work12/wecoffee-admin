@@ -21,7 +21,7 @@ window.changeGlobalCenter = function(centerValue) {
     window.fetchCenterData(); 
 };
 
-// 💡 [이벤트 강제 위임] 센터 탭 변경 및 일괄 처리 버튼 작동 보장
+// 💡 [이벤트 위임 완벽 적용]
 document.addEventListener('click', function(e) {
     let txt = e.target.innerText || '';
     if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
@@ -55,7 +55,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// 💡 [센터 연동 수정] 필터 변경 및 스케줄 센터 변경 시 즉각 감지
+// 💡 [이벤트 위임] 센터 장비 즉시 연동
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
         if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
@@ -67,13 +67,12 @@ document.addEventListener('change', function(e) {
         window.renderCenterData();
     }
     
-    // 모달 내 센터 변경 시 하위 공간/장비 옵션 즉각 업데이트 함수 호출
+    // 💡 센터 변경 시 장비 옵션 즉각 업데이트
     if (e.target.id === 'blkCenter') {
         if(window.updateSpaceOptions) window.updateSpaceOptions();
     }
 });
 
-// 검색창 타이핑 감지
 document.addEventListener('input', function(e) {
     if (e.target.id === 'searchOrd' || e.target.id === 'searchRes' || e.target.id === 'searchTrn' || e.target.id === 'memberSearch') {
         if (e.target.id === 'memberSearch') {
@@ -84,7 +83,6 @@ document.addEventListener('input', function(e) {
     }
 });
 
-// CSS 주입
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -297,7 +295,7 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
-// 💡 [클로저 이벤트 버그 해결] 센터 변경 시 장비 목록 갱신을 전역 변수로 제어
+// 💡 [센터 연동 보완]
 window.currentSpaceOpts = [];
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터";
@@ -323,7 +321,6 @@ window.updateSpaceOptions = function() {
         blkSpaceInput.parentNode.style.position = 'relative';
         blkSpaceInput.parentNode.appendChild(wrapper);
 
-        // 이벤트가 최신 opts를 바라보도록 전역 함수로 렌더링 분리
         blkSpaceInput.addEventListener('focus', () => { wrapper.style.display = 'block'; window.renderCustomOptions(""); });
         blkSpaceInput.addEventListener('click', () => { wrapper.style.display = 'block'; window.renderCustomOptions(""); });
 
@@ -380,7 +377,6 @@ window.updateSpaceOptions = function() {
         });
     };
     
-    // 센터가 바뀌었는데 현재 입력된 값이 바뀐 센터에 없으면 값을 초기화
     let currentVals = blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean);
     let hasInvalid = currentVals.some(v => !window.currentSpaceOpts.includes(v) && v !== "");
     if(hasInvalid) blkSpaceInput.value = '';
@@ -505,9 +501,17 @@ window.fetchCenterData = async function() {
         let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
         if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
 
-        let tSet = new Set(); gTrn.forEach(t => {
+        // 💡 [과거 콘텐츠 필터 제거]
+        let todayForFilter = new Date(); todayForFilter.setHours(0,0,0,0);
+        let tSet = new Set(); 
+        gTrn.forEach(t => {
             let cInfo = String(t.content||'').split('||').map(s=>s.trim());
-            if(cInfo.length >= 5) { tSet.add(`[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}`); } 
+            if(cInfo.length >= 5) { 
+                let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0);
+                if (tDateObj >= todayForFilter) {
+                    tSet.add(`[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}`); 
+                }
+            } 
             else { tSet.add(String(t.content||'').trim()); }
         });
         let tHtml = `<option value="전체">전체 콘텐츠</option>` + Array.from(tSet).sort().map(c=>`<option value="${window.escapeHtml(c)}">${window.escapeHtml(c)}</option>`).join("");
@@ -518,7 +522,6 @@ window.fetchCenterData = async function() {
 
   try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
 }
-
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -532,7 +535,7 @@ window.renderCenterData = function() {
           titles.forEach(el => {
               if(el.textContent.includes(textMatch) && !document.getElementById(id) && !el.closest('#dynamic-ord-container')) {
                   let sub = el.querySelector('.sub-text'); if(sub) sub.remove();
-                  // 💡 [툴팁 위치 고정] 타이틀 컨테이너에 flex 속성을 강제로 먹여 툴팁이 무조건 나란히 붙도록 수정
+                  // 💡 1. [툴팁 위치 고정] 타이틀 컨테이너에 flex 속성을 강제로 먹여 툴팁이 무조건 나란히 붙도록 수정
                   el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.gap = '6px';
                   el.innerHTML = el.innerHTML + `<i id="${id}" class="info-tooltip ${isLong ? 'long-text' : ''}" data-tooltip="${tooltipText}">i</i>`;
               }
@@ -548,15 +551,18 @@ window.renderCenterData = function() {
   } catch(e) {}
 
   try {
-      // 💡 [하단 뱃지 찌꺼기 완전 삭제] 발주 관리 탭의 잔여 블랙 뱃지들(월요일 발주 등)을 확실히 찾아내어 숨김 처리
+      // 💡 1. [빈 껍데기 UI 완벽 타겟팅 삭제] 부모 탭 전체가 날아가는 현상을 방지하고, 타겟팅된 더미 데이터만 안전하게 숨김 처리
       let ordTab = document.getElementById('sub-ord');
       if (ordTab) {
-          let legacyTitles = ordTab.querySelectorAll('div, span');
-          legacyTitles.forEach(t => {
-              let txt = t.textContent.trim();
-              if ((txt === '월요일 발주' || txt === '목요일 발주' || txt.includes('목요일 발주')) && !t.closest('#dynamic-ord-container')) {
-                  t.style.display = 'none';
-                  if(t.parentElement && t.parentElement.tagName === 'DIV') t.parentElement.style.display = 'none';
+          let legacyTitles = ordTab.querySelectorAll('.section-title');
+          legacyTitles.forEach(el => {
+              let txt = el.textContent.trim();
+              if ((txt.includes('월요일 발주') || txt.includes('목요일 발주') || txt.includes('4월 23일')) && !el.closest('#dynamic-ord-container')) {
+                  el.style.display = 'none';
+                  let nextTable = el.nextElementSibling;
+                  if(nextTable && nextTable.classList.contains('table-wrap')) {
+                      nextTable.style.display = 'none';
+                  }
               }
           });
       }
@@ -591,7 +597,8 @@ window.renderCenterData = function() {
           if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-trn'); }; 
       }
   } catch(e) {}
-    try {
+
+  try {
       let qRes = ($("searchRes")?.value || "").toLowerCase(); let sRes = $("resSpaceFilter")?.value || "전체";
       let fRes = gRes.filter(r => { 
           let rDate = window.safeKST(r.res_date || r.created_at); 
@@ -632,7 +639,7 @@ window.renderCenterData = function() {
           let cInfo = String(t.content||'').split('||').map(s=>s.trim());
           if(sTrn !== '전체') { 
               let targetStr = cInfo.length >= 5 ? `[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}` : String(t.content||'').trim(); 
-              // 💡 [필터 버그 수정] 양쪽 텍스트의 모든 공백을 제거 후 비교하여 띄어쓰기 한 칸 차이로 검색이 안 되는 오류 완벽 해결
+              // 💡 2. [수정 완벽 반영] 띄어쓰기가 1칸이라도 다르면 튕기는 버그를 막기 위해 양쪽 공백 완벽 제거 비교
               if(targetStr.replace(/\s+/g, '') !== sTrn.replace(/\s+/g, '')) matchContent = false; 
           }
           if (cInfo.length >= 5) { let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0); if (tDateObj < todayForBlk) return false; } else { let tDate = window.safeKST(t.created_at); if (tDate < oneMonthAgo) return false; }
@@ -671,7 +678,7 @@ window.renderCenterData = function() {
         let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
         let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
         
-        // 💡 [발주 필터 수정] 미처리 건 보기 시 '입금 확인' 상태는 배열에서 완벽히 제외
+        // 💡 2. [발주 필터 수정] 미처리 건 보기 시 '입금 확인' 상태는 배열에서 완벽히 제외
         let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인 중') : true; 
         return matchCenter && matchQ && matchV && matchS; 
       }); 
@@ -695,7 +702,7 @@ window.renderCenterData = function() {
       if (sortedKeys.length === 0) {
           dynamicHtml = `<div class="table-wrap" style="margin-bottom: 32px;"><div class="empty-state">발주 내역이 없습니다.</div></div>`;
       } else {
-          // 💡 [동적 발주 타이틀 렌더링] DB의 Delivery_date를 기반으로 독립된 컨테이너 블록을 생성
+          // 💡 1. [동적 날짜 그룹화] DB의 Delivery_date를 기반으로 독립된 컨테이너 블록을 생성
           sortedKeys.forEach((key) => {
               let list = groupedOrders[key];
               dynamicHtml += `<div class="section-title" style="margin-bottom:12px; display:flex; align-items:center; flex-wrap:wrap;"><span style="background:#212529;color:#fff;padding:6px 12px;border-radius:8px;font-size:14px;font-weight:700;display:inline-block; letter-spacing:-0.5px;">${key} 발주</span></div>`;
@@ -1526,7 +1533,7 @@ window.saveSchedule = async function() {
     else { showToast("상담 일정이 저장되었습니다."); window.closeScheduleModal(); window.fetchApplications(); }
 };
 
-// 💡 [반복 UI 숨김/노출 제어 로직 적용] 
+// 💡 3. [안전한 모달 UI 반복 제어 로직 적용] 
 window.openBlockModal = function(dateStr, timeStr) {
     if($("blockModal")) $("blockModal").classList.add('show');
     if($("blockId")) $("blockId").value = '';
@@ -1597,7 +1604,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 [Batch Insert 기반 일괄 반복 등록 로직]
+// 💡 3. [Batch Insert 기반 일괄 반복 등록 로직]
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
