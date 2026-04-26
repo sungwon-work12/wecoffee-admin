@@ -45,15 +45,29 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// 입력 및 변경 감지 이벤트 바인딩 (검색, 체크박스, 필터 즉시 적용)
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
         if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
             window.changeGlobalCenter(e.target.value);
         }
     }
+    if (e.target.id === 'filterPendingOrd' || e.target.id === 'ordVendorFilter' || e.target.id === 'resSpaceFilter' || e.target.id === 'trnContentFilter') {
+        window.renderCenterData();
+    }
 });
 
-// 💡 CSS 주입 (툴팁 hover, 커스텀 공간 드롭다운 스타일 포함)
+document.addEventListener('input', function(e) {
+    if (e.target.id === 'searchOrd' || e.target.id === 'searchRes' || e.target.id === 'searchTrn' || e.target.id === 'memberSearch') {
+        if (e.target.id === 'memberSearch') {
+            window.searchMembers();
+        } else {
+            window.renderCenterData();
+        }
+    }
+});
+
+// CSS 주입
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -101,7 +115,6 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
-// 💡 [수정 2번 반영] +9시간 이중 계산 원천 삭제 (정확한 서버 시간 로드)
 window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr);
@@ -113,22 +126,15 @@ window.safeKST = function(dateStr) {
     return isNaN(d.getTime()) ? new Date() : d;
 };
 
-// 💡 [수정 2번 반영] 2001년 금요일 파싱 방어! 올해 연도(2026) 강제 주입 로직
 window.parseDeliveryDate = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr).trim();
     let currentYear = new Date().getFullYear();
     
-    // "04/27", "4/27", "04-27" 형태일 경우 강제로 올해 연도 주입
     let m1 = str.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
-    if (m1) {
-        return new Date(currentYear, parseInt(m1[1])-1, parseInt(m1[2]));
-    }
-    // "4월 27일" 형태일 경우
+    if (m1) { return new Date(currentYear, parseInt(m1[1])-1, parseInt(m1[2])); }
     let m2 = str.match(/(\d+)월\s*(\d+)일/);
-    if (m2) {
-        return new Date(currentYear, parseInt(m2[1])-1, parseInt(m2[2]));
-    }
+    if (m2) { return new Date(currentYear, parseInt(m2[1])-1, parseInt(m2[2])); }
     
     let d = new Date(str);
     return isNaN(d.getTime()) ? new Date() : d;
@@ -147,7 +153,6 @@ window.formatDeliveryDay = function(dateStr) {
     return ['일','월','화','수','목','금','토'][d.getDay()];
 };
 
-// 폴백용 (혹시 모를 대비)
 window.getOrderTargetFull = function(itemName) {
     let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
     if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
@@ -202,13 +207,8 @@ window.batchUpdateOrderStatus = async function(statusText) {
     
     window.openCustomConfirm("일괄 상태 변경", null, `선택한 ${idsToUpdate.length}건을 일괄 <b>[${statusText}]</b> 처리하시겠습니까?`, async () => {
         const { error } = await supabaseClient.from('orders').update({ status: statusText }).in('id', idsToUpdate);
-        if (error) { 
-            showToast("일괄 변경에 실패했습니다."); 
-            console.error(error); 
-        } else { 
-            showToast(`${idsToUpdate.length}건이 [${statusText}] 상태로 변경되었습니다.`); 
-            window.fetchCenterData(); 
-        }
+        if (error) { showToast("일괄 변경에 실패했습니다."); console.error(error); } 
+        else { showToast(`${idsToUpdate.length}건이 [${statusText}] 상태로 변경되었습니다.`); window.fetchCenterData(); }
     }, "일괄 변경");
 };
 
@@ -278,7 +278,6 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
-// 💡 [수정 1번 반영] 실시간 타이핑 검색 기능(Filter)이 완벽히 복구된 커스텀 드롭다운
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터";
     let opts = ['전체 (공간 전체)'];
@@ -316,10 +315,7 @@ window.updateSpaceOptions = function() {
         let currentArr = blkSpaceInput.value ? blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
         let filteredOpts = opts;
         
-        // 검색어가 있으면 해당 키워드가 포함된 장비만 필터링
-        if (searchTerm) {
-            filteredOpts = opts.filter(opt => opt.toLowerCase().includes(searchTerm.toLowerCase()));
-        }
+        if (searchTerm) { filteredOpts = opts.filter(opt => opt.toLowerCase().includes(searchTerm.toLowerCase())); }
 
         if(filteredOpts.length === 0) {
             wrapper.innerHTML = `<div style="padding:10px 12px; font-size:13px; color:var(--text-secondary);">검색 결과가 없습니다.</div>`;
@@ -338,28 +334,21 @@ window.updateSpaceOptions = function() {
                 let currentVal = blkSpaceInput.value;
                 let parts = currentVal.split(',').map(s=>s.trim());
                 
-                // 타자 치던 검색어 찌꺼기를 날림
                 if(searchTerm) parts.pop();
 
-                if(clickedVal === '전체 (공간 전체)') {
-                    blkSpaceInput.value = '전체 (공간 전체)';
-                } else {
+                if(clickedVal === '전체 (공간 전체)') { blkSpaceInput.value = '전체 (공간 전체)'; } 
+                else {
                     let arr = parts.filter(s => s !== '전체 (공간 전체)' && s !== '');
-                    if(!arr.includes(clickedVal)) {
-                        arr.push(clickedVal);
-                    } else {
-                        arr = arr.filter(v => v !== clickedVal); // 이미 있으면 토글 해제
-                    }
+                    if(!arr.includes(clickedVal)) { arr.push(clickedVal); } else { arr = arr.filter(v => v !== clickedVal); }
                     blkSpaceInput.value = arr.join(', ') + (arr.length > 0 ? ', ' : '');
                 }
                 
                 blkSpaceInput.focus();
-                renderCustomOptions(""); // 선택 후 전체 목록으로 리셋
+                renderCustomOptions("");
             });
         });
     };
 
-    // 사용자가 타이핑할 때마다 감지하여 리스트 필터링
     blkSpaceInput.addEventListener('input', function(e) {
          let val = this.value;
          let parts = val.split(',');
@@ -462,32 +451,6 @@ window.closeConfirmModal = function() { if($("confirmModal")) $("confirmModal").
 window.closeOnBackdrop = function(event, modalId) { if (event.target.id === modalId && $(modalId)) $(modalId).classList.remove('show'); }
 window.showCancelReason = function(reason) { window.openCustomConfirm("당일 취소 사유", null, `<div style="padding:16px; background:#f9fafb; border-radius:8px; text-align:left; font-size:14px; line-height:1.5; color:var(--text-display); border:1px solid var(--border-strong); white-space:pre-wrap;">${window.escapeHtml(reason || '사유가 기재되지 않았습니다.')}</div>`, () => {}, "확인"); };
 
-function initQuill() { if(!quillEditor && $('editor-container')) { quillEditor = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'align': [] }], [{ 'color': [] }, { 'background': [] }], ['clean'] ] }, placeholder: '내용을 자유롭게 적어주세요.' }); } }
-window.openNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = ''; } catch(e) {} }, 50); if($("noticeId")) $("noticeId").value = ''; if($("noticeTitle")) $("noticeTitle").value = ''; if($("noticePinned")) $("noticePinned").checked = false; if($("noticeStatus")) $("noticeStatus").value = '발행'; if($("noticeTargetBatch")) $("noticeTargetBatch").value = ''; if($("noticeModalTitle")) $("noticeModalTitle").innerText = "새 공지사항 등록"; }
-window.editNotice = function(id) { let n = gNotice.find(x => String(x.id) === String(id)); if(!n) return; if($("noticeModal")) $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = n.content || ''; } catch(e) {} }, 50); if($("noticeId")) $("noticeId").value = n.id; if($("noticeTitle")) $("noticeTitle").value = n.title; if($("noticePinned")) $("noticePinned").checked = n.is_pinned; if($("noticeStatus")) $("noticeStatus").value = n.status || '발행'; if($("noticeTargetBatch")) $("noticeTargetBatch").value = n.target_batch || ''; if($("noticeModalTitle")) $("noticeModalTitle").innerText = "공지사항 수정"; }
-window.closeNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.remove('show'); }
-
-window.saveNoticeData = async function() { 
-  let id = $("noticeId")?$("noticeId").value:""; let htmlContent = quillEditor ? quillEditor.root.innerHTML : ''; 
-  let targetBatchVal = $("noticeTargetBatch") ? $("noticeTargetBatch").value.trim() : "";
-  let payload = { 
-      title: $("noticeTitle")?$("noticeTitle").value.trim():"", 
-      content: htmlContent, 
-      is_pinned: $("noticePinned")?$("noticePinned").checked:false, 
-      status: $("noticeStatus")?$("noticeStatus").value:"발행", 
-      target_batch: targetBatchVal === "" ? null : targetBatchVal 
-  }; 
-  if(!payload.title) return showToast("제목을 입력해주세요."); if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); 
-  let error; if(id) { const res = await supabaseClient.from('notices').update(payload).eq('id', id); error = res.error; } else { const res = await supabaseClient.from('notices').insert([payload]); error = res.error; } 
-  if(error) { 
-      showToast("저장 실패: " + (error.message || error.details || "알 수 없는 오류")); 
-      console.error("Notice Save Error:", error);
-  } else { 
-      showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); 
-  } 
-}
-window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
-
 window.isOrderExpired = function(order, now) {
     let oDate = window.safeKST(order.created_at); let status = order.status || '주문 접수';
     if (['주문 접수', '입금 대기', '입금 확인 중', '입금 확인', '대기'].includes(status)) return false;
@@ -527,9 +490,6 @@ window.fetchCenterData = async function() {
 
   try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
 }
-// ==========================================
-// 💡 여기서부터 파트 1의 끝부분 바로 아래에 붙여넣으세요.
-// ==========================================
 
 window.renderCenterData = function() {
   const now = new Date(); 
@@ -556,13 +516,36 @@ window.renderCenterData = function() {
       addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
   } catch(e) {}
 
-  // 💡 기존 마스터 체크박스 전체 선택 바인딩
   try {
       let resTable = $("resTableBody")?.closest('table');
-      if(resTable) { let masterChk = resTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-res'); }; }
+      if(resTable) { 
+          let theadTr = resTable.querySelector('thead tr');
+          if (theadTr) {
+              let firstTh = theadTr.querySelector('th');
+              if (firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.innerText.includes('접수')) {
+                  let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+                  chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-res\')">';
+                  theadTr.insertBefore(chkTh, firstTh);
+              }
+          }
+          let masterChk = resTable.querySelector('thead input[type="checkbox"]'); 
+          if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-res'); }; 
+      }
 
       let trnTable = $("trnTableBody")?.closest('table');
-      if(trnTable) { let masterChk = trnTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-trn'); }; }
+      if(trnTable) { 
+          let theadTr = trnTable.querySelector('thead tr');
+          if (theadTr) {
+              let firstTh = theadTr.querySelector('th');
+              if (firstTh && !firstTh.querySelector('input[type="checkbox"]') && (firstTh.innerText.includes('신청') || firstTh.innerText.includes('일시'))) {
+                  let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+                  chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-trn\')">';
+                  theadTr.insertBefore(chkTh, firstTh);
+              }
+          }
+          let masterChk = trnTable.querySelector('thead input[type="checkbox"]'); 
+          if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-trn'); }; 
+      }
 
       let ordMonTable = $("ordTableBodyMon")?.closest('table') || $("ordTableBody")?.closest('table');
       if(ordMonTable) { let masterChk = ordMonTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord'); }; }
@@ -571,15 +554,14 @@ window.renderCenterData = function() {
       if(ordThuTable) { let masterChk = ordThuTable.querySelector('thead input[type="checkbox"]'); if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-ord-thu'); }; }
   } catch(e) {}
 
-  // 💡 상단 '일괄 처리' 버튼 이벤트 리스너 연결 (중복 바인딩 방지)
   try {
-      let subOrdBtns = document.querySelectorAll('#sub-ord button, #sub-ord .btn');
+      let subOrdBtns = document.querySelectorAll('#sub-ord button, #sub-ord .btn, .filter-wrap button');
       subOrdBtns.forEach(btn => {
-          let txt = btn.textContent.trim();
-          if (txt.includes('일괄 입금확인') && !btn.dataset.bound) {
+          let txt = btn.textContent.replace(/\s+/g, '');
+          if (txt.includes('일괄입금확인') && !btn.dataset.bound) {
               btn.dataset.bound = 'true';
               btn.onclick = () => window.batchUpdateOrderStatus('입금 확인');
-          } else if (txt.includes('일괄 센터도착') && !btn.dataset.bound) {
+          } else if (txt.includes('일괄센터도착') && !btn.dataset.bound) {
               btn.dataset.bound = 'true';
               btn.onclick = () => window.batchUpdateOrderStatus('센터 도착');
           }
@@ -652,10 +634,15 @@ window.renderCenterData = function() {
   } catch(e) { console.error(e); }
 
   try {
-      let qOrd = ($("searchOrd")?.value || "").toLowerCase(); let vOrd = $("ordVendorFilter")?.value || "전체"; let isOrdFilter = $("filterPendingOrd")?.checked; 
+      let qOrd = ($("searchOrd")?.value || "").toLowerCase(); 
+      let vOrd = $("ordVendorFilter")?.value || "전체"; 
+      let isOrdFilter = $("filterPendingOrd")?.checked; 
+
       let fOrd = gOrd.filter(o => { 
-        let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter); let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
-        let matchV = vOrd === '전체' ? true : o.vendor === vOrd; let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인 중'||o.status==='입금 확인') : true; 
+        let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter); 
+        let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
+        let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
+        let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인 중'||o.status==='입금 확인') : true; 
         return matchCenter && matchQ && matchV && matchS; 
       }); 
       
@@ -664,7 +651,6 @@ window.renderCenterData = function() {
       let monOrders = [];
       let thuOrders = [];
 
-      // 💡 [피드백 2번 완벽 반영] delivery_date DB 컬럼을 기준으로 요일을 판별 (올해 연도 강제 주입 완료)
       fOrd.forEach(o => {
           let dayOnly = window.formatDeliveryDay(o.delivery_date);
           let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
@@ -690,25 +676,36 @@ window.renderCenterData = function() {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
       }
 
-      // 💡 [피드백 반영] '주문 리스트' 타이틀 핀셋 타겟팅하여 날짜만 교체 (delivery_date 기준)
       try {
-          let allSpans = document.querySelectorAll('#sub-ord span, #sub-ord div');
-          allSpans.forEach(el => {
-              let txt = el.textContent.trim();
-              if (txt.includes('월요일 발주') && monOrders.length > 0 && el.children.length === 0 && !el.classList.contains('order-day-badge')) {
-                  let tStr = window.formatDeliveryDateFull(monOrders[0].delivery_date);
-                  el.textContent = `${tStr} 발주`;
-                  
-                  let titleWrapper = el.closest('.section-title');
-                  if (titleWrapper && !document.getElementById('tt-ord-mon')) {
-                      let tooltipTextOrd = "주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, '취소/품절' 건은 2일 뒤, '센터 도착' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.";
-                      titleWrapper.innerHTML += ` <i id="tt-ord-mon" class="info-tooltip long-text" data-tooltip="${tooltipTextOrd}">i</i>`;
+          if (monTableBody) {
+              let monTable = monTableBody.closest('table');
+              if (monTable && monOrders.length > 0) {
+                  let prev = monTable.previousElementSibling;
+                  while (prev && !prev.textContent.includes('발주') && !prev.classList.contains('section-title')) {
+                      prev = prev.previousElementSibling;
                   }
-              } else if (txt.includes('목요일 발주') && thuOrders.length > 0 && el.children.length === 0 && !el.classList.contains('order-day-badge')) {
-                  let tStr = window.formatDeliveryDateFull(thuOrders[0].delivery_date);
-                  el.textContent = `${tStr} 발주`;
+                  if (prev) {
+                      let tStr = window.formatDeliveryDateFull(monOrders[0].delivery_date);
+                      let tooltipHtml = prev.querySelector('.info-tooltip') ? prev.querySelector('.info-tooltip').outerHTML : '';
+                      prev.innerHTML = `<span style="background:#212529;color:#fff;padding:6px 12px;border-radius:8px;font-size:14px;font-weight:700;display:inline-block;margin-bottom:12px; letter-spacing:-0.5px;">${tStr} 발주</span> ${tooltipHtml}`;
+                  }
               }
-          });
+          }
+
+          let thuTableBodyElem = $("ordTableBodyThu");
+          if (thuTableBodyElem) {
+              let thuTable = thuTableBodyElem.closest('table');
+              if (thuTable && thuOrders.length > 0) {
+                  let prev = thuTable.previousElementSibling;
+                  while (prev && !prev.textContent.includes('발주') && !prev.classList.contains('section-title')) {
+                      prev = prev.previousElementSibling;
+                  }
+                  if (prev) {
+                      let tStr = window.formatDeliveryDateFull(thuOrders[0].delivery_date);
+                      prev.innerHTML = `<span style="background:#212529;color:#fff;padding:6px 12px;border-radius:8px;font-size:14px;font-weight:700;display:inline-block;margin-bottom:12px; letter-spacing:-0.5px;">${tStr} 발주</span>`;
+                  }
+              }
+          }
       } catch(e) {}
 
   } catch(e) { console.error(e); }
@@ -758,7 +755,6 @@ function generateOrderRows(fOrd, chkClass) {
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:8px;"><div style="flex-shrink: 0; text-align: right;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span><div style="flex:1; min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
   }).join("");
 }
-
 window.renderDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentDashView === 'month' && $("dashMonthTitle")) { $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; }
@@ -1373,7 +1369,7 @@ window.showOrderSummary = function() {
             let center = o.center || '미지정';
             let cNm = o.item_name;
             
-            // 💡 요약 모달에서도 DB의 delivery_date를 기반으로 요일/날짜 표기
+            // 요약 모달에서도 DB의 delivery_date를 기반으로 요일/날짜 표기
             let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
             let dateGroup = targetDayStr;
 
