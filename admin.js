@@ -21,7 +21,7 @@ window.changeGlobalCenter = function(centerValue) {
     window.fetchCenterData(); 
 };
 
-// 상단 탭 형태의 센터 버튼 클릭 및 일괄 처리 버튼(이벤트 위임) 적용
+// 상단 탭 형태의 센터 버튼 클릭 시 전역 필터링 적용
 document.addEventListener('click', function(e) {
     let txt = e.target.innerText || '';
     if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
@@ -43,33 +43,10 @@ document.addEventListener('click', function(e) {
             }
         }
     }
-    
-    // 💡 [수정 2] 일괄 처리 버튼 동작 보장 (이벤트 위임 방식)
-    if (e.target.tagName === 'BUTTON' || e.target.classList.contains('btn')) {
-        let btnTxt = (e.target.innerText || '').replace(/\s+/g, '');
-        if (btnTxt.includes('일괄입금확인')) {
-            window.batchUpdateOrderStatus('입금 확인');
-        } else if (btnTxt.includes('일괄센터도착')) {
-            window.batchUpdateOrderStatus('센터 도착');
-        }
-    }
 });
 
-// 💡 [수정 2] 필터 변경 시 즉시 렌더링 적용
-document.addEventListener('change', function(e) {
-    if (e.target && e.target.tagName === 'SELECT') {
-        if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
-            window.changeGlobalCenter(e.target.value);
-        }
-    }
-    // 미처리 건 보기 체크박스 및 셀렉트 필터들
-    if (e.target.id === 'filterPendingOrd' || e.target.id === 'ordVendorFilter' || e.target.id === 'resSpaceFilter' || e.target.id === 'trnContentFilter') {
-        window.renderCenterData();
-    }
-});
-
+// 검색창 타이핑 감지
 document.addEventListener('input', function(e) {
-    // 실시간 검색창 타이핑 감지
     if (e.target.id === 'searchOrd' || e.target.id === 'searchRes' || e.target.id === 'searchTrn' || e.target.id === 'memberSearch') {
         if (e.target.id === 'memberSearch') {
             window.searchMembers();
@@ -116,10 +93,6 @@ if (!document.getElementById('wecoffee-custom-styles')) {
             .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: wrap !important; gap: 6px; }
             .mem-action-row select { flex: 1; min-width: 0; padding-left: 8px !important; padding-right: 28px !important; }
             .apply-date-btn, .action-btns button { flex-shrink: 0; }
-            
-            .order-day-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-right: 6px; vertical-align: middle; }
-            .badge-mon { background: #e8f0fe; color: #1a73e8; border: 1px solid #1a73e8; }
-            .badge-thu { background: #fce8e6; color: #c5221f; border: 1px solid #c5221f; }
         }
     `;
     document.head.appendChild(style);
@@ -127,10 +100,9 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
-// 💡 [수정 3] delivery_date를 완벽히 파싱하는 로직 (시간값 무시, 요일 정확히 추출)
 window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
-    let str = String(dateStr).split(' ')[0].split('T')[0]; // 시간값 강제 제거
+    let str = String(dateStr).split(' ')[0].split('T')[0];
     let d = new Date(str);
     if(isNaN(d.getTime())) {
         str = str.replace(/-/g, '/');
@@ -139,17 +111,20 @@ window.safeKST = function(dateStr) {
     return isNaN(d.getTime()) ? new Date() : d;
 };
 
+// 💡 [버그 원인 제거] 2001년 금요일로 파싱되는 현상을 막기 위해 올해 연도를 강제 삽입하는 방어 로직
 window.parseDeliveryDate = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr).trim();
-    let currentYear = new Date().getFullYear();
+    let currentYear = new Date().getFullYear(); // 2026 강제 주입
     
-    let m1 = str.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
-    if (m1) { return new Date(currentYear, parseInt(m1[1])-1, parseInt(m1[2])); }
-    let m2 = str.match(/(\d+)월\s*(\d+)일/);
-    if (m2) { return new Date(currentYear, parseInt(m2[1])-1, parseInt(m2[2])); }
+    let m = str.match(/(\d{1,2})[\/\-\.월]\s*(\d{1,2})/);
+    if (m) {
+        return new Date(currentYear, parseInt(m[1], 10) - 1, parseInt(m[2], 10));
+    }
     
-    return window.safeKST(dateStr);
+    let d = new Date(str);
+    if(!isNaN(d.getTime()) && d.getFullYear() === 2001) d.setFullYear(currentYear);
+    return isNaN(d.getTime()) ? new Date() : d;
 };
 
 window.formatDeliveryDateFull = function(dateStr) {
@@ -204,13 +179,11 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(d
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
-// 일괄 선택 토글
 window.toggleAll = function(checkbox, targetClass) { 
     const checkboxes = document.querySelectorAll('.' + targetClass); 
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
 };
 
-// 선택된 주문건 일괄 상태 업데이트 함수
 window.batchUpdateOrderStatus = async function(statusText) {
     let checkedBoxes = document.querySelectorAll('.chk-ord:checked, .chk-ord-thu:checked');
     let idsToUpdate = Array.from(checkedBoxes).map(cb => String(cb.value));
@@ -566,20 +539,6 @@ window.renderCenterData = function() {
   } catch(e) {}
 
   try {
-      let subOrdBtns = document.querySelectorAll('#sub-ord button, #sub-ord .btn, .filter-wrap button');
-      subOrdBtns.forEach(btn => {
-          let txt = btn.textContent.replace(/\s+/g, '');
-          if (txt.includes('일괄입금확인') && !btn.dataset.bound) {
-              btn.dataset.bound = 'true';
-              btn.onclick = () => window.batchUpdateOrderStatus('입금 확인');
-          } else if (txt.includes('일괄센터도착') && !btn.dataset.bound) {
-              btn.dataset.bound = 'true';
-              btn.onclick = () => window.batchUpdateOrderStatus('센터 도착');
-          }
-      });
-  } catch(e) {}
-
-  try {
       let qRes = ($("searchRes")?.value || "").toLowerCase(); let sRes = $("resSpaceFilter")?.value || "전체";
       let fRes = gRes.filter(r => { 
           let rDate = window.safeKST(r.res_date || r.created_at); 
@@ -666,11 +625,12 @@ window.renderCenterData = function() {
           let dayOnly = window.formatDeliveryDay(o.delivery_date);
           let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
           
+          // 💡 모바일 파란 뱃지 제거 및 검은색(background:#212529) 강제 주입
+          o._targetBadge = `<span style="background:#212529; color:#fff; font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px; margin-right:6px; vertical-align:middle; display:inline-block; letter-spacing:-0.5px;">[${targetDayStr} 발주]</span>`;
+          
           if (dayOnly === '목') {
-              o._targetBadge = `<span class="order-day-badge badge-thu">[${targetDayStr} 발주]</span>`;
               thuOrders.push(o);
           } else {
-              o._targetBadge = `<span class="order-day-badge badge-mon">[${targetDayStr} 발주]</span>`;
               monOrders.push(o);
           }
       });
@@ -687,6 +647,7 @@ window.renderCenterData = function() {
           $("ordTableBodyThu").innerHTML = thuOrders.length > 0 ? generateOrderRows(thuOrders, 'chk-ord-thu') : `<tr><td colspan="11" class="empty-state">목요일 발주 내역이 없습니다.</td></tr>`;
       }
 
+      // 💡 [수정 사항 1, 3] 섹션 타이틀에 정확한 날짜 교체 및 우측 툴팁 복구
       try {
           if (monTableBody) {
               let monTable = monTableBody.closest('table');
@@ -1304,7 +1265,7 @@ window.saveAdminNote = async function() {
     if(!$("crmAppId")) return;
     const id = $("crmAppId").value;
     const app = globalApps.find(a => String(a.id) === String(id));
-    if(!app) { showToast("신청 정보를 찾을 수문을 수 없습니다."); return; }
+    if(!app) { showToast("신청 정보를 찾을 수 없습니다."); return; }
     
     const title = $("crmNoteTitle") ? $("crmNoteTitle").value.trim() : "";
     const content = $("crmNoteInput") ? $("crmNoteInput").value.trim() : "";
