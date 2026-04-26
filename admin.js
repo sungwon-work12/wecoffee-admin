@@ -21,7 +21,7 @@ window.changeGlobalCenter = function(centerValue) {
     window.fetchCenterData(); 
 };
 
-// 💡 [이벤트 위임 완벽 적용] 센터 탭 변경 및 일괄 처리 버튼 작동 보장
+// 💡 1. [이벤트 위임 완벽 적용] 센터 탭 변경 및 일괄 처리 버튼 작동 보장
 document.addEventListener('click', function(e) {
     let txt = e.target.innerText || '';
     if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
@@ -55,7 +55,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// 💡 [이벤트 위임 완벽 적용] 필터 변경 및 스케줄 센터 변경 시 즉각 감지
+// 💡 2. [이벤트 위임] 필터 변경 및 스케줄 센터 변경 시 즉각 감지 (마포/광진 장비 연동)
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
         if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
@@ -67,7 +67,7 @@ document.addEventListener('change', function(e) {
         window.renderCenterData();
     }
     
-    // 💡 [수정] 스케줄 모달 창에서 '이용 센터' 변경 시 장비/공간 리스트 즉각 교체
+    // 모달 내 센터 변경 시 하위 공간/장비 옵션 즉각 업데이트
     if (e.target.id === 'blkCenter') {
         if(window.updateSpaceOptions) window.updateSpaceOptions();
     }
@@ -107,13 +107,13 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .mem-action-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap !important; white-space: nowrap; }
         .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 75px; padding-left: 8px !important; padding-right: 28px !important; background-position: right 8px center; }
         
-        /* 💡 모바일 발주 뱃지 원천 삭제 처리 */
+        /* 💡 1. 모바일 발주 뱃지 원천 삭제 처리 */
         .order-day-badge { display: none !important; } 
         
         .space-opt-item:hover { background: #f9fafb; color: var(--primary); font-weight: 700; }
         .space-opt-item.selected { background: #e8f0fe; color: var(--primary); font-weight: 700; }
 
-        /* 💡 [수정] 발주 리스트 하단 잘림 방지 여백 추가 */
+        /* 💡 1. 발주 리스트 하단 잘림 방지 여백 추가 */
         #dynamic-ord-container { padding-bottom: 120px; }
 
         @media (max-width: 1024px) {
@@ -143,7 +143,7 @@ window.safeKST = function(dateStr) {
     return isNaN(d.getTime()) ? new Date() : d;
 };
 
-// 💡 2001년 금요일 등 비정상 파싱 차단
+// 2001년 금요일 등 비정상 파싱 차단
 window.parseDeliveryDate = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr).trim();
@@ -497,7 +497,7 @@ window.fetchCenterData = async function() {
         let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
         if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
 
-        // 💡 [수정] 공백 및 특수문자 제거 후 필터 텍스트 매칭
+        // 💡 2. [수정 완벽 반영] 공백 및 특수문자 제거 후 필터 텍스트 매칭 보장
         let tSet = new Set(); gTrn.forEach(t => {
             let cInfo = String(t.content||'').split('||').map(s=>s.trim());
             if(cInfo.length >= 5) { tSet.add(`[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}`); } 
@@ -511,6 +511,7 @@ window.fetchCenterData = async function() {
 
   try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
 }
+
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -520,10 +521,10 @@ window.renderCenterData = function() {
   
   try {
       const addTooltipToText = (textMatch, id, tooltipText, isLong = false) => {
-          // 💡 여러 요소 중첩 방지를 위해 안전한 타겟팅으로 변경
+          // 💡 1. [툴팁 위치 고정] 동적 날짜(블럭)에는 영향을 주지 않고 안전한 타이틀만 타겟팅
           let titles = document.querySelectorAll('.page-title, .section-title, h2, h3, .table-toolbar > div, .sub-page-title');
           titles.forEach(el => {
-              if(el.textContent.includes(textMatch) && !document.getElementById(id)) {
+              if(el.textContent.includes(textMatch) && !document.getElementById(id) && !el.closest('#dynamic-ord-container')) {
                   let sub = el.querySelector('.sub-text'); if(sub) sub.remove();
                   el.innerHTML = el.innerHTML + ` <i id="${id}" class="info-tooltip ${isLong ? 'long-text' : ''}" data-tooltip="${tooltipText}">i</i>`;
               }
@@ -535,8 +536,6 @@ window.renderCenterData = function() {
       
       addTooltipToText('센터 예약 리스트', 'tt-res', '최근 1개월(30일) 내의 예약만 표시됩니다. 이전 내역은 서버에 안전하게 보관됩니다.', true);
       addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
-      
-      // 💡 [수정 완벽 반영] 페이지 최상단 메인 타이틀에만 툴팁 안전하게 주입
       addTooltipToText('생두 주문 관리', 'tt-ord-main', "주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, '취소/품절' 건은 2일 뒤, '센터 도착' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.", true);
   } catch(e) {}
 
@@ -596,8 +595,7 @@ window.renderCenterData = function() {
           return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
       }).join("") : `<tr><td colspan="11" class="empty-state">내역 없음</td></tr>`;
   } catch(e) { console.error(e); }
-  
-  try {
+    try {
       let qTrn = ($("searchTrn")?.value || "").toLowerCase(); let sTrn = $("trnContentFilter")?.value || "전체";
       let trnSearchInput = $("searchTrn");
       if(trnSearchInput) {
@@ -613,7 +611,7 @@ window.renderCenterData = function() {
           let cInfo = String(t.content||'').split('||').map(s=>s.trim());
           if(sTrn !== '전체') { 
               let targetStr = cInfo.length >= 5 ? `[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}` : String(t.content||'').trim(); 
-              // 💡 [수정 완벽 반영] 띄어쓰기가 1칸이라도 다르면 튕기는 버그를 막기 위해 양쪽의 공백을 모두 제거한 후 일치 여부 비교
+              // 💡 2. [수정 완벽 반영] 띄어쓰기가 1칸이라도 다르면 튕기는 버그를 막기 위해 양쪽 공백 완벽 제거 비교
               if(targetStr.replace(/\s+/g, '') !== sTrn.replace(/\s+/g, '')) matchContent = false; 
           }
           if (cInfo.length >= 5) { let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0); if (tDateObj < todayForBlk) return false; } else { let tDate = window.safeKST(t.created_at); if (tDate < oneMonthAgo) return false; }
@@ -652,7 +650,7 @@ window.renderCenterData = function() {
         let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
         let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
         
-        // 💡 [수정 완벽 반영] '입금 확인' 상태는 미처리 건에서 완벽히 제외
+        // 💡 2. [수정 완벽 반영] '입금 확인' 상태는 미처리 건에서 완벽히 제외
         let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인 중') : true; 
         return matchCenter && matchQ && matchV && matchS; 
       }); 
@@ -661,6 +659,7 @@ window.renderCenterData = function() {
       
       let groupedOrders = {};
       fOrd.forEach(o => {
+          // 💡 1. [동적 날짜 그룹화] delivery_date를 기준으로 동적 그룹 생성
           let dateKey = window.formatDeliveryDateFull(o.delivery_date);
           o._targetBadge = ''; 
           
@@ -715,13 +714,13 @@ window.renderCenterData = function() {
           }
           container.innerHTML = dynamicHtml;
           
-          // 💡 [수정 완벽 반영] 3단 UI 겹침 방지를 위해 하드코딩 빈 블럭 영구 완전 삭제 및 강제 숨김
+          // 💡 1. [빈 껍데기 UI 청소] 3단 UI 겹침 방지를 위해 하드코딩된 모든 이전 발주 테이블/타이틀 강제 완전 숨김
           let oldTables = ordTab.querySelectorAll('.table-wrap:not(#dynamic-ord-container .table-wrap)');
-          oldTables.forEach(t => t.style.display = 'none');
+          oldTables.forEach(t => { t.style.display = 'none'; t.innerHTML = ''; });
           
           let oldTitles = ordTab.querySelectorAll('.section-title:not(#dynamic-ord-container .section-title)');
           oldTitles.forEach(t => {
-              if (t.textContent.includes('발주')) t.style.display = 'none';
+              if (t.textContent.includes('발주')) { t.style.display = 'none'; t.innerHTML = ''; }
           });
       }
   } catch(e) { console.error(e); }
@@ -765,7 +764,7 @@ function generateOrderRows(fOrd, chkClass) {
     let vendorUrl = o.link ? o.link : (o.url ? o.url : '#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`; 
     let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${cNm}</span><span class="copyable-hint">복사</span></div></div>`; 
     let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : ''; 
-    let targetBadgeHtml = o._targetBadge || ''; 
+    let targetBadgeHtml = o._targetBadge || ''; // 모바일 뱃지는 앞서 CSS로 원천 삭제하여 더이상 보이지 않음
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
     
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at).split(' ')[1]}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:8px;"><div style="flex-shrink: 0; text-align: right;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span><div style="flex:1; min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
@@ -938,7 +937,7 @@ window.renderCrmInner = function(id, isReadOnly = false) {
     let timeStr = app.call_time && app.call_time !== 'null' ? window.escapeHtml(app.call_time) : '미정';
     if($("crmTimeBadge")) { $("crmTimeBadge").innerHTML = `상담 예정일: <span style="color:var(--text-display); font-weight:700;">${timeStr}</span>`; }
     const job = app.survey_job; const edu = app.survey_edu; const goal = app.survey_goal; const brand = app.survey_brand;
-    if($("crmSurveyResult")) { if (job || edu) { $("crmSurveyResult").innerHTML = `<div class="crm-box"><div class="crm-label">1. 직업 상태</div><div class="crm-answer">${window.escapeHtml(job) || '<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">2. 과거 교육 피드백</div><div class="crm-answer">${window.escapeHtml(edu) || '<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">3. 달성 목표 (니즈)</div><div class="crm-answer">${window.escapeHtml(goal) || '<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${window.escapeHtml(brand) || '<span class="crm-empty">미작성</span>'}</div></div>`; } else { $("crmSurveyResult").innerHTML = `<div style="text-align:center; padding: 40px 20px; background:#fff; border-radius:12px; border:1px dashed var(--border-strong);"><div style="font-size:16px; font-weight:700; color:var(--text-secondary); margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div><button class="btn-outline" style="color:var(--primary); border-color:var(--primary); padding:12px 24px; font-size:15px;" onclick="window.copyTxt('https://www.wecoffee.co.kr/survey?uid=${app.id}&name=${encodeURIComponent(app.name || '')}', '사전 설문 링크가 복사되었습니다.')">고객 전용 설문 링크 복사하기</button></div>`; } }
+    if($("crmSurveyResult")) { if (job || edu) { $("crmSurveyResult").innerHTML = `<div class="crm-box"><div class="crm-label">1. 직업 상태</div><div class="crm-answer">${window.escapeHtml(job) || '<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">2. 과거 교육 피드백</div><div class="crm-answer">${window.escapeHtml(edu) || '<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">3. 달성 목표 (니즈)</div><div class="crm-answer">${window.escapeHtml(goal) || '<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${window.escapeHtml(brand) || '<span class="crm-empty">미작성</span>'}</div></div>`; } else { $("crmSurveyResult").innerHTML = `<div style="text-align:center; padding: 40px 20px; background:#fff; border-radius:12px; border:1px dashed var(--border-strong);"><div style="font-size:16px; font-weight:700; color:var(--text-secondary); margin-bottom:16px;">아직 사전 설문을 작성하지 고객입니다.</div><button class="btn-outline" style="color:var(--primary); border-color:var(--primary); padding:12px 24px; font-size:15px;" onclick="window.copyTxt('https://www.wecoffee.co.kr/survey?uid=${app.id}&name=${encodeURIComponent(app.name || '')}', '사전 설문 링크가 복사되었습니다.')">고객 전용 설문 링크 복사하기</button></div>`; } }
     let notesHtml = '';
     if (app.admin_memo) { let notes = app.admin_memo.split('|||'); notes.forEach(note => { let parts = note.split(':::'); if(parts.length === 2) { notesHtml += `<div class="crm-box"><div class="crm-label">${window.escapeHtml(parts[0])}</div><div class="crm-answer">${window.escapeHtml(parts[1]).replace(/\n/g, '<br>')}</div></div>`; } else if (note.trim()) { notesHtml += `<div class="crm-box"><div class="crm-answer">${window.escapeHtml(note.trim()).replace(/\n/g, '<br>')}</div></div>`; } }); }
     if(!notesHtml) notesHtml = `<div style="font-size:13px; color:var(--text-tertiary); text-align:center; padding:10px;">등록된 상담 기록이 없습니다.</div>`;
@@ -1515,7 +1514,7 @@ window.saveSchedule = async function() {
     else { showToast("상담 일정이 저장되었습니다."); window.closeScheduleModal(); window.fetchApplications(); }
 };
 
-// 💡 [수정 완벽 반영] 신규 등록 시 반복 UI 강제 노출 및 텍스트 의존 탈피
+// 💡 3. [수정 완벽 반영] 신규 등록 시 모달 내부에서만 안전하게 반복 UI 강제 노출 탐색
 window.openBlockModal = function(dateStr, timeStr) {
     if($("blockModal")) $("blockModal").classList.add('show');
     if($("blockId")) $("blockId").value = '';
@@ -1531,17 +1530,16 @@ window.openBlockModal = function(dateStr, timeStr) {
     if($("blkCapacity")) $("blkCapacity").value = '';
     if($("blockModalTitle")) $("blockModalTitle").innerText = "신규 스케줄 등록";
 
-    // "반복 없음/매일/매주"가 들어간 select를 명확히 탐색
-    let rSel = Array.from(document.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
+    let modal = document.getElementById("blockModal") || document;
+    let rSel = Array.from(modal.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
     if(rSel) { 
         rSel.value = '반복 없음'; 
         let wrap = rSel.closest('div[style*="flex"]') || rSel.parentElement;
         if(wrap) wrap.style.display = ''; 
     }
     
-    // 반복 횟수 입력칸 (라벨이나 placeholder 기반) 탐색
-    let rInp = Array.from(document.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
-    if(!rInp) rInp = Array.from(document.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
+    let rInp = Array.from(modal.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
+    if(!rInp) rInp = Array.from(modal.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
     if(rInp) { 
         rInp.value = ''; 
         let wrap = rInp.closest('div[style*="flex"]') || rInp.parentElement;
@@ -1549,7 +1547,7 @@ window.openBlockModal = function(dateStr, timeStr) {
     }
 };
 
-// 💡 [수정 완벽 반영] 기존 일정 수정 시 반복 UI 확실하게 숨김
+// 💡 3. [수정 완벽 반영] 기존 일정 수정 시 모달 내부에서만 안전하게 탐색하여 반복 UI 숨김
 window.editBlock = function(id) {
     let b = gBlk.find(x => String(x.id) === String(id)); if(!b) return;
     if($("blockModal")) $("blockModal").classList.add('show');
@@ -1571,14 +1569,15 @@ window.editBlock = function(id) {
     if($("blkCapacity")) $("blkCapacity").value = b.capacity === null ? '' : b.capacity;
     if($("blockModalTitle")) $("blockModalTitle").innerText = "스케줄 수정";
 
-    let rSel = Array.from(document.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
+    let modal = document.getElementById("blockModal") || document;
+    let rSel = Array.from(modal.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
     if(rSel) { 
         let wrap = rSel.closest('div[style*="flex"]') || rSel.parentElement;
         if(wrap) wrap.style.display = 'none'; 
     }
     
-    let rInp = Array.from(document.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
-    if(!rInp) rInp = Array.from(document.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
+    let rInp = Array.from(modal.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
+    if(!rInp) rInp = Array.from(modal.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
     if(rInp) { 
         let wrap = rInp.closest('div[style*="flex"]') || rInp.parentElement;
         if(wrap) wrap.style.display = 'none'; 
@@ -1587,7 +1586,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 [수정 완벽 반영] 정확한 타겟팅으로 반복 값 추출 및 DB 다중 저장 (Batch Insert)
+// 💡 3. [수정 완벽 반영] 정확한 타겟팅으로 반복 값 추출 및 DB 다중 저장 (Batch Insert)
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
@@ -1613,13 +1612,14 @@ window.saveBlockData = async function() {
     let repeatType = "반복 없음";
     let repeatCount = 1;
     
-    // 신규 등록일 때만 반복 값을 읽어옴 (수정 시 단일 저장 방어)
+    // 신규 등록일 때만 모달 내 반복 값을 읽어옴 (수정 시 단일 저장 방어)
     if(!id || id === "") {
-        let rSel = Array.from(document.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
+        let modal = document.getElementById("blockModal") || document;
+        let rSel = Array.from(modal.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
         if(rSel) repeatType = rSel.value;
         
-        let rInp = Array.from(document.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
-        if(!rInp) rInp = Array.from(document.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
+        let rInp = Array.from(modal.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
+        if(!rInp) rInp = Array.from(modal.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
         
         if(rInp && rInp.value) {
             let parsed = parseInt(rInp.value.replace(/[^0-9]/g, ''));
