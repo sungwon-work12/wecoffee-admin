@@ -52,12 +52,14 @@ document.addEventListener('change', function(e) {
             window.changeGlobalCenter(e.target.value);
         }
     }
+    // 미처리 건 보기, 장비 필터, 공급사 필터 적용
     if (e.target.id === 'filterPendingOrd' || e.target.id === 'ordVendorFilter' || e.target.id === 'resSpaceFilter' || e.target.id === 'trnContentFilter') {
         window.renderCenterData();
     }
 });
 
 document.addEventListener('input', function(e) {
+    // 실시간 검색창 타이핑 감지
     if (e.target.id === 'searchOrd' || e.target.id === 'searchRes' || e.target.id === 'searchTrn' || e.target.id === 'memberSearch') {
         if (e.target.id === 'memberSearch') {
             window.searchMembers();
@@ -192,13 +194,11 @@ function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(d
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
-// 일괄 선택 토글
 window.toggleAll = function(checkbox, targetClass) { 
     const checkboxes = document.querySelectorAll('.' + targetClass); 
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
 };
 
-// 선택된 주문건 일괄 상태 업데이트 함수
 window.batchUpdateOrderStatus = async function(statusText) {
     let checkedBoxes = document.querySelectorAll('.chk-ord:checked, .chk-ord-thu:checked');
     let idsToUpdate = Array.from(checkedBoxes).map(cb => String(cb.value));
@@ -686,7 +686,7 @@ window.renderCenterData = function() {
                   }
                   if (prev) {
                       let tStr = window.formatDeliveryDateFull(monOrders[0].delivery_date);
-                      let tooltipHtml = prev.querySelector('.info-tooltip') ? prev.querySelector('.info-tooltip').outerHTML : '';
+                      let tooltipHtml = `<i id="tt-ord-mon" class="info-tooltip long-text" data-tooltip="주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, '취소/품절' 건은 2일 뒤, '센터 도착' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.">i</i>`;
                       prev.innerHTML = `<span style="background:#212529;color:#fff;padding:6px 12px;border-radius:8px;font-size:14px;font-weight:700;display:inline-block;margin-bottom:12px; letter-spacing:-0.5px;">${tStr} 발주</span> ${tooltipHtml}`;
                   }
               }
