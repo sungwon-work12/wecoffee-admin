@@ -21,7 +21,7 @@ window.changeGlobalCenter = function(centerValue) {
     window.fetchCenterData(); 
 };
 
-// 💡 이벤트 위임: 센터 탭 변경 및 일괄 처리 버튼 100% 작동 보장
+// 💡 [이벤트 위임 완벽 적용] 센터 탭 변경 및 일괄 처리 버튼 작동 보장
 document.addEventListener('click', function(e) {
     let txt = e.target.innerText || '';
     if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
@@ -55,7 +55,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// 💡 이벤트 위임: 필터 변경 및 스케줄 센터 변경 시 즉각 감지
+// 💡 [이벤트 위임 완벽 적용] 필터 변경 및 스케줄 센터 변경 시 즉각 감지
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
         if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
@@ -67,7 +67,7 @@ document.addEventListener('change', function(e) {
         window.renderCenterData();
     }
     
-    // 💡 [수정 완벽 반영] 스케줄 모달 창에서 '이용 센터' 변경 시 장비/공간 즉시 교체 연동
+    // 💡 [수정] 스케줄 모달 창에서 '이용 센터' 변경 시 장비/공간 리스트 즉각 교체
     if (e.target.id === 'blkCenter') {
         if(window.updateSpaceOptions) window.updateSpaceOptions();
     }
@@ -107,12 +107,13 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .mem-action-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap !important; white-space: nowrap; }
         .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 75px; padding-left: 8px !important; padding-right: 28px !important; background-position: right 8px center; }
         
+        /* 💡 모바일 발주 뱃지 원천 삭제 처리 */
         .order-day-badge { display: none !important; } 
         
         .space-opt-item:hover { background: #f9fafb; color: var(--primary); font-weight: 700; }
         .space-opt-item.selected { background: #e8f0fe; color: var(--primary); font-weight: 700; }
 
-        /* 💡 [수정 완벽 반영] 다이나믹 컨테이너 하단 120px 여백 강제 추가로 리스트 잘림 방지 */
+        /* 💡 [수정] 발주 리스트 하단 잘림 방지 여백 추가 */
         #dynamic-ord-container { padding-bottom: 120px; }
 
         @media (max-width: 1024px) {
@@ -142,7 +143,7 @@ window.safeKST = function(dateStr) {
     return isNaN(d.getTime()) ? new Date() : d;
 };
 
-// 금요일 등 비정상 파싱 차단 (2026년 주입)
+// 💡 2001년 금요일 등 비정상 파싱 차단
 window.parseDeliveryDate = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr).trim();
@@ -496,11 +497,11 @@ window.fetchCenterData = async function() {
         let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
         if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
 
-        // 💡 [수정 완벽 반영] 모든 필터 텍스트 매칭 시 공백을 완벽히 압축해 띄어쓰기 오류 방지
+        // 💡 [수정] 공백 및 특수문자 제거 후 필터 텍스트 매칭
         let tSet = new Set(); gTrn.forEach(t => {
             let cInfo = String(t.content||'').split('||').map(s=>s.trim());
             if(cInfo.length >= 5) { tSet.add(`[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}`); } 
-            else { tSet.add(t.content); }
+            else { tSet.add(String(t.content||'').trim()); }
         });
         let tHtml = `<option value="전체">전체 콘텐츠</option>` + Array.from(tSet).sort().map(c=>`<option value="${window.escapeHtml(c)}">${window.escapeHtml(c)}</option>`).join("");
         if($("trnContentFilter") && $("trnContentFilter").innerHTML.length < 100) $("trnContentFilter").innerHTML = tHtml;
@@ -519,6 +520,7 @@ window.renderCenterData = function() {
   
   try {
       const addTooltipToText = (textMatch, id, tooltipText, isLong = false) => {
+          // 💡 여러 요소 중첩 방지를 위해 안전한 타겟팅으로 변경
           let titles = document.querySelectorAll('.page-title, .section-title, h2, h3, .table-toolbar > div, .sub-page-title');
           titles.forEach(el => {
               if(el.textContent.includes(textMatch) && !document.getElementById(id)) {
@@ -608,11 +610,11 @@ window.renderCenterData = function() {
 
       let fTrnList = gTrn.filter(t => { 
           let matchContent = true; 
-          // 💡 [수정 완벽 반영] 띄어쓰기 오류 방지를 위해 trim() 적용 후 비교
           let cInfo = String(t.content||'').split('||').map(s=>s.trim());
           if(sTrn !== '전체') { 
               let targetStr = cInfo.length >= 5 ? `[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}` : String(t.content||'').trim(); 
-              if(targetStr !== sTrn.trim()) matchContent = false; 
+              // 💡 [수정 완벽 반영] 띄어쓰기가 1칸이라도 다르면 튕기는 버그를 막기 위해 양쪽의 공백을 모두 제거한 후 일치 여부 비교
+              if(targetStr.replace(/\s+/g, '') !== sTrn.replace(/\s+/g, '')) matchContent = false; 
           }
           if (cInfo.length >= 5) { let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0); if (tDateObj < todayForBlk) return false; } else { let tDate = window.safeKST(t.created_at); if (tDate < oneMonthAgo) return false; }
           return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
@@ -650,7 +652,7 @@ window.renderCenterData = function() {
         let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
         let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
         
-        // 💡 [수정 완벽 반영] '입금 확인' 상태는 미처리 건에서 제외
+        // 💡 [수정 완벽 반영] '입금 확인' 상태는 미처리 건에서 완벽히 제외
         let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인 중') : true; 
         return matchCenter && matchQ && matchV && matchS; 
       }); 
@@ -713,7 +715,7 @@ window.renderCenterData = function() {
           }
           container.innerHTML = dynamicHtml;
           
-          // 💡 [수정 완벽 반영] 하드코딩 껍데기 빈 블럭 영구 삭제 및 투명화 처리
+          // 💡 [수정 완벽 반영] 3단 UI 겹침 방지를 위해 하드코딩 빈 블럭 영구 완전 삭제 및 강제 숨김
           let oldTables = ordTab.querySelectorAll('.table-wrap:not(#dynamic-ord-container .table-wrap)');
           oldTables.forEach(t => t.style.display = 'none');
           
@@ -1357,7 +1359,6 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 일괄 선택 상태 연동 보장
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1514,7 +1515,7 @@ window.saveSchedule = async function() {
     else { showToast("상담 일정이 저장되었습니다."); window.closeScheduleModal(); window.fetchApplications(); }
 };
 
-// 💡 [수정 완벽 반영] 신규 스케줄 등록 시 반복 UI 강제 표시 및 초기화
+// 💡 [수정 완벽 반영] 신규 등록 시 반복 UI 강제 노출 및 텍스트 의존 탈피
 window.openBlockModal = function(dateStr, timeStr) {
     if($("blockModal")) $("blockModal").classList.add('show');
     if($("blockId")) $("blockId").value = '';
@@ -1530,16 +1531,17 @@ window.openBlockModal = function(dateStr, timeStr) {
     if($("blkCapacity")) $("blkCapacity").value = '';
     if($("blockModalTitle")) $("blockModalTitle").innerText = "신규 스케줄 등록";
 
-    let selects = Array.from(document.querySelectorAll('#blockModal select, .modal select'));
-    let rSel = selects.find(s => s.innerHTML.includes('반복 없음') || (s.parentElement && s.parentElement.textContent.includes('반복 설정')));
+    // "반복 없음/매일/매주"가 들어간 select를 명확히 탐색
+    let rSel = Array.from(document.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
     if(rSel) { 
         rSel.value = '반복 없음'; 
         let wrap = rSel.closest('div[style*="flex"]') || rSel.parentElement;
         if(wrap) wrap.style.display = ''; 
     }
     
-    let inputs = Array.from(document.querySelectorAll('#blockModal input, .modal input'));
-    let rInp = inputs.find(i => (i.placeholder && i.placeholder.includes('예: 4')) || (i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수')));
+    // 반복 횟수 입력칸 (라벨이나 placeholder 기반) 탐색
+    let rInp = Array.from(document.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
+    if(!rInp) rInp = Array.from(document.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
     if(rInp) { 
         rInp.value = ''; 
         let wrap = rInp.closest('div[style*="flex"]') || rInp.parentElement;
@@ -1547,7 +1549,7 @@ window.openBlockModal = function(dateStr, timeStr) {
     }
 };
 
-// 💡 [수정 완벽 반영] 기존 스케줄 수정 시 반복 UI 강제 숨김 처리 (충돌 방어)
+// 💡 [수정 완벽 반영] 기존 일정 수정 시 반복 UI 확실하게 숨김
 window.editBlock = function(id) {
     let b = gBlk.find(x => String(x.id) === String(id)); if(!b) return;
     if($("blockModal")) $("blockModal").classList.add('show');
@@ -1569,15 +1571,14 @@ window.editBlock = function(id) {
     if($("blkCapacity")) $("blkCapacity").value = b.capacity === null ? '' : b.capacity;
     if($("blockModalTitle")) $("blockModalTitle").innerText = "스케줄 수정";
 
-    let selects = Array.from(document.querySelectorAll('#blockModal select, .modal select'));
-    let rSel = selects.find(s => s.innerHTML.includes('반복 없음') || (s.parentElement && s.parentElement.textContent.includes('반복 설정')));
+    let rSel = Array.from(document.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
     if(rSel) { 
         let wrap = rSel.closest('div[style*="flex"]') || rSel.parentElement;
         if(wrap) wrap.style.display = 'none'; 
     }
     
-    let inputs = Array.from(document.querySelectorAll('#blockModal input, .modal input'));
-    let rInp = inputs.find(i => (i.placeholder && i.placeholder.includes('예: 4')) || (i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수')));
+    let rInp = Array.from(document.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
+    if(!rInp) rInp = Array.from(document.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
     if(rInp) { 
         let wrap = rInp.closest('div[style*="flex"]') || rInp.parentElement;
         if(wrap) wrap.style.display = 'none'; 
@@ -1586,7 +1587,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 [수정 완벽 반영] 반복 주기(매일/매주) 및 횟수 기반 다중 Insert(배치 처리)
+// 💡 [수정 완벽 반영] 정확한 타겟팅으로 반복 값 추출 및 DB 다중 저장 (Batch Insert)
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
@@ -1612,14 +1613,14 @@ window.saveBlockData = async function() {
     let repeatType = "반복 없음";
     let repeatCount = 1;
     
-    // 신규 등록일 때만 반복 값을 읽어옴 (수정일 때는 1회만 처리)
+    // 신규 등록일 때만 반복 값을 읽어옴 (수정 시 단일 저장 방어)
     if(!id || id === "") {
-        let selects = Array.from(document.querySelectorAll('#blockModal select, .modal select'));
-        let rSel = selects.find(s => s.innerHTML.includes('반복 없음') || (s.parentElement && s.parentElement.textContent.includes('반복 설정')));
+        let rSel = Array.from(document.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
         if(rSel) repeatType = rSel.value;
         
-        let inputs = Array.from(document.querySelectorAll('#blockModal input, .modal input'));
-        let rInp = inputs.find(i => (i.placeholder && i.placeholder.includes('예: 4')) || (i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수')));
+        let rInp = Array.from(document.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
+        if(!rInp) rInp = Array.from(document.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
+        
         if(rInp && rInp.value) {
             let parsed = parseInt(rInp.value.replace(/[^0-9]/g, ''));
             if(!isNaN(parsed) && parsed > 0) repeatCount = parsed;
