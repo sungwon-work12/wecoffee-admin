@@ -63,12 +63,11 @@ document.addEventListener('change', function(e) {
         }
     }
     
-    // 💡 [수정 완벽 반영] 필터 적용 (미처리건, 공간, 수업 등) 즉시 리렌더링
     if (e.target.id === 'filterPendingOrd' || e.target.id === 'ordVendorFilter' || e.target.id === 'resSpaceFilter' || e.target.id === 'trnContentFilter') {
         window.renderCenterData();
     }
     
-    // 💡 [수정 완벽 반영] 스케줄 모달 창에서 '이용 센터' 변경 시 장비/공간 즉시 교체
+    // 💡 [수정 완벽 반영] 스케줄 모달 창에서 '이용 센터' 변경 시 장비/공간 즉시 교체 연동
     if (e.target.id === 'blkCenter') {
         if(window.updateSpaceOptions) window.updateSpaceOptions();
     }
@@ -113,7 +112,7 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .space-opt-item:hover { background: #f9fafb; color: var(--primary); font-weight: 700; }
         .space-opt-item.selected { background: #e8f0fe; color: var(--primary); font-weight: 700; }
 
-        /* 💡 [수정 완벽 반영] 하단 120px 여백 추가로 마지막 발주 리스트 잘림 방지 */
+        /* 💡 [수정 완벽 반영] 다이나믹 컨테이너 하단 120px 여백 강제 추가로 리스트 잘림 방지 */
         #dynamic-ord-container { padding-bottom: 120px; }
 
         @media (max-width: 1024px) {
@@ -143,7 +142,7 @@ window.safeKST = function(dateStr) {
     return isNaN(d.getTime()) ? new Date() : d;
 };
 
-// 금요일 파싱 방어 (2026년 강제 주입)
+// 금요일 등 비정상 파싱 차단 (2026년 주입)
 window.parseDeliveryDate = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr).trim();
@@ -497,7 +496,7 @@ window.fetchCenterData = async function() {
         let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
         if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
 
-        // 💡 [수정 완벽 반영] 띄어쓰기로 인해 매칭 오류가 나는 것을 막기 위해 모든 필터 텍스트 매칭 시 양옆 공백 제거 (split('||').map)
+        // 💡 [수정 완벽 반영] 모든 필터 텍스트 매칭 시 공백을 완벽히 압축해 띄어쓰기 오류 방지
         let tSet = new Set(); gTrn.forEach(t => {
             let cInfo = String(t.content||'').split('||').map(s=>s.trim());
             if(cInfo.length >= 5) { tSet.add(`[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}`); } 
@@ -609,9 +608,12 @@ window.renderCenterData = function() {
 
       let fTrnList = gTrn.filter(t => { 
           let matchContent = true; 
-          // 💡 [수정 완벽 반영] 띄어쓰기 오류 방지를 위해 trim() 적용
+          // 💡 [수정 완벽 반영] 띄어쓰기 오류 방지를 위해 trim() 적용 후 비교
           let cInfo = String(t.content||'').split('||').map(s=>s.trim());
-          if(sTrn !== '전체') { let targetStr = cInfo.length >= 5 ? `[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}` : String(t.content||'').trim(); if(targetStr !== sTrn) matchContent = false; }
+          if(sTrn !== '전체') { 
+              let targetStr = cInfo.length >= 5 ? `[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}` : String(t.content||'').trim(); 
+              if(targetStr !== sTrn.trim()) matchContent = false; 
+          }
           if (cInfo.length >= 5) { let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0); if (tDateObj < todayForBlk) return false; } else { let tDate = window.safeKST(t.created_at); if (tDate < oneMonthAgo) return false; }
           return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
       });
@@ -877,107 +879,6 @@ window.handleOrderStatusChange = function(id, newValue, selectEl) {
     let isRollback = false; if ((oldStatus === '입금 확인 중' || oldStatus === '입금 확인' || oldStatus === '센터 도착') && (newValue === '입금 대기' || newValue === '주문 접수')) { isRollback = true; }
     if (isRollback) { confirmMsg = `<div style="background:#fff0f0; border:1px solid #ffcdd2; border-radius:8px; padding:16px; margin-bottom:12px; text-align:left;"><div style="color:var(--error); font-weight:800; font-size:14px; margin-bottom:8px; display:flex; align-items:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>롤백 경고</div><div style="font-size:14px; color:var(--text-display); line-height:1.5; word-break:keep-all;">현재 <span style="font-weight:700; color:var(--text-secondary);">[${oldStatus}]</span> 상태입니다.<br>정말 <strong style="color:var(--error); font-size:16px;">[${newValue}]</strong> (으)로 되돌리시겠습니까?</div></div>`; }
     window.openCustomConfirm("주문 상태 변경", null, confirmMsg, async () => { const { error } = await supabaseClient.from('orders').update({ status: newValue }).eq('id', id); if (error) { showToast("상태 변경에 실패했습니다."); } else { showToast(`[${newValue}] 상태로 변경되었습니다.`); window.fetchCenterData(); } }, "변경하기"); selectEl.value = oldStatus;
-};
-
-// 💡 일괄 선택 상태 연동
-window.showOrderSummary = function() {
-    let qOrd = ($("searchOrd")?.value || "").toLowerCase();
-    let vOrd = $("ordVendorFilter")?.value || "전체";
-
-    let checkedBoxes = document.querySelectorAll('.chk-ord-dynamic:checked, .chk-ord:checked, .chk-ord-thu:checked');
-    let checkedIds = Array.from(checkedBoxes).map(cb => String(cb.value));
-
-    let pendingOrders = gOrd.filter(o => {
-        if (checkedIds.length > 0) {
-            return checkedIds.includes(String(o.id));
-        } else {
-            if (o.status !== '주문 접수') return false; 
-            let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
-            let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
-            let matchV = vOrd === '전체' ? true : o.vendor === vOrd;
-            return matchCenter && matchQ && matchV;
-        }
-    });
-    
-    if (pendingOrders.length === 0) {
-        $("summaryModalBody").innerHTML = '<div class="empty-state" style="padding: 80px 0;">요약할 발주 내역이 없습니다. (주문 접수 상태인 건을 체크해보세요)</div>';
-    } else {
-        let summary = {};
-        pendingOrders.forEach(o => {
-            let center = o.center || '미지정';
-            let cNm = o.item_name;
-            
-            let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
-            let dateGroup = targetDayStr;
-
-            let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);
-            if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
-
-            let key = `${dateGroup}:::${center}:::${o.vendor}:::${cNm}`;
-            if(!summary[key]) summary[key] = { center, dateGroup, vendor: o.vendor, item: cNm, totalGrams: 0, orderers: [] };
-            
-            let rawQty = String(o.quantity || '0').trim().toLowerCase();
-            let numMatch = rawQty.match(/[0-9.]+/);
-            let numVal = numMatch ? parseFloat(numMatch[0]) : 0;
-            let grams = rawQty.includes('kg') ? numVal * 1000 : numVal;
-
-            summary[key].totalGrams += grams;
-            summary[key].orderers.push({ batch: o.batch || '미정', name: o.name, phone: o.phone, rawQty: o.quantity || '0' });
-        });
-        
-        let totalGramsSum = 0;
-        let sortedData = Object.values(summary).sort((a,b) => {
-            if (a.dateGroup !== b.dateGroup) return a.dateGroup.localeCompare(b.dateGroup);
-            let c1 = a.center === '마포 센터' ? 1 : 2; let c2 = b.center === '광진 센터' ? 2 : 1;
-            if (c1 !== c2) return c1 - c2;
-            return a.vendor.localeCompare(b.vendor);
-        });
-        
-        let html = `<div style="display: flex; flex-direction: column; gap: 16px; width: 100%; min-width: 0;">`;
-        let currentGroupLabel = '';
-        sortedData.forEach(s => {
-            let groupLabel = `[${s.dateGroup} 발주] ${s.center}`;
-            if (currentGroupLabel !== groupLabel) {
-                currentGroupLabel = groupLabel;
-                html += `<div style="font-size:18px; font-weight:800; color:var(--text-display); margin-top:24px; padding-bottom:10px; border-bottom:3px solid var(--text-display); letter-spacing:-0.5px;">${currentGroupLabel}</div>`;
-            }
-
-            let ordererDetailText = s.orderers.length === 1 ? `[${s.orderers[0].batch}] ${s.orderers[0].name}` : s.orderers.map(o => `[${o.batch}] ${o.name}(${o.rawQty})`).join(', ');
-            let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(s.item).replace(/'/g, "\\'")}')" data-full-text="${String(s.item).replace(/"/g, '&quot;')}" style="max-width: 100%; min-width: 0; flex: 1;"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text" style="font-size: 16px; font-weight: 800; color: var(--text-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; min-width: 0;">${window.escapeHtml(s.item)}</span><span class="copyable-hint" style="flex-shrink: 0; min-width: 32px; margin-left: 8px;">복사</span></div></div>`;
-
-            let displayQty = s.totalGrams >= 1000 ? (s.totalGrams % 1000 === 0 ? (s.totalGrams / 1000) + 'kg' : (s.totalGrams / 1000) + 'kg') : s.totalGrams + 'g';
-            displayQty = displayQty.replace('.0kg', 'kg');
-
-            html += `<div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--border); min-width: 0;"><div style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">${window.escapeHtml(s.vendor)}</div><div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; width: 100%; min-width: 0;"><div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">${copyableHtml}<div style="font-size: 13px; font-weight: 500; color: var(--text-tertiary); margin-top: 6px; word-break: keep-all; white-space: normal;"><span style="font-weight:600; color: var(--text-secondary);">주문자:</span> ${ordererDetailText}</div></div><div style="text-align: right; flex-shrink: 0; min-width: 60px;"><div style="font-size: 22px; font-weight: 900; color: var(--primary); line-height: 1;">${displayQty.replace(/[a-zA-Z]/g, '')}<span style="font-size: 14px; margin-left: 2px; font-weight:700;">${displayQty.replace(/[0-9.]/g, '')}</span></div></div></div></div>`;
-            totalGramsSum += s.totalGrams;
-        });
-        
-        let totalDisplayQty = totalGramsSum >= 1000 ? (totalGramsSum / 1000) + 'kg' : totalGramsSum + 'g';
-        html += `<div style="margin-top: 12px; padding: 24px; background: #f9fafb; border-radius: 16px; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border-strong);"><div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">선택된 발주 총 수량</span><span style="font-size: 20px; font-weight: 900; color: var(--text-display);">${totalDisplayQty.replace('.0kg', 'kg')}</span></div></div></div>`;
-        
-        $("summaryModalBody").innerHTML = html;
-        
-        let exportData = []; 
-        sortedData.forEach(s => { 
-            s.orderers.forEach(o => { 
-                exportData.push({ 
-                    "발주 구분": s.dateGroup + " 발주", 
-                    "수령 센터": s.center, 
-                    "생두사": s.vendor, 
-                    "상품명": s.item, 
-                    "주문 수량": o.rawQty, 
-                    "기수": o.batch, 
-                    "성함": o.name, 
-                    "연락처": o.phone 
-                }); 
-            }); 
-        });
-        window.currentSummaryData = exportData;
-
-        let footerWrap = document.querySelector('#summaryModal .modal-content > div:last-child');
-        if(footerWrap) footerWrap.innerHTML = `<button class="btn-outline" style="margin-right:8px; border-color:#32b06a; color:#32b06a;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button><button class="btn-primary" style="padding: 12px 24px; font-size: 14px;" onclick="window.downloadSummaryExcel()">엑셀 다운로드</button>`;
-    }
-    const modal = $("summaryModal"); if(modal) modal.classList.add('show');
 };
 
 window.renderAppMCal = function(selDate) { 
@@ -1456,6 +1357,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
+// 💡 일괄 선택 상태 연동 보장
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
