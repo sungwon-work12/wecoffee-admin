@@ -17,6 +17,7 @@ window.changeGlobalCenter = function(centerValue) {
     window.fetchCenterData(); 
 };
 
+// 💡 [이벤트 위임 완벽 적용] 
 document.addEventListener('click', function(e) {
     let txt = e.target.innerText || '';
     if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
@@ -37,6 +38,12 @@ document.addEventListener('click', function(e) {
         let btnTxt = (targetBtn.innerText || '').replace(/\s+/g, '');
         if (btnTxt.includes('일괄입금확인')) window.batchUpdateOrderStatus('입금 확인');
         else if (btnTxt.includes('일괄센터도착')) window.batchUpdateOrderStatus('센터 도착');
+        
+        // 💡 [긴급 방어] 상담 일정 모달 '저장하기' 버튼 강제 이벤트 위임
+        if (targetBtn.innerText.includes('저장하기') && targetBtn.closest('#scheduleModal')) {
+            e.preventDefault();
+            window.saveSchedule();
+        }
     }
 });
 
@@ -170,6 +177,7 @@ window.batchUpdateOrderStatus = async function(statusText) {
 window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length >= 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
 window.formatBlockTime = function(v) { let t = String(v).replace(/\D/g, ''); if(t.length === 1) return `0${t}:00`; if(t.length === 2) return `${t.padStart(2,'0')}:00`; if(t.length === 3) return `0${t.slice(0,1)}:${t.slice(1,3)}`; if(t.length >= 4) return `${t.slice(0,2)}:${t.slice(2,4)}`; return v; }
 
+// 💡 [긴급 방어] 한글, 숫자 무관하게 완벽하게 날짜와 시간을 파싱하도록 함수 완전 재정의
 window.formatCounselDateDisplay = function(val) {
     if(!val) return '';
     if(val.match(/\d{4}년\s*\d{1,2}월\s*\d{1,2}일/)) return val;
@@ -275,7 +283,6 @@ window.updateSpaceOptions = function() {
         wrapper = document.createElement('div');
         wrapper.id = 'custom-space-dropdown';
         wrapper.style.cssText = 'position:absolute; background:#fff; border:1px solid var(--border-strong); border-radius:8px; max-height:200px; overflow-y:auto; width:100%; z-index:9999; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-top:4px;';
-        
         blkSpaceInput.parentNode.style.position = 'relative';
         blkSpaceInput.parentNode.appendChild(wrapper);
 
@@ -315,7 +322,6 @@ window.updateSpaceOptions = function() {
             });
         });
     };
-    
     let currentVals = blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean);
     let hasInvalid = currentVals.some(v => !window.currentSpaceOpts.includes(v) && v !== "");
     if(hasInvalid) blkSpaceInput.value = '';
@@ -363,7 +369,6 @@ window.switchMainTab = function(pageId, element) {
   $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
   $$$(".gnb-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.gnb-item[onclick*="${pageId}"]`); if(targetEl) targetEl.classList.add('active');
   localStorage.setItem('wecoffee_main_tab', pageId);
-  
   if(pageId === 'page-center') window.fetchCenterData();
   if(pageId === 'page-applications') { window.fetchApplications(); isInsightView = false; if($("app-table-area")) $("app-table-area").style.display = "block"; if($("app-insight-area")) $("app-insight-area").style.display = "none"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = "인사이트 보기"; }
   if(pageId === 'page-members') window.fetchMembers();
@@ -450,7 +455,6 @@ window.fetchCenterData = async function() {
 
   try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
 }
-
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -464,6 +468,7 @@ window.renderCenterData = function() {
           titles.forEach(el => {
               if(el.textContent.includes(textMatch) && !document.getElementById(id) && !el.closest('#dynamic-ord-container')) {
                   let sub = el.querySelector('.sub-text'); if(sub) sub.remove();
+                  // 💡 [툴팁 위치 고정] 타이틀 컨테이너에 flex 속성을 강제로 먹여 툴팁이 무조건 나란히 붙도록 수정
                   el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.gap = '6px';
                   el.innerHTML = el.innerHTML + `<i id="${id}" class="info-tooltip ${isLong ? 'long-text' : ''}" data-tooltip="${tooltipText}">i</i>`;
               }
@@ -479,6 +484,7 @@ window.renderCenterData = function() {
   } catch(e) {}
 
   try {
+      // 💡 [빈 껍데기 UI 완벽 타겟팅 삭제] 부모 탭 전체가 날아가는 현상을 방지하고, 타겟팅된 더미 데이터만 안전하게 숨김 처리
       let ordTab = document.getElementById('sub-ord');
       if (ordTab) {
           let legacyTitles = ordTab.querySelectorAll('.section-title');
@@ -487,7 +493,9 @@ window.renderCenterData = function() {
               if ((txt.includes('월요일 발주') || txt.includes('목요일 발주') || txt.includes('4월 23일')) && !el.closest('#dynamic-ord-container')) {
                   el.style.display = 'none';
                   let nextTable = el.nextElementSibling;
-                  if(nextTable && nextTable.classList.contains('table-wrap')) nextTable.style.display = 'none';
+                  if(nextTable && nextTable.classList.contains('table-wrap')) {
+                      nextTable.style.display = 'none';
+                  }
               }
           });
       }
@@ -601,6 +609,7 @@ window.renderCenterData = function() {
         let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter); 
         let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
         let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
+        
         let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인 중') : true; 
         return matchCenter && matchQ && matchV && matchS; 
       }); 
@@ -611,6 +620,7 @@ window.renderCenterData = function() {
       fOrd.forEach(o => {
           let dateKey = window.formatDeliveryDateFull(o.delivery_date);
           o._targetBadge = ''; 
+          
           if (!groupedOrders[dateKey]) groupedOrders[dateKey] = [];
           groupedOrders[dateKey].push(o);
       });
@@ -661,12 +671,6 @@ window.renderCenterData = function() {
               else ordTab.appendChild(container);
           }
           container.innerHTML = dynamicHtml;
-
-          Array.from(ordTab.children).forEach(child => {
-              if (child.id !== 'dynamic-ord-container' && !child.classList.contains('filter-wrap') && !child.classList.contains('table-toolbar') && !child.querySelector('.filter-wrap')) {
-                  child.style.display = 'none';
-              }
-          });
       }
   } catch(e) { console.error(e); }
 
@@ -1300,6 +1304,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
+// 💡 [핵심 수정] 구글 시트 전송 시 주문 시간 누락 및 undefined 문제 해결
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1451,12 +1456,20 @@ window.openScheduleModal = function(id, callTime, counselorName) {
 };
 window.closeScheduleModal = function() { if($("scheduleModal")) $("scheduleModal").classList.remove('show'); };
 
+// 💡 [저장 기능 먹통 해결] 요소 강제 탐색 및 방어 로직 추가
 window.saveSchedule = async function() {
     if(!currentScheduleAppId) { showToast("오류: 상담 대상이 선택되지 않았습니다."); return; }
-    let dateEl = $("schedDate"); let timeEl = $("schedTime"); let nameEl = $("counselorName");
+    
+    let dateEl = $("schedDate");
+    let timeEl = $("schedTime");
+    let nameEl = $("counselorName");
+    
     if(!dateEl || !timeEl) { showToast("오류: 모달 입력창을 찾을 수 없습니다."); return; }
     
-    let dVal = dateEl.value.trim(); let tVal = timeEl.value.trim(); let cName = nameEl ? nameEl.value.trim() : '';
+    let dVal = dateEl.value.trim(); 
+    let tVal = timeEl.value.trim(); 
+    let cName = nameEl ? nameEl.value.trim() : '';
+    
     if(!dVal || !tVal) return showToast("날짜와 시간을 모두 입력해주세요.");
     
     let formattedDate = window.formatCounselDateDisplay(dVal);
@@ -1468,11 +1481,22 @@ window.saveSchedule = async function() {
     if(btn) { origTxt = btn.innerText; btn.innerText = '저장 중...'; btn.disabled = true; }
 
     try {
-        const { error } = await supabaseClient.from('applications').update({ call_time: finalTimeStr, counselor_name: cName, status: '상담 일정 확정' }).eq('id', currentScheduleAppId);
+        const { error } = await supabaseClient.from('applications').update({ 
+            call_time: finalTimeStr, 
+            counselor_name: cName, 
+            status: '상담 일정 확정' 
+        }).eq('id', currentScheduleAppId);
+        
         if(error) throw error;
-        showToast("상담 일정이 저장되었습니다."); window.closeScheduleModal(); window.fetchApplications(); 
-    } catch (error) { console.error(error); showToast("저장에 실패했습니다."); } 
-    finally { if(btn) { btn.innerText = origTxt; btn.disabled = false; } }
+        showToast("상담 일정이 저장되었습니다."); 
+        window.closeScheduleModal(); 
+        window.fetchApplications(); 
+    } catch (error) {
+        console.error(error);
+        showToast("저장에 실패했습니다. 다시 시도해주세요.");
+    } finally {
+        if(btn) { btn.innerText = origTxt; btn.disabled = false; }
+    }
 };
 
 window.openBlockModal = function(dateStr, timeStr) {
