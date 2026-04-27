@@ -2071,7 +2071,7 @@ window.closeSummaryModal = function() { const modal = $("summaryModal"); if(moda
 // 💡 [신규] 구글 시트 전송 시 명세서 수식 자동 생성 및 undefined 에러 완벽 해결
 window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwz9G7mgetN8FAUpGpQQustHRliPvC3JJWUrslHXzuTJBgoLPVbZ7o6JBdGqP0SNn5P/exec'; 
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwFZSw_OOpeGKcp0-YvlsDAKbvlkvjFW9BGvCAnJB1yyTQaU5hh-nj1ss0_gme2l7me/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
     try {
