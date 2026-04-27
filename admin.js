@@ -1067,7 +1067,6 @@ window.openScheduleModal = function(id, callTime, counselorName) {
 
 window.closeScheduleModal = function() { if($("scheduleModal")) $("scheduleModal").classList.remove('show'); };
 
-// 💡 [버그 완벽 수정] 다양한 포맷의 날짜/시간 완벽 파싱 및 링크 문자열 직접 전달 적용
 window.saveSchedule = async function() {
     if(!currentScheduleAppId) return;
 
@@ -1084,14 +1083,13 @@ window.saveSchedule = async function() {
     let targetYear, targetMonth, targetDate;
     const now = new Date(); 
 
-    // 날짜 매칭 1: YYYY년 M월 D일 또는 YYYY-MM-DD 등 (명확한 구분자가 있는 경우)
-    let dateMatch = dVal.match(/(\d{4})[\-.\/년]\s*(\d{1,2})[\-.\/월]\s*(\d{1,2})/);
+    // 💡 날짜 파싱 완전 유연화 (기존 2026-04-27, 0427, 260427, 2026년 4월 27일 등 모두 호환)
+    let dateMatch = dVal.match(/(\d{4})\s*[\-\.년/]\s*(\d{1,2})\s*[\-\.월/]\s*(\d{1,2})/);
     if (dateMatch) {
         targetYear = parseInt(dateMatch[1], 10);
         targetMonth = parseInt(dateMatch[2], 10);
         targetDate = parseInt(dateMatch[3], 10);
     } else {
-        // 날짜 매칭 2: 0427, 260427, 20260427 같은 숫자만 있는 경우
         let dt = dVal.replace(/\D/g, ''); 
         if (dt.length === 8) { 
             targetYear = parseInt(dt.slice(0,4), 10);
@@ -1107,7 +1105,7 @@ window.saveSchedule = async function() {
             targetDate = parseInt(dt.slice(2,4), 10);
             if (targetMonth < now.getMonth() + 1 - 2) targetYear += 1;
         } else {
-            return showToast("날짜 형식을 인식할 수 없습니다. (예: 2026-04-27 또는 0427)");
+            return showToast("날짜 형식을 확인해주세요. (예: 2026-04-27, 260427, 0427)");
         }
     }
 
@@ -1115,25 +1113,24 @@ window.saveSchedule = async function() {
     let isPm = tVal.includes('오후');
     let isAm = tVal.includes('오전');
     
-    // 시간 매칭 1: 16:51, 16시 51분 등 구분자가 있는 경우
-    let timeMatch = tVal.match(/(\d{1,2})[시:\s]+(\d{1,2})/);
+    // 💡 시간 파싱 완전 유연화 (16:51, 16시 51분, 1651, 0904, 826 모두 호환)
+    let timeMatch = tVal.match(/(\d{1,2})\s*[:시]\s*(\d{1,2})/);
     if (timeMatch) {
         targetHour = parseInt(timeMatch[1], 10);
         targetMin = parseInt(timeMatch[2], 10);
     } else {
-        // 시간 매칭 2: 1651, 0904, 1430 같은 숫자만 있는 경우
         let timeRe = tVal.replace(/\D/g, '');
-        if (timeRe.length === 3) {
-            targetHour = parseInt(timeRe.slice(0,1), 10);
-            targetMin = parseInt(timeRe.slice(1,3), 10);
-        } else if (timeRe.length === 4) {
+        if (timeRe.length === 4) {
             targetHour = parseInt(timeRe.slice(0,2), 10);
             targetMin = parseInt(timeRe.slice(2,4), 10);
+        } else if (timeRe.length === 3) {
+            targetHour = parseInt(timeRe.slice(0,1), 10);
+            targetMin = parseInt(timeRe.slice(1,3), 10);
         } else if (timeRe.length === 1 || timeRe.length === 2) {
             targetHour = parseInt(timeRe, 10);
             targetMin = 0;
         } else {
-            return showToast("시간 형식을 인식할 수 없습니다. (예: 14:30 또는 1430)");
+            return showToast("시간 형식을 확인해주세요. (예: 14:30, 1430, 0904)");
         }
     }
 
@@ -1149,6 +1146,7 @@ window.saveSchedule = async function() {
     let ampm = targetHour >= 12 ? '오후' : '오전'; 
     let hh12 = targetHour % 12 || 12;
     
+    // 💡 일관된 포맷팅 (금일 배너 및 캘린더에서 완벽 인식)
     let finalTimeStr = `${targetYear}년 ${targetMonth}월 ${targetDate}일(${dow}) ${ampm} ${hh12}:${String(targetMin).padStart(2,'0')}`;
 
     const { error } = await supabaseClient.from('applications').update({ call_time: finalTimeStr, counselor_name: cName, status: '상담 일정 확정' }).eq('id', currentScheduleAppId);
@@ -1161,7 +1159,7 @@ window.saveSchedule = async function() {
         
         const app = globalApps.find(a => String(a.id) === String(currentScheduleAppId));
         if (app) {
-            // 💡 [수정됨] 링크 문자열을 모달 확인창의 콜백 버튼에 텍스트 데이터로 직접 삽입
+            // 💡 [버그 수정] 링크를 콜백 함수가 아닌 '문자열' 자체로 넘겨서 정상적으로 텍스트 복사되게 처리
             let surveyLink = `https://www.wecoffee.co.kr/survey?uid=${currentScheduleAppId}&name=${encodeURIComponent(app.name || '')}`;
             window.openCustomConfirm("일정 확정 완료", null, `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, surveyLink, "복사하기");
         }
