@@ -834,13 +834,11 @@ window.renderDashboard = async function() {
 
             let evtsHtml = evts.slice(0, 3).map(e => {
                 let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk'));
-                // 💡 [버그 수정] .dash-tooltip-custom -> .dash-tooltip 원복
                 return `<div class="dash-item ${badgeClass}"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${window.escapeHtml(e.text)||''}</div><div class="dash-tooltip">${window.escapeHtml(e.tooltip)||''}</div></div>`;
             }).join('');
 
             if(evts.length > 3) {
                 let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${window.escapeHtml(e.text)||''}`).join('<br>');
-                // 💡 [버그 수정] .dash-tooltip 스타일 붕괴 복구
                 evtsHtml += `<div class="dash-cal-more-wrap" style="position:relative;"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`;
             }
             mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
@@ -897,7 +895,6 @@ window.renderAppMCal = function(selDate) {
     let listWrap = $("m-cal-list-app"); if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 💡 [버그 수정] 정규식 유연화로 날짜 매칭 오류 해결
 window.renderAppDailyBanner = function(filteredApps) {
     let td = new Date(); let mm = td.getMonth() + 1; let dd = td.getDate();
     let scheduled = filteredApps.filter(a => a.status === '상담 일정 확정' && a.call_time);
@@ -938,7 +935,6 @@ window.renderAppDashboard = async function() {
     if (currentAppDashView === 'week') { let startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currDay); for(let i = 0; i < 7; i++) { let dObj = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i); let ds = `${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`; calEvts[ds] = []; } } else { for(let d=1; d<=daysInMonth; d++) { let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; calEvts[ds] = []; } }
     
     scheduledApps.forEach(app => { 
-        // 💡 [버그 수정] 정규식 유연화
         const m = String(app.call_time||'').match(/(\d+)\s*월\s*(\d+)\s*일/); 
         if (m) { 
             let appM = parseInt(m[1], 10); let appD = parseInt(m[2], 10); let appY = yyyy; 
@@ -1042,8 +1038,28 @@ window.openScheduleModal = function(id, callTime, counselorName) {
 
     if(dateEl && timeEl) {
         if(callTime && callTime !== 'null' && callTime.includes('년')) {
-            dateEl.value = window.formatCounselDateRaw(callTime);
-            timeEl.value = window.formatCounselTimeDisplay(callTime);
+            let mDate = callTime.match(/(\d+)년\s*(\d+)월\s*(\d+)일/);
+            if (mDate) {
+                if (dateEl.type === 'date') {
+                    dateEl.value = `${mDate[1]}-${String(mDate[2]).padStart(2,'0')}-${String(mDate[3]).padStart(2,'0')}`;
+                } else {
+                    dateEl.value = `${String(mDate[2]).padStart(2,'0')}${String(mDate[3]).padStart(2,'0')}`;
+                }
+            }
+            
+            let mTime = callTime.match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/);
+            if (mTime) {
+                let hh = parseInt(mTime[2], 10);
+                let mm = mTime[3] ? parseInt(mTime[3], 10) : 0;
+                if (mTime[1] === '오후' && hh < 12) hh += 12;
+                if (mTime[1] === '오전' && hh === 12) hh = 0;
+                
+                if (timeEl.type === 'time') {
+                    timeEl.value = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+                } else {
+                    timeEl.value = `${mTime[1]} ${mTime[2]}:${String(mm).padStart(2,'0')}`;
+                }
+            }
         } else { dateEl.value = ''; timeEl.value = ''; }
     }
     if(nameEl) nameEl.value = counselorName && counselorName !== 'null' && counselorName !== 'undefined' ? counselorName : '';
@@ -1051,7 +1067,6 @@ window.openScheduleModal = function(id, callTime, counselorName) {
 
 window.closeScheduleModal = function() { if($("scheduleModal")) $("scheduleModal").classList.remove('show'); };
 
-// 💡 [버그 완벽 수정] 날짜 통일 렌더링 & 링크 문자열 다이렉트 전달
 window.saveSchedule = async function() {
     if(!currentScheduleAppId) return;
 
@@ -1065,38 +1080,54 @@ window.saveSchedule = async function() {
 
     if(!dVal || !tVal) return showToast("상담 날짜와 시간을 입력해주세요.");
 
-    let dt = String(dVal).replace(/\D/g, ''); 
-    let timeRe = String(tVal).replace(/\D/g, '');
-    let finalTimeStr = "";
-    
-    let targetYear, targetMonth, targetDate, targetHour, targetMin;
-    const now = new Date(); 
+    let targetYear, targetMonth, targetDate;
+    let dt = dVal.replace(/\D/g, ''); 
 
-    // 하위 호환 및 통일화 포맷 적용
-    if(dt.length === 4 && timeRe.length >= 3) {
-        targetYear = now.getFullYear();
-        targetMonth = parseInt(dt.slice(0,2), 10); 
+    if (dt.length === 8) { // YYYYMMDD
+        targetYear = parseInt(dt.slice(0,4), 10);
+        targetMonth = parseInt(dt.slice(4,6), 10);
+        targetDate = parseInt(dt.slice(6,8), 10);
+    } else if (dt.length === 6) { // YYMMDD
+        targetYear = 2000 + parseInt(dt.slice(0,2), 10);
+        targetMonth = parseInt(dt.slice(2,4), 10);
+        targetDate = parseInt(dt.slice(4,6), 10);
+    } else if (dt.length === 4) { // MMDD
+        targetYear = new Date().getFullYear();
+        targetMonth = parseInt(dt.slice(0,2), 10);
         targetDate = parseInt(dt.slice(2,4), 10);
-        targetHour = parseInt(timeRe.length === 3 ? timeRe.slice(0,1) : timeRe.slice(0,2), 10); 
-        targetMin = parseInt(timeRe.length === 3 ? timeRe.slice(1,3) : timeRe.slice(2,4), 10);
-        if (targetMonth < now.getMonth() + 1 - 2) targetYear += 1;
+        if (targetMonth < new Date().getMonth() + 1 - 2) targetYear += 1;
     } else {
-        let parseD = new Date(dVal);
-        if (isNaN(parseD.getTime())) { return showToast("유효하지 않은 날짜입니다."); }
-        targetYear = parseD.getFullYear();
-        targetMonth = parseD.getMonth() + 1;
-        targetDate = parseD.getDate();
-        let timeParts = tVal.split(':');
-        targetHour = parseInt(timeParts[0], 10);
-        targetMin = parseInt(timeParts[1], 10);
+        return showToast("날짜는 YYYY-MM-DD 또는 MMDD 형식으로 입력해주세요.");
     }
 
-    let dow = ['일','월','화','수','목','금','토'][new Date(targetYear, targetMonth - 1, targetDate).getDay()];
+    let targetHour = 0, targetMin = 0;
+    let isPm = tVal.includes('오후');
+    let isAm = tVal.includes('오전');
+    let timeRe = tVal.replace(/\D/g, '');
+
+    if (timeRe.length === 3) {
+        targetHour = parseInt(timeRe.slice(0,1), 10);
+        targetMin = parseInt(timeRe.slice(1,3), 10);
+    } else if (timeRe.length === 4) {
+        targetHour = parseInt(timeRe.slice(0,2), 10);
+        targetMin = parseInt(timeRe.slice(2,4), 10);
+    } else {
+        return showToast("시간은 HH:MM 또는 HHMM 형식으로 입력해주세요.");
+    }
+
+    if (isPm && targetHour < 12) targetHour += 12;
+    if (isAm && targetHour === 12) targetHour = 0;
+
+    let testDate = new Date(targetYear, targetMonth - 1, targetDate);
+    if (isNaN(testDate.getTime())) {
+        return showToast("유효하지 않은 날짜입니다.");
+    }
+
+    let dow = ['일','월','화','수','목','금','토'][testDate.getDay()];
     let ampm = targetHour >= 12 ? '오후' : '오전'; 
     let hh12 = targetHour % 12 || 12;
     
-    // 이 포맷으로 저장되어야 앱 전반의 정규식이 정상 작동함
-    finalTimeStr = `${targetYear}년 ${targetMonth}월 ${targetDate}일(${dow}) ${ampm} ${hh12}:${String(targetMin).padStart(2,'0')}`;
+    let finalTimeStr = `${targetYear}년 ${targetMonth}월 ${targetDate}일(${dow}) ${ampm} ${hh12}:${String(targetMin).padStart(2,'0')}`;
 
     const { error } = await supabaseClient.from('applications').update({ call_time: finalTimeStr, counselor_name: cName, status: '상담 일정 확정' }).eq('id', currentScheduleAppId);
     
@@ -1108,7 +1139,6 @@ window.saveSchedule = async function() {
         
         const app = globalApps.find(a => String(a.id) === String(currentScheduleAppId));
         if (app) {
-            // 💡 [수정됨] 복사 함수가 아닌, 순수 URL 문자열을 전달
             let surveyLink = `https://www.wecoffee.co.kr/survey?uid=${currentScheduleAppId}&name=${encodeURIComponent(app.name || '')}`;
             window.openCustomConfirm("일정 확정 완료", null, `고객에게 발송할 <b>사전 설문 링크</b>를 복사하시겠습니까?`, surveyLink, "복사하기");
         }
