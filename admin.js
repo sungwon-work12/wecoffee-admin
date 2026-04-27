@@ -6,7 +6,11 @@ let globalApps=[], globalMembers=[], gRes=[], gTrn=[], gOrd=[], gBlk=[], gNotice
 let isInsightView = false, currentCalDate = new Date(), currentScheduleAppId = null, currentBlockId = null, pendingOptionData = null;
 let currentGlobalCenter = '전체', currentDashView = 'week', currentDashMonthOffset = 0, currentAppDashView = 'week', appDashMonthOffset = 0;
 let currentSummaryData = [], currentInsightData = {};
-let isCrmReadOnly = false, quillEditor = null, isAppInitialized = false, realtimeChannel = null;
+let isCrmReadOnly = false;
+let quillEditor = null;
+let isAppInitialized = false; 
+let realtimeChannel = null;
+
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 
 window.currentEditingBlockId = null;
@@ -17,55 +21,70 @@ window.changeGlobalCenter = function(centerValue) {
     window.fetchCenterData(); 
 };
 
-// 💡 [이벤트 위임 완벽 적용] 
+// 💡 [이벤트 강제 위임] 센터 탭 변경 및 일괄 처리 버튼 작동 보장
 document.addEventListener('click', function(e) {
     let txt = e.target.innerText || '';
     if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
         let cleanTxt = txt.trim();
         if (cleanTxt === '전체 센터' || cleanTxt === '마포 센터' || cleanTxt === '광진 센터') {
             let val = cleanTxt === '전체 센터' ? '전체' : cleanTxt;
-            if (currentGlobalCenter !== val) window.changeGlobalCenter(val);
+            if (currentGlobalCenter !== val) {
+                window.changeGlobalCenter(val);
+            }
             if(e.target.parentElement) {
                 Array.from(e.target.parentElement.children).forEach(child => {
-                    if(child.style) { child.style.fontWeight = '500'; child.style.color = 'var(--text-secondary)'; }
+                    if(child.style) {
+                        child.style.fontWeight = '500';
+                        child.style.color = 'var(--text-secondary)';
+                    }
                 });
-                e.target.style.fontWeight = '800'; e.target.style.color = 'var(--text-display)';
+                e.target.style.fontWeight = '800';
+                e.target.style.color = 'var(--text-display)';
             }
         }
     }
+
     let targetBtn = e.target.closest('button, .btn');
     if (targetBtn) {
         let btnTxt = (targetBtn.innerText || '').replace(/\s+/g, '');
-        if (btnTxt.includes('일괄입금확인')) window.batchUpdateOrderStatus('입금 확인');
-        else if (btnTxt.includes('일괄센터도착')) window.batchUpdateOrderStatus('센터 도착');
-        
-        // 💡 [긴급 방어] 상담 일정 모달 '저장하기' 버튼 강제 이벤트 위임
-        if (targetBtn.innerText.includes('저장하기') && targetBtn.closest('#scheduleModal')) {
-            e.preventDefault();
-            window.saveSchedule();
+        if (btnTxt.includes('일괄입금확인')) {
+            window.batchUpdateOrderStatus('입금 확인');
+        } else if (btnTxt.includes('일괄센터도착')) {
+            window.batchUpdateOrderStatus('센터 도착');
         }
     }
 });
 
+// 💡 [센터 연동 수정] 필터 변경 및 스케줄 센터 변경 시 즉각 감지
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
-        if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') window.changeGlobalCenter(e.target.value);
+        if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter') {
+            window.changeGlobalCenter(e.target.value);
+        }
     }
+    
     if (e.target.id === 'filterPendingOrd' || e.target.id === 'ordVendorFilter' || e.target.id === 'resSpaceFilter' || e.target.id === 'trnContentFilter') {
         window.renderCenterData();
     }
+    
+    // 모달 내 센터 변경 시 하위 공간/장비 옵션 즉각 업데이트 함수 호출
     if (e.target.id === 'blkCenter') {
         if(window.updateSpaceOptions) window.updateSpaceOptions();
     }
 });
 
+// 검색창 타이핑 감지
 document.addEventListener('input', function(e) {
     if (e.target.id === 'searchOrd' || e.target.id === 'searchRes' || e.target.id === 'searchTrn' || e.target.id === 'memberSearch') {
-        if (e.target.id === 'memberSearch') window.searchMembers();
-        else window.renderCenterData();
+        if (e.target.id === 'memberSearch') {
+            window.searchMembers();
+        } else {
+            window.renderCenterData();
+        }
     }
 });
 
+// CSS 주입
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -74,21 +93,33 @@ if (!document.getElementById('wecoffee-custom-styles')) {
         .info-tooltip:hover { color: #505967; border-color: #505967; }
         .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 130%; left: -10px; background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: pre-wrap; width: max-content; max-width: 260px; z-index: 9999; margin-bottom: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; visibility: hidden; pointer-events: none; transition: 0.2s; text-align: left; word-break: keep-all; }
         .info-tooltip:hover::after { opacity: 1; visibility: visible; }
+        
         .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
         .pagination-btn { height:32px; min-width:32px; padding:0 8px; border:1px solid var(--border-strong); background:#fff; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:0.2s; }
         .pagination-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
         .pagination-btn:disabled { opacity:0.5; cursor:not-allowed; }
+        
         .dash-cal-grid, .dash-cal-cell, .desktop-cal { overflow: visible !important; }
         .dash-tooltip-custom { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #212529; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 13px; white-space: nowrap; z-index: 999999 !important; visibility: hidden; opacity: 0; transition: 0.2s; text-align: left; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.5; }
         .dash-cal-more-wrap:hover .dash-tooltip-custom { visibility: visible; opacity: 1; }
+        
         .mem-action-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap !important; overflow-x: auto; }
         .mem-action-row { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap !important; white-space: nowrap; }
         .date-inputs select { flex-shrink: 0; width: auto !important; min-width: 75px; padding-left: 8px !important; padding-right: 28px !important; background-position: right 8px center; }
+        
+        /* 💡 모바일 발주 뱃지 원천 삭제 처리 */
         .order-day-badge { display: none !important; } 
+        
         .space-opt-item:hover { background: #f9fafb; color: var(--primary); font-weight: 700; }
         .space-opt-item.selected { background: #e8f0fe; color: var(--primary); font-weight: 700; }
+
+        /* 💡 발주 리스트 하단 잘림 방지 여백 추가 */
         #dynamic-ord-container { padding-bottom: 120px; }
-        @media (max-width: 1024px) { .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; } }
+
+        @media (max-width: 1024px) {
+            .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; }
+        }
+
         @media (max-width: 768px) {
             .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; overflow-x: visible; }
             .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: wrap !important; gap: 6px; }
@@ -105,42 +136,63 @@ window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let str = String(dateStr).split(' ')[0].split('T')[0];
     let d = new Date(str);
-    if(isNaN(d.getTime())) { str = str.replace(/-/g, '/'); d = new Date(str); }
+    if(isNaN(d.getTime())) {
+        str = str.replace(/-/g, '/');
+        d = new Date(str);
+    }
     return isNaN(d.getTime()) ? new Date() : d;
 };
 
 window.parseDeliveryDate = function(dateStr) {
     if(!dateStr) return new Date();
-    let str = String(dateStr).trim(); let currentYear = new Date().getFullYear();
+    let str = String(dateStr).trim();
+    let currentYear = new Date().getFullYear();
+    
     let m = str.match(/(\d{1,2})[\/\-\.월]\s*(\d{1,2})/);
-    if (m) return new Date(currentYear, parseInt(m[1], 10) - 1, parseInt(m[2], 10));
+    if (m) {
+        return new Date(currentYear, parseInt(m[1], 10) - 1, parseInt(m[2], 10));
+    }
+    
     let d = new Date(str);
-    if(!isNaN(d.getTime())) { if(d.getFullYear() < 2010) d.setFullYear(currentYear); return d; }
+    if(!isNaN(d.getTime())) {
+        if(d.getFullYear() < 2010) d.setFullYear(currentYear);
+        return d;
+    }
     return new Date();
 };
 
 window.formatDeliveryDateFull = function(dateStr) {
-    if(!dateStr) return '미정'; let d = window.parseDeliveryDate(dateStr); let dow = ['일','월','화','수','목','금','토'][d.getDay()];
+    if(!dateStr) return '미정';
+    let d = window.parseDeliveryDate(dateStr);
+    let dow = ['일','월','화','수','목','금','토'][d.getDay()];
     return `${d.getMonth()+1}월 ${d.getDate()}일 ${dow}요일`;
 };
 
 window.formatDeliveryDay = function(dateStr) {
-    if(!dateStr) return '미정'; let d = window.parseDeliveryDate(dateStr); return ['일','월','화','수','목','금','토'][d.getDay()];
+    if(!dateStr) return '미정';
+    let d = window.parseDeliveryDate(dateStr);
+    return ['일','월','화','수','목','금','토'][d.getDay()];
 };
 
 window.getOrderTargetFull = function(itemName) {
     let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
     if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
-    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/); if (m2) return `${m2[1]}요일`; return '월요일'; 
+    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
+    if (m2) return `${m2[1]}요일`;
+    return '월요일'; 
 };
 window.getOrderTargetDay = function(itemName) {
-    let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/); if(m) return m[3];
-    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/); if (m2) return m2[1]; return '월';
+    let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
+    if(m) return m[3];
+    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
+    if (m2) return m2[1];
+    return '월';
 };
 
 window.holidaysCache = {};
 window.fetchHolidays = async function(year) {
-  if(window.holidaysCache['fetched_' + year]) return; window.holidaysCache['fetched_' + year] = true;
+  if(window.holidaysCache['fetched_' + year]) return; 
+  window.holidaysCache['fetched_' + year] = true;
   const serviceKey = 'dd13ab368b573e49574bd2b121ecf8b4dd4673e273e64135156968f533954bd5';
   const url = `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${serviceKey}&solYear=${year}&numOfRows=100&_type=json`;
   try {
@@ -151,7 +203,8 @@ window.fetchHolidays = async function(year) {
 
 window.getHoliday = function(y, m, d) {
   let key = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-  if (window.holidaysCache[key]) return window.holidaysCache[key]; return null;
+  if (window.holidaysCache[key]) return window.holidaysCache[key];
+  return null;
 };
 
 function getDow(dStr) { if(!dStr) return ''; const d = window.safeKST(dStr); return ['일','월','화','수','목','금','토'][d.getDay()]; }
@@ -161,52 +214,29 @@ function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocale
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
 window.toggleAll = function(checkbox, targetClass) { 
-    const checkboxes = document.querySelectorAll('.' + targetClass); checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
+    const checkboxes = document.querySelectorAll('.' + targetClass); 
+    checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
 };
 
 window.batchUpdateOrderStatus = async function(statusText) {
     let checkedBoxes = document.querySelectorAll('.chk-ord-dynamic:checked, .chk-ord:checked, .chk-ord-thu:checked');
     let idsToUpdate = Array.from(checkedBoxes).map(cb => String(cb.value));
+    
     if (idsToUpdate.length === 0) return showToast("선택된 발주 건이 없습니다.");
+    
     window.openCustomConfirm("일괄 상태 변경", null, `선택한 ${idsToUpdate.length}건을 일괄 <b>[${statusText}]</b> 처리하시겠습니까?`, async () => {
         const { error } = await supabaseClient.from('orders').update({ status: statusText }).in('id', idsToUpdate);
-        if (error) { showToast("일괄 변경에 실패했습니다."); } else { showToast(`${idsToUpdate.length}건이 [${statusText}] 상태로 변경되었습니다.`); window.fetchCenterData(); }
+        if (error) { showToast("일괄 변경에 실패했습니다."); console.error(error); } 
+        else { showToast(`${idsToUpdate.length}건이 [${statusText}] 상태로 변경되었습니다.`); window.fetchCenterData(); }
     }, "일괄 변경");
 };
 
 window.formatBlockDate = function(v) { let d = String(v).replace(/\D/g, ''); if(d.length === 4) { let y = new Date().getFullYear(); return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`; } if(d.length === 6) { return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`; } if(d.length >= 8) { return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`; } return v; }
 window.formatBlockTime = function(v) { let t = String(v).replace(/\D/g, ''); if(t.length === 1) return `0${t}:00`; if(t.length === 2) return `${t.padStart(2,'0')}:00`; if(t.length === 3) return `0${t.slice(0,1)}:${t.slice(1,3)}`; if(t.length >= 4) return `${t.slice(0,2)}:${t.slice(2,4)}`; return v; }
 
-// 💡 [긴급 방어] 한글, 숫자 무관하게 완벽하게 날짜와 시간을 파싱하도록 함수 완전 재정의
-window.formatCounselDateDisplay = function(val) {
-    if(!val) return '';
-    if(val.match(/\d{4}년\s*\d{1,2}월\s*\d{1,2}일/)) return val;
-    let dt = String(val).replace(/\D/g, ''); let y, m, d; let now = new Date();
-    if (dt.length >= 8) { y = parseInt(dt.slice(0, 4), 10); m = parseInt(dt.slice(4, 6), 10); d = parseInt(dt.slice(6, 8), 10); } 
-    else if (dt.length === 4) { y = now.getFullYear(); m = parseInt(dt.slice(0, 2), 10); d = parseInt(dt.slice(2, 4), 10); if (m < now.getMonth() + 1 - 2) y += 1; } 
-    else { return val; }
-    let dObj = new Date(y, m - 1, d);
-    if(isNaN(dObj.getTime())) return val;
-    let dowKr = ['일','월','화','수','목','금','토'][dObj.getDay()];
-    return `${y}년 ${m}월 ${d}일 (${dowKr})`;
-};
-
-window.formatCounselTimeDisplay = function(val) {
-    if(!val) return '';
-    if(val.includes('오전') || val.includes('오후') || val.includes(':')) return val;
-    let t = String(val).replace(/\D/g, ''); if(t.length < 3) return val;
-    let hh = parseInt(t.length === 3 ? t.slice(0,1) : t.slice(0,2), 10); let mm = t.length === 3 ? t.slice(1,3) : t.slice(2,4);
-    let ampm = hh >= 12 ? '오후' : '오전'; let hh12 = hh % 12 || 12;
-    return `${ampm} ${hh12}:${mm}`;
-};
-
-window.formatCounselDateRaw = function(val) {
-    if(!val) return '';
-    let match = val.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/); if(match) return `${match[1]}-${String(match[2]).padStart(2, '0')}-${String(match[3]).padStart(2, '0')}`;
-    let matchOld = val.match(/(\d+)년\s*(\d+)월\s*(\d+)일/); if(matchOld) return String(matchOld[2]).padStart(2,'0') + String(matchOld[3]).padStart(2,'0');
-    let dt = String(val).replace(/\D/g, ''); if(dt.length > 4 && dt.length !== 8) return dt.slice(-4);
-    return dt;
-};
+window.formatCounselDateDisplay = function(val) { if(!val) return ''; let dt = String(val).replace(/\D/g, ''); if(dt.length === 8) dt = dt.slice(4); if(dt.length > 4 && dt.length !== 8) dt = dt.slice(-4); if(dt.length !== 4) return val; let now = new Date(); let y = now.getFullYear(); let m = parseInt(dt.slice(0,2), 10); let d = parseInt(dt.slice(2,4), 10); if (m < now.getMonth() + 1 - 2) y += 1; let dObj = new Date(y, m - 1, d); if(isNaN(dObj.getTime())) return val; let dowKr = ['일','월','화','수','목','금','토'][dObj.getDay()]; return `${y}년 ${m}월 ${d}일 (${dowKr})`; }
+window.formatCounselDateRaw = function(val) { if(!val) return ''; let match = val.match(/(\d+)년\s*(\d+)월\s*(\d+)일/); if(match) return String(match[2]).padStart(2,'0') + String(match[3]).padStart(2,'0'); let dt = String(val).replace(/\D/g, ''); if(dt.length > 4) return dt.slice(-4); return dt; }
+window.formatCounselTimeDisplay = function(val) { if(!val) return ''; let t = String(val).replace(/\D/g, ''); if(t.length < 3) return val; let hh = parseInt(t.length === 3 ? t.slice(0,1) : t.slice(0,2), 10); let mm = t.length === 3 ? t.slice(1,3) : t.slice(2,4); let ampm = hh >= 12 ? '오후' : '오전'; let hh12 = hh % 12 || 12; return `${ampm} ${hh12}:${mm}`; }
 
 window.copyTxt = function(txt, successMsg = "복사되었습니다.") { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(txt).then(() => { showToast(successMsg); }).catch(err => { fallbackCopyTextToClipboard(txt, successMsg); }); } else { fallbackCopyTextToClipboard(txt, successMsg); } };
 function fallbackCopyTextToClipboard(text, successMsg) { var textArea = document.createElement("textarea"); textArea.value = text; textArea.style.top = "0"; textArea.style.left = "0"; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { document.execCommand('copy'); showToast(successMsg); } catch (err) { showToast("복사 실패"); } document.body.removeChild(textArea); }
@@ -267,15 +297,21 @@ window.updateDashSpaceFilter = function() {
     filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
 }
 
+// 💡 [클로저 이벤트 버그 해결] 센터 변경 시 장비 목록 갱신을 전역 변수로 제어
 window.currentSpaceOpts = [];
 window.updateSpaceOptions = function() {
     let center = $("blkCenter") ? $("blkCenter").value : "마포 센터";
     window.currentSpaceOpts = ['전체 (공간 전체)'];
-    if (center === '마포 센터') { window.currentSpaceOpts.push('에스프레소존', '아스토리아 스톰 1번그룹 (좌)', '아스토리아 스톰 2번그룹 (우)', '로스팅존', '이지스터 800 1번 (좌)', '이지스터 800 2번 (우)', '이지스터 1.8', '스트롱홀드 S7X', '브루잉존', '커핑존', '스터디존'); } 
-    else { window.currentSpaceOpts.push('에스프레소존', '시네소 MVP 하이드라 1번그룹 (좌)', '시네소 MVP 하이드라 2번그룹 (우)', '페마 페미나 1그룹', '산레모 You 1그룹', '빅토리아 아르두이노 이글원 프리마 프로 1그룹', '빅토리아 아르두이노 이글원 프리마 EXP 1그룹', '로스팅존', '이지스터 800 1번 (좌)', '이지스터 800 2번 (우)', '이지스터 1.8 1번 (좌)', '이지스터 1.8 2번', '브루잉존', '커핑존', '스터디룸'); }
+    
+    if (center === '마포 센터') {
+        window.currentSpaceOpts.push('에스프레소존', '아스토리아 스톰 1번그룹 (좌)', '아스토리아 스톰 2번그룹 (우)', '로스팅존', '이지스터 800 1번 (좌)', '이지스터 800 2번 (우)', '이지스터 1.8', '스트롱홀드 S7X', '브루잉존', '커핑존', '스터디존');
+    } else {
+        window.currentSpaceOpts.push('에스프레소존', '시네소 MVP 하이드라 1번그룹 (좌)', '시네소 MVP 하이드라 2번그룹 (우)', '페마 페미나 1그룹', '산레모 You 1그룹', '빅토리아 아르두이노 이글원 프리마 프로 1그룹', '빅토리아 아르두이노 이글원 프리마 EXP 1그룹', '로스팅존', '이지스터 800 1번 (좌)', '이지스터 800 2번 (우)', '이지스터 1.8 1번 (좌)', '이지스터 1.8 2번', '브루잉존', '커핑존', '스터디룸');
+    }
 
     let blkSpaceInput = $("blkSpace");
     if (!blkSpaceInput) return;
+
     blkSpaceInput.removeAttribute('list');
 
     let wrapper = document.getElementById('custom-space-dropdown');
@@ -283,25 +319,41 @@ window.updateSpaceOptions = function() {
         wrapper = document.createElement('div');
         wrapper.id = 'custom-space-dropdown';
         wrapper.style.cssText = 'position:absolute; background:#fff; border:1px solid var(--border-strong); border-radius:8px; max-height:200px; overflow-y:auto; width:100%; z-index:9999; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-top:4px;';
+        
         blkSpaceInput.parentNode.style.position = 'relative';
         blkSpaceInput.parentNode.appendChild(wrapper);
 
+        // 이벤트가 최신 opts를 바라보도록 전역 함수로 렌더링 분리
         blkSpaceInput.addEventListener('focus', () => { wrapper.style.display = 'block'; window.renderCustomOptions(""); });
         blkSpaceInput.addEventListener('click', () => { wrapper.style.display = 'block'; window.renderCustomOptions(""); });
 
-        document.addEventListener('click', (e) => { if(e.target !== blkSpaceInput && !wrapper.contains(e.target)) wrapper.style.display = 'none'; });
-        blkSpaceInput.addEventListener('input', function(e) { let parts = this.value.split(','); let lastTerm = parts[parts.length - 1].trim(); wrapper.style.display = 'block'; window.renderCustomOptions(lastTerm); });
+        document.addEventListener('click', (e) => {
+            if(e.target !== blkSpaceInput && !wrapper.contains(e.target)) {
+                wrapper.style.display = 'none';
+            }
+        });
+        
+        blkSpaceInput.addEventListener('input', function(e) {
+             let val = this.value;
+             let parts = val.split(',');
+             let lastTerm = parts[parts.length - 1].trim(); 
+             wrapper.style.display = 'block';
+             window.renderCustomOptions(lastTerm);
+        });
     }
 
     window.renderCustomOptions = (searchTerm = "") => {
         let currentArr = blkSpaceInput.value ? blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
         let filteredOpts = window.currentSpaceOpts;
-        if (searchTerm) filteredOpts = window.currentSpaceOpts.filter(opt => opt.toLowerCase().includes(searchTerm.toLowerCase()));
+        
+        if (searchTerm) { filteredOpts = window.currentSpaceOpts.filter(opt => opt.toLowerCase().includes(searchTerm.toLowerCase())); }
 
-        if(filteredOpts.length === 0) { wrapper.innerHTML = `<div style="padding:10px 12px; font-size:13px; color:var(--text-secondary);">검색 결과가 없습니다.</div>`; } 
-        else {
+        if(filteredOpts.length === 0) {
+            wrapper.innerHTML = `<div style="padding:10px 12px; font-size:13px; color:var(--text-secondary);">검색 결과가 없습니다.</div>`;
+        } else {
             wrapper.innerHTML = filteredOpts.map(opt => {
-                let isSelected = currentArr.includes(opt); let bgStyle = isSelected ? 'background:#e8f0fe; color:var(--primary); font-weight:800;' : '';
+                let isSelected = currentArr.includes(opt);
+                let bgStyle = isSelected ? 'background:#e8f0fe; color:var(--primary); font-weight:800;' : '';
                 return `<div class="space-opt-item" style="padding:10px 12px; cursor:pointer; font-size:14px; border-bottom:1px solid #f2f4f6; transition:0.1s; ${bgStyle}">${opt}</div>`;
             }).join('');
         }
@@ -309,22 +361,30 @@ window.updateSpaceOptions = function() {
         wrapper.querySelectorAll('.space-opt-item').forEach(item => {
             item.addEventListener('click', function(e) {
                 e.preventDefault(); e.stopPropagation();
-                let clickedVal = this.innerText.trim(); let parts = blkSpaceInput.value.split(',').map(s=>s.trim());
+                let clickedVal = this.innerText.trim();
+                let currentVal = blkSpaceInput.value;
+                let parts = currentVal.split(',').map(s=>s.trim());
+                
                 if(searchTerm) parts.pop();
 
-                if(clickedVal === '전체 (공간 전체)') blkSpaceInput.value = '전체 (공간 전체)'; 
+                if(clickedVal === '전체 (공간 전체)') { blkSpaceInput.value = '전체 (공간 전체)'; } 
                 else {
                     let arr = parts.filter(s => s !== '전체 (공간 전체)' && s !== '');
-                    if(!arr.includes(clickedVal)) arr.push(clickedVal); else arr = arr.filter(v => v !== clickedVal);
+                    if(!arr.includes(clickedVal)) { arr.push(clickedVal); } else { arr = arr.filter(v => v !== clickedVal); }
                     blkSpaceInput.value = arr.join(', ') + (arr.length > 0 ? ', ' : '');
                 }
-                blkSpaceInput.focus(); window.renderCustomOptions("");
+                
+                blkSpaceInput.focus();
+                window.renderCustomOptions("");
             });
         });
     };
+    
+    // 센터가 바뀌었는데 현재 입력된 값이 바뀐 센터에 없으면 값을 초기화
     let currentVals = blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean);
     let hasInvalid = currentVals.some(v => !window.currentSpaceOpts.includes(v) && v !== "");
     if(hasInvalid) blkSpaceInput.value = '';
+
     window.renderCustomOptions("");
 };
 
@@ -350,7 +410,8 @@ function handleLoginSuccess() {
     let savedSub = localStorage.getItem('wecoffee_sub_tab') || 'sub-res';
     if(savedSub === 'sub-trn' || savedSub === 'sub-blk') savedSub = 'sub-trn-blk';
     let mainEl = document.querySelector(`.gnb-item[onclick*="${savedMain}"]`); 
-    if(mainEl) window.switchMainTab(savedMain, mainEl); else window.switchMainTab('page-center', document.querySelector(`.gnb-item[onclick*="page-center"]`));
+    if(mainEl) window.switchMainTab(savedMain, mainEl); 
+    else window.switchMainTab('page-center', document.querySelector(`.gnb-item[onclick*="page-center"]`));
     if(savedMain === 'page-center') { let subEl = document.querySelector(`.sub-item[onclick*="${savedSub}"]`); if(subEl) window.switchSubTab(savedSub, subEl); }
 }
 
@@ -369,6 +430,7 @@ window.switchMainTab = function(pageId, element) {
   $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
   $$$(".gnb-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.gnb-item[onclick*="${pageId}"]`); if(targetEl) targetEl.classList.add('active');
   localStorage.setItem('wecoffee_main_tab', pageId);
+  
   if(pageId === 'page-center') window.fetchCenterData();
   if(pageId === 'page-applications') { window.fetchApplications(); isInsightView = false; if($("app-table-area")) $("app-table-area").style.display = "block"; if($("app-insight-area")) $("app-insight-area").style.display = "none"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = "인사이트 보기"; }
   if(pageId === 'page-members') window.fetchMembers();
@@ -379,7 +441,7 @@ window.switchSubTab = function(subId, element) {
   $$$(".sub-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.sub-item[onclick*="${subId}"]`); if(targetEl) { targetEl.classList.add('active'); targetEl.classList.remove("tab-pulse"); }
   if (subId === 'sub-notice') { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'none'; } else { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'inline-flex'; }
   localStorage.setItem('wecoffee_sub_tab', subId); 
-  if(subId === 'sub-res' || subId === 'sub-trn-blk' || subId === 'sub-ord') window.fetchCenterData();
+  if(subId === 'sub-res' || subId === 'sub-trn-blk' || subId === 'sub-ord') { window.fetchCenterData(); }
 }
 
 window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
@@ -395,7 +457,13 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrTex
         btn.innerText = btnText; let newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
         newBtn.onclick = function() {
             if(btnText === '복사하기') { window.copyTxt(callbackOrText, "사전 설문 링크가 복사되었습니다."); window.closeConfirmModal(); } 
-            else { 
+            else if(btnText === '확인' || btnText === '취소 확정') { 
+                (async () => {
+                    newBtn.disabled = true; let originalText = newBtn.innerText; newBtn.innerText = "처리 중..."; 
+                    try { await callbackOrText(); } catch(e) { console.error(e); } 
+                    finally { newBtn.disabled = false; newBtn.innerText = originalText; window.closeConfirmModal(); }
+                })();
+            } else { 
                 (async () => {
                     newBtn.disabled = true; let originalText = newBtn.innerText; newBtn.innerText = "처리 중..."; 
                     try { await callbackOrText(); } catch(e) { console.error(e); } 
@@ -437,14 +505,9 @@ window.fetchCenterData = async function() {
         let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
         if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
 
-        let todayForFilter = new Date(); todayForFilter.setHours(0,0,0,0);
-        let tSet = new Set(); 
-        gTrn.forEach(t => {
+        let tSet = new Set(); gTrn.forEach(t => {
             let cInfo = String(t.content||'').split('||').map(s=>s.trim());
-            if(cInfo.length >= 5) { 
-                let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0);
-                if (tDateObj >= todayForFilter) tSet.add(`[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}`); 
-            } 
+            if(cInfo.length >= 5) { tSet.add(`[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}`); } 
             else { tSet.add(String(t.content||'').trim()); }
         });
         let tHtml = `<option value="전체">전체 콘텐츠</option>` + Array.from(tSet).sort().map(c=>`<option value="${window.escapeHtml(c)}">${window.escapeHtml(c)}</option>`).join("");
@@ -455,6 +518,7 @@ window.fetchCenterData = async function() {
 
   try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
 }
+
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -484,18 +548,15 @@ window.renderCenterData = function() {
   } catch(e) {}
 
   try {
-      // 💡 [빈 껍데기 UI 완벽 타겟팅 삭제] 부모 탭 전체가 날아가는 현상을 방지하고, 타겟팅된 더미 데이터만 안전하게 숨김 처리
+      // 💡 [하단 뱃지 찌꺼기 완전 삭제] 발주 관리 탭의 잔여 블랙 뱃지들(월요일 발주 등)을 확실히 찾아내어 숨김 처리
       let ordTab = document.getElementById('sub-ord');
       if (ordTab) {
-          let legacyTitles = ordTab.querySelectorAll('.section-title');
-          legacyTitles.forEach(el => {
-              let txt = el.textContent.trim();
-              if ((txt.includes('월요일 발주') || txt.includes('목요일 발주') || txt.includes('4월 23일')) && !el.closest('#dynamic-ord-container')) {
-                  el.style.display = 'none';
-                  let nextTable = el.nextElementSibling;
-                  if(nextTable && nextTable.classList.contains('table-wrap')) {
-                      nextTable.style.display = 'none';
-                  }
+          let legacyTitles = ordTab.querySelectorAll('div, span');
+          legacyTitles.forEach(t => {
+              let txt = t.textContent.trim();
+              if ((txt === '월요일 발주' || txt === '목요일 발주' || txt.includes('목요일 발주')) && !t.closest('#dynamic-ord-container')) {
+                  t.style.display = 'none';
+                  if(t.parentElement && t.parentElement.tagName === 'DIV') t.parentElement.style.display = 'none';
               }
           });
       }
@@ -530,8 +591,7 @@ window.renderCenterData = function() {
           if(masterChk) masterChk.onchange = function() { window.toggleAll(this, 'chk-trn'); }; 
       }
   } catch(e) {}
-
-  try {
+    try {
       let qRes = ($("searchRes")?.value || "").toLowerCase(); let sRes = $("resSpaceFilter")?.value || "전체";
       let fRes = gRes.filter(r => { 
           let rDate = window.safeKST(r.res_date || r.created_at); 
@@ -572,6 +632,7 @@ window.renderCenterData = function() {
           let cInfo = String(t.content||'').split('||').map(s=>s.trim());
           if(sTrn !== '전체') { 
               let targetStr = cInfo.length >= 5 ? `[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}` : String(t.content||'').trim(); 
+              // 💡 [필터 버그 수정] 양쪽 텍스트의 모든 공백을 제거 후 비교하여 띄어쓰기 한 칸 차이로 검색이 안 되는 오류 완벽 해결
               if(targetStr.replace(/\s+/g, '') !== sTrn.replace(/\s+/g, '')) matchContent = false; 
           }
           if (cInfo.length >= 5) { let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0); if (tDateObj < todayForBlk) return false; } else { let tDate = window.safeKST(t.created_at); if (tDate < oneMonthAgo) return false; }
@@ -610,6 +671,7 @@ window.renderCenterData = function() {
         let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
         let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
         
+        // 💡 [발주 필터 수정] 미처리 건 보기 시 '입금 확인' 상태는 배열에서 완벽히 제외
         let matchS = isOrdFilter ? (o.status==='주문 접수'||o.status==='입금 대기'||o.status==='입금 확인 중') : true; 
         return matchCenter && matchQ && matchV && matchS; 
       }); 
@@ -633,6 +695,7 @@ window.renderCenterData = function() {
       if (sortedKeys.length === 0) {
           dynamicHtml = `<div class="table-wrap" style="margin-bottom: 32px;"><div class="empty-state">발주 내역이 없습니다.</div></div>`;
       } else {
+          // 💡 [동적 발주 타이틀 렌더링] DB의 Delivery_date를 기반으로 독립된 컨테이너 블록을 생성
           sortedKeys.forEach((key) => {
               let list = groupedOrders[key];
               dynamicHtml += `<div class="section-title" style="margin-bottom:12px; display:flex; align-items:center; flex-wrap:wrap;"><span style="background:#212529;color:#fff;padding:6px 12px;border-radius:8px;font-size:14px;font-weight:700;display:inline-block; letter-spacing:-0.5px;">${key} 발주</span></div>`;
@@ -1284,12 +1347,15 @@ window.saveAdminNote = async function() {
 
 window.openCrmModalFromPhone = async function(phone) {
     if(!phone || phone === '-') return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");
+    
     const normalizePhone = p => String(p).replace(/\D/g, '');
     const targetPhone = normalizePhone(phone);
+    
     let app = globalApps.find(a => normalizePhone(a.phone) === targetPhone);
     
-    if (app) { window.openCrmModal(app.id, true); } 
-    else {
+    if (app) {
+        window.openCrmModal(app.id, true);
+    } else {
         showToast("내역을 불러오는 중입니다...");
         const { data, error } = await supabaseClient.from('applications').select('*');
         if (!error && data) {
@@ -1304,7 +1370,6 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 [핵심 수정] 구글 시트 전송 시 주문 시간 누락 및 undefined 문제 해결
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1313,8 +1378,9 @@ window.showOrderSummary = function() {
     let checkedIds = Array.from(checkedBoxes).map(cb => String(cb.value));
 
     let pendingOrders = gOrd.filter(o => {
-        if (checkedIds.length > 0) return checkedIds.includes(String(o.id));
-        else {
+        if (checkedIds.length > 0) {
+            return checkedIds.includes(String(o.id));
+        } else {
             if (o.status !== '주문 접수') return false; 
             let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
             let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
@@ -1330,6 +1396,7 @@ window.showOrderSummary = function() {
         pendingOrders.forEach(o => {
             let center = o.center || '미지정';
             let cNm = o.item_name;
+            
             let targetDayStr = window.formatDeliveryDateFull(o.delivery_date);
             let dateGroup = targetDayStr;
 
@@ -1345,14 +1412,7 @@ window.showOrderSummary = function() {
             let grams = rawQty.includes('kg') ? numVal * 1000 : numVal;
 
             summary[key].totalGrams += grams;
-            
-            summary[key].orderers.push({ 
-                createdAt: o.created_at, 
-                batch: o.batch || '미정', 
-                name: o.name, 
-                phone: o.phone, 
-                rawQty: o.quantity || '0' 
-            });
+            summary[key].orderers.push({ batch: o.batch || '미정', name: o.name, phone: o.phone, rawQty: o.quantity || '0' });
         });
         
         let totalGramsSum = 0;
@@ -1391,8 +1451,7 @@ window.showOrderSummary = function() {
         sortedData.forEach(s => { 
             s.orderers.forEach(o => { 
                 exportData.push({ 
-                    "주문 시간": o.createdAt ? formatDt(o.createdAt).split(' ')[1] : '',
-                    "발주 요청일": s.dateGroup + " 발주", 
+                    "발주 구분": s.dateGroup + " 발주", 
                     "수령 센터": s.center, 
                     "생두사": s.vendor, 
                     "상품명": s.item, 
@@ -1415,9 +1474,9 @@ window.closeSummaryModal = function() { const modal = $("summaryModal"); if(moda
 
 window.downloadSummaryExcel = function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
-    let csv = "\uFEFF주문 시간,발주 요청일,수령 센터,생두사,상품명,주문 수량,기수,성함,연락처\n";
+    let csv = "\uFEFF발주 구분,수령 센터,생두사,상품명,주문 수량,기수,성함,연락처\n";
     window.currentSummaryData.forEach(s => { 
-        csv += `"${s['주문 시간']}","${s['발주 요청일']}","${s['수령 센터']}","${s['생두사']}","${String(s['상품명']).replace(/"/g, '""')}","${s['주문 수량']}","${s['기수']}","${s['성함']}","${s['연락처']}"\n`; 
+        csv += `"${s['발주 구분']}","${s['수령 센터']}","${s['생두사']}","${String(s['상품명']).replace(/"/g, '""')}","${s['주문 수량']}","${s['기수']}","${s['성함']}","${s['연락처']}"\n`; 
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); 
@@ -1439,7 +1498,8 @@ window.cancelAction = function(table, id) {
     window.openCustomConfirm("일정 취소", null, `<div style="margin-bottom:12px; font-size:14px; font-weight:600;">취소 사유를 입력해주세요 (선택)</div><textarea id="cancelReasonInput" placeholder="당일 취소 등 사유를 간단히 적어주세요." style="width:100%; height:80px; padding:12px; border:1px solid var(--border-strong); border-radius:8px; resize:none; font-family:inherit; font-size:14px; outline:none; box-sizing:border-box;"></textarea>`, async () => {
         let reason = $("cancelReasonInput") ? $("cancelReasonInput").value.trim() : "";
         const { error } = await supabaseClient.from(table).update({ status: '당일 취소', cancel_reason: reason }).eq('id', id);
-        if(error) showToast("취소 처리 실패"); else { showToast("당일 취소 처리되었습니다."); window.fetchCenterData(); }
+        if(error) showToast("취소 처리 실패");
+        else { showToast("당일 취소 처리되었습니다."); window.fetchCenterData(); }
     }, "취소 확정");
 };
 
@@ -1455,50 +1515,18 @@ window.openScheduleModal = function(id, callTime, counselorName) {
     if($("counselorName")) $("counselorName").value = counselorName && counselorName !== 'null' ? counselorName : '';
 };
 window.closeScheduleModal = function() { if($("scheduleModal")) $("scheduleModal").classList.remove('show'); };
-
-// 💡 [저장 기능 먹통 해결] 요소 강제 탐색 및 방어 로직 추가
 window.saveSchedule = async function() {
-    if(!currentScheduleAppId) { showToast("오류: 상담 대상이 선택되지 않았습니다."); return; }
-    
-    let dateEl = $("schedDate");
-    let timeEl = $("schedTime");
-    let nameEl = $("counselorName");
-    
-    if(!dateEl || !timeEl) { showToast("오류: 모달 입력창을 찾을 수 없습니다."); return; }
-    
-    let dVal = dateEl.value.trim(); 
-    let tVal = timeEl.value.trim(); 
-    let cName = nameEl ? nameEl.value.trim() : '';
-    
-    if(!dVal || !tVal) return showToast("날짜와 시간을 모두 입력해주세요.");
-    
+    if(!currentScheduleAppId) return;
+    let dVal = $("schedDate").value.trim(); let tVal = $("schedTime").value.trim(); let cName = $("counselorName").value.trim();
+    if(!dVal || !tVal) return showToast("날짜와 시간을 입력해주세요.");
     let formattedDate = window.formatCounselDateDisplay(dVal);
-    let formattedTime = window.formatCounselTimeDisplay(tVal);
-    let finalTimeStr = `${formattedDate} ${formattedTime}`.trim();
-
-    let btn = document.querySelector('#scheduleModal .btn-primary') || document.querySelector('#scheduleModal button[onclick*="saveSchedule"]');
-    let origTxt = '저장하기';
-    if(btn) { origTxt = btn.innerText; btn.innerText = '저장 중...'; btn.disabled = true; }
-
-    try {
-        const { error } = await supabaseClient.from('applications').update({ 
-            call_time: finalTimeStr, 
-            counselor_name: cName, 
-            status: '상담 일정 확정' 
-        }).eq('id', currentScheduleAppId);
-        
-        if(error) throw error;
-        showToast("상담 일정이 저장되었습니다."); 
-        window.closeScheduleModal(); 
-        window.fetchApplications(); 
-    } catch (error) {
-        console.error(error);
-        showToast("저장에 실패했습니다. 다시 시도해주세요.");
-    } finally {
-        if(btn) { btn.innerText = origTxt; btn.disabled = false; }
-    }
+    let finalTimeStr = `${formattedDate} ${tVal}`;
+    const { error } = await supabaseClient.from('applications').update({ call_time: finalTimeStr, counselor_name: cName, status: '상담 일정 확정' }).eq('id', currentScheduleAppId);
+    if(error) showToast("저장 실패");
+    else { showToast("상담 일정이 저장되었습니다."); window.closeScheduleModal(); window.fetchApplications(); }
 };
 
+// 💡 [반복 UI 숨김/노출 제어 로직 적용] 
 window.openBlockModal = function(dateStr, timeStr) {
     if($("blockModal")) $("blockModal").classList.add('show');
     if($("blockId")) $("blockId").value = '';
@@ -1516,11 +1544,19 @@ window.openBlockModal = function(dateStr, timeStr) {
 
     let modal = document.getElementById("blockModal") || document;
     let rSel = Array.from(modal.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
-    if(rSel) { rSel.value = '반복 없음'; let wrap = rSel.closest('div[style*="flex"]') || rSel.parentElement; if(wrap) wrap.style.display = ''; }
+    if(rSel) { 
+        rSel.value = '반복 없음'; 
+        let wrap = rSel.closest('div[style*="flex"]') || rSel.parentElement;
+        if(wrap) wrap.style.display = ''; 
+    }
     
     let rInp = Array.from(modal.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
     if(!rInp) rInp = Array.from(modal.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
-    if(rInp) { rInp.value = ''; let wrap = rInp.closest('div[style*="flex"]') || rInp.parentElement; if(wrap) wrap.style.display = ''; }
+    if(rInp) { 
+        rInp.value = ''; 
+        let wrap = rInp.closest('div[style*="flex"]') || rInp.parentElement;
+        if(wrap) wrap.style.display = ''; 
+    }
 };
 
 window.editBlock = function(id) {
@@ -1534,22 +1570,34 @@ window.editBlock = function(id) {
     if($("blkCategory")) $("blkCategory").value = b.category;
     if($("blkCenter")) $("blkCenter").value = b.center || '마포 센터';
     if(window.updateSpaceOptions) window.updateSpaceOptions();
-    if($("blkSpace")) { $("blkSpace").value = b.space_equip || ''; $("blkSpace").dataset.selectedValues = b.space_equip || ''; }
+    
+    if($("blkSpace")) {
+        $("blkSpace").value = b.space_equip || '';
+        $("blkSpace").dataset.selectedValues = b.space_equip || '';
+    }
+    
     if($("blkReason")) $("blkReason").value = b.reason;
     if($("blkCapacity")) $("blkCapacity").value = b.capacity === null ? '' : b.capacity;
     if($("blockModalTitle")) $("blockModalTitle").innerText = "스케줄 수정";
 
     let modal = document.getElementById("blockModal") || document;
     let rSel = Array.from(modal.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
-    if(rSel) { let wrap = rSel.closest('div[style*="flex"]') || rSel.parentElement; if(wrap) wrap.style.display = 'none'; }
+    if(rSel) { 
+        let wrap = rSel.closest('div[style*="flex"]') || rSel.parentElement;
+        if(wrap) wrap.style.display = 'none'; 
+    }
     
     let rInp = Array.from(modal.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
     if(!rInp) rInp = Array.from(modal.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
-    if(rInp) { let wrap = rInp.closest('div[style*="flex"]') || rInp.parentElement; if(wrap) wrap.style.display = 'none'; }
+    if(rInp) { 
+        let wrap = rInp.closest('div[style*="flex"]') || rInp.parentElement;
+        if(wrap) wrap.style.display = 'none'; 
+    }
 };
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
+// 💡 [Batch Insert 기반 일괄 반복 등록 로직]
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
@@ -1567,41 +1615,81 @@ window.saveBlockData = async function() {
     let reason = $("blkReason") ? $("blkReason").value : "";
     let capacity = capVal === "" ? null : parseInt(capVal);
     
-    if(!baseDateStr || !startTime || !endTime || !reason) { window.isSavingBlock = false; return showToast("필수 항목을 모두 입력해주세요."); }
+    if(!baseDateStr || !startTime || !endTime || !reason) {
+        window.isSavingBlock = false;
+        return showToast("필수 항목을 모두 입력해주세요.");
+    }
 
-    let repeatType = "반복 없음"; let repeatCount = 1;
+    let repeatType = "반복 없음";
+    let repeatCount = 1;
+    
     if(!id || id === "") {
         let modal = document.getElementById("blockModal") || document;
         let rSel = Array.from(modal.querySelectorAll('select')).find(s => s.options && Array.from(s.options).some(opt => opt.value === '매일'));
         if(rSel) repeatType = rSel.value;
+        
         let rInp = Array.from(modal.querySelectorAll('input[type="number"], input[type="text"]')).find(i => i.placeholder && i.placeholder.includes('4'));
         if(!rInp) rInp = Array.from(modal.querySelectorAll('input')).find(i => i.previousElementSibling && i.previousElementSibling.textContent.includes('횟수'));
-        if(rInp && rInp.value) { let parsed = parseInt(rInp.value.replace(/[^0-9]/g, '')); if(!isNaN(parsed) && parsed > 0) repeatCount = parsed; }
+        
+        if(rInp && rInp.value) {
+            let parsed = parseInt(rInp.value.replace(/[^0-9]/g, ''));
+            if(!isNaN(parsed) && parsed > 0) repeatCount = parsed;
+        }
     }
 
-    let payloads = []; let baseDate = new Date(baseDateStr);
+    let payloads = [];
+    let baseDate = new Date(baseDateStr);
 
     for (let i = 0; i < repeatCount; i++) {
         let targetDate = new Date(baseDate);
         if (repeatType === "매일") targetDate.setDate(targetDate.getDate() + i);
         else if (repeatType === "매주") targetDate.setDate(targetDate.getDate() + (i * 7));
-        let yyyy = targetDate.getFullYear(); let mm = String(targetDate.getMonth() + 1).padStart(2, '0'); let dd = String(targetDate.getDate()).padStart(2, '0');
+        
+        let yyyy = targetDate.getFullYear();
+        let mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+        let dd = String(targetDate.getDate()).padStart(2, '0');
         let newDateStr = `${yyyy}-${mm}-${dd}`;
 
-        payloads.push({ block_date: newDateStr, start_time: startTime, end_time: endTime, category: category, center: center, space_equip: spaceVal || "전체", reason: reason, capacity: capacity });
+        payloads.push({
+            block_date: newDateStr,
+            start_time: startTime,
+            end_time: endTime,
+            category: category,
+            center: center,
+            space_equip: spaceVal || "전체",
+            reason: reason,
+            capacity: capacity
+        });
     }
     
     let error;
-    if(id && id !== "") { const res = await supabaseClient.from('blocks').update(payloads[0]).eq('id', id); error = res.error; } 
-    else { const res = await supabaseClient.from('blocks').insert(payloads); error = res.error; }
+    if(id && id !== "") { 
+        const res = await supabaseClient.from('blocks').update(payloads[0]).eq('id', id); 
+        error = res.error; 
+    } else { 
+        const res = await supabaseClient.from('blocks').insert(payloads); 
+        error = res.error; 
+    }
     
     window.isSavingBlock = false;
 
-    if(error) { showToast("저장 실패"); console.error(error); } 
-    else { showToast(payloads.length > 1 ? `${payloads.length}개의 스케줄이 반복 등록되었습니다.` : "저장되었습니다."); window.closeBlockModal(); window.fetchCenterData(); }
+    if(error) {
+        showToast("저장 실패");
+        console.error(error);
+    } else { 
+        showToast(payloads.length > 1 ? `${payloads.length}개의 스케줄이 반복 등록되었습니다.` : "저장되었습니다."); 
+        window.closeBlockModal(); 
+        window.fetchCenterData(); 
+    }
 };
 
-window.deleteBlock = function(id) { window.openCustomConfirm("스케줄 삭제", null, "이 스케줄을 삭제하시겠습니까?", async () => { const { error } = await supabaseClient.from('blocks').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); };
+window.deleteBlock = function(id) {
+    window.openCustomConfirm("스케줄 삭제", null, "이 스케줄을 삭제하시겠습니까?", async () => {
+        const { error } = await supabaseClient.from('blocks').delete().eq('id', id);
+        if(error) showToast("삭제 실패");
+        else { showToast("삭제되었습니다."); window.fetchCenterData(); }
+    });
+};
 
 function initQuill() { if(!quillEditor && $('editor-container')) { quillEditor = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ 'header': [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ 'list': 'ordered'}, { 'list': 'bullet' }], [{ 'align': [] }], [{ 'color': [] }, { 'background': [] }], ['clean'] ] }, placeholder: '내용을 자유롭게 적어주세요.' }); } }
 window.openNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.add('show'); setTimeout(() => { try { initQuill(); if(quillEditor) quillEditor.root.innerHTML = ''; } catch(e) {} }, 50); if($("noticeId")) $("noticeId").value = ''; if($("noticeTitle")) $("noticeTitle").value = ''; if($("noticePinned")) $("noticePinned").checked = false; if($("noticeStatus")) $("noticeStatus").value = '발행'; if($("noticeTargetBatch")) $("noticeTargetBatch").value = ''; if($("noticeModalTitle")) $("noticeModalTitle").innerText = "새 공지사항 등록"; }
@@ -1609,23 +1697,38 @@ window.editNotice = function(id) { let n = gNotice.find(x => String(x.id) === St
 window.closeNoticeModal = function() { if($("noticeModal")) $("noticeModal").classList.remove('show'); }
 
 window.saveNoticeData = async function() { 
-  let id = $("noticeId")?$("noticeId").value:""; let htmlContent = quillEditor ? quillEditor.root.innerHTML : ''; let targetBatchVal = $("noticeTargetBatch") ? $("noticeTargetBatch").value.trim() : "";
-  let payload = { title: $("noticeTitle")?$("noticeTitle").value.trim():"", content: htmlContent, is_pinned: $("noticePinned")?$("noticePinned").checked:false, status: $("noticeStatus")?$("noticeStatus").value:"발행", target_batch: targetBatchVal === "" ? null : targetBatchVal }; 
+  let id = $("noticeId")?$("noticeId").value:""; let htmlContent = quillEditor ? quillEditor.root.innerHTML : ''; 
+  let targetBatchVal = $("noticeTargetBatch") ? $("noticeTargetBatch").value.trim() : "";
+  let payload = { 
+      title: $("noticeTitle")?$("noticeTitle").value.trim():"", 
+      content: htmlContent, 
+      is_pinned: $("noticePinned")?$("noticePinned").checked:false, 
+      status: $("noticeStatus")?$("noticeStatus").value:"발행", 
+      target_batch: targetBatchVal === "" ? null : targetBatchVal 
+  }; 
   if(!payload.title) return showToast("제목을 입력해주세요."); if(!payload.content || payload.content === '<p><br></p>') return showToast("내용을 입력해주세요."); 
   let error; if(id) { const res = await supabaseClient.from('notices').update(payload).eq('id', id); error = res.error; } else { const res = await supabaseClient.from('notices').insert([payload]); error = res.error; } 
-  if(error) { showToast("저장 실패"); console.error(error); } else { showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); } 
+  if(error) { 
+      showToast("저장 실패: " + (error.message || error.details || "알 수 없는 오류")); 
+      console.error("Notice Save Error:", error);
+  } else { 
+      showToast("저장되었습니다."); window.closeNoticeModal(); window.fetchCenterData(); 
+  } 
 }
 window.deleteNotice = function(id) { window.openCustomConfirm("공지사항 삭제", null, `이 공지사항을 완전히 삭제하시겠습니까?`, async () => { const { error } = await supabaseClient.from('notices').delete().eq('id', id); if(error) showToast("삭제 실패"); else { showToast("삭제되었습니다."); window.fetchCenterData(); } }); }
 
 window.renderMCalCenter = function(selDate) {
-    $$$("#m-cal-strip-center .m-cal-date").forEach(el => el.classList.remove('active')); let target = document.getElementById(`m-date-center-${selDate}`);
+    $$$("#m-cal-strip-center .m-cal-date").forEach(el => el.classList.remove('active'));
+    let target = document.getElementById(`m-date-center-${selDate}`);
     if(target) { target.classList.add('active'); try { target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } catch(e){} }
-    let evts = window.centerCalEvts && window.centerCalEvts[selDate] ? window.centerCalEvts[selDate] : []; evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||'')));
+    let evts = window.centerCalEvts && window.centerCalEvts[selDate] ? window.centerCalEvts[selDate] : [];
+    evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||'')));
     let html = '';
     if(evts.length === 0) { html = `<div class="empty-state" style="padding:40px 0;">예정된 스케줄이 없습니다.</div>`; }
     else {
         evts.forEach(e => {
-            let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk')); let timeStr = e.time || '종일';
+            let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk'));
+            let timeStr = e.time || '종일';
             html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary); font-weight:800; font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px; color:var(--text-secondary); margin-top:0; width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;
         });
     }
