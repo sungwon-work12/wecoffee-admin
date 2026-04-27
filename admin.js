@@ -1348,6 +1348,11 @@ window.fetchApplications = async function() {
 
 window.applyFilterApp = function() { try { const selected = $("batchFilterApp").value; const filtered = selected === 'all' ? globalApps : globalApps.filter(d => d.desired_batch === selected); if (isInsightView) { window.renderStatistics(filtered); } else { window.renderAppTable(filtered); window.renderAppDailyBanner(filtered); window.renderAppDashboard(); } } catch(e) { console.error(e); } }
 
+const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed', '품절': 'st-ghosted' };
+const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
+function parseAcquisitionChannel(rawText) { if(!rawText) return '-'; let txt = String(rawText).toLowerCase(); if(txt.includes('광고') || txt.includes('스폰서드')) return '광고'; if(txt.includes('인스타')) return '인스타그램'; if(txt.includes('블로그')) return '네이버 블로그'; if(txt.includes('블랙워터')) return '블랙워터이슈'; if(txt.includes('지인')) return '지인 추천'; return '기타'; }
+window.closeCrmModal = function() { if($("crmModal")) $("crmModal").classList.remove('show'); };
+
 window.renderCrmInner = function(id, isReadOnly = false) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
     let cCount = 0; let now = new Date(); let monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -1932,7 +1937,6 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 [개선 사항] 발주 요약 모달 UI 하이어라키 재구성 및 생두사별 합계 기능
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1978,7 +1982,6 @@ window.showOrderSummary = function() {
             grouped[bigKey][vendor].totalGrams += grams;
             grouped[bigKey][vendor].items[cNm].totalGrams += grams;
             
-            // 💡 [버그 수정] undefined가 들어가는 것을 방지하기 위해 빈 값이면 '-' 또는 기본값 처리
             let safePhone = (!o.phone || String(o.phone).trim() === 'undefined') ? '-' : o.phone;
             let safeName = (!o.name || String(o.name).trim() === 'undefined') ? '이름없음' : o.name;
             let safeBatch = (!o.batch || String(o.batch).trim() === 'undefined') ? '-' : o.batch;
@@ -2036,7 +2039,6 @@ window.showOrderSummary = function() {
             let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);
             if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); }
             
-            // 💡 [버그 수정] undefined가 들어가는 것을 방지
             let safePhone = (!o.phone || String(o.phone).trim() === 'undefined') ? '-' : o.phone;
             let safeName = (!o.name || String(o.name).trim() === 'undefined') ? '이름없음' : o.name;
             let safeBatch = (!o.batch || String(o.batch).trim() === 'undefined') ? '-' : o.batch;
@@ -2048,7 +2050,7 @@ window.showOrderSummary = function() {
                 "생두사": o.vendor || "기타 생두사", 
                 "상품명": cNm, 
                 "주문 수량": o.quantity || "0",
-                "예상 금액": "",
+                "결제 금액": "",
                 "기수": safeBatch, 
                 "성함": safeName, 
                 "연락처": safePhone 
@@ -2061,31 +2063,43 @@ window.showOrderSummary = function() {
             if(a["생두사"] !== b["생두사"]) return a["생두사"].localeCompare(b["생두사"]);
             return a["상품명"].localeCompare(b["상품명"]);
         });
-        window.currentSummaryData = exportData;
+
+        let separatedData = [];
+        let prevCenter = null;
+        exportData.forEach(row => {
+            if (prevCenter !== null && prevCenter !== row["수령 센터"]) {
+                separatedData.push({ "등록 일시": "", "발주 구분": "", "수령 센터": "▼ " + row["수령 센터"] + " ▼", "생두사": "", "상품명": "", "주문 수량": "", "결제 금액": "", "기수": "", "성함": "", "연락처": "" });
+            }
+            separatedData.push(row);
+            prevCenter = row["수령 센터"];
+        });
+
+        window.currentSummaryData = separatedData;
     }
     const modal = $("summaryModal"); if(modal) modal.classList.add('show');
 };
 
 window.closeSummaryModal = function() { const modal = $("summaryModal"); if(modal) modal.classList.remove('show'); };
 
-// 💡 [신규] 구글 시트 전송 시 명세서 수식 자동 생성 및 undefined 에러 완벽 해결
 window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwFZSw_OOpeGKcp0-YvlsDAKbvlkvjFW9BGvCAnJB1yyTQaU5hh-nj1ss0_gme2l7me/exec'; 
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbw7oFH2OU2q7MgIid4wKfN7Ljtfs9TuTxniBHcBZiz7ccD4VW6iuMfK_aB0Wm-8AXI/exec'; 
     const btn = document.getElementById('btn-send-sheet');
     if(btn) { btn.innerText = '전송 중...'; btn.disabled = true; }
     try {
         let uniqueMembers = [...new Set(window.currentSummaryData.map(d => d['성함']))].filter(name => name !== "이름없음" && name !== "");
+        
         let invoiceData = uniqueMembers.map(name => {
             return {
-                "등록 일시": "-", "발주 구분": "개인별 명세서 요약", "수령 센터": "-", "생두사": "-",
-                "상품명": `[${name}] 님 최종 청구 금액`, "주문 수량": "-", "예상 금액": `=IFERROR(SUMIFS(G:G, I:I, "${name}"), 0)`,
-                "기수": "-", "성함": name, "연락처": "-"
+                "등록 일시": "", "발주 구분": "", "수령 센터": "", "생두사": "",
+                "상품명": `[${name}] 님 최종 청구 금액`, "주문 수량": "", 
+                "결제 금액": `CALC_TOTAL:${name}`,
+                "기수": "", "성함": name, "연락처": ""
             };
         });
 
         let payload = [...window.currentSummaryData, {
-            "등록 일시": "", "발주 구분": "", "수령 센터": "", "생두사": "", "상품명": "", "주문 수량": "", "예상 금액": "", "기수": "", "성함": "", "연락처": ""
+            "등록 일시": "", "발주 구분": "", "수령 센터": "", "생두사": "", "상품명": "--- ▼ 멤버별 총 결제 금액 명세서 ▼ ---", "주문 수량": "", "결제 금액": "", "기수": "", "성함": "", "연락처": ""
         }, ...invoiceData];
 
         await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -2093,30 +2107,22 @@ window.sendToGoogleSheet = async function() {
     } catch(e) { showToast("전송 오류"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
 
-// 💡 [신규] 엑셀 다운로드 시 명세서 수식 자동 생성 및 undefined 텍스트 방지 처리
 window.downloadSummaryExcel = function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
-    let csv = "\uFEFF등록 일시,발주 구분,수령 센터,생두사,상품명,주문 수량,예상 금액,기수,성함,연락처\n";
+    let csv = "\uFEFF등록 일시,발주 구분,수령 센터,생두사,상품명,주문 수량,결제 금액,기수,성함,연락처\n";
+    
     window.currentSummaryData.forEach(s => { 
-        let dt = s['등록 일시'] || '';
-        let type = s['발주 구분'] || '';
-        let center = s['수령 센터'] || '';
-        let vendor = s['생두사'] || '';
-        let item = String(s['상품명'] || '').replace(/"/g, '""');
-        let qty = s['주문 수량'] || '';
-        let price = s['예상 금액'] || '';
-        let batch = s['기수'] || '';
-        let name = s['성함'] || '';
-        let phone = s['연락처'] || '';
-        
+        let dt = s['등록 일시'] || ''; let type = s['발주 구분'] || ''; let center = s['수령 센터'] || ''; let vendor = s['생두사'] || ''; let item = String(s['상품명'] || '').replace(/"/g, '""'); let qty = s['주문 수량'] || ''; let price = s['결제 금액'] || ''; let batch = s['기수'] || ''; let name = s['성함'] || ''; let phone = s['연락처'] || '';
         csv += `"${dt}","${type}","${center}","${vendor}","${item}","${qty}","${price}","${batch}","${name}","${phone}"\n`; 
     });
     
     let uniqueMembers = [...new Set(window.currentSummaryData.map(d => d['성함']))].filter(name => name !== "이름없음" && name !== "");
     if(uniqueMembers.length > 0) {
         csv += `\n,,,,,,,,,\n`; 
+        csv += `,,,,"--- ▼ 멤버별 총 결제 금액 명세서 ▼ ---",,,,,\n`;
+        let dataEndRow = window.currentSummaryData.length + 1;
         uniqueMembers.forEach(name => {
-            csv += `"-","개인별 명세서 요약","-","-","[${name}] 님 최종 청구 금액","-","=IFERROR(SUMIFS(G:G, I:I, ""${name}""), 0)","-","${name}","-"\n`;
+            csv += `,,,,"[${name}] 님 최종 청구 금액",,"=IFERROR(SUMIFS(G2:G${dataEndRow}, I2:I${dataEndRow}, ""${name}""), 0)",,"${name}",\n`;
         });
     }
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
