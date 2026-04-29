@@ -109,11 +109,11 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
         #dynamic-ord-container { padding-bottom: 120px; }
 
-        /* 💡 [수정3 반영] 모바일 가로 스크롤 방지를 위한 UI 구조 클래스 */
-        .app-daily-list-wrap { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-        .app-daily-item { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px solid #f2f4f6; }
+        /* 💡 [수정 반영] 모바일 가로 스크롤 방지를 위한 래퍼 클래스 추가 */
+        .app-daily-list-wrap { display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
+        .app-daily-item { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px solid var(--border-strong); width: 100%; box-sizing: border-box; }
         .app-daily-item:last-child { border-bottom: none; }
-        .today-time-badge { color:var(--primary); background:var(--primary-light); padding:2px 8px; border-radius:4px; font-size:12px; font-weight:700; white-space:nowrap; }
+        .today-time-badge { color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:4px; font-size:12px; font-weight:700; white-space:nowrap; flex-shrink: 0; }
         .today-info-text { font-size:14px; line-height:1.4; color:var(--text-display); flex: 1; min-width: 200px; word-break: keep-all; }
 
         @media (max-width: 1024px) {
@@ -284,8 +284,185 @@ window.isOrderExpired = function(order, now) {
     if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
     return false;
 }
+window.fetchCenterData = async function() {
+  try {
+    const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
+    gRes = res?.data||[]; gTrn = trn?.data||[]; gOrd = ord?.data||[]; gBlk = blk?.data||[]; gNotice = noti?.data||[];
+    try {
+        gRes.forEach(r => { if(r.space_equip) r.space_equip = String(r.space_equip).replace(/로스팅룸/g, '로스팅존'); }); 
+        gBlk.forEach(b => { if(b.space_equip) b.space_equip = String(b.space_equip).replace(/로스팅룸/g, '로스팅존'); }); 
+        gTrn.forEach(t => { if(t.content) t.content = String(t.content).replace(/로스팅룸/g, '로스팅존'); });
+        let bSet = new Set(); gRes.forEach(r => { if(r.batch) bSet.add(r.batch); }); gTrn.forEach(t => { if(t.batch) bSet.add(t.batch); });
+        let bHtml = `<option value="전체">전체 기수</option>` + Array.from(bSet).sort((a,b) => parseInt(String(a).replace(/[^0-9]/g, '') || 0) - parseInt(String(b).replace(/[^0-9]/g, '') || 0)).map(b=>`<option value="${b}">${b}</option>`).join("");
+        if($("dashBatchFilter") && $("dashBatchFilter").innerHTML !== bHtml) $("dashBatchFilter").innerHTML = bHtml;
+        let sSet = new Set(); gRes.forEach(r => { if(r.space_equip) sSet.add(String(r.space_equip).split(' ')[0]); });
+        let sHtml = `<option value="전체">전체 공간/장비</option>` + Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
+        if($("resSpaceFilter") && $("resSpaceFilter").innerHTML.length < 100) $("resSpaceFilter").innerHTML = sHtml;
+        let todayForFilter = new Date(); todayForFilter.setHours(0,0,0,0);
+        let tSet = new Set(); 
+        gTrn.forEach(t => {
+            let cInfo = String(t.content||'').split('||').map(s=>s.trim());
+            if(cInfo.length >= 5) { 
+                let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0);
+                if (tDateObj >= todayForFilter) tSet.add(`[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}`); 
+            } 
+            else { tSet.add(String(t.content||'').trim()); }
+        });
+        let tHtml = `<option value="전체">전체 콘텐츠</option>` + Array.from(tSet).sort().map(c=>`<option value="${window.escapeHtml(c)}">${window.escapeHtml(c)}</option>`).join("");
+        if($("trnContentFilter") && $("trnContentFilter").innerHTML.length < 100) $("trnContentFilter").innerHTML = tHtml;
+    } catch(err) {}
+  } catch(e) { console.error("fetchCenterData Error:", e); }
+  try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
+}
 
-// 💡 [수정1 반영] 주문 시간 포맷을 split()으로 자르지 않고 formatDt를 통해 전체(년/월/일 시:분) 표기
+window.renderCenterData = function() {
+  const now = new Date(); 
+  const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
+  let todayForBlk = new Date(); todayForBlk.setHours(0,0,0,0);
+  try { window.updateDailyInOutBanner(); if(window.updateCancelAccumulationBanner) window.updateCancelAccumulationBanner(); } catch(e) {}
+  try {
+      const addTooltipToText = (textMatch, id, tooltipText, isLong = false) => {
+          let titles = document.querySelectorAll('.page-title, .section-title, h2, h3, .table-toolbar > div, .sub-page-title');
+          titles.forEach(el => {
+              if(el.textContent.includes(textMatch) && !document.getElementById(id) && !el.closest('#dynamic-ord-container')) {
+                  let sub = el.querySelector('.sub-text'); if(sub) sub.remove();
+                  el.style.display = 'flex'; el.style.alignItems = 'center'; el.style.gap = '6px';
+                  el.insertAdjacentHTML('beforeend', `<i id="${id}" class="info-tooltip ${isLong ? 'long-text' : ''}" data-tooltip="${tooltipText}">i</i>`);
+              }
+          });
+      };
+      let resTitle = document.querySelector('#sub-res .table-toolbar .section-title');
+      if(resTitle && resTitle.textContent.includes('상세 예약 로그')) resTitle.innerHTML = '센터 예약 리스트';
+      addTooltipToText('센터 예약 리스트', 'tt-res', '최근 1개월(30일) 내의 예약만 표시됩니다. 이전 내역은 서버에 안전하게 보관됩니다.', true);
+      addTooltipToText('수업 및 훈련', 'tt-trn', '종료된 일정은 자정(다음 날)을 기점으로 리스트에서 자동 정리되며, 과거 내역은 서버에 보관됩니다.', true);
+      addTooltipToText('생두 주문 관리', 'tt-ord-main', "주문 및 입금 관련 상태는 리스트에 계속 유지됩니다. 단, '취소/품절' 건은 2일 뒤, '센터 도착' 건은 7일 뒤 자동 정리되어 서버에 보관됩니다.", true);
+  } catch(e) {}
+  try {
+      let resTable = $("resTableBody")?.closest('table');
+      if(resTable) { 
+          let theadTr = resTable.querySelector('thead tr');
+          if (theadTr) {
+              let firstTh = theadTr.querySelector('th');
+              if (firstTh && !firstTh.querySelector('input[type="checkbox"]') && firstTh.innerText.includes('접수')) {
+                  let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+                  chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-res\')">';
+                  theadTr.insertBefore(chkTh, firstTh);
+              }
+          }
+      }
+      let trnTable = $("trnTableBody")?.closest('table');
+      if(trnTable) { 
+          let theadTr = trnTable.querySelector('thead tr');
+          if (theadTr) {
+              let firstTh = theadTr.querySelector('th');
+              if (firstTh && !firstTh.querySelector('input[type="checkbox"]') && (firstTh.innerText.includes('신청') || firstTh.innerText.includes('일시'))) {
+                  let chkTh = document.createElement('th'); chkTh.style.width = '48px'; chkTh.style.textAlign = 'center';
+                  chkTh.innerHTML = '<input type="checkbox" onchange="window.toggleAll(this, \'chk-trn\')">';
+                  theadTr.insertBefore(chkTh, firstTh);
+              }
+          }
+      }
+  } catch(e) {}
+
+  try {
+      let qRes = ($("searchRes")?.value || "").toLowerCase(); let sRes = $("resSpaceFilter")?.value || "전체";
+      let fRes = gRes.filter(r => { 
+          let rDate = window.safeKST(r.res_date || r.created_at); 
+          let matchSpace = sRes === '전체' || String(r.space_equip||'').includes(sRes);
+          return (rDate >= oneMonthAgo) && (currentGlobalCenter === '전체' || r.center === currentGlobalCenter) && (`${r.name} ${r.phone}`.toLowerCase().includes(qRes)) && matchSpace; 
+      });
+      if($("resTableBody")) $("resTableBody").innerHTML = fRes.length ? fRes.map(r=>{ 
+          let displayStatus = r.status || ''; let isExpired = false;
+          if (r.res_time && r.res_date && !String(displayStatus).includes('취소')) { 
+              let endTimeStr = String(r.res_time).split('~')[1];
+              if(endTimeStr) { let [hh, mm] = endTimeStr.trim().split(':'); let resEndObj = new Date(`${r.res_date}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`); if (resEndObj < now) { displayStatus = '이용완료'; isExpired = true; } }
+          } 
+          let actBtn = (String(displayStatus).includes('취소') || displayStatus === '이용완료' || isExpired) 
+            ? `<button class="btn-outline btn-sm" disabled style="opacity:0.5; cursor:not-allowed;">취소</button>` : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; 
+          let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '이용완료' ? 'badge-gray' : (displayStatus === '예약완료' ? 'badge-green' : 'badge-gray'))); 
+          let statHtml = displayStatus === '당일 취소' ? `<span class="status-badge ${badgeClass}" style="cursor:pointer;" onclick="event.stopPropagation(); window.showCancelReason('${window.escapeHtml(r.cancel_reason || '사유 미기재').replace(/'/g, "\\'")}')">${displayStatus}</span>` : `<span class="status-badge ${badgeClass}">${displayStatus}</span>`;
+          let dow = getDow(r.res_date); 
+          let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${r.batch||'-'}] ${window.escapeHtml(r.name)}</span>${statHtml}</div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${r.res_date}(${dow}) ${r.res_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${r.center}] ${r.space_equip || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
+          return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
+      }).join("") : `<tr><td colspan="11" class="empty-state">내역 없음</td></tr>`;
+  } catch(e) { console.error(e); }
+  
+  try {
+      let qTrn = ($("searchTrn")?.value || "").toLowerCase(); let sTrn = $("trnContentFilter")?.value || "전체";
+      let fTrnList = gTrn.filter(t => { 
+          let matchContent = true; let cInfo = String(t.content||'').split('||').map(s=>s.trim());
+          if(sTrn !== '전체') { let targetStr = cInfo.length >= 5 ? `[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}` : String(t.content||'').trim(); if(targetStr.replace(/\s+/g, '') !== sTrn.replace(/\s+/g, '')) matchContent = false; }
+          if (cInfo.length >= 5) { let tDateObj = new Date(cInfo[0]); tDateObj.setHours(0,0,0,0); if (tDateObj < todayForBlk) return false; } else { let tDate = window.safeKST(t.created_at); if (tDate < oneMonthAgo) return false; }
+          return (currentGlobalCenter === '전체' || String(t.content||"").includes(currentGlobalCenter)) && (`${t.name} ${t.phone} ${t.content}`.toLowerCase().includes(qTrn)) && matchContent; 
+      });
+      window.currentFilteredTrn = fTrnList; 
+      if($("trnTableBody")) $("trnTableBody").innerHTML = fTrnList.length ? fTrnList.map(t=>{ 
+          let displayStatus = t.status || ''; let actBtn = String(displayStatus).includes('취소') ? '' : `<button class="btn-outline btn-sm" onclick="window.cancelAction('trainings', '${t.id}')">취소</button>`; 
+          let cInfo = String(t.content||'').split('||').map(s=>s.trim()); let niceContent = t.content; let preDate = cInfo[0]||'-', preTime = cInfo[2]||'-', preCenter = cInfo[3]||'-', preName = cInfo[4]||'-'; 
+          let baseContent = String(t.content||'').trim();
+          let attendCount = gTrn.filter(x => x.phone === t.phone && !String(x.status||'').includes('취소') && String(x.content||'').trim() === baseContent).length;
+          t._attendCount = attendCount; let nthBadge = attendCount >= 2 ? `<span class="nth-badge">${attendCount}회차</span>` : '';
+          if(cInfo.length >= 5) { niceContent = `<div style="margin-bottom:4px; font-size:12px; color:var(--text-secondary);">[${cInfo[3]}] ${cInfo[0]} (${cInfo[2]})</div><div style="font-weight:600; color:var(--text-display); line-height:1.4;">${window.escapeHtml(cInfo[4])} <span style="font-weight:400; color:var(--text-tertiary); margin-left:4px;">- ${cInfo[1]||''}</span></div>`; } 
+          let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '접수완료' ? 'badge-green' : 'badge-gray')); 
+          let statHtml = displayStatus === '당일 취소' ? `<span class="status-badge ${badgeClass}" style="cursor:pointer;" onclick="event.stopPropagation(); window.showCancelReason('${window.escapeHtml(t.cancel_reason || '사유 미기재').replace(/'/g, "\\'")}')">${displayStatus}</span>` : `<span class="status-badge ${badgeClass}">${displayStatus}</span>`;
+          let dow = getDow(preDate); 
+          let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${t.batch||'-'}] ${window.escapeHtml(t.name)} ${nthBadge}</span>${statHtml}</div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${preDate}(${dow}) ${preTime}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${preCenter}] ${window.escapeHtml(preName)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
+          return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-trn" value="${t.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="신청일">${formatDt(t.created_at)}</td><td data-label="기수">${t.batch||'-'}</td><td data-label="성함" style="white-space:nowrap;"><strong style="vertical-align:middle;">${window.escapeHtml(t.name)}</strong>${nthBadge}</td><td data-label="연락처">${window.escapeHtml(t.phone)}</td><td data-label="정보">${niceContent}</td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
+      }).join("") : `<tr><td colspan="9" class="empty-state">내역 없음</td></tr>`;
+  } catch(e) { console.error(e); }
+
+  try {
+      let qOrd = ($("searchOrd")?.value || "").toLowerCase(); 
+      let vOrd = $("ordVendorFilter")?.value || "전체"; 
+      let isOrdFilter = $("filterPendingOrd")?.checked; 
+
+      let fOrd = gOrd.filter(o => { 
+        let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter); 
+        let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd); 
+        let matchV = vOrd === '전체' ? true : o.vendor === vOrd; 
+        let matchS = isOrdFilter ? (o.status==='주문 접수') : true; 
+        return matchCenter && matchQ && matchV && matchS; 
+      }); 
+      
+      if (!isOrdFilter) { fOrd = fOrd.filter(o => !window.isOrderExpired(o, now)); }
+      let groupedOrders = {};
+      fOrd.forEach(o => {
+          let dateKey = window.formatDeliveryDateFull(o.delivery_date);
+          if (!groupedOrders[dateKey]) groupedOrders[dateKey] = [];
+          groupedOrders[dateKey].push(o);
+      });
+      let sortedKeys = Object.keys(groupedOrders).sort((a, b) => window.parseDeliveryDate(groupedOrders[a][0].delivery_date) - window.parseDeliveryDate(groupedOrders[b][0].delivery_date));
+      let dynamicHtml = '';
+      if (sortedKeys.length === 0) { dynamicHtml = `<div class="table-wrap" style="margin-bottom: 32px;"><div class="empty-state">발주 내역이 없습니다.</div></div>`; } 
+      else {
+          sortedKeys.forEach((key, idx) => {
+              let list = groupedOrders[key];
+              let uniqClass = 'chk-ord-dyn-' + idx;
+              dynamicHtml += `<div class="section-title" style="margin-bottom:12px; display:flex; align-items:center; flex-wrap:wrap;"><span style="background:#212529;color:#fff;padding:6px 12px;border-radius:8px;font-size:14px;font-weight:700;display:inline-block; letter-spacing:-0.5px;">${key} 발주</span></div>`;
+              dynamicHtml += `<div class="table-wrap" style="margin-bottom: 32px;"><table><thead><tr><th style="width:48px; text-align:center;"><input type="checkbox" onchange="window.toggleAll(this, '${uniqClass}')"></th><th>주문 시간</th><th>수령 센터</th><th>기수</th><th>성함</th><th>연락처</th><th>생두사 / 상품명</th><th>수량</th><th>총 금액 입력</th><th>상태 관리</th></tr></thead><tbody>${generateOrderRows(list, uniqClass)}</tbody></table></div>`;
+          });
+      }
+      let ordTab = document.getElementById('sub-ord');
+      if (ordTab) {
+          let container = document.getElementById('dynamic-ord-container');
+          if (!container) { container = document.createElement('div'); container.id = 'dynamic-ord-container'; let fw = ordTab.querySelector('.filter-wrap'); if (fw) fw.parentNode.insertBefore(container, fw.nextSibling); else ordTab.appendChild(container); }
+          container.innerHTML = dynamicHtml;
+          Array.from(ordTab.children).forEach(child => { if (child.id !== 'dynamic-ord-container' && !child.classList.contains('filter-wrap') && !child.classList.contains('table-toolbar') && !child.querySelector('.filter-wrap')) child.style.display = 'none'; });
+      }
+  } catch(e) { console.error(e); }
+
+  try {
+      let fBlk = gBlk.filter(b => { let bDate = new Date(b.block_date); bDate.setHours(0,0,0,0); let matchCenter = (currentGlobalCenter === '전체' || b.center === currentGlobalCenter); return matchCenter && (bDate >= todayForBlk); }); 
+      if($("blkTableBody")) $("blkTableBody").innerHTML = fBlk.length ? fBlk.map(b=>{ 
+          let capVal = b.capacity; let max = capVal === null ? null : parseInt(capVal); let current = gTrn.filter(t => { if (String(t.status||'').includes('취소')) return false; let cInfo = String(t.content||'').split('||').map(s => s.trim()); if (cInfo.length >= 5) return cInfo[0] === b.block_date && cInfo[2] === `${b.start_time}~${b.end_time}` && cInfo[3] === b.center && cInfo[4] === `[${b.category}] ${b.reason}`; return false; }).length;
+          let capDisplay = max === null ? '-' : (max === 0 ? `<span style="color:var(--primary); font-weight:800; font-size:12px; border:1px solid var(--primary); padding:4px 8px; border-radius:12px; background:#fff;">오픈 예정</span>` : (current >= max ? `<strong style="color:var(--error);">마감 (${max}명)</strong>` : `<strong>${current}</strong> / ${max}`));
+          let dow = getDow(b.block_date); let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">${b.category}</span></div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${b.block_date}(${dow}) ${b.start_time}~${b.end_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${b.center}] ${b.space_equip || '전체'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
+          return `<tr>${mPreview}<td data-label="날짜"><strong>${b.block_date}</strong></td><td data-label="시간">${b.start_time} ~ ${b.end_time}</td><td data-label="구분"><span style="color:var(--primary);font-weight:600;">${b.category}</span></td><td data-label="공간">${b.center} <span class="sub-text">${b.space_equip || '전체'}</span></td><td data-label="사유">${window.escapeHtml(b.reason)}</td><td data-label="정원" class="tc">${capDisplay}</td><td data-label="관리" class="tc"><div class="action-wrap-flex"><button class="btn-outline btn-sm" onclick="window.editBlock('${b.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteBlock('${b.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>` 
+      }).join("") : `<tr><td colspan="8" class="empty-state">진행 예정인 스케줄이 없습니다.</td></tr>`;
+  } catch(e) { console.error(e); }
+};
+
+// 💡 [수정1 반영] formatDt를 이용해 시간만 자르지 않고 (년/월/일 시:분) 전체 표기되도록 수정
 function generateOrderRows(fOrd, chkClass) { 
   return fOrd.map(o=>{ 
     let badgeClass = (o.status==='주문 취소' || o.status==='품절')?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
@@ -300,6 +477,7 @@ function generateOrderRows(fOrd, chkClass) {
     return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${window.escapeHtml(o.name)}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${window.escapeHtml(o.phone)}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:8px;"><div style="flex-shrink: 0; text-align: right;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span><div style="flex:1; min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
   }).join("");
 }
+
 window.renderDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentDashView === 'month' && $("dashMonthTitle")) { $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; }
@@ -421,7 +599,7 @@ window.renderAppMCal = function(selDate) {
     let listWrap = $("m-cal-list-app"); if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 💡 [수정3 반영] 모바일 가로 스크롤 방지를 위한 구조 완벽 적용
+// 💡 [수정3 반영] 모바일 가로 스크롤 방지를 위한 UI 구조 클래스 적용 (.app-daily-item)
 window.renderAppDailyBanner = function(filteredApps) {
     let td = new Date(); let mm = td.getMonth() + 1; let dd = td.getDate();
     let scheduled = filteredApps.filter(a => a.status === '상담 일정 확정' && a.call_time);
@@ -1253,7 +1431,7 @@ window.showOrderSummary = function() {
 
 window.closeSummaryModal = function() { const modal = $("summaryModal"); if(modal) modal.classList.remove('show'); };
 
-// 💡 [수정4 반영] 명세서 데이터 매핑 시 기수 및 연락처 누락 보강 (구글 시트)
+// 💡 [수정4 반영] 명세서 데이터 매핑 시 기수 및 연락처 누락 보강 (구글 시트 전송 로직)
 window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbynlyczuJ5VWzfG5IFOstLzkRybv4Yvjgo9bxDHoUQlK84gAehaTuCNommlmrXuFsJK/exec'; 
@@ -1281,7 +1459,7 @@ window.sendToGoogleSheet = async function() {
     } catch(e) { showToast("전송 오류"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
 
-// 💡 [수정4 반영] 명세서 데이터 매핑 시 기수 및 연락처 누락 보강 (엑셀 다운로드)
+// 💡 [수정4 반영] 명세서 데이터 매핑 시 기수 및 연락처 누락 보강 (엑셀 다운로드 로직)
 window.downloadSummaryExcel = function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
     let csv = "\uFEFF등록 일시,발주 구분,수령 센터,생두사,상품명,주문 수량,결제 금액,기수,성함,연락처\n";
@@ -1388,7 +1566,8 @@ window.editBlock = function(id) {
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
 window.isSavingBlock = false;
-// 💡 [수정2 반영] 스케줄 반복 생성 '매주/요일' 조건 강제 연동 버그 완벽 차단 (+7일씩 증가)
+
+// 💡 [수정2 반영] 스케줄 반복 생성 '매주(요일)' 조건 강제 연동 버그 해결 (+7일씩 증가)
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
     window.isSavingBlock = true;
