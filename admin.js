@@ -109,13 +109,6 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
         #dynamic-ord-container { padding-bottom: 120px; }
 
-        /* 💡 [수정 반영] 모바일 가로 스크롤 방지를 위한 래퍼 클래스 추가 */
-        .app-daily-list-wrap { display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
-        .app-daily-item { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px solid var(--border-strong); width: 100%; box-sizing: border-box; }
-        .app-daily-item:last-child { border-bottom: none; }
-        .today-time-badge { color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:4px; font-size:12px; font-weight:700; white-space:nowrap; flex-shrink: 0; }
-        .today-info-text { font-size:14px; line-height:1.4; color:var(--text-display); flex: 1; min-width: 200px; word-break: keep-all; }
-
         @media (max-width: 1024px) {
             .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; }
         }
@@ -125,7 +118,6 @@ if (!document.getElementById('wecoffee-custom-styles')) {
             .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: wrap !important; gap: 6px; }
             .mem-action-row select { flex: 1; min-width: 0; padding-left: 8px !important; padding-right: 28px !important; }
             .apply-date-btn, .action-btns button { flex-shrink: 0; }
-            .today-info-text { font-size: 13px; }
         }
     `;
     document.head.appendChild(style);
@@ -169,27 +161,6 @@ window.formatDeliveryDateFull = function(dateStr) {
     return `${d.getMonth()+1}월 ${d.getDate()}일 ${dow}요일`;
 };
 
-window.formatDeliveryDay = function(dateStr) {
-    if(!dateStr) return '미정';
-    let d = window.parseDeliveryDate(dateStr);
-    return ['일','월','화','수','목','금','토'][d.getDay()];
-};
-
-window.getOrderTargetFull = function(itemName) {
-    let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
-    if (m) return `${parseInt(m[1])}월 ${parseInt(m[2])}일 ${m[3]}요일`; 
-    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
-    if (m2) return `${m2[1]}요일`;
-    return '월요일'; 
-};
-window.getOrderTargetDay = function(itemName) {
-    let m = String(itemName).match(/(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\)/);
-    if(m) return m[3];
-    let m2 = String(itemName).match(/\((월|화|수|목|금|토|일)\)/);
-    if (m2) return m2[1];
-    return '월';
-};
-
 window.holidaysCache = {};
 window.fetchHolidays = async function(year) {
   if(window.holidaysCache['fetched_' + year]) return; 
@@ -219,6 +190,7 @@ window.toggleAll = function(checkbox, targetClass) {
     checkboxes.forEach(cb => { if (!cb.disabled) cb.checked = checkbox.checked; }); 
 };
 
+// 💡 [버그 수정] 동적 생성된 발주 테이블의 체크박스 클래스 일괄 대응
 window.batchUpdateOrderStatus = async function(statusText) {
     let checkedBoxes = document.querySelectorAll('input[type="checkbox"][class*="chk-ord"]:checked');
     let idsToUpdate = Array.from(checkedBoxes).map(cb => String(cb.value)).filter(val => val !== "on");
@@ -242,6 +214,210 @@ window.formatCounselTimeDisplay = function(val) { if(!val) return ''; let t = St
 window.copyTxt = function(txt, successMsg = "복사되었습니다.") { if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(txt).then(() => { showToast(successMsg); }).catch(err => { fallbackCopyTextToClipboard(txt, successMsg); }); } else { fallbackCopyTextToClipboard(txt, successMsg); } };
 function fallbackCopyTextToClipboard(text, successMsg) { var textArea = document.createElement("textarea"); textArea.value = text; textArea.style.top = "0"; textArea.style.left = "0"; textArea.style.position = "fixed"; document.body.appendChild(textArea); textArea.focus(); textArea.select(); try { document.execCommand('copy'); showToast(successMsg); } catch (err) { showToast("복사 실패"); } document.body.removeChild(textArea); }
 
+window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
+  const API_KEY = 'AIzaSyAjtrSlv56VPhtqMYGsQd0L4q1AlZTW1Ng'; const CALENDAR_ID = 'wecoffeekorea@gmail.com';
+  try {
+    const timeMin = new Date(yyyy, mm - 1, 1).toISOString(); const timeMax = new Date(yyyy, mm, 0, 23, 59, 59).toISOString();
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events?key=${API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;
+    const response = await fetch(url); if (!response.ok) return []; const data = await response.json();
+    return (data.items || []).map(event => { let dateStr, timeStr; if (event.start.date) { dateStr = event.start.date; timeStr = '종일'; } else if (event.start.dateTime) { dateStr = event.start.dateTime.split('T')[0]; timeStr = event.start.dateTime.split('T')[1].substring(0, 5); } else return null; return { date: dateStr, time: timeStr, start: timeStr, text: event.summary || '일정', type: 'google' }; }).filter(Boolean);
+  } catch (error) { return []; }
+};
+
+window.updateDailyInOutBanner = function() { 
+  let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
+  const getDailyEvents = (centerFilter) => { let evts = []; gRes.forEach(r => { if(r.res_date === ds && r.center === centerFilter && !String(r.status||'').includes('취소')) { let st = String(r.res_time||"").split('~')[0].trim(); let enParts = String(r.res_time||"").split('~'); let en = enParts.length > 1 ? enParts[1].trim() : ''; let spc = String(r.space_equip||"").split(' ')[0]; evts.push({ start: st, end: en, name: r.name, space: spc }); } }); return evts; }; 
+  let centers = currentGlobalCenter === '전체' ? ['마포 센터', '광진 센터'] : [currentGlobalCenter]; let html = ``; 
+  centers.forEach(c => { 
+      let evts = getDailyEvents(c); 
+      if(evts.length === 0) { html += `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">${c}</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 예약이 없습니다.</div></div>`; } 
+      else { 
+          let first = [...evts].sort((a,b) => String(a.start||'').localeCompare(String(b.start||'')))[0]; let last = [...evts].sort((a,b) => String(b.end||'').localeCompare(String(a.end||'')))[0]; 
+          html += `<div class="inout-card" style="padding: 16px; gap: 8px; border-radius:12px; border:1px solid var(--border-strong); background:#fff; align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px; width:100%;">${c}</div><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px; width:100%;"><span style="font-weight:600; font-size:14px; color:var(--text-display);">[${first.space||''}] ${window.escapeHtml(first.name||'')}</span><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">첫 입실 <strong style="color:var(--text-display); font-weight:600;">${first.start||''}</strong></span></div><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 0px; width:100%;"><span style="font-weight:600; font-size:14px; color:var(--text-display);">[${last.space||''}] ${window.escapeHtml(last.name||'')}</span><span style="color:var(--text-secondary); font-size:13px; font-weight:600;">최종 퇴실 <strong style="color:var(--text-display); font-weight:600;">${last.end||''}</strong></span></div></div>`; 
+      } 
+  }); 
+  if($("dailyInOutBanner")) $("dailyInOutBanner").innerHTML = html; 
+};
+
+window.updateCancelAccumulationBanner = function() {
+    let now = new Date(); let y = now.getFullYear(); let m = String(now.getMonth() + 1).padStart(2, '0'); let monthPrefix = `${y}-${m}`; let cancelCounts = {};
+    let addCancel = (phone, name, batch) => { if(!phone) return; if(!cancelCounts[phone]) cancelCounts[phone] = { name, batch, count: 0 }; cancelCounts[phone].count++; };
+    gRes.forEach(r => { if (r.status === '당일 취소' && String(r.res_date || r.created_at).startsWith(monthPrefix)) addCancel(r.phone, r.name, r.batch); });
+    gTrn.forEach(t => { if (t.status === '당일 취소') { let cInfo = String(t.content||'').split('||').map(s=>s.trim()); let dateStr = cInfo.length >= 5 ? cInfo[0] : String(t.created_at); if(dateStr.startsWith(monthPrefix)) addCancel(t.phone, t.name, t.batch); } });
+    let sorted = Object.values(cancelCounts).sort((a,b) => b.count - a.count); let html = '';
+    if (sorted.length === 0) { html = `<div class="inout-card" style="text-align:center; color:var(--text-secondary); padding:16px; background:#fff; border:1px solid var(--border-strong); border-radius:12px;">이번 달 당일 취소 내역이 없습니다.</div>`; } 
+    else { sorted.forEach(user => { let isWarning = user.count >= 4; let style = isWarning ? 'border:1px solid var(--error); background:#fff0f0;' : 'border:1px solid var(--border-strong); background:#fff;'; let nameColor = isWarning ? 'color:var(--error); font-weight:800;' : 'color:var(--text-display); font-weight:700;'; let warningBadge = isWarning ? `<span style="background:var(--error); color:#fff; font-size:11px; padding:2px 6px; border-radius:4px; margin-left:8px; font-weight:700;">경고</span>` : ''; html += `<div style="padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; ${style}"><div style="${nameColor}">[${user.batch||'-'}] ${window.escapeHtml(user.name)} ${warningBadge}</div><div style="font-size:14px; font-weight:800; ${isWarning ? 'color:var(--error);' : 'color:var(--text-secondary);'}">${user.count}회</div></div>`; }); }
+    if($("cancelAccumulationBanner")) $("cancelAccumulationBanner").innerHTML = html;
+};
+
+window.renderNoticeData = function() { 
+  let fNoti = [...gNotice]; 
+  fNoti.sort((a,b) => { if(a.is_pinned === b.is_pinned) return window.safeKST(b.created_at) - window.safeKST(a.created_at); return a.is_pinned ? -1 : 1; }); 
+  if($("noticeTableBody")) $("noticeTableBody").innerHTML = fNoti.length ? fNoti.map(n => { 
+      let pinBadge = n.is_pinned ? `<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>` : `<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`; 
+      let statBadge = n.status === '발행' ? `<span class="status-badge badge-green">발행 중</span>` : `<span class="status-badge badge-gray">숨김</span>`; 
+      let targetBadge = n.target_batch ? `<span class="status-badge badge-blue">${window.escapeHtml(n.target_batch)}</span>` : `<span class="status-badge badge-gray">전체</span>`;
+      let mPreview = `<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${window.escapeHtml(n.title)}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`; 
+      return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="대상" class="tc">${targetBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${window.escapeHtml(n.title)}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`; 
+    }).join("") : `<tr><td colspan="6" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`; 
+};
+
+window.updateDashSpaceFilter = function() {
+    let filter = $("dashSpaceFilter"); if(!filter) return; let currentVal = filter.value; let html = `<option value="전체">전체 공간</option>`;
+    if(currentGlobalCenter === '마포 센터') html += `<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;
+    else if (currentGlobalCenter === '광진 센터') html += `<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디룸">스터디룸</option>`;
+    else html += `<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디">스터디존/룸</option>`;
+    filter.innerHTML = html; if([...filter.options].some(o => o.value === currentVal)) filter.value = currentVal; else filter.value = '전체';
+}
+
+window.currentSpaceOpts = [];
+window.updateSpaceOptions = function() {
+    let center = $("blkCenter") ? $("blkCenter").value : "마포 센터";
+    window.currentSpaceOpts = ['전체 (공간 전체)'];
+    
+    if (center === '마포 센터') {
+        window.currentSpaceOpts.push('에스프레소존', '아스토리아 스톰 1번그룹 (좌)', '아스토리아 스톰 2번그룹 (우)', '로스팅존', '이지스터 800 1번 (좌)', '이지스터 800 2번 (우)', '이지스터 1.8', '스트롱홀드 S7X', '브루잉존', '커핑존', '스터디존');
+    } else {
+        window.currentSpaceOpts.push('에스프레소존', '시네소 MVP 하이드라 1번그룹 (좌)', '시네소 MVP 하이드라 2번그룹 (우)', '페마 페미나 1그룹', '산레모 You 1그룹', '빅토리아 아르두이노 이글원 프리마 프로 1그룹', '빅토리아 아르두이노 이글원 프리마 EXP 1그룹', '로스팅존', '이지스터 800 1번 (좌)', '이지스터 800 2번 (우)', '이지스터 1.8 1번 (좌)', '이지스터 1.8 2번', '브루잉존', '커핑존', '스터디룸');
+    }
+
+    let blkSpaceInput = $("blkSpace");
+    if (!blkSpaceInput) return;
+
+    blkSpaceInput.removeAttribute('list');
+
+    let wrapper = document.getElementById('custom-space-dropdown');
+    if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.id = 'custom-space-dropdown';
+        wrapper.style.cssText = 'position:absolute; background:#fff; border:1px solid var(--border-strong); border-radius:8px; max-height:200px; overflow-y:auto; width:100%; z-index:9999; display:none; box-shadow:0 4px 12px rgba(0,0,0,0.15); margin-top:4px;';
+        
+        blkSpaceInput.parentNode.style.position = 'relative';
+        blkSpaceInput.parentNode.appendChild(wrapper);
+
+        blkSpaceInput.addEventListener('focus', () => { wrapper.style.display = 'block'; window.renderCustomOptions(""); });
+        blkSpaceInput.addEventListener('click', () => { wrapper.style.display = 'block'; window.renderCustomOptions(""); });
+
+        document.addEventListener('click', (e) => {
+            if(e.target !== blkSpaceInput && !wrapper.contains(e.target)) {
+                wrapper.style.display = 'none';
+            }
+        });
+        
+        blkSpaceInput.addEventListener('input', function(e) {
+            let val = this.value;
+            let parts = val.split(',');
+            let lastTerm = parts[parts.length - 1].trim(); 
+            wrapper.style.display = 'block';
+            window.renderCustomOptions(lastTerm);
+        });
+    }
+
+    window.renderCustomOptions = (searchTerm = "") => {
+        let currentArr = blkSpaceInput.value ? blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+        let filteredOpts = window.currentSpaceOpts;
+        
+        if (searchTerm) { filteredOpts = window.currentSpaceOpts.filter(opt => opt.toLowerCase().includes(searchTerm.toLowerCase())); }
+
+        if(filteredOpts.length === 0) {
+            wrapper.innerHTML = `<div style="padding:10px 12px; font-size:13px; color:var(--text-secondary);">검색 결과가 없습니다.</div>`;
+        } else {
+            wrapper.innerHTML = filteredOpts.map(opt => {
+                let isSelected = currentArr.includes(opt);
+                let bgStyle = isSelected ? 'background:#e8f0fe; color:var(--primary); font-weight:800;' : '';
+                return `<div class="space-opt-item" style="padding:10px 12px; cursor:pointer; font-size:14px; border-bottom:1px solid #f2f4f6; transition:0.1s; ${bgStyle}">${opt}</div>`;
+            }).join('');
+        }
+
+        wrapper.querySelectorAll('.space-opt-item').forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                let clickedVal = this.innerText.trim();
+                let currentVal = blkSpaceInput.value;
+                let parts = currentVal.split(',').map(s=>s.trim());
+                
+                if(searchTerm) parts.pop();
+
+                if(clickedVal === '전체 (공간 전체)') { blkSpaceInput.value = '전체 (공간 전체)'; } 
+                else {
+                    let arr = parts.filter(s => s !== '전체 (공간 전체)' && s !== '');
+                    if(!arr.includes(clickedVal)) { arr.push(clickedVal); } else { arr = arr.filter(v => v !== clickedVal); }
+                    blkSpaceInput.value = arr.join(', ') + (arr.length > 0 ? ', ' : '');
+                }
+                
+                blkSpaceInput.focus();
+                window.renderCustomOptions("");
+            });
+        });
+    };
+    
+    let currentVals = blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean);
+    let hasInvalid = currentVals.some(v => !window.currentSpaceOpts.includes(v) && v !== "");
+    if(hasInvalid) blkSpaceInput.value = '';
+
+    window.renderCustomOptions("");
+};
+
+function startRealtimeSync() {
+    if(realtimeChannel) return;
+    realtimeChannel = supabaseClient.channel('admin-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trainings' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'blocks' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, () => { window.fetchCenterData(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => { window.fetchApplications(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => { window.fetchMembers(); })
+      .subscribe();
+}
+
+function handleLoginSuccess() {
+    var lv = $("login-view"); if(lv) lv.classList.remove('active'); 
+    var dv = $("dashboard-view"); if(dv) dv.style.display = 'block'; 
+    startRealtimeSync();
+    
+    let savedMain = localStorage.getItem('wecoffee_main_tab') || 'page-center'; 
+    let savedSub = localStorage.getItem('wecoffee_sub_tab') || 'sub-res';
+    if(savedSub === 'sub-trn' || savedSub === 'sub-blk') savedSub = 'sub-trn-blk';
+    let mainEl = document.querySelector(`.gnb-item[onclick*="${savedMain}"]`); 
+    if(mainEl) window.switchMainTab(savedMain, mainEl); 
+    else window.switchMainTab('page-center', document.querySelector(`.gnb-item[onclick*="page-center"]`));
+    if(savedMain === 'page-center') { let subEl = document.querySelector(`.sub-item[onclick*="${savedSub}"]`); if(subEl) window.switchSubTab(savedSub, subEl); }
+}
+
+function initializeApp() {
+  window.fetchHolidays(new Date().getFullYear());
+  if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
+  supabaseClient.auth.getSession().then(({ data: { session } }) => { if (session && !isAppInitialized) { handleLoginSuccess(); isAppInitialized = true; } });
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (session) { if(!isAppInitialized) { handleLoginSuccess(); isAppInitialized = true; } } 
+    else { var lv = $("login-view"); if(lv) lv.classList.add('active'); var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; isAppInitialized = false; if(realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; } }
+  });
+}
+if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
+
+window.switchMainTab = function(pageId, element) {
+  $$$(".page").forEach(p => p.classList.remove('active')); if($(pageId)) $(pageId).classList.add('active');
+  $$$(".gnb-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.gnb-item[onclick*="${pageId}"]`); if(targetEl) targetEl.classList.add('active');
+  localStorage.setItem('wecoffee_main_tab', pageId);
+  
+  if(pageId === 'page-center') window.fetchCenterData();
+  if(pageId === 'page-applications') { window.fetchApplications(); isInsightView = false; if($("app-table-area")) $("app-table-area").style.display = "block"; if($("app-insight-area")) $("app-insight-area").style.display = "none"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = "인사이트 보기"; }
+  if(pageId === 'page-members') window.fetchMembers();
+}
+
+window.switchSubTab = function(subId, element) {
+  $$$(".sub-page").forEach(p => p.classList.remove('active')); if($(subId)) $(subId).classList.add('active');
+  $$$(".sub-item").forEach(item => item.classList.remove('active')); let targetEl = element || document.querySelector(`.sub-item[onclick*="${subId}"]`); if(targetEl) { targetEl.classList.add('active'); targetEl.classList.remove("tab-pulse"); }
+  if (subId === 'sub-notice') { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'none'; } else { if($('globalFilterWrap')) $('globalFilterWrap').style.display = 'inline-flex'; }
+  localStorage.setItem('wecoffee_sub_tab', subId); 
+  if(subId === 'sub-res' || subId === 'sub-trn-blk' || subId === 'sub-ord') { window.fetchCenterData(); }
+}
+
+window.handleLogin = async function(e) { e.preventDefault(); const email = $("loginEmail").value, password = $("loginPassword").value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) showToast("접근 권한이 없습니다."); else showToast("접속되었습니다."); }
+window.handleLogout = async function() { await supabaseClient.auth.signOut(); showToast("로그아웃 되었습니다."); }
+
+// 💡 [버그 수정] 링크 복사 시 함수가 아닌 URL 텍스트가 정상적으로 복사되도록 원복 완료
 window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrText, btnText = '적용하기') {
     if($("confirmTarget")) $("confirmTarget").innerHTML = title;
     if(statusHtml) { if($("confirmStateBox")) $("confirmStateBox").style.display = 'block'; if($("confirmSimpleBox")) $("confirmSimpleBox").style.display = 'none'; if($("confirmStatus")) $("confirmStatus").innerHTML = statusHtml; if($("confirmActionState")) $("confirmActionState").innerHTML = actionHtml; } 
@@ -462,22 +638,20 @@ window.renderCenterData = function() {
   } catch(e) { console.error(e); }
 };
 
-// 💡 [수정1 반영] formatDt를 이용해 시간만 자르지 않고 (년/월/일 시:분) 전체 표기되도록 수정
 function generateOrderRows(fOrd, chkClass) { 
   return fOrd.map(o=>{ 
     let badgeClass = (o.status==='주문 취소' || o.status==='품절')?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
     let cNm = o.item_name || ""; let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/); if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); } 
     let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`; 
-    let vendorUrl = o.link ? o.link : (o.url ? o.url : '#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${window.escapeHtml(o.vendor)}</a>`; 
-    let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}', '상품명이 복사되었습니다.')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${window.escapeHtml(cNm)}</span><span class="copyable-hint">복사</span></div></div>`; 
+    let vendorUrl = o.link ? o.link : (o.url ? o.url : '#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${o.vendor}</a>`; 
+    let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}', '상품명이 복사되었습니다.')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${cNm}</span><span class="copyable-hint">복사</span></div></div>`; 
     let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : ''; 
     let targetBadgeHtml = o._targetBadge || ''; 
-    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${window.escapeHtml(o.name)}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${window.escapeHtml(o.vendor)}</span>${window.escapeHtml(cNm)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
+    let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${o.name}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${o.vendor}</span>${cNm}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
     
-    return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${window.escapeHtml(o.name)}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${window.escapeHtml(o.phone)}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:8px;"><div style="flex-shrink: 0; text-align: right;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span><div style="flex:1; min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
+    return `<tr style="border-bottom: 1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc" style="text-align:center;"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap; text-align:left; color:var(--text-display); font-size:14px; font-weight:500;">${formatDt(o.created_at)}</td><td data-label="수령 센터" class="tc" style="text-align:center;">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary); font-size:14px; font-weight:600; text-align:center;">${o.batch||'-'}</td><td data-label="성함" style="text-align:left;"><strong style="font-weight:800; color:var(--text-display); font-size:15px; white-space:nowrap;">${o.name}</strong></td><td data-label="연락처" style="white-space:nowrap; text-align:left; color:var(--text-secondary); font-size:14px;">${o.phone}</td><td data-label="생두사 / 상품명" style="text-align:left; width: 100%; max-width: 340px; overflow:visible;"><div style="display:flex; align-items:center; width:100%; min-width: 0; gap:8px;"><div style="flex-shrink: 0; text-align: right;">${vendorHtml}</div><span style="color:var(--border-strong); font-size:12px; flex-shrink:0;">|</span><div style="flex:1; min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px; font-weight:700; color:var(--text-display); text-align:center;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px; padding:10px 12px; text-align:right; font-size:14px; font-weight:600; background:#fff; border:1px solid var(--border-strong); border-radius:8px; color:var(--text-display); outline:none; transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)'; window.handlePriceInput('${o.id}', this.value, '${o.status}', this)"></td><td data-label="상태 관리" class="tc" style="text-align:center;"><div class="action-wrap" style="justify-content:center; display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}', this.value, this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>` 
   }).join("");
 }
-
 window.renderDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentDashView === 'month' && $("dashMonthTitle")) { $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; }
@@ -599,7 +773,6 @@ window.renderAppMCal = function(selDate) {
     let listWrap = $("m-cal-list-app"); if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 💡 [수정3 반영] 모바일 가로 스크롤 방지를 위한 UI 구조 클래스 적용 (.app-daily-item)
 window.renderAppDailyBanner = function(filteredApps) {
     let td = new Date(); let mm = td.getMonth() + 1; let dd = td.getDate();
     let scheduled = filteredApps.filter(a => a.status === '상담 일정 확정' && a.call_time);
@@ -613,7 +786,7 @@ window.renderAppDailyBanner = function(filteredApps) {
     if(todayEvts.length === 0) { 
         html = `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">오늘의 상담 일정</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 상담 일정이 없습니다.</div></div>`; 
     } else { 
-        html = `<div class="inout-card"><div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">오늘의 상담 일정 (${todayEvts.length}건)</div><div class="app-daily-list-wrap">`; 
+        html = `<div class="inout-card"><div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">오늘의 상담 일정 (${todayEvts.length}건)</div><div style="display:flex; flex-direction:column; gap:8px;">`; 
         
         todayEvts.sort((a,b) => { 
             let tA = String(a.call_time||'').match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/); 
@@ -626,13 +799,7 @@ window.renderAppDailyBanner = function(filteredApps) {
         todayEvts.forEach(evt => { 
             const tm = String(evt.call_time||'').match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/); 
             let timeStr = tm ? `${tm[1]} ${tm[2]}:${tm[3] ? String(parseInt(tm[3], 10)).padStart(2,'0') : '00'}` : evt.call_time; 
-            html += `<div class="app-daily-item">
-                        <div class="today-time-badge">${timeStr}</div>
-                        <div class="today-info-text">
-                            <strong style="color:var(--text-display);">[${evt.desired_batch||'-'}] ${window.escapeHtml(evt.name)}</strong>
-                            <span style="color:var(--text-secondary); margin-left:4px;">(${window.escapeHtml(evt.phone)}) | 담당: ${window.escapeHtml(evt.counselor_name||'미정')}</span>
-                        </div>
-                     </div>`; 
+            html += `<div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;"><div class="today-time-wrap" style="color:var(--primary); background:var(--primary-light); padding:2px 8px; border-radius:4px; font-size:12px; font-weight:700; white-space:nowrap; flex-shrink:0;">${timeStr}</div> <div class="today-time-wrap" style="font-weight:800; margin:0 8px; flex-shrink:0;">[${evt.desired_batch||'-'}] ${window.escapeHtml(evt.name)}</div> <div style="white-space:nowrap; font-weight:500; color:var(--text-secondary); flex-shrink:0;">(${window.escapeHtml(evt.phone)}) | 담당: ${window.escapeHtml(evt.counselor_name||'미정')}</div></div>`; 
         }); 
         html += `</div></div>`; 
     }
@@ -700,11 +867,6 @@ window.fetchApplications = async function() {
 }
 
 window.applyFilterApp = function() { try { const selected = $("batchFilterApp").value; const filtered = selected === 'all' ? globalApps : globalApps.filter(d => d.desired_batch === selected); if (isInsightView) { window.renderStatistics(filtered); } else { window.renderAppTable(filtered); window.renderAppDailyBanner(filtered); window.renderAppDashboard(); } } catch(e) { console.error(e); } }
-
-const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-arranging', '상담 일정 확정': 'st-confirmed', '상담 완료': 'st-completed', '연락 두절': 'st-ghosted', '설문 완료': 'st-confirmed', '품절': 'st-ghosted' };
-const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
-function parseAcquisitionChannel(rawText) { if(!rawText) return '-'; let txt = String(rawText).toLowerCase(); if(txt.includes('광고') || txt.includes('스폰서드')) return '광고'; if(txt.includes('인스타')) return '인스타그램'; if(txt.includes('블로그')) return '네이버 블로그'; if(txt.includes('블랙워터')) return '블랙워터이슈'; if(txt.includes('지인')) return '지인 추천'; return '기타'; }
-window.closeCrmModal = function() { if($("crmModal")) $("crmModal").classList.remove('show'); };
 
 window.renderCrmInner = function(id, isReadOnly = false) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
@@ -874,6 +1036,7 @@ window.saveSchedule = async function() {
     }
 };
 window.saveScheduleData = window.saveSchedule;
+
 window.updateAppStatus = async function(id, column, value) {
     const app = globalApps.find(a => String(a.id) === String(id)); if (!app) return;
     if (column === 'join_status' && app.join_status === '가입 완료' && value !== '가입 완료') {
@@ -953,7 +1116,6 @@ window.renderStatistics = function(data) {
   
   window.currentInsightData = { total, joined, instaCount: channelMap['인스타그램']?channelMap['인스타그램'].total:0, adCount: channelMap['모집 광고']?channelMap['모집 광고'].total:0, instaFollow: safeDataForSummary.instaFollow, instaNonFollow: safeDataForSummary.instaNonFollow, leadTime1M: safeDataForSummary.adNow, leadTime3M: safeDataForSummary.leadTime3M, channelMap: channelMap };
 }
-
 window.changeMemberPerPage = function(val) {
     memberItemsPerPage = val === 'all' ? 999999 : parseInt(val);
     currentMemberPage = 1;
@@ -1125,6 +1287,7 @@ window.applyMemberDate = async function(id, btn) {
     } else { showToast("년/월/일을 모두 선택해주세요."); }
 };
 
+// 💡 [개선 사항] 멤버십 연장 일수(+31일, +93일, +186일) 로직
 window.handleMemberOption = function(id, batch, name, phone, currentEndDate, selectEl) {
   const opt = selectEl.value; const optText = selectEl.options[selectEl.selectedIndex].text; selectEl.value = ''; if(!opt) return;
   let confirmMsg = ""; let baseDateForUpdate = new Date(); baseDateForUpdate.setHours(0,0,0,0);
@@ -1151,6 +1314,7 @@ window.handleMemberOption = function(id, batch, name, phone, currentEndDate, sel
 
 window.updateMemberEndDate = async function(id, dateStr) { const { error } = await supabaseClient.from('members').update({ end_date: dateStr }).eq('id', id); if(error) showToast("날짜 변경에 실패했습니다."); else showToast("종료일이 업데이트 되었습니다."); }
 
+// 💡 [개선 사항] 롤백 시 정확한 일수(31, 93, 186) 차감 적용
 window.deleteHistory = async function(id, phone, name, action_detail) { 
     window.openCustomConfirm("내역 삭제", null, `해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`, async () => { 
         await supabaseClient.from('member_history').delete().eq('id', id); 
@@ -1431,7 +1595,6 @@ window.showOrderSummary = function() {
 
 window.closeSummaryModal = function() { const modal = $("summaryModal"); if(modal) modal.classList.remove('show'); };
 
-// 💡 [수정4 반영] 명세서 데이터 매핑 시 기수 및 연락처 누락 보강 (구글 시트 전송 로직)
 window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbynlyczuJ5VWzfG5IFOstLzkRybv4Yvjgo9bxDHoUQlK84gAehaTuCNommlmrXuFsJK/exec'; 
@@ -1441,12 +1604,11 @@ window.sendToGoogleSheet = async function() {
         let uniqueMembers = [...new Set(window.currentSummaryData.map(d => d['성함']))].filter(name => name !== "이름없음" && name !== "");
         
         let invoiceData = uniqueMembers.map(name => {
-            let mInfo = window.currentSummaryData.find(d => d['성함'] === name) || {};
             return {
                 "등록 일시": "", "발주 구분": "", "수령 센터": "", "생두사": "",
                 "상품명": `[${name}] 님 최종 청구 금액`, "주문 수량": "", 
                 "결제 금액": `CALC_TOTAL:${name}`,
-                "기수": mInfo['기수'] || "", "성함": name, "연락처": mInfo['연락처'] || ""
+                "기수": "", "성함": name, "연락처": ""
             };
         });
 
@@ -1459,7 +1621,6 @@ window.sendToGoogleSheet = async function() {
     } catch(e) { showToast("전송 오류"); } finally { if(btn) { btn.innerText = '구글 시트 전송'; btn.disabled = false; } }
 }
 
-// 💡 [수정4 반영] 명세서 데이터 매핑 시 기수 및 연락처 누락 보강 (엑셀 다운로드 로직)
 window.downloadSummaryExcel = function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
     let csv = "\uFEFF등록 일시,발주 구분,수령 센터,생두사,상품명,주문 수량,결제 금액,기수,성함,연락처\n";
@@ -1475,10 +1636,7 @@ window.downloadSummaryExcel = function() {
         csv += `,,,,"--- ▼ 멤버별 총 결제 금액 명세서 ▼ ---",,,,,\n`;
         let dataEndRow = window.currentSummaryData.length + 1;
         uniqueMembers.forEach(name => {
-            let mInfo = window.currentSummaryData.find(d => d['성함'] === name) || {};
-            let safeBatch = mInfo['기수'] || '';
-            let safePhone = mInfo['연락처'] || '';
-            csv += `,,,,"[${name}] 님 최종 청구 금액",,"=IFERROR(SUMIFS(G2:G${dataEndRow}, I2:I${dataEndRow}, ""${name}""), 0)","${safeBatch}","${name}","${safePhone}"\n`;
+            csv += `,,,,"[${name}] 님 최종 청구 금액",,"=IFERROR(SUMIFS(G2:G${dataEndRow}, I2:I${dataEndRow}, ""${name}""), 0)",,"${name}",\n`;
         });
     }
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); 
@@ -1566,8 +1724,6 @@ window.editBlock = function(id) {
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
 window.isSavingBlock = false;
-
-// 💡 [수정2 반영] 스케줄 반복 생성 '매주(요일)' 조건 강제 연동 버그 해결 (+7일씩 증가)
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
     window.isSavingBlock = true;
@@ -1611,8 +1767,8 @@ window.saveBlockData = async function() {
 
     for (let i = 0; i < repeatCount; i++) {
         let targetDate = new Date(baseDate);
-        if (repeatType.includes("매일")) targetDate.setDate(targetDate.getDate() + i);
-        else if (repeatType.includes("주") || repeatType.includes("요일")) targetDate.setDate(targetDate.getDate() + (i * 7));
+        if (repeatType === "매일") targetDate.setDate(targetDate.getDate() + i);
+        else if (repeatType.includes("매주") || repeatType.includes("요일")) targetDate.setDate(targetDate.getDate() + (i * 7));
         
         let yyyy = targetDate.getFullYear();
         let mm = String(targetDate.getMonth() + 1).padStart(2, '0');
