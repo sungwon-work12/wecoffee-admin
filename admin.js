@@ -90,8 +90,6 @@ if (!document.getElementById('wecoffee-custom-styles')) {
     style.innerHTML = `
         .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal !important; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; font-family: sans-serif; }
         .info-tooltip:hover { color: #505967; border-color: #505967; }
-        .info-tooltip::after { content: attr(data-tooltip); position: absolute; bottom: 130%; left: -10px; background: #333d4b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; white-space: pre-wrap; width: max-content; max-width: 260px; z-index: 9999; margin-bottom: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); line-height: 1.5; opacity: 0; visibility: hidden; pointer-events: none; transition: 0.2s; text-align: left; word-break: keep-all; font-style: normal; }
-        .info-tooltip:hover::after { opacity: 1; visibility: visible; }
         
         .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
         .pagination-btn { height:32px; min-width:32px; padding:0 8px; border:1px solid var(--border-strong); background:#fff; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:0.2s; }
@@ -212,6 +210,7 @@ window.fetchGoogleCalendarEvents = async function(yyyy, mm) {
     return (data.items || []).map(event => { let dateStr, timeStr; if (event.start.date) { dateStr = event.start.date; timeStr = '종일'; } else if (event.start.dateTime) { dateStr = event.start.dateTime.split('T')[0]; timeStr = event.start.dateTime.split('T')[1].substring(0, 5); } else return null; return { date: dateStr, time: timeStr, start: timeStr, text: event.summary || '일정', type: 'google' }; }).filter(Boolean);
   } catch (error) { return []; }
 };
+
 window.updateDailyInOutBanner = function() { 
   let td = new Date(); let ds = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`; 
   const getDailyEvents = (centerFilter) => { let evts = []; gRes.forEach(r => { if(r.res_date === ds && r.center === centerFilter && !String(r.status||'').includes('취소')) { let st = String(r.res_time||"").split('~')[0].trim(); let enParts = String(r.res_time||"").split('~'); let en = enParts.length > 1 ? enParts[1].trim() : ''; let spc = String(r.space_equip||"").split(' ')[0]; evts.push({ start: st, end: en, name: r.name, space: spc }); } }); return evts; }; 
@@ -474,7 +473,6 @@ window.fetchCenterData = async function() {
       if(window.renderTimeline) window.renderTimeline(); 
   } catch(e){ console.error(e); }
 }
-
 window.changeResPage = function(page) {
     currentResPage = page;
     window.renderResTablePage();
@@ -509,19 +507,20 @@ window.renderTimeline = function() {
 
     let finalHtml = `
         <style>
-            #timeline-area .timeline-section { width: 100%; max-width: 1140px; margin: 0 auto 32px auto !important; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid var(--border-strong); box-shadow: 0 4px 20px rgba(0,0,0,0.05); box-sizing: border-box; }
+            /* 💡 가로 너비를 위쪽 카드와 똑같이 100%로 맞춤 */
+            #timeline-area .timeline-section { width: 100%; margin-bottom: 32px; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid var(--border-strong); box-shadow: 0 4px 20px rgba(0,0,0,0.05); box-sizing: border-box; }
             .timeline-container { width: 100%; overflow-x: auto; position: relative; border: 1px solid #eee; border-radius: 8px; -webkit-overflow-scrolling: touch; padding-bottom: 8px; }
             .timeline-grid { min-width: 1000px; display: flex; flex-direction: column; border-top: 1px solid #eee; border-left: 1px solid #eee; border-right: 1px solid #eee; }
             .timeline-header { display: flex; background: #f9fafb; border-bottom: 2px solid #eee; }
-            .resource-label-header { width: 210px; flex-shrink: 0; padding: 12px; border-right: 1px solid #eee; font-weight: 800; font-size: 13px; color: var(--text-secondary); text-align: center; }
+            .resource-label-header { width: 210px; flex-shrink: 0; padding: 12px; border-right: 1px solid #eee; font-weight: 800; font-size: 13px; color: var(--text-secondary); text-align: center; box-sizing: border-box; }
             .time-slots-header { display: flex; flex-grow: 1; }
             .time-slot-num { flex: 1; text-align: center; font-size: 12px; font-weight: 700; padding: 12px 0; color: #999; border-right: 1px solid #f0f0f0; }
             .zone-group-row { display: flex; border-bottom: 1px solid #eee; }
-            .zone-col { width: 90px; flex-shrink: 0; background: #f4f5f7; border-right: 1px solid #eee; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #333d4b; text-align: center; word-break: keep-all; padding: 8px; }
+            .zone-col { width: 90px; flex-shrink: 0; background: #f4f5f7; border-right: 1px solid #eee; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #333d4b; text-align: center; word-break: keep-all; padding: 8px; box-sizing: border-box; }
             .equip-col-wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; }
             .timeline-row { display: flex; border-bottom: 1px solid #eee; min-height: 54px; position: relative; }
             .timeline-row:last-child { border-bottom: none; }
-            .equip-name { width: 120px; flex-shrink: 0; padding: 10px 12px; border-right: 1px solid #eee; font-size: 13px; font-weight: 600; background: #fcfcfc; display: flex; align-items: center; justify-content: center; line-height: 1.3; color: #505967; text-align: center; word-break: keep-all; }
+            .equip-name { width: 120px; flex-shrink: 0; padding: 10px 12px; border-right: 1px solid #eee; font-size: 13px; font-weight: 600; background: #fcfcfc; display: flex; align-items: center; justify-content: center; line-height: 1.3; color: #505967; text-align: center; word-break: keep-all; box-sizing: border-box; }
             .time-grid-bg { display: flex; flex-grow: 1; position: relative; background-image: repeating-linear-gradient(to right, transparent, transparent calc(6.6666% - 1px), #f0f0f0 calc(6.6666% - 1px), #f0f0f0 6.6666%); }
             
             .timeline-bar { position: absolute; height: 36px; top: 9px; border-radius: 8px; color: #fff; padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 2; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border: 1.5px solid rgba(255,255,255,0.8); box-sizing: border-box; }
@@ -531,11 +530,14 @@ window.renderTimeline = function() {
             .bar-trn { background: rgba(255, 121, 0, 0.65); color: #fff; }
             .bar-blk { background: #9ca3af; color: #fff; }
 
-            @media (max-width: 768px) { #timeline-area .timeline-section { padding: 16px; margin: 0 auto 24px auto !important; border-radius: 8px; } }
+            @media (max-width: 768px) { #timeline-area .timeline-section { padding: 16px; margin-bottom: 24px; border-radius: 8px; } }
         </style>
         <div class="timeline-section">
-            <div class="timeline-title-wrap">
-                <div class="section-title" style="margin-bottom:0;">실시간 센터 현황 <span class="sub-text">${todayStr} 기준</span></div>
+            <!-- 💡 타이틀과 안내 문구를 인라인 Flex로 묶어 우측 정렬 고정 -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; flex-wrap: wrap; gap: 8px;">
+                <div style="font-size: 18px; font-weight: 800; color: var(--text-display); margin-bottom: 0; line-height: 1;">
+                    실시간 센터 현황 <span style="font-size: 13px; color: var(--text-tertiary); font-weight: 500; margin-left: 8px;">${todayStr} 기준</span>
+                </div>
                 <div style="font-size:12px; color:var(--text-tertiary); font-weight:500;">* 블록 위에 마우스를 올리면 상세 정보가 표시됩니다.</div>
             </div>
     `;
@@ -565,19 +567,52 @@ window.renderTimeline = function() {
         return `<div class="timeline-bar ${typeClass}" style="left:${left}%; width:${width}%;" data-tippy="${window.escapeHtml(tooltip)}" onmouseenter="window.showGlobalTooltip(event, this)" onmouseleave="window.hideGlobalTooltip()">${window.escapeHtml(label)}</div>`;
     }
 
+    function renderBarsFor(equipName, zoneName, centerName) {
+        let barsHtml = '';
+        gRes.forEach(r => {
+            if (r.res_date === todayStr && r.center === centerName && !String(r.status).includes('취소')) {
+                let rSpc = String(r.space_equip || ''); let isMatch = false;
+                if (equipName === 'merged' || equipName === '존 전체 대관') { isMatch = rSpc === zoneName || rSpc === '전체 (공간 전체)' || rSpc === '전체'; } 
+                else { isMatch = rSpc.includes(equipName.split(' ')[0]); }
+                if (isMatch) barsHtml += generateBar(r.res_time, `[${r.batch||'-'}] ${r.name}`, 'bar-res', `${r.res_time} | [${r.batch||'-'}] ${r.name} (${r.phone})`);
+            }
+        });
+
+        gTrn.forEach(t => {
+            let cInfo = String(t.content || '').split('||').map(s => s.trim());
+            if (cInfo.length >= 5 && cInfo[0] === todayStr && cInfo[3] === centerName && !String(t.status).includes('취소')) {
+                let tSpc = String(cInfo[4] || ''); let isMatch = false;
+                if (equipName === 'merged' || equipName === '존 전체 대관') { isMatch = tSpc === zoneName || tSpc === '전체 (공간 전체)' || tSpc === '전체'; } 
+                else { isMatch = tSpc.includes(equipName.split(' ')[0]); }
+                if (isMatch) barsHtml += generateBar(cInfo[2], `[수강] ${t.name}`, 'bar-trn', `${cInfo[2]} | [${t.batch||'-'}] ${t.name} (${t.phone})`);
+            }
+        });
+
+        gBlk.forEach(b => {
+            if (b.block_date === todayStr && b.center === centerName) {
+                let bSpc = String(b.space_equip || ''); let isMatch = false;
+                if (equipName === 'merged' || equipName === '존 전체 대관') { isMatch = bSpc === zoneName || bSpc === '전체 (공간 전체)' || bSpc === '전체' || !bSpc; } 
+                else { isMatch = bSpc.includes(equipName.split(' ')[0]) || bSpc === '전체 (공간 전체)' || bSpc === '전체'; }
+                if (isMatch) barsHtml += generateBar(`${b.start_time}~${b.end_time}`, `[${b.category}] ${b.reason}`, 'bar-blk', `${b.start_time}~${b.end_time} | ${b.reason}`);
+            }
+        });
+        return barsHtml;
+    }
+
+    // 💡 단일 장비 공간은 'merged'로 지정하여 렌더링 시 하나로 합침
     let mapoSpaces = [
         { zone: '에스프레소존', equips: ['존 전체 대관', '아스토리아 스톰 1번(좌)', '아스토리아 스톰 2번(우)'] },
         { zone: '로스팅존', equips: ['존 전체 대관', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8', '스트롱홀드 S7X'] },
-        { zone: '브루잉존', equips: ['존 전체 대관'] },
-        { zone: '커핑존', equips: ['존 전체 대관'] },
-        { zone: '스터디존', equips: ['존 전체 대관'] }
+        { zone: '브루잉존', equips: ['merged'] },
+        { zone: '커핑존', equips: ['merged'] },
+        { zone: '스터디존', equips: ['merged'] }
     ];
     let gwangjinSpaces = [
         { zone: '에스프레소존', equips: ['존 전체 대관', '시네소 MVP 1번(좌)', '시네소 MVP 2번(우)', '페마 페미나', '산레모 You', '이글원 프리마 프로', '이글원 프리마 EXP'] },
         { zone: '로스팅존', equips: ['존 전체 대관', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8 1번(좌)', '이지스터 1.8 2번'] },
-        { zone: '브루잉존', equips: ['존 전체 대관'] },
-        { zone: '커핑존', equips: ['존 전체 대관'] },
-        { zone: '스터디룸', equips: ['존 전체 대관'] }
+        { zone: '브루잉존', equips: ['merged'] },
+        { zone: '커핑존', equips: ['merged'] },
+        { zone: '스터디룸', equips: ['merged'] }
     ];
 
     centersToRender.forEach((centerName, idx) => {
@@ -599,46 +634,35 @@ window.renderTimeline = function() {
 
         spaceGroups.forEach(group => {
             let zoneName = group.zone;
-            finalHtml += `<div class="zone-group-row">
-                <div class="zone-col">${zoneName}</div>
-                <div class="equip-col-wrapper">`;
+            
+            // 💡 [셀 병합 처리] 브루잉, 커핑, 스터디존 등은 하나로 통일
+            if (group.equips.length === 1 && group.equips[0] === 'merged') {
+                finalHtml += `
+                    <div class="timeline-row" style="border-bottom: 1px solid #eee;">
+                        <div style="width: 210px; flex-shrink: 0; background: #f4f5f7; border-right: 1px solid #eee; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #333d4b; text-align: center; box-sizing: border-box;">
+                            ${zoneName}
+                        </div>
+                        <div class="time-grid-bg">
+                            ${renderBarsFor('merged', zoneName, centerName)}
+                        </div>
+                    </div>
+                `;
+            } else {
+                // 기존 2단 분리 레이아웃
+                finalHtml += `<div class="zone-group-row">
+                    <div class="zone-col">${zoneName}</div>
+                    <div class="equip-col-wrapper">`;
 
-            group.equips.forEach(equipName => {
-                finalHtml += `<div class="timeline-row">
-                    <div class="equip-name">${equipName}</div>
-                    <div class="time-grid-bg">`;
-
-                gRes.forEach(r => {
-                    if (r.res_date === todayStr && r.center === centerName && !String(r.status).includes('취소')) {
-                        let rSpc = String(r.space_equip || ''); let isMatch = false;
-                        if (equipName === '존 전체 대관') { isMatch = rSpc === zoneName || rSpc === '전체 (공간 전체)' || rSpc === '전체'; } 
-                        else { isMatch = rSpc.includes(equipName.split(' ')[0]); }
-                        if (isMatch) finalHtml += generateBar(r.res_time, `[${r.batch||'-'}] ${r.name}`, 'bar-res', `${r.res_time} | [${r.batch||'-'}] ${r.name} (${r.phone})`);
-                    }
+                group.equips.forEach(equipName => {
+                    finalHtml += `<div class="timeline-row">
+                        <div class="equip-name">${equipName}</div>
+                        <div class="time-grid-bg">
+                            ${renderBarsFor(equipName, zoneName, centerName)}
+                        </div>
+                    </div>`;
                 });
-
-                gTrn.forEach(t => {
-                    let cInfo = String(t.content || '').split('||').map(s => s.trim());
-                    if (cInfo.length >= 5 && cInfo[0] === todayStr && cInfo[3] === centerName && !String(t.status).includes('취소')) {
-                        let tSpc = String(cInfo[4] || ''); let isMatch = false;
-                        if (equipName === '존 전체 대관') { isMatch = tSpc === zoneName || tSpc === '전체 (공간 전체)' || tSpc === '전체'; } 
-                        else { isMatch = tSpc.includes(equipName.split(' ')[0]); }
-                        if (isMatch) finalHtml += generateBar(cInfo[2], `[수강] ${t.name}`, 'bar-trn', `${cInfo[2]} | [${t.batch||'-'}] ${t.name} (${t.phone})`);
-                    }
-                });
-
-                gBlk.forEach(b => {
-                    if (b.block_date === todayStr && b.center === centerName) {
-                        let bSpc = String(b.space_equip || ''); let isMatch = false;
-                        if (equipName === '존 전체 대관') { isMatch = bSpc === zoneName || bSpc === '전체 (공간 전체)' || bSpc === '전체' || !bSpc; } 
-                        else { isMatch = bSpc.includes(equipName.split(' ')[0]) || bSpc === '전체 (공간 전체)' || bSpc === '전체'; }
-                        if (isMatch) finalHtml += generateBar(`${b.start_time}~${b.end_time}`, `[${b.category}] ${b.reason}`, 'bar-blk', `${b.start_time}~${b.end_time} | ${b.reason}`);
-                    }
-                });
-
                 finalHtml += `</div></div>`;
-            });
-            finalHtml += `</div></div>`;
+            }
         });
         finalHtml += `</div></div></div>`; 
     });
@@ -679,6 +703,7 @@ window.renderResTablePage = function() {
 
     window.updateResPaginationUI(data.length);
 };
+
 window.updateResPaginationUI = function(totalItems) {
     let paginationWrap = document.getElementById('resPaginationWrap');
     let tableWrap = document.querySelector('#resTableBody')?.closest('.table-wrap');
@@ -852,7 +877,7 @@ function generateOrderRows(fOrd, chkClass) {
     let cNm = o.item_name || ""; let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/); if(m) cNm = m[1].trim(); else { let oM = String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm = oM[1].trim(); } 
     let centerBadge = `<span style="background:var(--border); color:var(--text-display); padding:6px 10px; border-radius:8px; font-size:13px; font-weight:700; white-space:nowrap;">${o.center||'미지정'}</span>`; 
     let vendorUrl = o.link ? o.link : (o.url ? o.url : '#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary); font-weight:700; font-size:13px; text-decoration:none; cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${window.escapeHtml(o.vendor)}</a>`; 
-    let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}', '상품명이 복사되었습니다.')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" title="클릭하여 복사"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${window.escapeHtml(cNm)}</span><span class="copyable-hint">복사</span></div></div>`; 
+    let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g, "\\'")}', '상품명이 복사되었습니다.')" data-full-text="${String(cNm).replace(/"/g, '&quot;')}" data-tippy="클릭하여 복사" onmouseenter="window.showGlobalTooltip(event, this)" onmouseleave="window.hideGlobalTooltip()"><div style="display:flex; align-items:center; width:100%; min-width: 0;"><span class="copyable-text">${window.escapeHtml(cNm)}</span><span class="copyable-hint">복사</span></div></div>`; 
     let cTxtPreview = o.center ? `<span style="background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; vertical-align:middle; white-space:nowrap;">${o.center}</span>` : ''; 
     let targetBadgeHtml = o._targetBadge || ''; 
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">${targetBadgeHtml}[${o.batch||'-'}] <span style="font-weight:800;">${window.escapeHtml(o.name)}</span> <span style="font-size:13px; font-weight:500; color:var(--text-secondary); margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display); font-weight:500; line-height:1.5;">${cTxtPreview}<span style="font-size:12px; color:var(--text-secondary); margin-right:4px;">${window.escapeHtml(o.vendor)}</span>${window.escapeHtml(cNm)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
@@ -885,7 +910,6 @@ window.handleOrderStatusChange = function(id, newValue, selectEl) {
     if (isRollback) { confirmMsg = `<div style="background:#fff0f0; border:1px solid #ffcdd2; border-radius:8px; padding:16px; margin-bottom:12px; text-align:left;"><div style="color:var(--error); font-weight:800; font-size:14px; margin-bottom:8px; display:flex; align-items:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>롤백 경고</div><div style="font-size:14px; color:var(--text-display); line-height:1.5; word-break:keep-all;">현재 <span style="font-weight:700; color:var(--text-secondary);">[${oldStatus}]</span> 상태입니다.<br>정말 <strong style="color:var(--error); font-size:16px;">[${newValue}]</strong> (으)로 되돌리시겠습니까?</div></div>`; }
     window.openCustomConfirm("주문 상태 변경", null, confirmMsg, async () => { const { error } = await supabaseClient.from('orders').update({ status: newValue }).eq('id', id); if (error) { showToast("상태 변경에 실패했습니다."); } else { showToast(`[${newValue}] 상태로 변경되었습니다.`); window.fetchCenterData(); } }, "변경하기"); selectEl.value = oldStatus;
 };
-
 window.renderDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentDashView === 'month' && $("dashMonthTitle")) { $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; }
@@ -1069,6 +1093,7 @@ window.renderAppDashboard = async function() {
 }
 
 window.toggleInsight = function() { isInsightView = !isInsightView; let insightArea = $("app-insight-area"); if(insightArea) { insightArea.style.paddingTop = "32px"; insightArea.style.display = isInsightView ? "block" : "none"; } if($("app-table-area")) $("app-table-area").style.display = isInsightView ? "none" : "block"; if($("insightToggleBtn")) $("insightToggleBtn").innerText = isInsightView ? "리스트 보기" : "인사이트 보기"; if(isInsightView) window.applyFilterApp(); }
+
 window.toggleAppDashView = function(view) { currentAppDashView = view; if(view === 'month') { if($("appDashMonthNav")) $("appDashMonthNav").style.display = 'flex'; } else { if($("appDashMonthNav")) $("appDashMonthNav").style.display = 'none'; appDashMonthOffset = 0; } window.renderAppDashboard(); }
 window.changeAppDashMonth = function(offset) { appDashMonthOffset += offset; window.renderAppDashboard(); }
 window.resetAppDashMonth = function() { appDashMonthOffset = 0; window.renderAppDashboard(); }
