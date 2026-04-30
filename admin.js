@@ -494,7 +494,7 @@ window.toggleResAccordion = function() {
     }
 };
 
-// 💡 [핵심 진화] 2단 병합 레이아웃 타임라인 + 툴팁 기수 반영 + 모바일/너비 픽스
+// 💡 2단 병합 레이아웃 + 가로 사이즈/모바일 스크롤 픽스 + '공간 전체' UX 라이팅 반영
 window.renderTimeline = function() {
     const timelineArea = document.getElementById('timeline-area');
     if (!timelineArea) return;
@@ -507,9 +507,10 @@ window.renderTimeline = function() {
 
     let finalHtml = `
         <style>
-            /* 💡 가로 너비를 위쪽 카드와 똑같이 100%로 맞춤 */
-            #timeline-area .timeline-section { width: 100%; margin-bottom: 32px; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid var(--border-strong); box-shadow: 0 4px 20px rgba(0,0,0,0.05); box-sizing: border-box; }
-            .timeline-container { width: 100%; overflow-x: auto; position: relative; border: 1px solid #eee; border-radius: 8px; -webkit-overflow-scrolling: touch; padding-bottom: 8px; }
+            /* 💡 가로 너비 불일치 및 모바일 화면 뚫림 완벽 방어 */
+            #timeline-area { width: 100%; max-width: 100vw; box-sizing: border-box; }
+            #timeline-area .timeline-section { width: 100%; margin: 0 0 32px 0 !important; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid var(--border-strong); box-shadow: 0 4px 20px rgba(0,0,0,0.05); box-sizing: border-box; overflow: hidden; }
+            .timeline-container { width: 100%; overflow-x: auto; position: relative; border: 1px solid #eee; border-radius: 8px; -webkit-overflow-scrolling: touch; padding-bottom: 8px; box-sizing: border-box; }
             .timeline-grid { min-width: 1000px; display: flex; flex-direction: column; border-top: 1px solid #eee; border-left: 1px solid #eee; border-right: 1px solid #eee; }
             .timeline-header { display: flex; background: #f9fafb; border-bottom: 2px solid #eee; }
             .resource-label-header { width: 210px; flex-shrink: 0; padding: 12px; border-right: 1px solid #eee; font-weight: 800; font-size: 13px; color: var(--text-secondary); text-align: center; box-sizing: border-box; }
@@ -530,10 +531,9 @@ window.renderTimeline = function() {
             .bar-trn { background: rgba(255, 121, 0, 0.65); color: #fff; }
             .bar-blk { background: #9ca3af; color: #fff; }
 
-            @media (max-width: 768px) { #timeline-area .timeline-section { padding: 16px; margin-bottom: 24px; border-radius: 8px; } }
+            @media (max-width: 768px) { #timeline-area .timeline-section { padding: 16px; margin-bottom: 24px !important; border-radius: 8px; } }
         </style>
         <div class="timeline-section">
-            <!-- 💡 타이틀과 안내 문구를 인라인 Flex로 묶어 우측 정렬 고정 -->
             <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; flex-wrap: wrap; gap: 8px;">
                 <div style="font-size: 18px; font-weight: 800; color: var(--text-display); margin-bottom: 0; line-height: 1;">
                     실시간 센터 현황 <span style="font-size: 13px; color: var(--text-tertiary); font-weight: 500; margin-left: 8px;">${todayStr} 기준</span>
@@ -572,7 +572,7 @@ window.renderTimeline = function() {
         gRes.forEach(r => {
             if (r.res_date === todayStr && r.center === centerName && !String(r.status).includes('취소')) {
                 let rSpc = String(r.space_equip || ''); let isMatch = false;
-                if (equipName === 'merged' || equipName === '존 전체 대관') { isMatch = rSpc === zoneName || rSpc === '전체 (공간 전체)' || rSpc === '전체'; } 
+                if (equipName === 'merged' || equipName === '공간 전체') { isMatch = rSpc === zoneName || rSpc === '전체 (공간 전체)' || rSpc === '전체'; } 
                 else { isMatch = rSpc.includes(equipName.split(' ')[0]); }
                 if (isMatch) barsHtml += generateBar(r.res_time, `[${r.batch||'-'}] ${r.name}`, 'bar-res', `${r.res_time} | [${r.batch||'-'}] ${r.name} (${r.phone})`);
             }
@@ -582,7 +582,7 @@ window.renderTimeline = function() {
             let cInfo = String(t.content || '').split('||').map(s => s.trim());
             if (cInfo.length >= 5 && cInfo[0] === todayStr && cInfo[3] === centerName && !String(t.status).includes('취소')) {
                 let tSpc = String(cInfo[4] || ''); let isMatch = false;
-                if (equipName === 'merged' || equipName === '존 전체 대관') { isMatch = tSpc === zoneName || tSpc === '전체 (공간 전체)' || tSpc === '전체'; } 
+                if (equipName === 'merged' || equipName === '공간 전체') { isMatch = tSpc === zoneName || tSpc === '전체 (공간 전체)' || tSpc === '전체'; } 
                 else { isMatch = tSpc.includes(equipName.split(' ')[0]); }
                 if (isMatch) barsHtml += generateBar(cInfo[2], `[수강] ${t.name}`, 'bar-trn', `${cInfo[2]} | [${t.batch||'-'}] ${t.name} (${t.phone})`);
             }
@@ -591,7 +591,7 @@ window.renderTimeline = function() {
         gBlk.forEach(b => {
             if (b.block_date === todayStr && b.center === centerName) {
                 let bSpc = String(b.space_equip || ''); let isMatch = false;
-                if (equipName === 'merged' || equipName === '존 전체 대관') { isMatch = bSpc === zoneName || bSpc === '전체 (공간 전체)' || bSpc === '전체' || !bSpc; } 
+                if (equipName === 'merged' || equipName === '공간 전체') { isMatch = bSpc === zoneName || bSpc === '전체 (공간 전체)' || bSpc === '전체' || !bSpc; } 
                 else { isMatch = bSpc.includes(equipName.split(' ')[0]) || bSpc === '전체 (공간 전체)' || bSpc === '전체'; }
                 if (isMatch) barsHtml += generateBar(`${b.start_time}~${b.end_time}`, `[${b.category}] ${b.reason}`, 'bar-blk', `${b.start_time}~${b.end_time} | ${b.reason}`);
             }
@@ -599,17 +599,17 @@ window.renderTimeline = function() {
         return barsHtml;
     }
 
-    // 💡 단일 장비 공간은 'merged'로 지정하여 렌더링 시 하나로 합침
+    // 💡 '존 전체 대관'을 '공간 전체'로 모두 변경
     let mapoSpaces = [
-        { zone: '에스프레소존', equips: ['존 전체 대관', '아스토리아 스톰 1번(좌)', '아스토리아 스톰 2번(우)'] },
-        { zone: '로스팅존', equips: ['존 전체 대관', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8', '스트롱홀드 S7X'] },
+        { zone: '에스프레소존', equips: ['공간 전체', '아스토리아 스톰 1번(좌)', '아스토리아 스톰 2번(우)'] },
+        { zone: '로스팅존', equips: ['공간 전체', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8', '스트롱홀드 S7X'] },
         { zone: '브루잉존', equips: ['merged'] },
         { zone: '커핑존', equips: ['merged'] },
         { zone: '스터디존', equips: ['merged'] }
     ];
     let gwangjinSpaces = [
-        { zone: '에스프레소존', equips: ['존 전체 대관', '시네소 MVP 1번(좌)', '시네소 MVP 2번(우)', '페마 페미나', '산레모 You', '이글원 프리마 프로', '이글원 프리마 EXP'] },
-        { zone: '로스팅존', equips: ['존 전체 대관', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8 1번(좌)', '이지스터 1.8 2번'] },
+        { zone: '에스프레소존', equips: ['공간 전체', '시네소 MVP 1번(좌)', '시네소 MVP 2번(우)', '페마 페미나', '산레모 You', '이글원 프리마 프로', '이글원 프리마 EXP'] },
+        { zone: '로스팅존', equips: ['공간 전체', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8 1번(좌)', '이지스터 1.8 2번'] },
         { zone: '브루잉존', equips: ['merged'] },
         { zone: '커핑존', equips: ['merged'] },
         { zone: '스터디룸', equips: ['merged'] }
@@ -635,7 +635,6 @@ window.renderTimeline = function() {
         spaceGroups.forEach(group => {
             let zoneName = group.zone;
             
-            // 💡 [셀 병합 처리] 브루잉, 커핑, 스터디존 등은 하나로 통일
             if (group.equips.length === 1 && group.equips[0] === 'merged') {
                 finalHtml += `
                     <div class="timeline-row" style="border-bottom: 1px solid #eee;">
@@ -648,7 +647,6 @@ window.renderTimeline = function() {
                     </div>
                 `;
             } else {
-                // 기존 2단 분리 레이아웃
                 finalHtml += `<div class="zone-group-row">
                     <div class="zone-col">${zoneName}</div>
                     <div class="equip-col-wrapper">`;
