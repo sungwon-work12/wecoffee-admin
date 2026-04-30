@@ -19,6 +19,7 @@ window.changeGlobalCenter = function(centerValue) {
     currentGlobalCenter = centerValue;
     if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
     window.fetchCenterData(); 
+    setTimeout(() => { if(window.renderTimeline) window.renderTimeline(); }, 100);
 };
 
 // 💡 [이벤트 위임 완벽 적용]
@@ -55,7 +56,6 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// 💡 [이벤트 위임] 센터 장비 즉시 연동 및 필터 버그 방지
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
         if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter' && e.target.id !== 'blkCenter') {
@@ -82,6 +82,7 @@ document.addEventListener('input', function(e) {
     }
 });
 
+// 💡 타임라인 디자인이 병합된 전체 CSS
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
@@ -109,6 +110,26 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
         #dynamic-ord-container { padding-bottom: 120px; }
 
+        /* 타임라인 (Gantt) 스타일 추가 */
+        .timeline-section { margin: 24px 0; background: #fff; padding: 24px; border-radius: 16px; border: 1px solid var(--border-strong); box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .timeline-title-wrap { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .timeline-container { width: 100%; overflow-x: auto; position: relative; border: 1px solid #eee; border-radius: 8px; }
+        .timeline-grid { min-width: 1000px; display: flex; flex-direction: column; }
+        .timeline-header { display: flex; background: #f9fafb; border-bottom: 2px solid #eee; }
+        .resource-label-header { width: 180px; flex-shrink: 0; padding: 12px; border-right: 1px solid #eee; font-weight: 800; font-size: 13px; color: var(--text-secondary); text-align: center; }
+        .time-slots-header { display: flex; flex-grow: 1; }
+        .time-slot-num { flex: 1; text-align: center; font-size: 12px; font-weight: 700; padding: 12px 0; color: #999; border-right: 1px solid #f0f0f0; }
+        .timeline-row { display: flex; border-bottom: 1px solid #f1f1f1; min-height: 54px; position: relative; }
+        .resource-name { width: 180px; flex-shrink: 0; padding: 15px 12px; border-right: 1px solid #eee; font-size: 13px; font-weight: 700; background: #fcfcfc; display: flex; align-items: center; justify-content: center; text-align: center; line-height: 1.3; }
+        .time-grid-bg { display: flex; flex-grow: 1; position: relative; background-image: repeating-linear-gradient(to right, transparent, transparent calc(6.666% - 1px), #f0f0f0 calc(6.666% - 1px), #f0f0f0 6.666%); }
+        .timeline-bar { position: absolute; height: 36px; top: 9px; border-radius: 8px; color: #fff; padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 2; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .timeline-bar:hover { transform: translateY(-2px); z-index: 10; filter: brightness(1.1); }
+        .bar-res { background: var(--primary); }
+        .bar-trn { background: #059669; }
+        .bar-blk { background: #f97316; }
+        .timeline-bar::after { content: attr(data-tooltip); position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: #333d4b; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 12px; white-space: pre; z-index: 99; opacity: 0; visibility: hidden; transition: 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .timeline-bar:hover::after { opacity: 1; visibility: visible; }
+
         @media (max-width: 1024px) {
             .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; }
         }
@@ -125,7 +146,6 @@ if (!document.getElementById('wecoffee-custom-styles')) {
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 
-// 💡 [수정 완료] 시간 고정 버그의 원인이었던 파싱 로직 수정 (시간 데이터 보존)
 window.safeKST = function(dateStr) {
     if(!dateStr) return new Date();
     let d = new Date(dateStr);
@@ -275,9 +295,9 @@ window.updateSpaceOptions = function() {
     window.currentSpaceOpts = ['전체 (공간 전체)'];
     
     if (center === '마포 센터') {
-        window.currentSpaceOpts.push('에스프레소존', '아스토리아 스톰 1번그룹 (좌)', '아스토리아 스톰 2번그룹 (우)', '로스팅존', '이지스터 800 1번 (좌)', '이지스터 800 2번 (우)', '이지스터 1.8', '스트롱홀드 S7X', '브루잉존', '커핑존', '스터디존');
+        window.currentSpaceOpts.push('에스프레소존', '아스토리아 스톰 1번(좌)', '아스토리아 스톰 2번(우)', '로스팅존', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8', '스트롱홀드 S7X', '브루잉존', '커핑존', '스터디존');
     } else {
-        window.currentSpaceOpts.push('에스프레소존', '시네소 MVP 하이드라 1번그룹 (좌)', '시네소 MVP 하이드라 2번그룹 (우)', '페마 페미나 1그룹', '산레모 You 1그룹', '빅토리아 아르두이노 이글원 프리마 프로 1그룹', '빅토리아 아르두이노 이글원 프리마 EXP 1그룹', '로스팅존', '이지스터 800 1번 (좌)', '이지스터 800 2번 (우)', '이지스터 1.8 1번 (좌)', '이지스터 1.8 2번', '브루잉존', '커핑존', '스터디룸');
+        window.currentSpaceOpts.push('에스프레소존', '시네소 MVP 1번(좌)', '시네소 MVP 2번(우)', '페마 페미나', '산레모 You', '이글원 프리마 프로', '이글원 프리마 EXP', '로스팅존', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8 1번(좌)', '이지스터 1.8 2번', '브루잉존', '커핑존', '스터디룸');
     }
 
     let blkSpaceInput = $("blkSpace");
@@ -315,45 +335,35 @@ window.updateSpaceOptions = function() {
     window.renderCustomOptions = (searchTerm = "") => {
         let currentArr = blkSpaceInput.value ? blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
         let filteredOpts = window.currentSpaceOpts;
-        
         if (searchTerm) { filteredOpts = window.currentSpaceOpts.filter(opt => opt.toLowerCase().includes(searchTerm.toLowerCase())); }
-
-        if(filteredOpts.length === 0) {
-            wrapper.innerHTML = `<div style="padding:10px 12px; font-size:13px; color:var(--text-secondary);">검색 결과가 없습니다.</div>`;
-        } else {
+        if(filteredOpts.length === 0) { wrapper.innerHTML = `<div style="padding:10px 12px; font-size:13px; color:var(--text-secondary);">검색 결과가 없습니다.</div>`; } 
+        else {
             wrapper.innerHTML = filteredOpts.map(opt => {
                 let isSelected = currentArr.includes(opt);
                 let bgStyle = isSelected ? 'background:#e8f0fe; color:var(--primary); font-weight:800;' : '';
                 return `<div class="space-opt-item" style="padding:10px 12px; cursor:pointer; font-size:14px; border-bottom:1px solid #f2f4f6; transition:0.1s; ${bgStyle}">${opt}</div>`;
             }).join('');
         }
-
         wrapper.querySelectorAll('.space-opt-item').forEach(item => {
             item.addEventListener('click', function(e) {
                 e.preventDefault(); e.stopPropagation();
                 let clickedVal = this.innerText.trim();
                 let currentVal = blkSpaceInput.value;
                 let parts = currentVal.split(',').map(s=>s.trim());
-                
                 if(searchTerm) parts.pop();
-
                 if(clickedVal === '전체 (공간 전체)') { blkSpaceInput.value = '전체 (공간 전체)'; } 
                 else {
                     let arr = parts.filter(s => s !== '전체 (공간 전체)' && s !== '');
                     if(!arr.includes(clickedVal)) { arr.push(clickedVal); } else { arr = arr.filter(v => v !== clickedVal); }
                     blkSpaceInput.value = arr.join(', ') + (arr.length > 0 ? ', ' : '');
                 }
-                
-                blkSpaceInput.focus();
-                window.renderCustomOptions("");
+                blkSpaceInput.focus(); window.renderCustomOptions("");
             });
         });
     };
-    
     let currentVals = blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean);
     let hasInvalid = currentVals.some(v => !window.currentSpaceOpts.includes(v) && v !== "");
     if(hasInvalid) blkSpaceInput.value = '';
-
     window.renderCustomOptions("");
 };
 
@@ -425,17 +435,8 @@ window.openCustomConfirm = function(title, statusHtml, actionHtml, callbackOrTex
     if(btn) {
         btn.innerText = btnText; let newBtn = btn.cloneNode(true); btn.parentNode.replaceChild(newBtn, btn);
         newBtn.onclick = function() {
-            if(btnText === '복사하기') { 
-                window.copyTxt(callbackOrText, "사전 설문 링크가 복사되었습니다."); 
-                window.closeConfirmModal(); 
-            } 
-            else if(btnText === '확인' || btnText === '취소 확정') { 
-                (async () => {
-                    newBtn.disabled = true; let originalText = newBtn.innerText; newBtn.innerText = "처리 중..."; 
-                    try { await callbackOrText(); } catch(e) { console.error(e); } 
-                    finally { newBtn.disabled = false; newBtn.innerText = originalText; window.closeConfirmModal(); }
-                })();
-            } else { 
+            if(btnText === '복사하기') { window.copyTxt(callbackOrText, "사전 설문 링크가 복사되었습니다."); window.closeConfirmModal(); } 
+            else { 
                 (async () => {
                     newBtn.disabled = true; let originalText = newBtn.innerText; newBtn.innerText = "처리 중..."; 
                     try { await callbackOrText(); } catch(e) { console.error(e); } 
@@ -487,8 +488,123 @@ window.fetchCenterData = async function() {
         if($("trnContentFilter") && $("trnContentFilter").innerHTML.length < 100) $("trnContentFilter").innerHTML = tHtml;
     } catch(err) {}
   } catch(e) { console.error("fetchCenterData Error:", e); }
-  try { window.renderCenterData(); window.renderDashboard(); window.renderNoticeData(); } catch(e){ console.error(e); }
+  
+  try { 
+      window.renderCenterData(); 
+      window.renderDashboard(); 
+      window.renderNoticeData(); 
+      if(window.renderTimeline) window.renderTimeline(); 
+  } catch(e){ console.error(e); }
 }
+// 💡 [신규 추가] 실시간 가로형 타임라인 (Gantt Chart) 렌더링 함수
+window.renderTimeline = function() {
+    const timelineArea = document.getElementById('timeline-area');
+    if (!timelineArea) {
+        // 출입 현황(dailyInOutBanner) 바로 아래에 동적으로 타임라인 컨테이너 생성
+        const dailyBanner = document.getElementById('dailyInOutBanner');
+        if (dailyBanner && dailyBanner.parentNode) {
+            const area = document.createElement('div');
+            area.id = 'timeline-area';
+            dailyBanner.parentNode.insertAdjacentElement('afterend', area);
+        } else {
+            return;
+        }
+    }
+
+    let center = currentGlobalCenter === '전체' ? '마포 센터' : currentGlobalCenter;
+    let resources = [];
+    
+    if (center === '마포 센터') {
+        resources = ['에스프레소존', '아스토리아 스톰 1번(좌)', '아스토리아 스톰 2번(우)', '로스팅존', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8', '스트롱홀드 S7X', '브루잉존', '커핑존', '스터디존'];
+    } else {
+        resources = ['에스프레소존', '시네소 MVP 1번(좌)', '시네소 MVP 2번(우)', '페마 페미나', '산레모 You', '이글원 프리마 프로', '이글원 프리마 EXP', '로스팅존', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8 1번(좌)', '이지스터 1.8 2번', '브루잉존', '커핑존', '스터디룸'];
+    }
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    // 타임라인 기준: 09:00 ~ 24:00 (15시간 = 900분)
+    const START_HOUR = 9;
+    const TOTAL_MINUTES = 15 * 60; 
+
+    let html = `
+        <div class="timeline-section">
+            <div class="timeline-title-wrap">
+                <div class="section-title" style="margin-bottom:0;">실시간 공간 점유 타임라인 <span class="sub-text">${todayStr} 기준</span></div>
+                <div style="font-size:12px; color:var(--text-tertiary); font-weight:500;">* 블록 위에 마우스를 올리면 상세 정보가 표시됩니다.</div>
+            </div>
+            <div class="timeline-container">
+                <div class="timeline-grid">
+                    <div class="timeline-header">
+                        <div class="resource-label-header">공간 / 장비</div>
+                        <div class="time-slots-header">
+                            ${Array.from({length: 15}, (_, i) => `<div class="time-slot-num">${String(i + START_HOUR).padStart(2,'0')}:00</div>`).join('')}
+                        </div>
+                    </div>
+    `;
+
+    // 블록 생성 도우미 함수
+    function generateBar(timeRange, label, typeClass, tooltip) {
+        if (!timeRange || !timeRange.includes('~')) return '';
+        const [startStr, endStr] = timeRange.split('~');
+        if (!startStr || !endStr) return '';
+        
+        const [sh, sm] = startStr.trim().split(':').map(Number);
+        const [eh, em] = endStr.trim().split(':').map(Number);
+        
+        if (isNaN(sh) || isNaN(eh)) return '';
+
+        const startMins = sh * 60 + (sm || 0);
+        const endMins = eh * 60 + (em || 0);
+        
+        let startOffset = startMins - (START_HOUR * 60);
+        let duration = endMins - startMins;
+
+        // 09시 이전 시작 일정이나 24시 이후 종료 일정 처리 (타임라인 영역 밖으로 안 나가게)
+        if (startOffset < 0) { duration += startOffset; startOffset = 0; }
+        if (startOffset + duration > TOTAL_MINUTES) { duration = TOTAL_MINUTES - startOffset; }
+        if (duration <= 0) return '';
+
+        const left = (startOffset / TOTAL_MINUTES) * 100;
+        const width = (duration / TOTAL_MINUTES) * 100;
+
+        return `<div class="timeline-bar ${typeClass}" style="left:${left}%; width:${width}%;" data-tooltip="${window.escapeHtml(tooltip)}">${window.escapeHtml(label)}</div>`;
+    }
+
+    resources.forEach(resName => {
+        html += `<div class="timeline-row">
+                    <div class="resource-name">${resName}</div>
+                    <div class="time-grid-bg">`;
+
+        // 1. 일반 예약
+        gRes.forEach(r => {
+            if (r.res_date === todayStr && r.center === center && String(r.space_equip).includes(resName.split(' ')[0]) && !String(r.status).includes('취소')) {
+                html += generateBar(r.res_time, `[${r.batch||'-'}] ${r.name}`, 'bar-res', `${r.res_time} | ${r.name} (${r.phone})`);
+            }
+        });
+
+        // 2. 수업 일정
+        gTrn.forEach(t => {
+            let cInfo = String(t.content || '').split('||').map(s => s.trim());
+            if (cInfo.length >= 5 && cInfo[0] === todayStr && cInfo[3] === center && String(cInfo[4]).includes(resName.split(' ')[0]) && !String(t.status).includes('취소')) {
+                html += generateBar(cInfo[2], `[수업] ${t.name}`, 'bar-trn', `${cInfo[2]} | ${cInfo[4]}\n${t.name} (${t.phone})`);
+            }
+        });
+
+        // 3. 차단 스케줄
+        gBlk.forEach(b => {
+            if (b.block_date === todayStr && b.center === center && (b.space_equip === '전체 (공간 전체)' || String(b.space_equip).includes(resName.split(' ')[0]))) {
+                html += generateBar(`${b.start_time}~${b.end_time}`, `[${b.category}] ${b.reason}`, 'bar-blk', `${b.start_time}~${b.end_time}\n${b.reason}`);
+            }
+        });
+
+        html += `</div></div>`;
+    });
+
+    html += `</div></div></div>`;
+    document.getElementById('timeline-area').innerHTML = html;
+};
+
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -636,7 +752,6 @@ window.renderCenterData = function() {
   } catch(e) { console.error(e); }
 };
 
-// 💡 [수정 완료] 생두 주문 리스트 '주문 시간' 포맷을 26/04/29 09:00 형태로 통일 (억지로 자르는 로직 제거)
 function generateOrderRows(fOrd, chkClass) { 
   return fOrd.map(o=>{ 
     let badgeClass = (o.status==='주문 취소' || o.status==='품절')?'st-ghosted':o.status==='센터 도착'?'st-completed':o.status==='입금 확인'?'st-confirmed':(o.status==='입금 대기'||o.status==='입금 확인 중')?'st-arranging':'st-wait'; 
@@ -652,6 +767,7 @@ function generateOrderRows(fOrd, chkClass) {
   }).join("");
 }
 
+// 💡 [수정 완료] 대시보드 일정 및 더보기 팝업에 '종료 시간' 포함 노출
 window.renderDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentDashView === 'month' && $("dashMonthTitle")) { $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; }
@@ -680,12 +796,20 @@ window.renderDashboard = async function() {
     try {
         gRes.forEach(r => {
             if (String(r.status||'').includes('취소') || (currentGlobalCenter !== '전체' && r.center !== currentGlobalCenter) || (spaceFilter !== '전체' && !String(r.space_equip||'').includes(spaceFilter)) || (batchFilter !== '전체' && r.batch !== batchFilter)) return;
-            if (calEvts[r.res_date]) { let st = String(r.res_time||"").split('~')[0].trim(); let spc = String(r.space_equip||"").split(' ')[0]; calEvts[r.res_date].push({ time: st, start: st, text: `[${spc}] ${r.name}`, type: 'res', tooltip: `${r.res_time} | ${r.space_equip} | ${r.name}` }); }
+            if (calEvts[r.res_date]) { 
+                let st = String(r.res_time||"").split('~')[0].trim(); 
+                let spc = String(r.space_equip||"").split(' ')[0]; 
+                // 시작시간(st) 대신 종료시간까지 포함된 r.res_time 을 time 속성에 그대로 넘김
+                calEvts[r.res_date].push({ time: r.res_time, start: st, text: `[${spc}] ${r.name}`, type: 'res', tooltip: `${r.res_time} | ${r.space_equip} | ${r.name}` }); 
+            }
         });
 
         gBlk.forEach(b => {
             if ((currentGlobalCenter !== '전체' && b.center !== currentGlobalCenter) || (spaceFilter !== '전체' && !String(b.space_equip||'').includes(spaceFilter))) return;
-            if (calEvts[b.block_date]) { calEvts[b.block_date].push({ time: b.start_time, start: b.start_time, text: `[${b.category}] ${b.reason}`, type: 'blk', tooltip: `${b.start_time}~${b.end_time} | ${b.space_equip||'전체'} | ${b.reason}` }); }
+            if (calEvts[b.block_date]) { 
+                let timeStr = `${b.start_time}~${b.end_time}`;
+                calEvts[b.block_date].push({ time: timeStr, start: b.start_time, text: `[${b.category}] ${b.reason}`, type: 'blk', tooltip: `${timeStr} | ${b.space_equip||'전체'} | ${b.reason}` }); 
+            }
         });
 
         gTrn.forEach(t => {
@@ -694,7 +818,11 @@ window.renderDashboard = async function() {
             if(cInfo.length >= 5) {
                 let tDate = cInfo[0].trim(); let tCenter = cInfo[3].trim(); let tSpc = cInfo[4].trim();
                 if ((currentGlobalCenter !== '전체' && tCenter !== currentGlobalCenter) || (spaceFilter !== '전체' && !String(tSpc).includes(spaceFilter))) return;
-                if (calEvts[tDate]) { let st = String(cInfo[2]||"").split('~')[0].trim(); calEvts[tDate].push({ time: st, start: st, text: `[수강] ${t.name}`, type: 'trn', tooltip: `${cInfo[2]} | ${tSpc} | ${t.name} (${cInfo[1]})` }); }
+                if (calEvts[tDate]) { 
+                    let st = String(cInfo[2]||"").split('~')[0].trim(); 
+                    // cInfo[2]에 이미 '시작~종료' 형태가 들어있으므로 전체 문자열을 time에 넘김
+                    calEvts[tDate].push({ time: cInfo[2], start: st, text: `[수강] ${t.name}`, type: 'trn', tooltip: `${cInfo[2]} | ${tSpc} | ${t.name} (${cInfo[1]})` }); 
+                }
             }
         });
     } catch(e) { console.error(e); }
@@ -716,6 +844,7 @@ window.renderDashboard = async function() {
             }).join('');
 
             if(evts.length > 3) {
+                // 더보기 팝업에서도 e.time(종료시간 포함)을 사용하도록 수정
                 let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${window.escapeHtml(e.text)||''}`).join('<br>');
                 evtsHtml += `<div class="dash-cal-more-wrap" style="position:relative;"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`;
             }
@@ -737,32 +866,6 @@ window.renderDashboard = async function() {
         window.renderMCalCenter(calEvts[todayStr] ? todayStr : iterDates[0]);
     } catch(e) { console.error("Render HTML Error:", e); }
 };
-
-window.handlePriceInput = async function(id, val, currentStatus, inputEl) { 
-    let formatted = val ? comma(val) + '원' : ''; 
-    let updates = { total_price: formatted }; 
-    let newStatus = currentStatus; 
-    if (val && currentStatus === '주문 접수') { updates.status = '입금 대기'; newStatus = '입금 대기'; } 
-    let order = gOrd.find(o => String(o.id) === String(id)); 
-    if(order) { order.total_price = formatted; order.status = newStatus; } 
-    inputEl.value = formatted; 
-    if(newStatus !== currentStatus) { 
-        let row = inputEl.closest('tr'); 
-        let selectEl = row.querySelector('.status-select'); 
-        if(selectEl) { selectEl.value = newStatus; selectEl.className = 'status-select st-arranging'; let badgeEl = row.querySelector('.m-prev-top .status-badge'); if(badgeEl) { badgeEl.className = 'status-badge st-arranging'; badgeEl.innerText = newStatus; } } 
-    } 
-    await supabaseClient.from('orders').update(updates).eq('id', id); 
-    showToast("저장되었습니다."); 
-}
-
-window.handleOrderStatusChange = function(id, newValue, selectEl) {
-    let order = gOrd.find(o => String(o.id) === String(id)); if(!order) return; let oldStatus = order.status || '주문 접수'; if (oldStatus === newValue) return;
-    let confirmMsg = `<div style="font-size:15px; color:var(--text-display); margin-top:8px;">주문 상태를 <strong style="color:var(--primary); font-size:18px;">[${newValue}]</strong>(으)로<br>변경하시겠습니까?</div>`;
-    let isRollback = false; if ((oldStatus === '입금 확인 중' || oldStatus === '입금 확인' || oldStatus === '센터 도착') && (newValue === '입금 대기' || newValue === '주문 접수')) { isRollback = true; }
-    if (isRollback) { confirmMsg = `<div style="background:#fff0f0; border:1px solid #ffcdd2; border-radius:8px; padding:16px; margin-bottom:12px; text-align:left;"><div style="color:var(--error); font-weight:800; font-size:14px; margin-bottom:8px; display:flex; align-items:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>롤백 경고</div><div style="font-size:14px; color:var(--text-display); line-height:1.5; word-break:keep-all;">현재 <span style="font-weight:700; color:var(--text-secondary);">[${oldStatus}]</span> 상태입니다.<br>정말 <strong style="color:var(--error); font-size:16px;">[${newValue}]</strong> (으)로 되돌리시겠습니까?</div></div>`; }
-    window.openCustomConfirm("주문 상태 변경", null, confirmMsg, async () => { const { error } = await supabaseClient.from('orders').update({ status: newValue }).eq('id', id); if (error) { showToast("상태 변경에 실패했습니다."); } else { showToast(`[${newValue}] 상태로 변경되었습니다.`); window.fetchCenterData(); } }, "변경하기"); selectEl.value = oldStatus;
-};
-
 window.renderAppMCal = function(selDate) { 
     $$$("#appDashContent .m-cal-date").forEach(el => el.classList.remove('active')); 
     let target = document.getElementById(`m-date-app-${selDate}`); 
@@ -773,7 +876,6 @@ window.renderAppMCal = function(selDate) {
     let listWrap = $("m-cal-list-app"); if(listWrap) listWrap.innerHTML = html; 
 };
 
-// 💡 [수정 완료] 모바일 상담 일정 가로 스크롤 이슈 (flex-wrap: wrap 및 여백 조정 처리)
 window.renderAppDailyBanner = function(filteredApps) {
     let td = new Date(); let mm = td.getMonth() + 1; let dd = td.getDate();
     let scheduled = filteredApps.filter(a => a.status === '상담 일정 확정' && a.call_time);
@@ -913,6 +1015,7 @@ window.renderAppTable = function(data) {
     tbody.appendChild(tr);
   });
 }
+
 function getFrequency(arr) { return Object.entries(arr.reduce((acc, val) => { if(val) acc[val] = (acc[val] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1]); }
 function generateBarHTML(label, count, maxCount, opacity = 1) { const percent = maxCount === 0 ? 0 : Math.round((count / maxCount) * 100); return `<div style="margin-bottom:8px;"><div style="font-size:13px; font-weight:600; margin-bottom:4px; display:flex; justify-content:space-between;"><span>${label}</span><span style="color:var(--text-secondary); font-size:12px;">${count}건 (${percent}%)</span></div><div style="background:var(--border-strong); height:8px; border-radius:4px; overflow:hidden;"><div style="width:${percent}%; background:rgba(255, 121, 0, ${opacity}); height:100%;"></div></div></div>`; }
 
@@ -1285,7 +1388,6 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 [수정 완료] 명세서 데이터 누락 보강 (기수, 연락처 정보 추출)
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1308,13 +1410,12 @@ window.showOrderSummary = function() {
     if (pendingOrders.length === 0) {
         $("summaryModalBody").innerHTML = '<div class="empty-state" style="padding: 80px 0;">요약할 발주 내역이 없습니다. (주문 접수 상태인 건을 체크해보세요)</div>';
     } else {
-        // 하단 요약 데이터 생성을 위한 멤버 연락처, 기수 정보 추출 매핑
         window.currentMemberInfoMap = {};
         pendingOrders.forEach(o => {
             if (o.name && o.name !== '이름없음' && !window.currentMemberInfoMap[o.name]) {
                 window.currentMemberInfoMap[o.name] = { 
                     phone: o.phone || '-', 
-                    batch: o.batch || '-' // DB 속성 그대로 문자열 유지 (10기 등)
+                    batch: String(o.batch || '-')
                 };
             }
         });
@@ -1344,7 +1445,7 @@ window.showOrderSummary = function() {
             
             let safePhone = (!o.phone || String(o.phone).trim() === 'undefined') ? '-' : o.phone;
             let safeName = (!o.name || String(o.name).trim() === 'undefined') ? '이름없음' : o.name;
-            let safeBatch = (!o.batch || String(o.batch).trim() === 'undefined') ? '-' : o.batch;
+            let safeBatch = (!o.batch || String(o.batch).trim() === 'undefined') ? '-' : String(o.batch);
 
             grouped[bigKey][vendor].items[cNm].orderers.push({ batch: safeBatch, name: safeName, phone: safePhone, rawQty: o.quantity || '0' });
         });
@@ -1401,7 +1502,7 @@ window.showOrderSummary = function() {
             
             let safePhone = (!o.phone || String(o.phone).trim() === 'undefined') ? '-' : o.phone;
             let safeName = (!o.name || String(o.name).trim() === 'undefined') ? '이름없음' : o.name;
-            let safeBatch = (!o.batch || String(o.batch).trim() === 'undefined') ? '-' : o.batch;
+            let safeBatch = (!o.batch || String(o.batch).trim() === 'undefined') ? '-' : String(o.batch);
 
             exportData.push({ 
                 "등록 일시": formatDt(o.created_at),
@@ -1441,7 +1542,6 @@ window.showOrderSummary = function() {
 
 window.closeSummaryModal = function() { const modal = $("summaryModal"); if(modal) modal.classList.remove('show'); };
 
-// 💡 누락되었던 기수/연락처 정보를 명세서 데이터(인보이스)에 꽂아 넣음
 window.sendToGoogleSheet = async function() {
     if(!window.currentSummaryData || window.currentSummaryData.length === 0) { showToast('데이터 없음'); return; }
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbynlyczuJ5VWzfG5IFOstLzkRybv4Yvjgo9bxDHoUQlK84gAehaTuCNommlmrXuFsJK/exec'; 
@@ -1474,7 +1574,7 @@ window.downloadSummaryExcel = function() {
     let csv = "\uFEFF등록 일시,발주 구분,수령 센터,생두사,상품명,주문 수량,결제 금액,기수,성함,연락처\n";
     
     window.currentSummaryData.forEach(s => { 
-        let dt = s['등록 일시'] || ''; let type = s['발주 구분'] || ''; let center = s['수령 센터'] || ''; let vendor = s['생두사'] || ''; let item = String(s['상품명'] || '').replace(/"/g, '""'); let qty = s['주문 수량'] || ''; let price = s['결제 금액'] || ''; let batch = s['기수'] || ''; let name = s['성함'] || ''; let phone = s['연락처'] || '';
+        let dt = s['등록 일시'] || ''; let type = s['발주 구분'] || ''; let center = s['수령 센터'] || ''; let vendor = s['생두사'] || ''; let item = String(s['상품명'] || '').replace(/"/g, '""'); let qty = s['주문 수량'] || ''; let price = s['결제 금액'] || ''; let batch = String(s['기수'] || ''); let name = s['성함'] || ''; let phone = s['연락처'] || '';
         csv += `"${dt}","${type}","${center}","${vendor}","${item}","${qty}","${price}","${batch}","${name}","${phone}"\n`; 
     });
     
@@ -1572,7 +1672,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 [수정 완료] 신규 스케줄 '매주(요일) 반복' 중복 생성 버그 수정 (조건문 강제 보수)
+// 💡 [수정 완료] 신규 스케줄 '매주(요일) 반복' 중복 생성 버그 (조건문 강제 보수)
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
@@ -1618,10 +1718,10 @@ window.saveBlockData = async function() {
     for (let i = 0; i < repeatCount; i++) {
         let targetDate = new Date(baseDate);
         
-        // 텍스트 매칭 조건을 .includes()로 유연하게 처리하여 7일 더하기 누락 방지
+        // 반복문에 '.includes'를 적용해 텍스트가 정확히 일치하지 않아도 +7일 계산이 누락되지 않도록 강제 보수
         if (repeatType.includes("매일")) {
             targetDate.setDate(targetDate.getDate() + i);
-        } else if (repeatType.includes("매주")) {
+        } else if (repeatType.includes("매주") || repeatType.includes("요일반복")) {
             targetDate.setDate(targetDate.getDate() + (i * 7));
         }
         
