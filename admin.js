@@ -494,7 +494,7 @@ window.toggleResAccordion = function() {
     }
 };
 
-// 💡 2단 병합 레이아웃 + 가로 사이즈/모바일 스크롤 픽스 + '공간 전체' UX 라이팅 반영
+// 💡 2단 병합 레이아웃 + 24시간 개방 + 깐깐한 장비 매칭 + 광진센터 누락 완벽 해결
 window.renderTimeline = function() {
     const timelineArea = document.getElementById('timeline-area');
     if (!timelineArea) return;
@@ -503,13 +503,12 @@ window.renderTimeline = function() {
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     
-    // 💡 24시간 개방 기준 수정 부분 
+    // 💡 24시간 개방 기준 
     const START_HOUR = 0;
     const TOTAL_MINUTES = 24 * 60; 
 
     let finalHtml = `
         <style>
-            /* 💡 가로 너비 불일치 및 모바일 화면 뚫림 완벽 방어 */
             #timeline-area { width: 100%; max-width: 100vw; box-sizing: border-box; }
             #timeline-area .timeline-section { width: 100%; margin: 0 0 32px 0 !important; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid var(--border-strong); box-shadow: 0 4px 20px rgba(0,0,0,0.05); box-sizing: border-box; overflow: hidden; }
             .timeline-container { width: 100%; overflow-x: auto; position: relative; border: 1px solid #eee; border-radius: 8px; -webkit-overflow-scrolling: touch; padding-bottom: 8px; box-sizing: border-box; }
@@ -524,7 +523,7 @@ window.renderTimeline = function() {
             .timeline-row { display: flex; border-bottom: 1px solid #eee; min-height: 54px; position: relative; }
             .timeline-row:last-child { border-bottom: none; }
             .equip-name { width: 120px; flex-shrink: 0; padding: 10px 12px; border-right: 1px solid #eee; font-size: 13px; font-weight: 600; background: #fcfcfc; display: flex; align-items: center; justify-content: center; line-height: 1.3; color: #505967; text-align: center; word-break: keep-all; box-sizing: border-box; }
-            /* 💡 24시간 기준 칸 나눔 적용 (100% / 24 = 4.16666%) */
+            /* 💡 24시간 기준 칸 나눔 적용 */
             .time-grid-bg { display: flex; flex-grow: 1; position: relative; background-image: repeating-linear-gradient(to right, transparent, transparent calc(4.16666% - 1px), #f0f0f0 calc(4.16666% - 1px), #f0f0f0 4.16666%); }
             
             .timeline-bar { position: absolute; height: 36px; top: 9px; border-radius: 8px; color: #fff; padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 2; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border: 1.5px solid rgba(255,255,255,0.8); box-sizing: border-box; }
@@ -570,40 +569,69 @@ window.renderTimeline = function() {
         return `<div class="timeline-bar ${typeClass}" style="left:${left}%; width:${width}%;" data-tippy="${window.escapeHtml(tooltip)}" onmouseenter="window.showGlobalTooltip(event, this)" onmouseleave="window.hideGlobalTooltip()">${window.escapeHtml(label)}</div>`;
     }
 
-    // 💡 장비 매칭 조건 강화 (.includes(equipName)로 깐깐하게 매칭)
+    // 💡 [핵심 픽스] DB값이랑 UI장비명 스마트 매칭 (로스팅존 1번/2번 중복은 깐깐하게 컷!)
+    function isStrictMatch(dbSpace, uiEquip, zoneName) {
+        let dbStr = String(dbSpace || '').trim();
+        if (uiEquip === 'merged' || uiEquip === '공간 전체') {
+            return dbStr === zoneName || dbStr === '전체 (공간 전체)' || dbStr === '전체';
+        }
+        
+        // 괄호 (좌), (우) 날리고 공백 정리해서 순수 이름만 뽑기
+        let baseEquip = uiEquip.replace(/\([^)]*\)/g, '').trim(); 
+        let cleanDb = dbStr.replace(/\([^)]*\)/g, '').trim(); 
+        if(!cleanDb) return false;
+
+        // 서로 텍스트가 포함된다면 일단 후보 합격!
+        if (cleanDb === baseEquip || cleanDb.includes(baseEquip) || baseEquip.includes(cleanDb)) {
+            let eqNum = baseEquip.match(/\d+번/);
+            let dbNum = cleanDb.match(/\d+번/);
+            
+            // "1번", "2번"이 명시되어 있는데 번호가 다르면 무조건 컷! (중복 버그 원인 차단)
+            if (eqNum && dbNum && eqNum[0] !== dbNum[0]) return false;
+            
+            // 기기명 첫 단어가 아예 다르면 컷
+            if (cleanDb.split(' ')[0] !== baseEquip.split(' ')[0]) return false;
+            
+            // 이글원 '프로' 랑 'EXP' 처럼 번호 안 쓰는 장비들 교차 매칭 컷
+            if (!eqNum && !dbNum) {
+                if (cleanDb.includes('프로') && baseEquip.includes('EXP')) return false;
+                if (cleanDb.includes('EXP') && baseEquip.includes('프로')) return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
     function renderBarsFor(equipName, zoneName, centerName) {
         let barsHtml = '';
         gRes.forEach(r => {
             if (r.res_date === todayStr && r.center === centerName && !String(r.status).includes('취소')) {
-                let rSpc = String(r.space_equip || ''); let isMatch = false;
-                if (equipName === 'merged' || equipName === '공간 전체') { isMatch = rSpc === zoneName || rSpc === '전체 (공간 전체)' || rSpc === '전체'; } 
-                else { isMatch = rSpc.includes(equipName); } // 기존 .split(' ')[0] 제거
-                if (isMatch) barsHtml += generateBar(r.res_time, `[${r.batch||'-'}] ${r.name}`, 'bar-res', `${r.res_time} | [${r.batch||'-'}] ${r.name} (${r.phone})`);
+                if (isStrictMatch(r.space_equip, equipName, zoneName)) {
+                    barsHtml += generateBar(r.res_time, `[${r.batch||'-'}] ${r.name}`, 'bar-res', `${r.res_time} | [${r.batch||'-'}] ${r.name} (${r.phone})`);
+                }
             }
         });
 
         gTrn.forEach(t => {
             let cInfo = String(t.content || '').split('||').map(s => s.trim());
             if (cInfo.length >= 5 && cInfo[0] === todayStr && cInfo[3] === centerName && !String(t.status).includes('취소')) {
-                let tSpc = String(cInfo[4] || ''); let isMatch = false;
-                if (equipName === 'merged' || equipName === '공간 전체') { isMatch = tSpc === zoneName || tSpc === '전체 (공간 전체)' || tSpc === '전체'; } 
-                else { isMatch = tSpc.includes(equipName); } // 기존 .split(' ')[0] 제거
-                if (isMatch) barsHtml += generateBar(cInfo[2], `[수강] ${t.name}`, 'bar-trn', `${cInfo[2]} | [${t.batch||'-'}] ${t.name} (${t.phone})`);
+                if (isStrictMatch(cInfo[4], equipName, zoneName)) {
+                    barsHtml += generateBar(cInfo[2], `[수강] ${t.name}`, 'bar-trn', `${cInfo[2]} | [${t.batch||'-'}] ${t.name} (${t.phone})`);
+                }
             }
         });
 
         gBlk.forEach(b => {
             if (b.block_date === todayStr && b.center === centerName) {
-                let bSpc = String(b.space_equip || ''); let isMatch = false;
-                if (equipName === 'merged' || equipName === '공간 전체') { isMatch = bSpc === zoneName || bSpc === '전체 (공간 전체)' || bSpc === '전체' || !bSpc; } 
-                else { isMatch = bSpc.includes(equipName) || bSpc === '전체 (공간 전체)' || bSpc === '전체'; } // 기존 .split(' ')[0] 제거
-                if (isMatch) barsHtml += generateBar(`${b.start_time}~${b.end_time}`, `[${b.category}] ${b.reason}`, 'bar-blk', `${b.start_time}~${b.end_time} | ${b.reason}`);
+                let bSpc = String(b.space_equip || '');
+                if (isStrictMatch(bSpc, equipName, zoneName) || (!bSpc && (equipName === 'merged' || equipName === '공간 전체')) || bSpc === '전체 (공간 전체)' || bSpc === '전체') {
+                    barsHtml += generateBar(`${b.start_time}~${b.end_time}`, `[${b.category}] ${b.reason}`, 'bar-blk', `${b.start_time}~${b.end_time} | ${b.reason}`);
+                }
             }
         });
         return barsHtml;
     }
 
-    // 💡 '존 전체 대관'을 '공간 전체'로 모두 변경
     let mapoSpaces = [
         { zone: '에스프레소존', equips: ['공간 전체', '아스토리아 스톰 1번(좌)', '아스토리아 스톰 2번(우)'] },
         { zone: '로스팅존', equips: ['공간 전체', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8', '스트롱홀드 S7X'] },
