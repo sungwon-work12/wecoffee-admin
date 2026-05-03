@@ -88,6 +88,10 @@ if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
     style.innerHTML = `
+        /* 💡 Fix 1: FOUC 화면 깜빡임 방지를 위한 래퍼 초기 숨김 및 부드러운 등장 */
+        .wecoffee-banner-wrap, .banner-grid { animation: wecoffeeFadeIn 0.35s ease-out forwards; }
+        @keyframes wecoffeeFadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+        
         .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal !important; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; font-family: sans-serif; }
         .info-tooltip:hover { color: #505967; border-color: #505967; }
         .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
@@ -156,9 +160,40 @@ window.getHoliday = function(y, m, d) {
   return null;
 };
 
-function getDow(dStr) { if(!dStr) return ''; const d = window.safeKST(dStr); return ['일','월','화','수','목','금','토'][d.getDay()]; }
-function formatDtWithDow(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(dateStr); if(isNaN(d.getTime())) return dateStr; const dow = ['일','월','화','수','목','금','토'][d.getDay()]; return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${dow}) ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
-function formatDt(dateStr) { if(!dateStr) return "-"; const d = window.safeKST(dateStr); return `${d.getFullYear().toString().slice(-2)}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+// 💡 Fix 2: DB 원본 시간 표기 강제 고정 (브라우저 자동 타임존 변환 차단)
+function getDow(dStr) { 
+    if(!dStr) return ''; 
+    let str = String(dStr).replace('T', ' ').split('.')[0];
+    let datePart = str.split(' ')[0];
+    if(!datePart) return '';
+    let [y, m, d] = datePart.split('-');
+    let dObj = new Date(y, m-1, d);
+    return ['일','월','화','수','목','금','토'][dObj.getDay()]; 
+}
+
+function formatDtWithDow(dateStr) { 
+    if(!dateStr) return "-"; 
+    // DB에서 온 원본 문자열(UTC/KST 무관하게 문자열 자체) 분리
+    let str = String(dateStr).replace('T', ' ').split('.')[0];
+    let parts = str.split(' ');
+    if(parts.length < 2) return str;
+    let [y, m, d] = parts[0].split('-');
+    let [hh, mm] = parts[1].split(':');
+    let dObj = new Date(y, m-1, d);
+    const dow = ['일','월','화','수','목','금','토'][dObj.getDay()];
+    return `${y.slice(-2)}/${m}/${d}(${dow}) ${hh}:${mm}`; 
+}
+
+function formatDt(dateStr) { 
+    if(!dateStr) return "-"; 
+    let str = String(dateStr).replace('T', ' ').split('.')[0];
+    let parts = str.split(' ');
+    if(parts.length < 2) return str;
+    let [y, m, d] = parts[0].split('-');
+    let [hh, mm] = parts[1].split(':');
+    return `${y.slice(-2)}/${m}/${d} ${hh}:${mm}`; 
+}
+
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
 function showToast(msg) { const toast = $("toast"); if(!toast) return; toast.innerText = msg; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3500); }
 
@@ -414,7 +449,6 @@ window.isOrderExpired = function(order, now) {
     if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
     return false;
 }
-
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -481,7 +515,7 @@ window.toggleResAccordion = function() {
     }
 };
 
-// 💡 2단 병합 레이아웃 + 24시간 개방 + 깐깐한 장비 매칭
+// 💡 Fix 3: 실시간 센터 현황 24시간 개방 유지 (기존 코드 완벽 보존)
 window.renderTimeline = function() {
     const timelineArea = document.getElementById('timeline-area');
     if (!timelineArea) return;
@@ -539,7 +573,6 @@ window.renderTimeline = function() {
         return `<div class="timeline-bar ${typeClass}" style="left:${left}%; width:${width}%;" data-tippy="${window.escapeHtml(tooltip)}" onmouseenter="window.showGlobalTooltip(event, this)" onmouseleave="window.hideGlobalTooltip()">${window.escapeHtml(label)}</div>`;
     }
 
-    // 💡 [핵심 픽스] DB값이랑 UI장비명 스마트 매칭 (띄어쓰기 달라도 완벽 매칭 + 로스팅존 1번/2번 중복 컷)
     function isMatch(dbSpace, uiEquip, zoneName) {
         let dbStr = String(dbSpace || '').trim();
         if (uiEquip === 'merged' || uiEquip === '공간 전체') {
@@ -547,15 +580,12 @@ window.renderTimeline = function() {
             return safeDb === zoneName.replace(/\s+/g, '') || safeDb.includes('전체');
         }
         
-        // 괄호 (좌), (우) 떼고 순수 장비명 추출
         let uiClean = uiEquip.split('(')[0].trim(); 
         
-        // 1. 공백 제거 후 완전 포함되는지 (띄어쓰기 달라도 매칭)
         let safeUi = uiClean.replace(/\s+/g, '');
         let safeDb = dbStr.replace(/\s+/g, '');
         if (safeDb.includes(safeUi)) return true;
         
-        // 2. 핵심 단어가 모두 포함되어 있는지 교차 검증 (예: "이지스터", "800", "1번")
         let coreWords = uiClean.split(' '); 
         let allWordsMatch = coreWords.every(word => safeDb.includes(word));
         if (allWordsMatch) return true;
@@ -870,6 +900,7 @@ window.handleOrderStatusChange = function(id, newValue, selectEl) {
     if (isRollback) { confirmMsg = `<div style="background:#fff0f0; border:1px solid #ffcdd2; border-radius:8px; padding:16px; margin-bottom:12px; text-align:left;"><div style="color:var(--error); font-weight:800; font-size:14px; margin-bottom:8px; display:flex; align-items:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>롤백 경고</div><div style="font-size:14px; color:var(--text-display); line-height:1.5; word-break:keep-all;">현재 <span style="font-weight:700; color:var(--text-secondary);">[${oldStatus}]</span> 상태입니다.<br>정말 <strong style="color:var(--error); font-size:16px;">[${newValue}]</strong> (으)로 되돌리시겠습니까?</div></div>`; }
     window.openCustomConfirm("주문 상태 변경", null, confirmMsg, async () => { const { error } = await supabaseClient.from('orders').update({ status: newValue }).eq('id', id); if (error) { showToast("상태 변경에 실패했습니다."); } else { showToast(`[${newValue}] 상태로 변경되었습니다.`); window.fetchCenterData(); } }, "변경하기"); selectEl.value = oldStatus;
 };
+
 window.renderDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentDashView === 'month' && $("dashMonthTitle")) { $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; }
@@ -1008,7 +1039,6 @@ window.renderAppDailyBanner = function(filteredApps) {
     }
     if($("appDailyBanner")) $("appDailyBanner").innerHTML = html;
 };
-
 window.renderAppDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + appDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentAppDashView === 'month' && $("appDashMonthTitle")) $("appDashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; await window.fetchHolidays(yyyy);
@@ -1468,7 +1498,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 [Fix 4 & 8] '주문 접수' 필터링 및 기수/연락처 맵핑 완벽 적용
+// 💡 Fix 4 & 8: '주문 접수' 필터링 강제 및 기수/이름/번호 맵핑 보완
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1480,7 +1510,7 @@ window.showOrderSummary = function() {
         if (checkedIds.length > 0) {
             return checkedIds.includes(String(o.id));
         } else {
-            // 핵심 필터: 주문 접수 외 제외
+            // 핵심 픽스: '주문 접수' 상태가 아니면 무조건 제외
             if (o.status !== '주문 접수') return false; 
             let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
             let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
@@ -1749,7 +1779,7 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 [Fix 2] 신규 스케줄 '매주 반복' 누락 방지 조건문 완벽 보수 적용
+// 💡 Fix 2: '매주 반복' 누락 방지 조건문 완벽 보수 적용 (.includes 활용)
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
@@ -1795,7 +1825,6 @@ window.saveBlockData = async function() {
     for (let i = 0; i < repeatCount; i++) {
         let targetDate = new Date(baseDate);
         
-        // 💡 .includes()를 사용하여 "매주" 텍스트 매칭 (버그 픽스)
         if (repeatType.includes("매일")) {
             targetDate.setDate(targetDate.getDate() + i);
         } else if (repeatType.includes("매주") || repeatType.includes("요일반복")) {
