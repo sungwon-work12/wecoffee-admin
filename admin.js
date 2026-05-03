@@ -160,7 +160,7 @@ window.getHoliday = function(y, m, d) {
   return null;
 };
 
-// 💡 Fix 2: DB 원본 시간 표기 강제 고정 (브라우저 자동 타임존 변환 차단)
+// 💡 Fix 1: DB 원본 시간 표기 강제 고정 (브라우저 자동 타임존 변환 차단)
 function getDow(dStr) { 
     if(!dStr) return ''; 
     let str = String(dStr).replace('T', ' ').split('.')[0];
@@ -173,7 +173,6 @@ function getDow(dStr) {
 
 function formatDtWithDow(dateStr) { 
     if(!dateStr) return "-"; 
-    // DB에서 온 원본 문자열(UTC/KST 무관하게 문자열 자체) 분리
     let str = String(dateStr).replace('T', ' ').split('.')[0];
     let parts = str.split(' ');
     if(parts.length < 2) return str;
@@ -515,7 +514,6 @@ window.toggleResAccordion = function() {
     }
 };
 
-// 💡 Fix 3: 실시간 센터 현황 24시간 개방 유지 (기존 코드 완벽 보존)
 window.renderTimeline = function() {
     const timelineArea = document.getElementById('timeline-area');
     if (!timelineArea) return;
@@ -900,145 +898,6 @@ window.handleOrderStatusChange = function(id, newValue, selectEl) {
     if (isRollback) { confirmMsg = `<div style="background:#fff0f0; border:1px solid #ffcdd2; border-radius:8px; padding:16px; margin-bottom:12px; text-align:left;"><div style="color:var(--error); font-weight:800; font-size:14px; margin-bottom:8px; display:flex; align-items:center; gap:6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>롤백 경고</div><div style="font-size:14px; color:var(--text-display); line-height:1.5; word-break:keep-all;">현재 <span style="font-weight:700; color:var(--text-secondary);">[${oldStatus}]</span> 상태입니다.<br>정말 <strong style="color:var(--error); font-size:16px;">[${newValue}]</strong> (으)로 되돌리시겠습니까?</div></div>`; }
     window.openCustomConfirm("주문 상태 변경", null, confirmMsg, async () => { const { error } = await supabaseClient.from('orders').update({ status: newValue }).eq('id', id); if (error) { showToast("상태 변경에 실패했습니다."); } else { showToast(`[${newValue}] 상태로 변경되었습니다.`); window.fetchCenterData(); } }, "변경하기"); selectEl.value = oldStatus;
 };
-
-window.renderDashboard = async function() {
-    const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + currentDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
-    if (currentDashView === 'month' && $("dashMonthTitle")) { $("dashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; }
-    await window.fetchHolidays(yyyy);
-
-    let spaceFilter = $("dashSpaceFilter") ? $("dashSpaceFilter").value : '전체'; let batchFilter = $("dashBatchFilter") ? $("dashBatchFilter").value : '전체'; let calEvts = {};
-
-    if (currentDashView === 'week') {
-        let startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currDay);
-        for(let i = 0; i < 7; i++) { let dObj = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i); let ds = `${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`; calEvts[ds] = []; }
-    } else {
-        for(let d=1; d<=daysInMonth; d++) { let ds = `${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; calEvts[ds] = []; }
-    }
-
-    let goEvts = []; try { goEvts = await window.fetchGoogleCalendarEvents(yyyy, mm + 1); } catch(e){}
-
-    try {
-        goEvts.forEach(g => {
-            let include = true;
-            if (currentGlobalCenter !== '전체') { let keyword = currentGlobalCenter.split(' ')[0]; if (!String(g.text).includes(keyword)) include = false; }
-            if (spaceFilter !== '전체') { let spaceKeyword = spaceFilter.replace('룸', '').replace('존', ''); if (!String(g.text).includes(spaceKeyword)) include = false; }
-            if(include && calEvts[g.date]) { calEvts[g.date].push({ time: g.time || '종일', start: g.start || '00:00', text: g.text, type: 'google', tooltip: g.text }); }
-        });
-    } catch(e) { console.error(e); }
-
-    try {
-        gRes.forEach(r => {
-            if (String(r.status||'').includes('취소') || (currentGlobalCenter !== '전체' && r.center !== currentGlobalCenter) || (spaceFilter !== '전체' && !String(r.space_equip||'').includes(spaceFilter)) || (batchFilter !== '전체' && r.batch !== batchFilter)) return;
-            if (calEvts[r.res_date]) { 
-                let st = String(r.res_time||"").split('~')[0].trim(); 
-                let spc = String(r.space_equip||"").split(' ')[0]; 
-                calEvts[r.res_date].push({ time: r.res_time, start: st, text: `[${spc}] ${r.name}`, type: 'res', tooltip: `${r.res_time} | ${r.space_equip} | ${r.name}` }); 
-            }
-        });
-
-        gBlk.forEach(b => {
-            if ((currentGlobalCenter !== '전체' && b.center !== currentGlobalCenter) || (spaceFilter !== '전체' && !String(b.space_equip||'').includes(spaceFilter))) return;
-            if (calEvts[b.block_date]) { 
-                let timeStr = `${b.start_time}~${b.end_time}`;
-                calEvts[b.block_date].push({ time: timeStr, start: b.start_time, text: `[${b.category}] ${b.reason}`, type: 'blk', tooltip: `${timeStr} | ${b.space_equip||'전체'} | ${b.reason}` }); 
-            }
-        });
-
-        gTrn.forEach(t => {
-            if (String(t.status||'').includes('취소') || (batchFilter !== '전체' && t.batch !== batchFilter)) return;
-            let cInfo = String(t.content||"").split(' || ');
-            if(cInfo.length >= 5) {
-                let tDate = cInfo[0].trim(); let tCenter = cInfo[3].trim(); let tSpc = cInfo[4].trim();
-                if ((currentGlobalCenter !== '전체' && tCenter !== currentGlobalCenter) || (spaceFilter !== '전체' && !String(tSpc).includes(spaceFilter))) return;
-                if (calEvts[tDate]) { 
-                    let st = String(cInfo[2]||"").split('~')[0].trim(); 
-                    calEvts[tDate].push({ time: cInfo[2], start: st, text: `[수강] ${t.name}`, type: 'trn', tooltip: `${cInfo[2]} | ${tSpc} | ${t.name} (${cInfo[1]})` }); 
-                }
-            }
-        });
-    } catch(e) { console.error(e); }
-
-    try {
-        let mHtml = `<div class="dash-cal-grid"><div class="dash-cal-header" style="color:var(--error);">일</div><div class="dash-cal-header">월</div><div class="dash-cal-header">화</div><div class="dash-cal-header">수</div><div class="dash-cal-header">목</div><div class="dash-cal-header">금</div><div class="dash-cal-header" style="color:var(--blue);">토</div>`;
-        let iterDates = Object.keys(calEvts).sort();
-        if (currentDashView === 'month') { let firstDay = new Date(yyyy, mm, 1).getDay(); for(let i=0; i<firstDay; i++) mHtml += `<div class="dash-cal-cell empty"></div>`; }
-
-        iterDates.forEach(ds => {
-            let dObj = new Date(ds); let evts = calEvts[ds]; evts.sort((a,b) => String(a.start||'').localeCompare(String(b.start||'')));
-            let holidayName = window.getHoliday(dObj.getFullYear(), dObj.getMonth() + 1, dObj.getDate());
-            let dateClass = holidayName ? 'holiday-date' : '';
-            let dateText = dObj.getDate() + (holidayName ? ` <span style="font-size:10px; font-weight:600; display:block; float:right;">${holidayName}</span>` : '');
-
-            let evtsHtml = evts.slice(0, 3).map(e => {
-                let badgeClass = e.type === 'google' ? 'dash-item-google' : (e.type === 'res' ? 'dash-item-res' : (e.type === 'trn' ? 'dash-item-trn' : 'dash-item-blk'));
-                return `<div class="dash-item ${badgeClass}"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${window.escapeHtml(e.text)||''}</div><div class="dash-tooltip">${window.escapeHtml(e.tooltip)||''}</div></div>`;
-            }).join('');
-
-            if(evts.length > 3) {
-                let hiddenText = evts.slice(3).map(e => `${e.time||''} | ${window.escapeHtml(e.text)||''}`).join('<br>');
-                evtsHtml += `<div class="dash-cal-more-wrap" style="position:relative;"><div class="dash-cal-more">+${evts.length - 3}건 더보기</div><div class="dash-tooltip" style="text-align:left; white-space:nowrap; font-weight:normal;">${hiddenText}</div></div>`;
-            }
-            mHtml += `<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;
-        });
-        mHtml += `</div>`;
-
-        window.centerCalEvts = calEvts;
-        let mobStrip = `<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-center">`;
-        iterDates.forEach(ds => {
-            let dObj = new Date(ds); let dayKr = ["일","월","화","수","목","금","토"][dObj.getDay()]; let hasEvt = calEvts[ds].length > 0 ? 'has-evt' : '';
-            mobStrip += `<div class="m-cal-date" id="m-date-center-${ds}" onclick="window.renderMCalCenter('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`;
-        });
-        mobStrip += `</div><div id="m-cal-list-center" class="m-cal-list"></div></div>`;
-
-        if($("dash-content")) $("dash-content").innerHTML = `<div class="desktop-cal">${mHtml}</div>` + mobStrip;
-
-        let td = new Date(); let todayStr = `${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;
-        window.renderMCalCenter(calEvts[todayStr] ? todayStr : iterDates[0]);
-    } catch(e) { console.error("Render HTML Error:", e); }
-};
-
-window.renderAppMCal = function(selDate) { 
-    $$$("#appDashContent .m-cal-date").forEach(el => el.classList.remove('active')); 
-    let target = document.getElementById(`m-date-app-${selDate}`); 
-    if(target) { target.classList.add('active'); try { target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } catch(e) {} } 
-    let evts = window.appCalEvts[selDate] || []; evts.sort((a,b) => String(a.time||'').localeCompare(String(b.time||''))); 
-    let html = ''; 
-    if(evts.length === 0) { html = `<div class="empty-state" style="padding:40px 0;">예정된 상담 일정이 없습니다.</div>`; } else { evts.forEach(e => { let rawTooltip = String(e.tooltip||''); let descParts = rawTooltip.split('|'); let descText = descParts.length > 1 ? descParts.slice(1).join(' | ').trim() : rawTooltip; html += `<div class="m-cal-card" style="align-items:flex-start; text-align:left; width:100%; box-sizing:border-box;"><div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary); font-weight:800; font-size:13px;">${e.time || '종일'}</div></div><div class="m-cal-card-desc" style="font-size:13px; color:var(--text-secondary); margin-top:0; width:100%;">${window.escapeHtml(descText)}</div></div>`; }); } 
-    let listWrap = $("m-cal-list-app"); if(listWrap) listWrap.innerHTML = html; 
-};
-
-window.renderAppDailyBanner = function(filteredApps) {
-    let td = new Date(); let mm = td.getMonth() + 1; let dd = td.getDate();
-    let scheduled = filteredApps.filter(a => a.status === '상담 일정 확정' && a.call_time);
-    
-    let todayEvts = scheduled.filter(app => { 
-        const m = String(app.call_time||'').match(/(\d+)\s*월\s*(\d+)\s*일/); 
-        return m && parseInt(m[1], 10) === mm && parseInt(m[2], 10) === dd; 
-    });
-    
-    let html = '';
-    if(todayEvts.length === 0) { 
-        html = `<div class="inout-card"><div style="font-weight:800; margin-bottom:8px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">오늘의 상담 일정</div><div style="font-size:13px; color:var(--text-secondary); padding:8px 0;">오늘 확정된 상담 일정이 없습니다.</div></div>`; 
-    } else { 
-        html = `<div class="inout-card"><div style="font-weight:800; font-size:15px; margin-bottom:12px; color:var(--text-display); border-bottom:1px solid var(--border-strong); padding-bottom:8px;">오늘의 상담 일정 (${todayEvts.length}건)</div><div style="display:flex; flex-direction:column; gap:12px;">`; 
-        
-        todayEvts.sort((a,b) => { 
-            let tA = String(a.call_time||'').match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/); 
-            let tB = String(b.call_time||'').match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/); 
-            let timeA = tA ? (tA[1]==='오후' && tA[2]!=='12' ? parseInt(tA[2], 10)+12 : (tA[1]==='오전' && tA[2]==='12' ? 0 : parseInt(tA[2], 10))) * 60 + (tA[3]?parseInt(tA[3], 10):0) : 0; 
-            let timeB = tB ? (tB[1]==='오후' && tB[2]!=='12' ? parseInt(tB[2], 10)+12 : (tB[1]==='오전' && tB[2]==='12' ? 0 : parseInt(tB[2], 10))) * 60 + (tB[3]?parseInt(tB[3], 10):0) : 0; 
-            return timeA - timeB; 
-        });
-
-        todayEvts.forEach(evt => { 
-            const tm = String(evt.call_time||'').match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/); 
-            let timeStr = tm ? `${tm[1]} ${tm[2]}:${tm[3] ? String(parseInt(tm[3], 10)).padStart(2,'0') : '00'}` : evt.call_time; 
-            html += `<div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-bottom:4px; width:100%;"><div class="today-time-wrap" style="color:var(--primary); background:var(--primary-light); padding:4px 8px; border-radius:4px; font-size:12px; font-weight:700; white-space:nowrap; flex-shrink:0;">${timeStr}</div> <div class="today-time-wrap" style="font-weight:800; flex-shrink:0;">[${evt.desired_batch||'-'}] ${window.escapeHtml(evt.name)}</div> <div style="font-weight:500; color:var(--text-secondary); flex-shrink:0;">(${window.escapeHtml(evt.phone)}) | 담당: ${window.escapeHtml(evt.counselor_name||'미정')}</div></div>`; 
-        }); 
-        html += `</div></div>`; 
-    }
-    if($("appDailyBanner")) $("appDailyBanner").innerHTML = html;
-};
 window.renderAppDashboard = async function() {
     const now = new Date(); let targetDate = new Date(now.getFullYear(), now.getMonth() + appDashMonthOffset, 1); const yyyy = targetDate.getFullYear(); const mm = targetDate.getMonth(); const daysInMonth = new Date(yyyy, mm + 1, 0).getDate(); const currDay = now.getDay();
     if (currentAppDashView === 'month' && $("appDashMonthTitle")) $("appDashMonthTitle").innerText = `${yyyy}년 ${mm + 1}월`; await window.fetchHolidays(yyyy);
@@ -1105,6 +964,14 @@ const statusClassMap = { '대기': 'st-wait', '상담 일정 조율 중': 'st-ar
 const joinClassMap = { '': 'jn-none', '고민 중': 'jn-thinking', '가입 완료': 'jn-joined', '미가입': 'jn-declined', '다음 기수 희망': 'jn-next' };
 function parseAcquisitionChannel(rawText) { if(!rawText) return '-'; let txt = String(rawText).toLowerCase(); if(txt.includes('광고') || txt.includes('스폰서드')) return '광고'; if(txt.includes('인스타')) return '인스타그램'; if(txt.includes('블로그')) return '네이버 블로그'; if(txt.includes('블랙워터')) return '블랙워터이슈'; if(txt.includes('지인')) return '지인 추천'; return '기타'; }
 window.closeCrmModal = function() { if($("crmModal")) $("crmModal").classList.remove('show'); };
+
+// 💡 Fix: 누락되었던 CRM 모달 오픈 트리거 함수 본체 복구 (성함 클릭 시 정상 동작)
+window.openCrmModal = function(id, isReadOnly = false) {
+    isCrmReadOnly = isReadOnly;
+    if($("crmAppId")) $("crmAppId").value = id;
+    window.renderCrmInner(id, isReadOnly);
+    if($("crmModal")) $("crmModal").classList.add('show');
+};
 
 window.renderCrmInner = function(id, isReadOnly = false) {
     const app = globalApps.find(a => String(a.id) === String(id)); if(!app) return;
@@ -1498,7 +1365,7 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 Fix 4 & 8: '주문 접수' 필터링 강제 및 기수/이름/번호 맵핑 보완
+// 💡 Fix: '주문 접수' 상태 필터링 강제 및 기수/이름/번호 맵핑 보완 (주문 취소 건 원천 차단)
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
@@ -1508,9 +1375,10 @@ window.showOrderSummary = function() {
 
     let pendingOrders = gOrd.filter(o => {
         if (checkedIds.length > 0) {
+            // 체크했더라도 주문접수가 아니면 거름 (안전장치 추가)
+            if (o.status !== '주문 접수') return false;
             return checkedIds.includes(String(o.id));
         } else {
-            // 핵심 픽스: '주문 접수' 상태가 아니면 무조건 제외
             if (o.status !== '주문 접수') return false; 
             let matchCenter = (currentGlobalCenter === '전체' || o.center === currentGlobalCenter);
             let matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
@@ -1779,7 +1647,6 @@ window.editBlock = function(id) {
 
 window.closeBlockModal = function() { if($("blockModal")) $("blockModal").classList.remove('show'); };
 
-// 💡 Fix 2: '매주 반복' 누락 방지 조건문 완벽 보수 적용 (.includes 활용)
 window.isSavingBlock = false;
 window.saveBlockData = async function() {
     if (window.isSavingBlock) return;
