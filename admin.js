@@ -448,7 +448,7 @@ window.isOrderExpired = function(order, now) {
     if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
     return false;
 }
-// 💡 Fix: 연쇄 먹통 방어, 5:5 배너 병합, 타임라인 위치 교정 (100% 너비 확보)
+// 💡 Fix: 연쇄 먹통 방어 및 '제목+내용' 5:5 배너 병합 처리 완벽 교정
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -486,32 +486,45 @@ window.fetchCenterData = async function() {
       let dBanner = document.getElementById('dailyInOutBanner');
       let cBanner = document.getElementById('cancelAccumulationBanner');
       
-      // 1. 배너 2개를 5:5 그리드로 묶기
       if (dBanner && cBanner && !dBanner.closest('.wecoffee-banner-wrap')) {
+          // 💡 핵심 픽스: 배너뿐만 아니라 그 위에 있는 '제목'을 찾아 세트로 묶습니다.
+          let dTitle = dBanner.previousElementSibling;
+          if (dTitle && !dTitle.textContent.includes('출입')) dTitle = null;
+          
+          let cTitle = cBanner.previousElementSibling;
+          if (cTitle && !cTitle.textContent.includes('취소')) cTitle = null;
+
           let wrap = document.createElement('div');
           wrap.className = 'wecoffee-banner-wrap banner-grid';
-          dBanner.parentNode.insertBefore(wrap, dBanner);
-          wrap.appendChild(dBanner);
-          wrap.appendChild(cBanner);
+          
+          let leftCol = document.createElement('div');
+          let rightCol = document.createElement('div');
+
+          // 새 5:5 래퍼를 첫 번째 제목 위치에 삽입
+          let targetNode = dTitle ? dTitle : dBanner;
+          targetNode.parentNode.insertBefore(wrap, targetNode);
+
+          // 왼쪽 방에 제목1 + 알맹이1 입주
+          if (dTitle) leftCol.appendChild(dTitle);
+          leftCol.appendChild(dBanner);
+
+          // 오른쪽 방에 제목2 + 알맹이2 입주
+          if (cTitle) rightCol.appendChild(cTitle);
+          rightCol.appendChild(cBanner);
+
+          wrap.appendChild(leftCol);
+          wrap.appendChild(rightCol);
       }
 
-      // 2. 타임라인을 그리드 래퍼 밖으로 꺼내서 예약 리스트 직전에 100% 너비로 배치
-      let timeline = document.getElementById('timeline-area');
-      if (!timeline) {
-          timeline = document.createElement('div');
-          timeline.id = 'timeline-area';
-      }
-      
-      let resTab = document.getElementById('sub-res');
-      if (resTab) {
-          let toolbar = resTab.querySelector('.table-toolbar') || resTab.querySelector('.filter-wrap');
-          if (toolbar && timeline.nextSibling !== toolbar) {
-              toolbar.parentNode.insertBefore(timeline, toolbar);
-          } else if (!toolbar && timeline.parentNode !== resTab) {
-              resTab.appendChild(timeline);
+      if (!document.getElementById('timeline-area')) {
+          const wrap = document.querySelector('.wecoffee-banner-wrap');
+          const targetEl = wrap || document.getElementById('dailyInOutBanner');
+          if (targetEl) {
+              const area = document.createElement('div');
+              area.id = 'timeline-area';
+              targetEl.insertAdjacentElement('afterend', area);
           }
       }
-      
       if(window.renderTimeline) window.renderTimeline(); 
   } catch(e){ console.error("renderTimeline Error:", e); }
 }
