@@ -448,7 +448,7 @@ window.isOrderExpired = function(order, now) {
     if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
     return false;
 }
-// 💡 Fix: 대표님 의도대로 순서 완벽 복구 (배너 5:5 -> 타임라인 -> 대시보드 -> 예약 리스트)
+// 💡 Fix: 화면 뻗는 치명적 에러 원천 차단 및 가장 안전한 100% 너비/순서 배치
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -482,59 +482,65 @@ window.fetchCenterData = async function() {
   try { window.renderDashboard(); } catch(e) { console.error(e); }
   try { window.renderNoticeData(); } catch(e) { console.error(e); }
   
+  // 💡 절대 뻗지 않는 안전한 DOM 레이아웃 배치 로직
   try {
       let dBanner = document.getElementById('dailyInOutBanner');
       let cBanner = document.getElementById('cancelAccumulationBanner');
       
-      // 1. 배너를 이상한 곳으로 옮기지 않고 "원래 최상단 위치"에서 5:5로 묶음
-      if (dBanner && cBanner && !dBanner.closest('.wecoffee-banner-wrap')) {
-          let dTitle = dBanner.previousElementSibling;
-          if (dTitle && !dTitle.textContent.includes('출입')) dTitle = null;
+      if (dBanner) {
+          let wrap = document.getElementById('wecoffee-custom-banner-wrapper');
+          // 배너가 아직 안 묶여있다면 5:5로 묶어서 원래 자리에 안전하게 배치
+          if (!wrap) {
+              wrap = document.createElement('div');
+              wrap.id = 'wecoffee-custom-banner-wrapper';
+              wrap.className = 'wecoffee-banner-wrap banner-grid';
+              wrap.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; width: 100%; align-items: flex-start;';
+              
+              let dTitle = dBanner.previousElementSibling;
+              if (dTitle && !dTitle.textContent.includes('출입')) dTitle = null;
+              
+              let cTitle = cBanner ? cBanner.previousElementSibling : null;
+              if (cTitle && !cTitle.textContent.includes('취소')) cTitle = null;
+
+              let leftCol = document.createElement('div');
+              let rightCol = document.createElement('div');
+              leftCol.style.cssText = 'width: 100%; min-width: 0;';
+              rightCol.style.cssText = 'width: 100%; min-width: 0;';
+
+              // 위험한 prepend 대신, dBanner가 원래 위치했던 그 부모 노드에 그대로 삽입
+              let insertTarget = dTitle ? dTitle : dBanner;
+              if (insertTarget.parentNode) {
+                  insertTarget.parentNode.insertBefore(wrap, insertTarget);
+              }
+
+              if (dTitle) leftCol.appendChild(dTitle);
+              leftCol.appendChild(dBanner);
+              wrap.appendChild(leftCol);
+
+              if (cBanner) {
+                  if (cTitle) rightCol.appendChild(cTitle);
+                  rightCol.appendChild(cBanner);
+                  wrap.appendChild(rightCol);
+              }
+          }
           
-          let cTitle = cBanner.previousElementSibling;
-          if (cTitle && !cTitle.textContent.includes('취소')) cTitle = null;
-
-          let wrap = document.createElement('div');
-          wrap.className = 'wecoffee-banner-wrap banner-grid';
-          
-          let leftCol = document.createElement('div');
-          let rightCol = document.createElement('div');
-
-          // 원래 출입 현황(dBanner)이 있던 바로 그 자리에 래퍼를 삽입
-          let targetNode = dTitle ? dTitle : dBanner;
-          targetNode.parentNode.insertBefore(wrap, targetNode);
-
-          if (dTitle) leftCol.appendChild(dTitle);
-          leftCol.appendChild(dBanner);
-
-          if (cTitle) rightCol.appendChild(cTitle);
-          rightCol.appendChild(cBanner);
-
-          wrap.appendChild(leftCol);
-          wrap.appendChild(rightCol);
-          
-          // 2. 타임라인을 묶은 배너 래퍼 "바로 밑"에 삽입 (대시보드보다 무조건 위로 감)
+          // 타임라인을 5:5 래퍼 '바로 아래'에 배치시켜 순서 보장 (배너 -> 타임라인 -> 대시보드)
           let timeline = document.getElementById('timeline-area');
           if (!timeline) {
               timeline = document.createElement('div');
               timeline.id = 'timeline-area';
-          }
-          wrap.insertAdjacentElement('afterend', timeline);
-      } else if (dBanner && dBanner.closest('.wecoffee-banner-wrap')) {
-          // 이미 묶여 있다면 타임라인이 그 아래에 있는지 위치만 확인
-          let wrap = dBanner.closest('.wecoffee-banner-wrap');
-          let timeline = document.getElementById('timeline-area');
-          if (!timeline) {
-              timeline = document.createElement('div');
-              timeline.id = 'timeline-area';
-          }
-          if (wrap.nextSibling !== timeline) {
+              timeline.style.width = '100%';
+              wrap.insertAdjacentElement('afterend', timeline);
+          } else if (timeline.previousElementSibling !== wrap) {
               wrap.insertAdjacentElement('afterend', timeline);
           }
       }
-      
       if(window.renderTimeline) window.renderTimeline(); 
-  } catch(e){ console.error("renderTimeline Error:", e); }
+  } catch(layoutErr){ 
+      console.error("Layout Setup Error:", layoutErr); 
+      // 레이아웃 잡다가 에러나도 타임라인 렌더링은 시도하도록 방어
+      if(window.renderTimeline) window.renderTimeline(); 
+  }
 }
 
 window.changeResPage = function(page) {
