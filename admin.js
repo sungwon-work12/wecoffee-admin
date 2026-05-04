@@ -82,13 +82,16 @@ document.addEventListener('input', function(e) {
     }
 });
 
-// 💡 Fix 1: FOUC 화면 깜빡임 방지를 위한 래퍼 초기 숨김 및 부드러운 등장
+// 💡 Fix 1: FOUC 화면 깜빡임 방지 및 5:5 배너 그리드 레이아웃 적용
 if (!document.getElementById('wecoffee-custom-styles')) {
     let style = document.createElement('style');
     style.id = 'wecoffee-custom-styles';
     style.innerHTML = `
         .wecoffee-banner-wrap, .banner-grid { animation: wecoffeeFadeIn 0.35s ease-out forwards; }
         @keyframes wecoffeeFadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .wecoffee-banner-wrap.banner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; align-items: stretch; width: 100%; box-sizing: border-box; }
+        @media (max-width: 768px) { .wecoffee-banner-wrap.banner-grid { grid-template-columns: 1fr; } }
         
         .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal !important; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; font-family: sans-serif; }
         .info-tooltip:hover { color: #505967; border-color: #505967; }
@@ -158,46 +161,36 @@ window.getHoliday = function(y, m, d) {
   return null;
 };
 
-// 💡 1차 방어막: DB 원본 시간 표기 강제 고정 (try...catch 떡칠)
 function getDow(dStr) { 
     if(!dStr) return ''; 
-    try {
-        let str = String(dStr).replace('T', ' ').split('.')[0];
-        let datePart = str.split(' ')[0];
-        if(!datePart) return '';
-        let [y, m, d] = datePart.split('-');
-        if(!y || !m || !d) return '';
-        let dObj = new Date(y, m-1, d);
-        return ['일','월','화','수','목','금','토'][dObj.getDay()] || ''; 
-    } catch(e) { return ''; }
+    let str = String(dStr).replace('T', ' ').split('.')[0];
+    let datePart = str.split(' ')[0];
+    if(!datePart) return '';
+    let [y, m, d] = datePart.split('-');
+    let dObj = new Date(y, m-1, d);
+    return ['일','월','화','수','목','금','토'][dObj.getDay()]; 
 }
 
 function formatDtWithDow(dateStr) { 
     if(!dateStr) return "-"; 
-    try {
-        let str = String(dateStr).replace('T', ' ').split('.')[0];
-        let parts = str.split(' ');
-        if(parts.length < 2) return str;
-        let [y, m, d] = parts[0].split('-');
-        let [hh, mm] = parts[1].split(':');
-        if(!y || !m || !d || !hh || !mm) return str;
-        let dObj = new Date(y, m-1, d);
-        const dow = ['일','월','화','수','목','금','토'][dObj.getDay()] || '';
-        return `${y.slice(-2)}/${m}/${d}(${dow}) ${hh}:${mm}`; 
-    } catch(e) { return String(dateStr); }
+    let str = String(dateStr).replace('T', ' ').split('.')[0];
+    let parts = str.split(' ');
+    if(parts.length < 2) return str;
+    let [y, m, d] = parts[0].split('-');
+    let [hh, mm] = parts[1].split(':');
+    let dObj = new Date(y, m-1, d);
+    const dow = ['일','월','화','수','목','금','토'][dObj.getDay()];
+    return `${y.slice(-2)}/${m}/${d}(${dow}) ${hh}:${mm}`; 
 }
 
 function formatDt(dateStr) { 
     if(!dateStr) return "-"; 
-    try {
-        let str = String(dateStr).replace('T', ' ').split('.')[0];
-        let parts = str.split(' ');
-        if(parts.length < 2) return str;
-        let [y, m, d] = parts[0].split('-');
-        let [hh, mm] = parts[1].split(':');
-        if(!y || !m || !d || !hh || !mm) return str;
-        return `${y.slice(-2)}/${m}/${d} ${hh}:${mm}`; 
-    } catch(e) { return String(dateStr); }
+    let str = String(dateStr).replace('T', ' ').split('.')[0];
+    let parts = str.split(' ');
+    if(parts.length < 2) return str;
+    let [y, m, d] = parts[0].split('-');
+    let [hh, mm] = parts[1].split(':');
+    return `${y.slice(-2)}/${m}/${d} ${hh}:${mm}`; 
 }
 
 function comma(str) { return Number(String(str).replace(/[^0-9]/g, '')).toLocaleString(); }
@@ -455,7 +448,7 @@ window.isOrderExpired = function(order, now) {
     if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
     return false;
 }
-// 💡 Fix: 연쇄 먹통 방어 (try...catch 쪼개기 적용된 fetchCenterData)
+// 💡 Fix: 연쇄 먹통 방어 및 5:5 배너 DOM 병합 처리
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -485,22 +478,33 @@ window.fetchCenterData = async function() {
     } catch(err) { console.error("Data prep error:", err); }
   } catch(e) { console.error("fetchCenterData Error:", e); }
   
-  // 하나가 터져도 나머지가 죽지 않도록 방어막 분리
   try { window.renderCenterData(); } catch(e) { console.error(e); }
   try { window.renderDashboard(); } catch(e) { console.error(e); }
   try { window.renderNoticeData(); } catch(e) { console.error(e); }
   
   try {
+      let dBanner = document.getElementById('dailyInOutBanner');
+      let cBanner = document.getElementById('cancelAccumulationBanner');
+      
+      if (dBanner && cBanner && !dBanner.closest('.wecoffee-banner-wrap')) {
+          let wrap = document.createElement('div');
+          wrap.className = 'wecoffee-banner-wrap banner-grid';
+          dBanner.parentNode.insertBefore(wrap, dBanner);
+          wrap.appendChild(dBanner);
+          wrap.appendChild(cBanner);
+      }
+
       if (!document.getElementById('timeline-area')) {
-          const dailyBanner = document.getElementById('dailyInOutBanner');
-          if (dailyBanner && dailyBanner.parentNode) {
+          const wrap = document.querySelector('.wecoffee-banner-wrap');
+          const targetEl = wrap || document.getElementById('dailyInOutBanner');
+          if (targetEl) {
               const area = document.createElement('div');
               area.id = 'timeline-area';
-              dailyBanner.parentNode.insertAdjacentElement('afterend', area);
+              targetEl.insertAdjacentElement('afterend', area);
           }
       }
       if(window.renderTimeline) window.renderTimeline(); 
-  } catch(e){ console.error(e); }
+  } catch(e){ console.error("renderTimeline Error:", e); }
 }
 
 window.changeResPage = function(page) {
@@ -1515,7 +1519,6 @@ window.openCrmModalFromPhone = async function(phone) {
     }
 }
 
-// 💡 Fix: 발주 요약 필터링 보완 (취소 건 차단)
 window.showOrderSummary = function() {
     let qOrd = ($("searchOrd")?.value || "").toLowerCase();
     let vOrd = $("ordVendorFilter")?.value || "전체";
