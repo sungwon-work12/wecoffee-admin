@@ -448,7 +448,7 @@ window.isOrderExpired = function(order, now) {
     if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
     return false;
 }
-// 💡 Fix: 연쇄 먹통 방어 및 5:5 배너 DOM 병합 처리
+// 💡 Fix: 연쇄 먹통 방어, 5:5 배너 병합, 타임라인 위치 교정 (100% 너비 확보)
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -486,6 +486,7 @@ window.fetchCenterData = async function() {
       let dBanner = document.getElementById('dailyInOutBanner');
       let cBanner = document.getElementById('cancelAccumulationBanner');
       
+      // 1. 배너 2개를 5:5 그리드로 묶기
       if (dBanner && cBanner && !dBanner.closest('.wecoffee-banner-wrap')) {
           let wrap = document.createElement('div');
           wrap.className = 'wecoffee-banner-wrap banner-grid';
@@ -494,15 +495,23 @@ window.fetchCenterData = async function() {
           wrap.appendChild(cBanner);
       }
 
-      if (!document.getElementById('timeline-area')) {
-          const wrap = document.querySelector('.wecoffee-banner-wrap');
-          const targetEl = wrap || document.getElementById('dailyInOutBanner');
-          if (targetEl) {
-              const area = document.createElement('div');
-              area.id = 'timeline-area';
-              targetEl.insertAdjacentElement('afterend', area);
+      // 2. 타임라인을 그리드 래퍼 밖으로 꺼내서 예약 리스트 직전에 100% 너비로 배치
+      let timeline = document.getElementById('timeline-area');
+      if (!timeline) {
+          timeline = document.createElement('div');
+          timeline.id = 'timeline-area';
+      }
+      
+      let resTab = document.getElementById('sub-res');
+      if (resTab) {
+          let toolbar = resTab.querySelector('.table-toolbar') || resTab.querySelector('.filter-wrap');
+          if (toolbar && timeline.nextSibling !== toolbar) {
+              toolbar.parentNode.insertBefore(timeline, toolbar);
+          } else if (!toolbar && timeline.parentNode !== resTab) {
+              resTab.appendChild(timeline);
           }
       }
+      
       if(window.renderTimeline) window.renderTimeline(); 
   } catch(e){ console.error("renderTimeline Error:", e); }
 }
