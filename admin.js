@@ -448,7 +448,7 @@ window.isOrderExpired = function(order, now) {
     if (status === '센터 도착') return (now.getTime() - oDate.getTime()) > 7 * 24 * 60 * 60 * 1000;
     return false;
 }
-// 💡 Fix: 배너와 타임라인을 좁은 컬럼에서 강제 탈출 (100% 너비 확보)
+// 💡 Fix: 대표님 의도대로 순서 완벽 복구 (배너 5:5 -> 타임라인 -> 대시보드 -> 예약 리스트)
 window.fetchCenterData = async function() {
   try {
     const [res, trn, ord, blk, noti] = await Promise.all([ supabaseClient.from('reservations').select('*').order('created_at', {ascending: false}), supabaseClient.from('trainings').select('*').order('created_at', {ascending: false}), supabaseClient.from('orders').select('*').order('created_at', {ascending: false}), supabaseClient.from('blocks').select('*').order('block_date', {ascending: false}), supabaseClient.from('notices').select('*').order('created_at', {ascending: false}) ]);
@@ -485,10 +485,9 @@ window.fetchCenterData = async function() {
   try {
       let dBanner = document.getElementById('dailyInOutBanner');
       let cBanner = document.getElementById('cancelAccumulationBanner');
-      let resTab = document.getElementById('sub-res');
       
-      // 1. 배너 5:5 묶은 뒤, 100% 너비 공간(resTab)으로 완전히 꺼내기
-      if (resTab && dBanner && cBanner && !dBanner.closest('.wecoffee-banner-wrap')) {
+      // 1. 배너를 이상한 곳으로 옮기지 않고 "원래 최상단 위치"에서 5:5로 묶음
+      if (dBanner && cBanner && !dBanner.closest('.wecoffee-banner-wrap')) {
           let dTitle = dBanner.previousElementSibling;
           if (dTitle && !dTitle.textContent.includes('출입')) dTitle = null;
           
@@ -501,6 +500,10 @@ window.fetchCenterData = async function() {
           let leftCol = document.createElement('div');
           let rightCol = document.createElement('div');
 
+          // 원래 출입 현황(dBanner)이 있던 바로 그 자리에 래퍼를 삽입
+          let targetNode = dTitle ? dTitle : dBanner;
+          targetNode.parentNode.insertBefore(wrap, targetNode);
+
           if (dTitle) leftCol.appendChild(dTitle);
           leftCol.appendChild(dBanner);
 
@@ -509,22 +512,25 @@ window.fetchCenterData = async function() {
 
           wrap.appendChild(leftCol);
           wrap.appendChild(rightCol);
-
-          // 툴바 바로 아래(100% 너비)에 꽂아넣어 갇힘 방지
-          let toolbar = resTab.querySelector('.table-toolbar');
-          if (toolbar) {
-              toolbar.insertAdjacentElement('afterend', wrap);
-          } else {
-              resTab.prepend(wrap);
-          }
           
-          // 2. 타임라인도 배너 래퍼 바로 밑으로 꺼내서 100% 보장
+          // 2. 타임라인을 묶은 배너 래퍼 "바로 밑"에 삽입 (대시보드보다 무조건 위로 감)
           let timeline = document.getElementById('timeline-area');
           if (!timeline) {
               timeline = document.createElement('div');
               timeline.id = 'timeline-area';
           }
           wrap.insertAdjacentElement('afterend', timeline);
+      } else if (dBanner && dBanner.closest('.wecoffee-banner-wrap')) {
+          // 이미 묶여 있다면 타임라인이 그 아래에 있는지 위치만 확인
+          let wrap = dBanner.closest('.wecoffee-banner-wrap');
+          let timeline = document.getElementById('timeline-area');
+          if (!timeline) {
+              timeline = document.createElement('div');
+              timeline.id = 'timeline-area';
+          }
+          if (wrap.nextSibling !== timeline) {
+              wrap.insertAdjacentElement('afterend', timeline);
+          }
       }
       
       if(window.renderTimeline) window.renderTimeline(); 
