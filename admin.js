@@ -10,6 +10,7 @@ let isCrmReadOnly = false;
 let quillEditor = null;
 let isAppInitialized = false; 
 let realtimeChannel = null;
+let fallbackSyncInterval = null; 
 
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 let currentResPage = 1, resItemsPerPage = 10, currentFilteredRes = [];
@@ -108,9 +109,14 @@ wecoffeeStyle.innerHTML = `
     .space-opt-item.selected { background: #e8f0fe; color: var(--primary); font-weight: 700; }
     #dynamic-ord-container { padding-bottom: 120px; }
     
-    /* 타임라인 강제 레이아웃 보장 및 좌측 고정(Sticky) CSS */
+    /* 💡 타임라인 공통 레이아웃 */
     #timeline-area { width: 100%; max-width: 100vw; box-sizing: border-box; margin-top: 32px; display: block !important; clear: both; }
     #timeline-area .timeline-section { width: 100%; margin: 0 0 32px 0 !important; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid var(--border-strong); box-shadow: 0 4px 20px rgba(0,0,0,0.05); box-sizing: border-box; overflow: hidden; text-align: left; display: block !important; }
+    
+    /* 💡 PC 환경 뷰 (데스크탑) */
+    .timeline-desktop { display: block; }
+    .timeline-mobile { display: none; }
+    
     .timeline-container { width: 100%; overflow-x: auto; position: relative; border: 1px solid #eee; border-radius: 8px; -webkit-overflow-scrolling: touch; padding-bottom: 8px; box-sizing: border-box; text-align: left; display: block !important; }
     .timeline-grid { min-width: 1200px; display: flex !important; flex-direction: column !important; border-top: 1px solid #eee; border-left: 1px solid #eee; border-right: 1px solid #eee; position: relative; }
     .timeline-header { display: flex !important; flex-direction: row !important; background: #f9fafb; border-bottom: 2px solid #eee; width: 100%; }
@@ -130,7 +136,30 @@ wecoffeeStyle.innerHTML = `
     .bar-blk { background: #9ca3af; color: #fff; }
 
     @media (max-width: 1024px) { .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; } }
-    @media (max-width: 768px) { .wecoffee-banner-wrap, .banner-grid { flex-direction: column; } .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; overflow-x: visible; } .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: wrap !important; gap: 6px; } .mem-action-row select { flex: 1; min-width: 0; padding-left: 8px !important; padding-right: 28px !important; } #timeline-area .timeline-section { padding: 16px; margin-bottom: 24px !important; } }
+    
+    /* 💡 모바일 환경 뷰 교체 및 카드 UI 디자인 */
+    @media (max-width: 768px) { 
+        .wecoffee-banner-wrap, .banner-grid { flex-direction: column; } 
+        .mem-action-wrap { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; width: 100%; overflow-x: visible; } 
+        .mem-action-row { width: 100%; justify-content: space-between; flex-wrap: wrap !important; gap: 6px; } 
+        .mem-action-row select { flex: 1; min-width: 0; padding-left: 8px !important; padding-right: 28px !important; } 
+        #timeline-area .timeline-section { padding: 16px; margin-bottom: 24px !important; } 
+        
+        /* 타임라인 분기 처리 */
+        .timeline-desktop { display: none !important; }
+        .timeline-mobile { display: flex !important; flex-direction: column; gap: 12px; width: 100%; }
+        
+        /* 모바일 카드 리스트 스타일 */
+        .m-time-card { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; flex-direction: column; gap: 8px; border-left: 4px solid var(--border-strong); }
+        .m-time-card.type-res { border-left-color: var(--primary); }
+        .m-time-card.type-trn { border-left-color: rgba(255, 121, 0, 0.65); }
+        .m-time-card.type-blk { border-left-color: #9ca3af; }
+        .m-time-header { display: flex; justify-content: space-between; align-items: center; }
+        .m-time-badge { font-size: 16px; font-weight: 800; color: var(--text-display); letter-spacing: -0.5px; }
+        .m-equip-badge { font-size: 11px; padding: 4px 8px; background: #f4f5f7; color: #505967; border-radius: 6px; font-weight: 700; word-break: keep-all; }
+        .m-user-info { font-size: 14px; font-weight: 600; color: var(--text-display); line-height: 1.4; word-break: keep-all;}
+        .m-sub-info { font-size: 13px; color: var(--text-secondary); margin-top: 2px;}
+    }
 `;
 
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
@@ -372,7 +401,7 @@ window.updateSpaceOptions = function() {
                 else {
                     let arr = parts.filter(s => s !== '전체 (공간 전체)' && s !== '');
                     if(!arr.includes(clickedVal)) { arr.push(clickedVal); } else { arr = arr.filter(v => v !== clickedVal); }
-                    // 💡 수정: 불필요한 꼬리 콤마 강제 삽입 제거 (배열 결합만 수행)
+                    // 💡 해결: 불필요하게 남던 꼬리 콤마(,) 제거. 단일 선택 시 깔끔하게 처리됩니다.
                     blkSpaceInput.value = arr.join(', ');
                 }
                 blkSpaceInput.focus(); window.renderCustomOptions("");
@@ -396,6 +425,15 @@ function startRealtimeSync() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => { window.fetchApplications(); })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => { window.fetchMembers(); })
       .subscribe();
+
+    // 💡 해결: 웹소켓 장애/미설정 시에도 화면을 백그라운드에서 강제 갱신하는 30초 폴링(Polling) 이중 안전장치
+    if (fallbackSyncInterval) clearInterval(fallbackSyncInterval);
+    fallbackSyncInterval = setInterval(() => {
+        let activeMain = localStorage.getItem('wecoffee_main_tab') || 'page-center';
+        if (activeMain === 'page-center') window.fetchCenterData();
+        else if (activeMain === 'page-applications') window.fetchApplications();
+        else if (activeMain === 'page-members') window.fetchMembers();
+    }, 30000);
 }
 
 function handleLoginSuccess() {
@@ -418,7 +456,14 @@ function initializeApp() {
   supabaseClient.auth.getSession().then(({ data: { session } }) => { if (session && !isAppInitialized) { handleLoginSuccess(); isAppInitialized = true; } });
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (session) { if(!isAppInitialized) { handleLoginSuccess(); isAppInitialized = true; } } 
-    else { var lv = $("login-view"); if(lv) lv.classList.add('active'); var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; isAppInitialized = false; if(realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; } }
+    else { 
+        var lv = $("login-view"); if(lv) lv.classList.add('active'); 
+        var dv = $("dashboard-view"); if(dv) dv.style.display = 'none'; 
+        isAppInitialized = false; 
+        if(realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; } 
+        // 💡 해결: 로그아웃 시 폴링 타이머 중지
+        if(fallbackSyncInterval) { clearInterval(fallbackSyncInterval); fallbackSyncInterval = null; }
+    }
   });
 }
 if (document.readyState === 'loading') document.addEventListener("DOMContentLoaded", initializeApp); else initializeApp();
@@ -543,7 +588,7 @@ window.fetchCenterData = async function() {
   } catch(e){ console.error(e); }
 }
 
-// 💡 누락되었던 메인 대시보드(센터 일정) 전환 및 월 이동 함수 복구
+// 💡 해결: 누락되었던 메인 대시보드(센터 일정) 뷰 전환 및 월 이동 제어 함수 복구
 window.toggleDashView = function(view) { 
     currentDashView = view; 
     if(view === 'month') { if($("dashMonthNav")) $("dashMonthNav").style.display = 'flex'; } 
@@ -552,6 +597,258 @@ window.toggleDashView = function(view) {
 };
 window.changeDashMonth = function(offset) { currentDashMonthOffset += offset; window.renderDashboard(); };
 window.resetDashMonth = function() { currentDashMonthOffset = 0; window.renderDashboard(); };
+window.changeResPage = function(page) {
+    currentResPage = page;
+    window.renderResTablePage();
+};
+
+window.toggleResAccordion = function() {
+    let wrap = document.getElementById('resTableWrap');
+    let pg = document.getElementById('resPaginationWrap');
+    let btn = document.getElementById('resAccordionBtn');
+    
+    if (wrap.style.display === 'none') {
+        wrap.style.display = 'block';
+        if (pg) pg.style.display = 'flex';
+        btn.innerHTML = '접기 ▲';
+    } else {
+        wrap.style.display = 'none';
+        if (pg) pg.style.display = 'none';
+        btn.innerHTML = '펼치기 ▼';
+    }
+};
+
+window.renderTimeline = function() {
+    const timelineArea = document.getElementById('timeline-area');
+    if (!timelineArea) return;
+
+    let centersToRender = currentGlobalCenter === '전체' ? ['마포 센터', '광진 센터'] : [currentGlobalCenter];
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
+    const START_HOUR = 0;
+    const TOTAL_MINUTES = 24 * 60; 
+
+    let finalHtml = `
+        <div class="timeline-section">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; flex-wrap: wrap; gap: 8px;">
+                <div style="font-size: 18px; font-weight: 800; color: var(--text-display); margin-bottom: 0; line-height: 1; text-align: left;">
+                    실시간 센터 현황 <span style="font-size: 13px; color: var(--text-tertiary); font-weight: 500; margin-left: 8px;">${todayStr} 기준</span>
+                </div>
+            </div>
+    `;
+
+    // 💡 모바일 뷰: 세로형 카드 리스트 렌더링 로직 (제안 2)
+    let mobileEvents = [];
+    gRes.forEach(r => {
+        if (r.res_date === todayStr && centersToRender.includes(r.center) && !String(r.status).includes('취소')) {
+            mobileEvents.push({ type: 'res', center: r.center, time: r.res_time, start: r.res_time.split('~')[0].trim(), equip: r.space_equip, name: `[${r.batch||'-'}] ${r.name}` });
+        }
+    });
+    gTrn.forEach(t => {
+        let cInfo = String(t.content || '').split('||').map(s => s.trim());
+        if (cInfo.length >= 5 && cInfo[0] === todayStr && centersToRender.includes(cInfo[3]) && !String(t.status).includes('취소')) {
+            mobileEvents.push({ type: 'trn', center: cInfo[3], time: cInfo[2], start: cInfo[2].split('~')[0].trim(), equip: cInfo[4], name: `[수강] ${t.name}` });
+        }
+    });
+    gBlk.forEach(b => {
+        if (b.block_date === todayStr && centersToRender.includes(b.center)) {
+            mobileEvents.push({ type: 'blk', center: b.center, time: `${b.start_time}~${b.end_time}`, start: b.start_time, equip: b.space_equip || '공간 전체', name: `[${b.category}] ${b.reason}` });
+        }
+    });
+
+    mobileEvents.sort((a, b) => {
+        let aMins = parseInt(a.start.split(':')[0]||0) * 60 + parseInt(a.start.split(':')[1]||0);
+        let bMins = parseInt(b.start.split(':')[0]||0) * 60 + parseInt(b.start.split(':')[1]||0);
+        return aMins - bMins;
+    });
+
+    let mobileHtml = `<div class="timeline-mobile">`;
+    if (mobileEvents.length === 0) {
+        mobileHtml += `<div class="empty-state" style="padding: 40px 0; background:#f9fafb; border-radius:12px; border:1px solid #eee;">오늘 예정된 일정이 없습니다.</div>`;
+    } else {
+        mobileEvents.forEach(e => {
+            let typeClass = e.type === 'res' ? 'type-res' : (e.type === 'trn' ? 'type-trn' : 'type-blk');
+            let timeBadgeColor = e.type === 'res' ? 'var(--primary)' : (e.type === 'trn' ? 'rgba(255, 121, 0, 0.9)' : '#6b7280');
+            mobileHtml += `
+                <div class="m-time-card ${typeClass}">
+                    <div class="m-time-header">
+                        <div class="m-time-badge" style="color: ${timeBadgeColor};">${e.time}</div>
+                        <div class="m-equip-badge">${e.center} | ${e.equip}</div>
+                    </div>
+                    <div class="m-user-info">${window.escapeHtml(e.name)}</div>
+                </div>`;
+        });
+    }
+    mobileHtml += `</div>`;
+
+
+    // 💡 PC 뷰: 가로 2D 그리드 (좌측 텍스트 Sticky 적용) 렌더링 로직
+    let desktopHtml = `<div class="timeline-desktop">`;
+    
+    function generateBar(timeRange, label, typeClass, tooltip) {
+        if (!timeRange || !timeRange.includes('~')) return '';
+        const [startStr, endStr] = timeRange.split('~');
+        const [sh, sm] = startStr.trim().split(':').map(Number);
+        const [eh, em] = endStr.trim().split(':').map(Number);
+        if (isNaN(sh) || isNaN(eh)) return '';
+        const startMins = sh * 60 + (sm || 0);
+        const endMins = eh * 60 + (em || 0);
+        let startOffset = startMins - (START_HOUR * 60);
+        let duration = endMins - startMins;
+        if (duration <= 0) return '';
+        const left = (startOffset / TOTAL_MINUTES) * 100;
+        const width = (duration / TOTAL_MINUTES) * 100;
+        return `<div class="timeline-bar ${typeClass}" style="left:${left}%; width:${width}%;" data-tippy="${window.escapeHtml(tooltip)}" onmouseenter="window.showGlobalTooltip(event, this)" onmouseleave="window.hideGlobalTooltip()">${window.escapeHtml(label)}</div>`;
+    }
+
+    function isMatch(dbSpace, uiEquip, zoneName) {
+        let dbStr = String(dbSpace || '').trim();
+        if (uiEquip === 'merged' || uiEquip === '공간 전체') {
+            let safeDb = dbStr.replace(/\s+/g, '');
+            return safeDb === zoneName.replace(/\s+/g, '') || safeDb.includes('전체');
+        }
+        
+        let uiClean = uiEquip.split('(')[0].trim(); 
+        
+        let safeUi = uiClean.replace(/\s+/g, '');
+        let safeDb = dbStr.replace(/\s+/g, '');
+        if (safeDb.includes(safeUi)) return true;
+        
+        let coreWords = uiClean.split(' '); 
+        let allWordsMatch = coreWords.every(word => safeDb.includes(word));
+        if (allWordsMatch) return true;
+        
+        return false;
+    }
+
+    function renderBarsFor(equipName, zoneName, centerName) {
+        let barsHtml = '';
+        gRes.forEach(r => {
+            if (r.res_date === todayStr && r.center === centerName && !String(r.status).includes('취소')) {
+                if (isMatch(r.space_equip, equipName, zoneName)) {
+                    barsHtml += generateBar(r.res_time, `[${r.batch||'-'}] ${r.name}`, 'bar-res', `${r.res_time} | ${r.space_equip} | ${r.name}`);
+                }
+            }
+        });
+        gTrn.forEach(t => {
+            let cInfo = String(t.content || '').split('||').map(s => s.trim());
+            if (cInfo.length >= 5 && cInfo[0] === todayStr && cInfo[3] === centerName && !String(t.status).includes('취소')) {
+                if (isMatch(cInfo[4], equipName, zoneName)) {
+                    barsHtml += generateBar(cInfo[2], `[수강] ${t.name}`, 'bar-trn', `${cInfo[2]} | ${cInfo[4]} | ${t.name}`);
+                }
+            }
+        });
+        gBlk.forEach(b => {
+            if (b.block_date === todayStr && b.center === centerName) {
+                if (isMatch(b.space_equip, equipName, zoneName) || (!b.space_equip && (equipName === 'merged' || equipName === '공간 전체'))) {
+                    barsHtml += generateBar(`${b.start_time}~${b.end_time}`, `[${b.category}] ${b.reason}`, 'bar-blk', `${b.start_time}~${b.end_time} | ${b.reason}`);
+                }
+            }
+        });
+        return barsHtml;
+    }
+
+    let mapoSpaces = [
+        { zone: '에스프레소존', equips: ['공간 전체', '아스토리아 스톰 1번(좌)', '아스토리아 스톰 2번(우)'] },
+        { zone: '로스팅존', equips: ['공간 전체', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8', '스트롱홀드 S7X'] },
+        { zone: '브루잉존', equips: ['merged'] }, { zone: '커핑존', equips: ['merged'] }, { zone: '스터디존', equips: ['merged'] }
+    ];
+    let gwangjinSpaces = [
+        { zone: '에스프레소존', equips: ['공간 전체', '시네소 MVP 1번(좌)', '시네소 MVP 2번(우)', '페마 페미나', '산레모 You', '이글원 프리마 프로', '이글원 프리마 EXP'] },
+        { zone: '로스팅존', equips: ['공간 전체', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8 1번(좌)', '이지스터 1.8 2번'] },
+        { zone: '브루잉존', equips: ['merged'] }, { zone: '커핑존', equips: ['merged'] }, { zone: '스터디룸', equips: ['merged'] }
+    ];
+
+    centersToRender.forEach((centerName, idx) => {
+        let spaceGroups = centerName === '마포 센터' ? mapoSpaces : gwangjinSpaces;
+        desktopHtml += `
+            <div style="${idx > 0 ? 'margin-top: 32px;' : ''}">
+                <div style="font-size:15px; font-weight:800; color:var(--text-display); margin-bottom:12px; text-align: left;">${centerName}</div>
+                <div class="timeline-container">
+                    <div class="timeline-grid">
+                        <div class="timeline-header">
+                            <div class="resource-label-header">공간 / 장비</div>
+                            <div class="time-slots-header">
+                                ${Array.from({length: 24}, (_, i) => `<div class="time-slot-num">${String(i).padStart(2,'0')}:00</div>`).join('')}
+                            </div>
+                        </div>
+        `;
+        spaceGroups.forEach(group => {
+            if (group.equips.length === 1 && group.equips[0] === 'merged') {
+                desktopHtml += `<div class="timeline-row"><div class="merged-col">${group.zone}</div><div class="time-grid-bg">${renderBarsFor('merged', group.zone, centerName)}</div></div>`;
+            } else {
+                desktopHtml += `<div class="zone-group-row"><div class="zone-col">${group.zone}</div><div class="equip-col-wrapper">`;
+                group.equips.forEach(eq => {
+                    desktopHtml += `<div class="timeline-row"><div class="equip-name">${eq}</div><div class="time-grid-bg">${renderBarsFor(eq, group.zone, centerName)}</div></div>`;
+                });
+                desktopHtml += `</div></div>`;
+            }
+        });
+        desktopHtml += `</div></div></div>`; 
+    });
+    desktopHtml += `</div>`;
+
+    // 모바일 HTML과 데스크탑 HTML 통합 렌더링
+    finalHtml += mobileHtml + desktopHtml + `</div>`;
+    timelineArea.innerHTML = finalHtml;
+};
+
+window.renderResTablePage = function() {
+    let data = window.currentFilteredRes || [];
+    let tbody = $("resTableBody");
+    if(!tbody) return;
+
+    let startIndex = (currentResPage - 1) * resItemsPerPage;
+    let endIndex = startIndex + resItemsPerPage;
+    let pageData = data.slice(startIndex, endIndex);
+    const now = new Date();
+
+    if(pageData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="11" class="empty-state">내역 없음</td></tr>`;
+        window.updateResPaginationUI(0);
+        return;
+    }
+
+    tbody.innerHTML = pageData.map(r=>{ 
+        let displayStatus = r.status || ''; let isExpired = false;
+        if (r.res_time && r.res_date && !String(displayStatus).includes('취소')) { 
+            let endTimeStr = String(r.res_time).split('~')[1];
+            if(endTimeStr) { let [hh, mm] = endTimeStr.trim().split(':'); let resEndObj = new Date(`${r.res_date}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`); if (resEndObj < now) { displayStatus = '이용완료'; isExpired = true; } }
+        } 
+        let actBtn = (String(displayStatus).includes('취소') || displayStatus === '이용완료' || isExpired) 
+          ? `<button class="btn-outline btn-sm" disabled style="opacity:0.5; cursor:not-allowed;">취소</button>` : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; 
+        let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '이용완료' ? 'badge-gray' : (displayStatus === '예약완료' ? 'badge-green' : 'badge-gray'))); 
+        let statHtml = displayStatus === '당일 취소' ? `<span class="status-badge ${badgeClass}" style="cursor:pointer;" onclick="event.stopPropagation(); window.showCancelReason('${window.escapeHtml(r.cancel_reason || '사유 미기재').replace(/'/g, "\\'")}')">${displayStatus}</span>` : `<span class="status-badge ${badgeClass}">${displayStatus}</span>`;
+        let dow = getDow(r.res_date); 
+        let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${r.batch||'-'}] ${window.escapeHtml(r.name)}</span>${statHtml}</div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${r.res_date}(${dow}) ${r.res_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${r.center}] ${r.space_equip || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
+        return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
+    }).join("");
+
+    window.updateResPaginationUI(data.length);
+};
+
+window.updateResPaginationUI = function(totalItems) {
+    let paginationWrap = document.getElementById('resPaginationWrap');
+    let tableWrap = document.querySelector('#resTableBody')?.closest('.table-wrap');
+    if(!paginationWrap && tableWrap) {
+        tableWrap.id = 'resTableWrap'; 
+        paginationWrap = document.createElement('div');
+        paginationWrap.id = 'resPaginationWrap';
+        paginationWrap.style.cssText = 'display:flex; justify-content:center; align-items:center; gap:8px; padding:20px 0;';
+        tableWrap.parentNode.insertBefore(paginationWrap, tableWrap.nextSibling);
+    }
+    if(!paginationWrap) return;
+    if(totalItems === 0 || resItemsPerPage >= totalItems) { paginationWrap.innerHTML = ''; return; }
+
+    let totalPages = Math.ceil(totalItems / resItemsPerPage); let html = '';
+    let startPage = Math.max(1, currentResPage - 2); let endPage = Math.min(totalPages, startPage + 4); if(endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+    if(currentResPage > 1) { html += `<button class="pagination-btn" onclick="window.changeResPage(${currentResPage - 1})">이전</button>`; }
+    for(let i = startPage; i <= endPage; i++) { let activeClass = i === currentResPage ? 'active' : ''; html += `<button class="pagination-btn ${activeClass}" onclick="window.changeResPage(${i})">${i}</button>`; }
+    if(currentResPage < totalPages) { html += `<button class="pagination-btn" onclick="window.changeResPage(${currentResPage + 1})">다음</button>`; }
+    paginationWrap.innerHTML = html;
+};
+
 window.renderCenterData = function() {
   const now = new Date(); 
   const oneMonthAgo = new Date(); oneMonthAgo.setDate(now.getDate() - 30);
@@ -696,207 +993,6 @@ window.renderCenterData = function() {
           return `<tr>${mPreview}<td data-label="날짜"><strong>${b.block_date}</strong></td><td data-label="시간">${b.start_time} ~ ${b.end_time}</td><td data-label="구분"><span style="color:var(--primary);font-weight:600;">${b.category}</span></td><td data-label="공간">${b.center} <span class="sub-text">${b.space_equip || '전체'}</span></td><td data-label="사유">${window.escapeHtml(b.reason)}</td><td data-label="정원" class="tc">${capDisplay}</td><td data-label="관리" class="tc"><div class="action-wrap-flex"><button class="btn-outline btn-sm" onclick="window.editBlock('${b.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteBlock('${b.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>` 
       }).join("") : `<tr><td colspan="8" class="empty-state">진행 예정인 스케줄이 없습니다.</td></tr>`;
   } catch(e) { console.error(e); }
-};
-
-window.changeResPage = function(page) {
-    currentResPage = page;
-    window.renderResTablePage();
-};
-
-window.toggleResAccordion = function() {
-    let wrap = document.getElementById('resTableWrap');
-    let pg = document.getElementById('resPaginationWrap');
-    let btn = document.getElementById('resAccordionBtn');
-    
-    if (wrap.style.display === 'none') {
-        wrap.style.display = 'block';
-        if (pg) pg.style.display = 'flex';
-        btn.innerHTML = '접기 ▲';
-    } else {
-        wrap.style.display = 'none';
-        if (pg) pg.style.display = 'none';
-        btn.innerHTML = '펼치기 ▼';
-    }
-};
-
-window.renderTimeline = function() {
-    const timelineArea = document.getElementById('timeline-area');
-    if (!timelineArea) return;
-
-    let centersToRender = currentGlobalCenter === '전체' ? ['마포 센터', '광진 센터'] : [currentGlobalCenter];
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    
-    const START_HOUR = 0;
-    const TOTAL_MINUTES = 24 * 60; 
-
-    // 💡 HTML 렌더링에 merged-col 클래스 추가 반영
-    let finalHtml = `
-        <div class="timeline-section">
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; flex-wrap: wrap; gap: 8px;">
-                <div style="font-size: 18px; font-weight: 800; color: var(--text-display); margin-bottom: 0; line-height: 1; text-align: left;">
-                    실시간 센터 현황 <span style="font-size: 13px; color: var(--text-tertiary); font-weight: 500; margin-left: 8px;">${todayStr} 기준</span>
-                </div>
-            </div>
-    `;
-
-    function generateBar(timeRange, label, typeClass, tooltip) {
-        if (!timeRange || !timeRange.includes('~')) return '';
-        const [startStr, endStr] = timeRange.split('~');
-        const [sh, sm] = startStr.trim().split(':').map(Number);
-        const [eh, em] = endStr.trim().split(':').map(Number);
-        if (isNaN(sh) || isNaN(eh)) return '';
-        const startMins = sh * 60 + (sm || 0);
-        const endMins = eh * 60 + (em || 0);
-        let startOffset = startMins - (START_HOUR * 60);
-        let duration = endMins - startMins;
-        if (duration <= 0) return '';
-        const left = (startOffset / TOTAL_MINUTES) * 100;
-        const width = (duration / TOTAL_MINUTES) * 100;
-        return `<div class="timeline-bar ${typeClass}" style="left:${left}%; width:${width}%;" data-tippy="${window.escapeHtml(tooltip)}" onmouseenter="window.showGlobalTooltip(event, this)" onmouseleave="window.hideGlobalTooltip()">${window.escapeHtml(label)}</div>`;
-    }
-
-    function isMatch(dbSpace, uiEquip, zoneName) {
-        let dbStr = String(dbSpace || '').trim();
-        if (uiEquip === 'merged' || uiEquip === '공간 전체') {
-            let safeDb = dbStr.replace(/\s+/g, '');
-            return safeDb === zoneName.replace(/\s+/g, '') || safeDb.includes('전체');
-        }
-        
-        let uiClean = uiEquip.split('(')[0].trim(); 
-        
-        let safeUi = uiClean.replace(/\s+/g, '');
-        let safeDb = dbStr.replace(/\s+/g, '');
-        if (safeDb.includes(safeUi)) return true;
-        
-        let coreWords = uiClean.split(' '); 
-        let allWordsMatch = coreWords.every(word => safeDb.includes(word));
-        if (allWordsMatch) return true;
-        
-        return false;
-    }
-
-    function renderBarsFor(equipName, zoneName, centerName) {
-        let barsHtml = '';
-        gRes.forEach(r => {
-            if (r.res_date === todayStr && r.center === centerName && !String(r.status).includes('취소')) {
-                if (isMatch(r.space_equip, equipName, zoneName)) {
-                    barsHtml += generateBar(r.res_time, `[${r.batch||'-'}] ${r.name}`, 'bar-res', `${r.res_time} | ${r.space_equip} | ${r.name}`);
-                }
-            }
-        });
-        gTrn.forEach(t => {
-            let cInfo = String(t.content || '').split('||').map(s => s.trim());
-            if (cInfo.length >= 5 && cInfo[0] === todayStr && cInfo[3] === centerName && !String(t.status).includes('취소')) {
-                if (isMatch(cInfo[4], equipName, zoneName)) {
-                    barsHtml += generateBar(cInfo[2], `[수강] ${t.name}`, 'bar-trn', `${cInfo[2]} | ${cInfo[4]} | ${t.name}`);
-                }
-            }
-        });
-        gBlk.forEach(b => {
-            if (b.block_date === todayStr && b.center === centerName) {
-                if (isMatch(b.space_equip, equipName, zoneName) || (!b.space_equip && (equipName === 'merged' || equipName === '공간 전체'))) {
-                    barsHtml += generateBar(`${b.start_time}~${b.end_time}`, `[${b.category}] ${b.reason}`, 'bar-blk', `${b.start_time}~${b.end_time} | ${b.reason}`);
-                }
-            }
-        });
-        return barsHtml;
-    }
-
-    let mapoSpaces = [
-        { zone: '에스프레소존', equips: ['공간 전체', '아스토리아 스톰 1번(좌)', '아스토리아 스톰 2번(우)'] },
-        { zone: '로스팅존', equips: ['공간 전체', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8', '스트롱홀드 S7X'] },
-        { zone: '브루잉존', equips: ['merged'] }, { zone: '커핑존', equips: ['merged'] }, { zone: '스터디존', equips: ['merged'] }
-    ];
-    let gwangjinSpaces = [
-        { zone: '에스프레소존', equips: ['공간 전체', '시네소 MVP 1번(좌)', '시네소 MVP 2번(우)', '페마 페미나', '산레모 You', '이글원 프리마 프로', '이글원 프리마 EXP'] },
-        { zone: '로스팅존', equips: ['공간 전체', '이지스터 800 1번(좌)', '이지스터 800 2번(우)', '이지스터 1.8 1번(좌)', '이지스터 1.8 2번'] },
-        { zone: '브루잉존', equips: ['merged'] }, { zone: '커핑존', equips: ['merged'] }, { zone: '스터디룸', equips: ['merged'] }
-    ];
-
-    centersToRender.forEach((centerName, idx) => {
-        let spaceGroups = centerName === '마포 센터' ? mapoSpaces : gwangjinSpaces;
-        finalHtml += `
-            <div style="${idx > 0 ? 'margin-top: 32px;' : ''}">
-                <div style="font-size:15px; font-weight:800; color:var(--text-display); margin-bottom:12px; text-align: left;">${centerName}</div>
-                <div class="timeline-container">
-                    <div class="timeline-grid">
-                        <div class="timeline-header">
-                            <div class="resource-label-header">공간 / 장비</div>
-                            <div class="time-slots-header">
-                                ${Array.from({length: 24}, (_, i) => `<div class="time-slot-num">${String(i).padStart(2,'0')}:00</div>`).join('')}
-                            </div>
-                        </div>
-        `;
-        spaceGroups.forEach(group => {
-            if (group.equips.length === 1 && group.equips[0] === 'merged') {
-                finalHtml += `<div class="timeline-row"><div class="merged-col">${group.zone}</div><div class="time-grid-bg">${renderBarsFor('merged', group.zone, centerName)}</div></div>`;
-            } else {
-                finalHtml += `<div class="zone-group-row"><div class="zone-col">${group.zone}</div><div class="equip-col-wrapper">`;
-                group.equips.forEach(eq => {
-                    finalHtml += `<div class="timeline-row"><div class="equip-name">${eq}</div><div class="time-grid-bg">${renderBarsFor(eq, group.zone, centerName)}</div></div>`;
-                });
-                finalHtml += `</div></div>`;
-            }
-        });
-        finalHtml += `</div></div></div>`; 
-    });
-    timelineArea.innerHTML = finalHtml + `</div>`;
-};
-
-window.renderResTablePage = function() {
-    let data = window.currentFilteredRes || [];
-    let tbody = $("resTableBody");
-    if(!tbody) return;
-
-    let startIndex = (currentResPage - 1) * resItemsPerPage;
-    let endIndex = startIndex + resItemsPerPage;
-    let pageData = data.slice(startIndex, endIndex);
-    const now = new Date();
-
-    if(pageData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="11" class="empty-state">내역 없음</td></tr>`;
-        window.updateResPaginationUI(0);
-        return;
-    }
-
-    tbody.innerHTML = pageData.map(r=>{ 
-        let displayStatus = r.status || ''; let isExpired = false;
-        if (r.res_time && r.res_date && !String(displayStatus).includes('취소')) { 
-            let endTimeStr = String(r.res_time).split('~')[1];
-            if(endTimeStr) { let [hh, mm] = endTimeStr.trim().split(':'); let resEndObj = new Date(`${r.res_date}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00`); if (resEndObj < now) { displayStatus = '이용완료'; isExpired = true; } }
-        } 
-        let actBtn = (String(displayStatus).includes('취소') || displayStatus === '이용완료' || isExpired) 
-          ? `<button class="btn-outline btn-sm" disabled style="opacity:0.5; cursor:not-allowed;">취소</button>` : `<button class="btn-outline btn-sm" onclick="window.cancelAction('reservations', '${r.id}')">취소</button>`; 
-        let badgeClass = displayStatus === '당일 취소' ? 'badge-red' : (String(displayStatus).includes('취소') ? 'badge-gray' : (displayStatus === '이용완료' ? 'badge-gray' : (displayStatus === '예약완료' ? 'badge-green' : 'badge-gray'))); 
-        let statHtml = displayStatus === '당일 취소' ? `<span class="status-badge ${badgeClass}" style="cursor:pointer;" onclick="event.stopPropagation(); window.showCancelReason('${window.escapeHtml(r.cancel_reason || '사유 미기재').replace(/'/g, "\\'")}')">${displayStatus}</span>` : `<span class="status-badge ${badgeClass}">${displayStatus}</span>`;
-        let dow = getDow(r.res_date); 
-        let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date" style="font-weight:700; color:var(--primary); font-size:13px;">[${r.batch||'-'}] ${window.escapeHtml(r.name)}</span>${statHtml}</div><div class="m-prev-title" style="font-size:18px; color:var(--text-display); letter-spacing:-0.5px;">${r.res_date}(${dow}) ${r.res_time}</div><div class="m-prev-desc" style="font-size:13px; font-weight:500;">[${r.center}] ${r.space_equip || '-'}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`; 
-        return `<tr>${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-res" value="${r.id}" ${String(displayStatus).includes('취소')?'disabled':''}></td><td data-label="접수일">${formatDt(r.created_at)}</td><td data-label="기수">${r.batch||'-'}</td><td data-label="성함"><strong>${window.escapeHtml(r.name)}</strong></td><td data-label="연락처">${window.escapeHtml(r.phone)}</td><td data-label="예약일">${r.res_date}</td><td data-label="시간">${r.res_time}</td><td data-label="공간">${r.center} <span class="sub-text">${r.space_equip}</span></td><td data-label="상태" class="tc">${statHtml}</td><td data-label="관리">${actBtn}</td></tr>`; 
-    }).join("");
-
-    window.updateResPaginationUI(data.length);
-};
-
-window.updateResPaginationUI = function(totalItems) {
-    let paginationWrap = document.getElementById('resPaginationWrap');
-    let tableWrap = document.querySelector('#resTableBody')?.closest('.table-wrap');
-    if(!paginationWrap && tableWrap) {
-        tableWrap.id = 'resTableWrap'; 
-        paginationWrap = document.createElement('div');
-        paginationWrap.id = 'resPaginationWrap';
-        paginationWrap.style.cssText = 'display:flex; justify-content:center; align-items:center; gap:8px; padding:20px 0;';
-        tableWrap.parentNode.insertBefore(paginationWrap, tableWrap.nextSibling);
-    }
-    if(!paginationWrap) return;
-    if(totalItems === 0 || resItemsPerPage >= totalItems) { paginationWrap.innerHTML = ''; return; }
-
-    let totalPages = Math.ceil(totalItems / resItemsPerPage); let html = '';
-    let startPage = Math.max(1, currentResPage - 2); let endPage = Math.min(totalPages, startPage + 4); if(endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
-    if(currentResPage > 1) { html += `<button class="pagination-btn" onclick="window.changeResPage(${currentResPage - 1})">이전</button>`; }
-    for(let i = startPage; i <= endPage; i++) { let activeClass = i === currentResPage ? 'active' : ''; html += `<button class="pagination-btn ${activeClass}" onclick="window.changeResPage(${i})">${i}</button>`; }
-    if(currentResPage < totalPages) { html += `<button class="pagination-btn" onclick="window.changeResPage(${currentResPage + 1})">다음</button>`; }
-    paginationWrap.innerHTML = html;
 };
 
 function generateOrderRows(fOrd, chkClass) { 
