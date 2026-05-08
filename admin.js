@@ -21,28 +21,27 @@ window.showGlobalTooltip = function(e, el) {
     if(!tt) {
         tt = document.createElement('div');
         tt.id = 'global-tooltip';
-        tt.style.cssText = 'position:fixed;background:#333d4b;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;white-space:pre-wrap;z-index:999999;pointer-events:none;word-break:keep-all;line-height:1.5;text-align:left;max-width:280px;';
+        tt.style.cssText = 'position:fixed;background:#333d4b;color:#fff;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:500;white-space:pre-wrap;z-index:999999;pointer-events:none;word-break:keep-all;line-height:1.5;text-align:left;max-width:260px;';
         document.body.appendChild(tt);
     }
     tt.innerHTML = el.getAttribute('data-tippy') || '';
-    tt.style.visibility = 'hidden';
+    // 오프스크린에서 크기 먼저 측정 (겹침 방지)
+    tt.style.left = '-9999px';
+    tt.style.top = '0px';
     tt.style.display = 'block';
+    const ttW = tt.offsetWidth || 160;
+    const ttH = tt.offsetHeight || 36;
 
     let rect = el.getBoundingClientRect();
-    let ttW = tt.offsetWidth;
-    let ttH = tt.offsetHeight;
-
-    // 중앙 정렬 기본값
     let left = rect.left + rect.width / 2 - ttW / 2;
     let top = rect.top - ttH - 8;
 
     // 화면 경계 보정
     left = Math.max(8, Math.min(left, window.innerWidth - ttW - 8));
-    if (top < 8) top = rect.bottom + 8; // 위 공간 없으면 아래로
+    if (top < 8) top = rect.bottom + 8;
 
     tt.style.left = left + 'px';
     tt.style.top = top + 'px';
-    tt.style.visibility = 'visible';
 };
 window.hideGlobalTooltip = function() {
     let tt = document.getElementById('global-tooltip');
@@ -146,7 +145,7 @@ wecoffeeStyle.innerHTML = `
     /* 신청자 모달 */
     #trnContentModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99990; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
     #trnContentModal.show { display:flex; }
-    #trnContentModal .tcm-box { background:#fff; border-radius:16px; width:100%; max-width:520px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; }
+    #trnContentModal .tcm-box { background:#fff; border-radius:16px; width:100%; max-width:720px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; }
     #trnContentModal .tcm-header { padding:20px 24px 16px; border-bottom:1px solid var(--border-strong); flex-shrink:0; }
     #trnContentModal .tcm-title { font-size:16px; font-weight:800; color:var(--text-display); margin-bottom:4px; line-height:1.4; word-break:keep-all; }
     #trnContentModal .tcm-sub { font-size:13px; color:var(--text-secondary); font-weight:500; }
@@ -527,7 +526,7 @@ window.toggleResAccordion=function(){let wrap=document.getElementById('resTableW
 
 function ensureTrnContentModal(){if(document.getElementById('trnContentModal'))return;let modal=document.createElement('div');modal.id='trnContentModal';modal.innerHTML=`<div class="tcm-box"><div class="tcm-header"><div class="tcm-title" id="tcmTitle"></div><div class="tcm-sub" id="tcmSub"></div></div><div class="tcm-body" id="tcmBody"></div><div class="tcm-footer"><span id="tcmCount" style="font-size:13px;font-weight:700;color:var(--text-secondary);"></span><div style="display:flex;gap:8px;"><button class="btn-outline" onclick="window.downloadTrnContentAttendees()" style="font-size:13px;padding:8px 16px;border-color:var(--primary);color:var(--primary);font-weight:700;">신청자 명단 다운로드</button><button class="btn-outline" onclick="window.closeTrnContentModal()" style="font-size:13px;padding:8px 16px;">닫기</button></div></div></div>`;modal.addEventListener('click',function(e){if(e.target===modal)window.closeTrnContentModal();});document.body.appendChild(modal);}
 function calcNth(phone,contentName){return gTrn.filter(x=>{if(x.phone!==phone)return false;if(String(x.status||'').includes('취소'))return false;let xInfo=String(x.content||'').split('||').map(s=>s.trim());let xName=xInfo.length>=5?xInfo[4]:String(x.content||'').trim();return xName===contentName;}).length;}
-function renderAttendeeModal(title,sub,attendees,contentKey,downloadMeta){ensureTrnContentModal();let titleEl=document.getElementById('tcmTitle');let subEl=document.getElementById('tcmSub');let countEl=document.getElementById('tcmCount');let bodyEl=document.getElementById('tcmBody');if(titleEl)titleEl.textContent=title;if(subEl)subEl.textContent=sub;if(countEl)countEl.textContent=`총 ${attendees.length}명 (취소 제외)`;if(bodyEl){if(attendees.length===0){bodyEl.innerHTML=`<div style="text-align:center;padding:40px 0;color:var(--text-tertiary);font-size:14px;font-weight:600;">신청자가 없습니다.</div>`;}else{bodyEl.innerHTML=`<table class="tcm-table"><thead><tr><th>#</th><th>기수</th><th>성함</th><th>연락처</th><th>참여회차</th><th>신청일</th></tr></thead><tbody>${attendees.map((t,idx)=>`<tr><td style="color:var(--text-tertiary);font-size:12px;">${idx+1}</td><td><strong>${t.batch||'-'}</strong></td><td><strong style="color:var(--text-display);">${window.escapeHtml(t.name)}</strong></td><td style="color:var(--text-secondary);">${window.escapeHtml(t.phone)}</td><td style="text-align:center;">${t._nth>=2?`<span class="nth-badge">${t._nth}회차</span>`:'-'}</td><td style="color:var(--text-tertiary);font-size:12px;">${formatDt(t.created_at)}</td></tr>`).join('')}</tbody></table>`;}}window._trnContentModalData={attendees,contentKey,...downloadMeta};document.getElementById('trnContentModal').classList.add('show');}
+function renderAttendeeModal(title,sub,attendees,contentKey,downloadMeta){ensureTrnContentModal();let titleEl=document.getElementById('tcmTitle');let subEl=document.getElementById('tcmSub');let countEl=document.getElementById('tcmCount');let bodyEl=document.getElementById('tcmBody');if(titleEl)titleEl.textContent=title;if(subEl)subEl.textContent=sub;if(countEl)countEl.textContent=`총 ${attendees.length}명 (취소 제외)`;if(bodyEl){if(attendees.length===0){bodyEl.innerHTML=`<div style="text-align:center;padding:40px 0;color:var(--text-tertiary);font-size:14px;font-weight:600;">신청자가 없습니다.</div>`;}else{bodyEl.innerHTML=`<table class="tcm-table" style="table-layout:fixed;width:100%;"><thead><tr><th style="width:36px;">#</th><th style="width:56px;">기수</th><th>성함</th><th>연락처</th><th style="width:72px;text-align:center;">참여회차</th><th style="width:120px;">신청일</th></tr></thead><tbody>${attendees.map((t,idx)=>`<tr><td style="color:var(--text-tertiary);font-size:12px;">${idx+1}</td><td><strong>${t.batch||'-'}</strong></td><td><strong style="color:var(--text-display);">${window.escapeHtml(t.name)}</strong></td><td style="color:var(--text-secondary);">${window.escapeHtml(t.phone)}</td><td style="text-align:center;">${t._nth>=2?`<span class="nth-badge">${t._nth}회차</span>`:'-'}</td><td style="color:var(--text-tertiary);font-size:12px;">${formatDt(t.created_at)}</td></tr>`).join('')}</tbody></table>`;}}window._trnContentModalData={attendees,contentKey,...downloadMeta};document.getElementById('trnContentModal').classList.add('show');}
 window.openBlkAttendees=function(blockId){let b=gBlk.find(x=>String(x.id)===String(blockId));if(!b)return;let contentKey=`[${b.category}] ${b.reason}`;let timeRange=`${b.start_time}~${b.end_time}`;let attendees=gTrn.filter(t=>{if(String(t.status||'').includes('취소'))return false;let cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length<5)return false;return cInfo[0]===b.block_date&&cInfo[2]===timeRange&&cInfo[3]===b.center&&cInfo[4]===contentKey;});attendees=attendees.map(t=>({...t,_nth:calcNth(t.phone,contentKey)}));attendees.sort((a,bItem)=>{let bA=parseInt(String(a.batch||'').replace(/[^0-9]/g,'')||0);let bB=parseInt(String(bItem.batch||'').replace(/[^0-9]/g,'')||0);if(bA!==bB)return bA-bB;return String(a.name||'').localeCompare(String(bItem.name||''));});renderAttendeeModal(b.reason,`${b.block_date} | ${timeRange} | ${b.center}`,attendees,contentKey,{title:`${b.block_date}_${b.reason}`});};
 window.closeTrnContentModal=function(){let modal=document.getElementById('trnContentModal');if(modal)modal.classList.remove('show');};
 window.downloadTrnContentAttendees=function(){let d=window._trnContentModalData;if(!d||!d.attendees||d.attendees.length===0){showToast('다운로드할 데이터가 없습니다.');return;}let titleStr=d.title||d.contentKey||'명단';let csv='\uFEFF순번,기수,성함,연락처,참여회차,신청일\n';d.attendees.forEach((t,idx)=>{csv+=`"${idx+1}","${t.batch||'-'}","${String(t.name||'').replace(/"/g,'""')}","${String(t.phone||'').replace(/"/g,'""')}","${t._nth>=2?t._nth+'회차':'-'}","${formatDt(t.created_at)}"\n`;});const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_신청자명단_${String(titleStr).replace(/[\/\s:]/g,'_').slice(0,40)}_${new Date().toISOString().slice(0,10)}.csv`;link.click();showToast('명단이 다운로드되었습니다.');};
