@@ -146,10 +146,14 @@ wecoffeeStyle.innerHTML = `
 
     /* ★ 하루종일 체크박스 - 커스텀 스타일 (폼 프레임워크 override) */
     #blkAllDayWrap {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 0 4px;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        padding: 8px 0 4px !important;
+        width: 100% !important;
+        flex: 0 0 100% !important;
+        grid-column: 1 / -1 !important;
+        box-sizing: border-box !important;
     }
     #blkAllDayWrap input[type="checkbox"] {
         appearance: none !important;
@@ -581,8 +585,8 @@ function generateOrderRows(fOrd, chkClass) {
     let cNm = o.item_name||""; let m = String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/); if(m) cNm=m[1].trim(); else { let oM=String(cNm).match(/(.+) \[(.*?)\]/); if(oM) cNm=oM[1].trim(); }
     let centerBadge = `<span style="background:var(--border);color:var(--text-display);padding:6px 10px;border-radius:8px;font-size:13px;font-weight:700;white-space:nowrap;">${o.center||'미지정'}</span>`;
     let vendorUrl = o.link?o.link:(o.url?o.url:'#'); let vendorHtml = `<a href="${vendorUrl}" target="_blank" style="color:var(--text-secondary);font-weight:700;font-size:13px;text-decoration:none;cursor:pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${window.escapeHtml(o.vendor)}</a>`;
-    // ★ 수정: data-tippy를 전체 상품명으로 변경 (기존 "클릭하여 복사" → 전체 상품명 표시)
-    let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g,"\\'")}','상품명이 복사되었습니다.')" data-tippy="${window.escapeHtml(cNm)}" onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()"><div style="display:flex;align-items:center;width:100%;min-width:0;"><span class="copyable-text">${window.escapeHtml(cNm)}</span><span class="copyable-hint">복사</span></div></div>`;
+    // ★ 수정: data-tippy를 원본 전체 상품명으로 변경
+    let copyableHtml = `<div class="copyable-wrap" onclick="window.copyTxt('${String(cNm).replace(/'/g,"\\'")}','상품명이 복사되었습니다.')" data-tippy="${window.escapeHtml(o.item_name||cNm)}" onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()"><div style="display:flex;align-items:center;width:100%;min-width:0;"><span class="copyable-text">${window.escapeHtml(cNm)}</span><span class="copyable-hint">복사</span></div></div>`;
     let cTxtPreview = o.center?`<span style="background:var(--border);color:var(--text-secondary);padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;margin-right:6px;vertical-align:middle;white-space:nowrap;">${o.center}</span>`:'';
     let mPreview = `<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(o.created_at)}</span><span class="status-badge ${badgeClass}">${o.status}</span></div><div class="m-prev-title">[${o.batch||'-'}] <span style="font-weight:800;">${window.escapeHtml(o.name)}</span> <span style="font-size:13px;font-weight:500;color:var(--text-secondary);margin-left:4px;">(${o.quantity})</span></div><div class="m-prev-desc" style="color:var(--text-display);font-weight:500;line-height:1.5;">${cTxtPreview}<span style="font-size:12px;color:var(--text-secondary);margin-right:4px;">${window.escapeHtml(o.vendor)}</span>${window.escapeHtml(cNm)}</div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
     return `<tr style="border-bottom:1px solid var(--border-strong);">${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-ord ${chkClass}" value="${o.id}"></td><td data-label="주문 시간" style="white-space:nowrap;">${formatDt(o.created_at)}</td><td data-label="수령 센터" class="tc">${centerBadge}</td><td data-label="기수" class="tc" style="color:var(--text-secondary);font-size:14px;font-weight:600;">${o.batch||'-'}</td><td data-label="성함"><strong style="font-weight:800;color:var(--text-display);font-size:15px;white-space:nowrap;">${window.escapeHtml(o.name)}</strong></td><td data-label="연락처" style="white-space:nowrap;color:var(--text-secondary);font-size:14px;">${window.escapeHtml(o.phone)}</td><td data-label="생두사 / 상품명" style="width:100%;max-width:340px;"><div style="display:flex;align-items:center;width:100%;min-width:0;gap:8px;"><div style="flex-shrink:0;">${vendorHtml}</div><span style="color:var(--border-strong);font-size:12px;flex-shrink:0;">|</span><div style="flex:1;min-width:0;">${copyableHtml}</div></div></td><td data-label="수량" class="tc" style="font-size:15px;font-weight:700;">${o.quantity}</td><td data-label="총 금액 입력" style="text-align:right;"><input type="text" value="${o.total_price||''}" placeholder="0원" style="width:100px;padding:10px 12px;text-align:right;font-size:14px;font-weight:600;background:#fff;border:1px solid var(--border-strong);border-radius:8px;color:var(--text-display);outline:none;transition:0.2s;" onfocus="this.style.borderColor='var(--primary)';" onblur="this.style.borderColor='var(--border-strong)';window.handlePriceInput('${o.id}',this.value,'${o.status}',this)"></td><td data-label="상태 관리" class="tc"><div class="action-wrap" style="justify-content:center;display:flex;"><select class="status-select ${badgeClass}" onchange="window.handleOrderStatusChange('${o.id}',this.value,this)" style="text-align-last:center;"><option value="주문 접수" ${o.status==='주문 접수'?'selected':''}>주문 접수</option><option value="입금 대기" ${o.status==='입금 대기'?'selected':''}>입금 대기</option><option value="입금 확인 중" ${o.status==='입금 확인 중'?'selected':''}>입금 확인 중</option><option value="입금 확인" ${o.status==='입금 확인'?'selected':''}>입금 확인</option><option value="센터 도착" ${o.status==='센터 도착'?'selected':''}>센터 도착</option><option value="주문 취소" ${o.status==='주문 취소'?'selected':''}>주문 취소</option><option value="품절" ${o.status==='품절'?'selected':''}>품절</option></select></div></td></tr>`;
@@ -684,11 +688,18 @@ window.handleStatusChange = async function(id, newStatus, currentCallTime, curre
 };
 
 window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
+    // HTML에 이미 존재하는 scheduleModal 사용, 없으면 동적 생성
     let modal = document.getElementById('scheduleModal');
+    const needsBuild = !modal || !document.getElementById('schedDateInput');
+
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'scheduleModal';
-        modal.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99990;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99990;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+        document.body.appendChild(modal);
+    }
+
+    if (needsBuild) {
         modal.innerHTML = `
         <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,0.18);overflow:hidden;">
             <div style="padding:20px 24px 16px;border-bottom:1px solid var(--border-strong);">
@@ -710,22 +721,21 @@ window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
             </div>
             <div style="padding:16px 24px;border-top:1px solid var(--border-strong);display:flex;justify-content:flex-end;gap:8px;">
                 <button class="btn-outline" onclick="window.closeScheduleModal()" style="padding:10px 20px;">취소</button>
-                <button class="btn-primary" onclick="window.saveSchedule()" style="padding:10px 20px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">저장</button>
+                <button onclick="window.saveSchedule()" style="padding:10px 20px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">저장</button>
             </div>
         </div>`;
-        modal.addEventListener('click', function(e) { if (e.target === modal) window.closeScheduleModal(); });
-        document.body.appendChild(modal);
+        modal.addEventListener('click', function(e) { if(e.target === modal) window.closeScheduleModal(); });
     }
 
     modal._targetId = id;
+
     const dateInput = document.getElementById('schedDateInput');
     const timeInput = document.getElementById('schedTimeInput');
     const counselorInput = document.getElementById('schedCounselorInput');
 
-    // 기존 값 파싱해서 채우기
     if (currentCallTime && currentCallTime !== 'null' && currentCallTime !== 'undefined') {
         const dateMatch = String(currentCallTime).match(/(\d+월\s*\d+일)/);
-        const timeMatch = String(currentCallTime).match(/(오전|오후)\s*\d+[:시]\d*/);
+        const timeMatch = String(currentCallTime).match(/(오전|오후)\s*\d+[:시]\s*\d*/);
         if (dateInput) dateInput.value = dateMatch ? dateMatch[1] : '';
         if (timeInput) timeInput.value = timeMatch ? timeMatch[0] : '';
     } else {
@@ -734,12 +744,14 @@ window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
     }
     if (counselorInput) counselorInput.value = (currentCounselor && currentCounselor !== 'null' && currentCounselor !== 'undefined') ? currentCounselor : '';
 
+    // show 방식: class + style 둘 다 적용 (HTML 모달은 .show 클래스, 동적 모달은 style)
+    modal.classList.add('show');
     modal.style.display = 'flex';
 };
 
 window.closeScheduleModal = function() {
     const modal = document.getElementById('scheduleModal');
-    if (modal) modal.style.display = 'none';
+    if (modal) { modal.classList.remove('show'); modal.style.display = 'none'; }
 };
 
 window.saveSchedule = async function() {
