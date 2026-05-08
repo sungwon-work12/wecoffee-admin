@@ -21,14 +21,28 @@ window.showGlobalTooltip = function(e, el) {
     if(!tt) {
         tt = document.createElement('div');
         tt.id = 'global-tooltip';
-        tt.style.cssText = 'position:fixed; background:#333d4b; color:#fff; padding:10px 14px; border-radius:8px; font-size:13px; font-weight:500; white-space:pre-wrap; z-index:999999; box-shadow:0 4px 12px rgba(0,0,0,0.15); pointer-events:none; word-break:keep-all; line-height:1.5; text-align:left; transform: translate(-50%, -100%); margin-top: -8px;';
+        tt.style.cssText = 'position:fixed;background:#333d4b;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;white-space:pre-wrap;z-index:999999;pointer-events:none;word-break:keep-all;line-height:1.5;text-align:left;max-width:280px;';
         document.body.appendChild(tt);
     }
-    tt.innerHTML = el.getAttribute('data-tippy');
+    tt.innerHTML = el.getAttribute('data-tippy') || '';
+    tt.style.visibility = 'hidden';
     tt.style.display = 'block';
+
     let rect = el.getBoundingClientRect();
-    tt.style.top = rect.top + 'px';
-    tt.style.left = (rect.left + (rect.width / 2)) + 'px';
+    let ttW = tt.offsetWidth;
+    let ttH = tt.offsetHeight;
+
+    // 중앙 정렬 기본값
+    let left = rect.left + rect.width / 2 - ttW / 2;
+    let top = rect.top - ttH - 8;
+
+    // 화면 경계 보정
+    left = Math.max(8, Math.min(left, window.innerWidth - ttW - 8));
+    if (top < 8) top = rect.bottom + 8; // 위 공간 없으면 아래로
+
+    tt.style.left = left + 'px';
+    tt.style.top = top + 'px';
+    tt.style.visibility = 'visible';
 };
 window.hideGlobalTooltip = function() {
     let tt = document.getElementById('global-tooltip');
@@ -93,7 +107,7 @@ wecoffeeStyle.innerHTML = `
     .wecoffee-banner-wrap > div, .banner-grid > div { flex: 1; min-width: 0; }
     @keyframes wecoffeeFadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
 
-    .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: help; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal !important; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; font-family: sans-serif; }
+    .info-tooltip { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-left: 8px; cursor: pointer; color: #b0b8c1; vertical-align: middle; transition: 0.2s; font-style: normal !important; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #b0b8c1; font-size: 11px; line-height: 1; font-family: sans-serif; }
     .info-tooltip:hover { color: #505967; border-color: #505967; }
     .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
     .pagination-btn { height:32px; min-width:32px; padding:0 8px; border:1px solid var(--border-strong); background:#fff; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:0.2s; }
@@ -650,6 +664,8 @@ window.renderDashboard = async function() {
 };
 
 window.renderAppMCal=function(selDate){$$$("#appDashContent .m-cal-date").forEach(el=>el.classList.remove('active'));let target=document.getElementById(`m-date-app-${selDate}`);if(target){target.classList.add('active');try{target.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}catch(e){}}let evts=window.appCalEvts[selDate]||[];evts.sort((a,b)=>String(a.time||'').localeCompare(String(b.time||'')));let html='';if(evts.length===0){html=`<div class="empty-state" style="padding:40px 0;">예정된 상담 일정이 없습니다.</div>`;}else{evts.forEach(e=>{let rawTooltip=String(e.tooltip||'');let descParts=rawTooltip.split('|');let descText=descParts.length>1?descParts.slice(1).join(' | ').trim():rawTooltip;html+=`<div class="m-cal-card" style="align-items:flex-start;text-align:left;width:100%;box-sizing:border-box;"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary);font-weight:800;font-size:13px;">${e.time||'종일'}</div></div><div class="m-cal-card-desc" style="font-size:13px;color:var(--text-secondary);margin-top:0;width:100%;">${window.escapeHtml(descText)}</div></div>`;});}let listWrap=$("m-cal-list-app");if(listWrap)listWrap.innerHTML=html;};
+// ★ 함수명 별칭: renderAppDashboard에서 renderMCalApp으로 호출하므로 동기화
+window.renderMCalApp = window.renderAppMCal;
 window.renderAppDailyBanner=function(filteredApps){let td=new Date();let mm=td.getMonth()+1;let dd=td.getDate();let scheduled=filteredApps.filter(a=>a.status==='상담 일정 확정'&&a.call_time);let todayEvts=scheduled.filter(app=>{const m=String(app.call_time||'').match(/(\d+)\s*월\s*(\d+)\s*일/);return m&&parseInt(m[1],10)===mm&&parseInt(m[2],10)===dd;});let html='';if(todayEvts.length===0){html=`<div class="inout-card"><div style="font-weight:800;margin-bottom:8px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">오늘의 상담 일정</div><div style="font-size:13px;color:var(--text-secondary);padding:8px 0;">오늘 확정된 상담 일정이 없습니다.</div></div>`;}else{html=`<div class="inout-card"><div style="font-weight:800;font-size:15px;margin-bottom:12px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">오늘의 상담 일정 (${todayEvts.length}건)</div><div style="display:flex;flex-direction:column;gap:12px;">`;todayEvts.sort((a,b)=>{let tA=String(a.call_time||'').match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/);let tB=String(b.call_time||'').match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/);let timeA=tA?(tA[1]==='오후'&&tA[2]!=='12'?parseInt(tA[2],10)+12:(tA[1]==='오전'&&tA[2]==='12'?0:parseInt(tA[2],10)))*60+(tA[3]?parseInt(tA[3],10):0):0;let timeB=tB?(tB[1]==='오후'&&tB[2]!=='12'?parseInt(tB[2],10)+12:(tB[1]==='오전'&&tB[2]==='12'?0:parseInt(tB[2],10)))*60+(tB[3]?parseInt(tB[3],10):0):0;return timeA-timeB;});todayEvts.forEach(evt=>{const tm=String(evt.call_time||'').match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/);let timeStr=tm?`${tm[1]} ${tm[2]}:${tm[3]?String(parseInt(tm[3],10)).padStart(2,'0'):'00'}`:evt.call_time;html+=`<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;width:100%;"><div style="color:var(--primary);background:var(--primary-light);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;">${timeStr}</div> <div style="font-weight:800;flex-shrink:0;">[${evt.desired_batch||'-'}] ${window.escapeHtml(evt.name)}</div> <div style="font-weight:500;color:var(--text-secondary);flex-shrink:0;">(${window.escapeHtml(evt.phone)}) | 담당: ${window.escapeHtml(evt.counselor_name||'미정')}</div></div>`;});html+=`</div></div>`;}if($("appDailyBanner"))$("appDailyBanner").innerHTML=html;};
 window.renderAppDashboard=async function(){const now=new Date();let targetDate=new Date(now.getFullYear(),now.getMonth()+appDashMonthOffset,1);const yyyy=targetDate.getFullYear();const mm=targetDate.getMonth();const daysInMonth=new Date(yyyy,mm+1,0).getDate();const currDay=now.getDay();if(currentAppDashView==='month'&&$("appDashMonthTitle"))$("appDashMonthTitle").innerText=`${yyyy}년 ${mm+1}월`;await window.fetchHolidays(yyyy);let scheduledApps=globalApps.filter(a=>a.status==='상담 일정 확정'&&a.call_time);let calEvts={};if(currentAppDashView==='week'){let startOfWeek=new Date(now.getFullYear(),now.getMonth(),now.getDate()-currDay);for(let i=0;i<7;i++){let dObj=new Date(startOfWeek.getFullYear(),startOfWeek.getMonth(),startOfWeek.getDate()+i);let ds=`${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`;calEvts[ds]=[];}}else{for(let d=1;d<=daysInMonth;d++){let ds=`${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;calEvts[ds]=[];}}scheduledApps.forEach(app=>{const m=String(app.call_time||'').match(/(\d+)\s*월\s*(\d+)\s*일/);if(m){let appM=parseInt(m[1],10);let appD=parseInt(m[2],10);let ds=`${yyyy}-${String(appM).padStart(2,'0')}-${String(appD).padStart(2,'0')}`;if(calEvts[ds]){const tm=String(app.call_time||'').match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/);let timeStr=tm?`${tm[1]} ${tm[2]}:${tm[3]?String(parseInt(tm[3],10)).padStart(2,'0'):'00'}`:app.call_time;calEvts[ds].push({time:timeStr,text:`[${app.desired_batch||'-'}] ${window.escapeHtml(app.name)}`,tooltip:`${timeStr} | 담당: ${window.escapeHtml(app.counselor_name||'미정')}`});}}});let mHtml=`<div class="dash-cal-grid"><div class="dash-cal-header" style="color:var(--error);">일</div><div class="dash-cal-header">월</div><div class="dash-cal-header">화</div><div class="dash-cal-header">수</div><div class="dash-cal-header">목</div><div class="dash-cal-header">금</div><div class="dash-cal-header" style="color:var(--blue);">토</div>`;let iterDates=Object.keys(calEvts).sort();if(currentAppDashView==='month'){let firstDay=new Date(yyyy,mm,1).getDay();for(let i=0;i<firstDay;i++)mHtml+=`<div class="dash-cal-cell empty"></div>`;}iterDates.forEach(ds=>{let dObj=new Date(ds);let evts=calEvts[ds];let holidayName=window.getHoliday(dObj.getFullYear(),dObj.getMonth()+1,dObj.getDate());let dateClass=holidayName?'holiday-date':'';let dateText=dObj.getDate()+(holidayName?` <span style="font-size:10px;font-weight:600;display:block;float:right;">${holidayName}</span>`:'');let evtsHtml=evts.slice(0,3).map(e=>`<div class="dash-item" style="background:#FFF6EF;border-left-color:var(--primary);color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');if(evts.length>3){let hiddenText=evts.slice(3).map(e=>`${e.time||''} | ${e.text||''}`).join('<br>');evtsHtml+=`<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length-3}건 더보기</div><div class="dash-tooltip" style="text-align:left;white-space:nowrap;font-weight:normal;">${hiddenText}</div></div>`;}mHtml+=`<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;});mHtml+=`</div>`;window.appCalEvts=calEvts;let mobStrip=`<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-app">`;iterDates.forEach(ds=>{let dObj=new Date(ds);let dayKr=["일","월","화","수","목","금","토"][dObj.getDay()];let hasEvt=calEvts[ds].length>0?'has-evt':'';mobStrip+=`<div class="m-cal-date" id="m-date-app-${ds}" onclick="window.renderMCalApp('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`;});mobStrip+=`</div><div id="m-cal-list-app" class="m-cal-list"></div></div>`;if($("appDashContent"))$("appDashContent").innerHTML=`<div class="desktop-cal">${mHtml}</div>`+mobStrip;let td=new Date();let todayStr=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;window.renderMCalApp(calEvts[todayStr]?todayStr:iterDates[0]);}
 window.toggleInsight=function(){isInsightView=!isInsightView;let insightArea=$("app-insight-area");if(insightArea){insightArea.style.paddingTop="32px";insightArea.style.display=isInsightView?"block":"none";}if($("app-table-area"))$("app-table-area").style.display=isInsightView?"none":"block";if($("insightToggleBtn"))$("insightToggleBtn").innerText=isInsightView?"리스트 보기":"인사이트 보기";if(isInsightView)window.applyFilterApp();}
@@ -687,8 +703,13 @@ window.handleStatusChange = async function(id, newStatus, currentCallTime, curre
     }
 };
 
+// ★ 날짜/시간 포맷 변환 헬퍼
+function _korDateToInput(str) { const m=String(str||'').match(/(\d+)월\s*(\d+)일/); if(!m)return ''; const y=new Date().getFullYear(),mo=String(parseInt(m[1])).padStart(2,'0'),d=String(parseInt(m[2])).padStart(2,'0'); return `${y}-${mo}-${d}`; }
+function _korTimeToInput(str) { const m=String(str||'').match(/(오전|오후)\s*(\d+)[시:]\s*(\d+)?/); if(!m)return ''; let h=parseInt(m[2]),min=m[3]?parseInt(m[3]):0; if(m[1]==='오후'&&h!==12)h+=12; if(m[1]==='오전'&&h===12)h=0; return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`; }
+function _inputToKorDate(val) { if(!val)return ''; const d=new Date(val+'T00:00:00'); return `${d.getMonth()+1}월 ${d.getDate()}일`; }
+function _inputToKorTime(val) { if(!val)return ''; const[h,m]=val.split(':').map(Number); const ap=h>=12?'오후':'오전'; const h12=h%12||12; return `${ap} ${h12}:${String(m).padStart(2,'0')}`; }
+
 window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
-    // HTML에 이미 존재하는 scheduleModal 사용, 없으면 동적 생성
     let modal = document.getElementById('scheduleModal');
     const needsBuild = !modal || !document.getElementById('schedDateInput');
 
@@ -708,15 +729,15 @@ window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
             <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;">
                 <div>
                     <label style="font-size:13px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">상담 날짜</label>
-                    <input id="schedDateInput" type="text" placeholder="예: 5월 15일" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-strong)'">
+                    <input id="schedDateInput" type="date" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;background:#fff;color:var(--text-display);" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-strong)'">
                 </div>
                 <div>
                     <label style="font-size:13px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">상담 시간</label>
-                    <input id="schedTimeInput" type="text" placeholder="예: 오후 2:00" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-strong)'">
+                    <input id="schedTimeInput" type="time" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;background:#fff;color:var(--text-display);" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-strong)'">
                 </div>
                 <div>
                     <label style="font-size:13px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">담당 상담사</label>
-                    <input id="schedCounselorInput" type="text" placeholder="담당자 이름" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-strong)'">
+                    <input id="schedCounselorInput" type="text" placeholder="담당자 이름" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;background:#fff;color:var(--text-display);" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-strong)'">
                 </div>
             </div>
             <div style="padding:16px 24px;border-top:1px solid var(--border-strong);display:flex;justify-content:flex-end;gap:8px;">
@@ -735,16 +756,15 @@ window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
 
     if (currentCallTime && currentCallTime !== 'null' && currentCallTime !== 'undefined') {
         const dateMatch = String(currentCallTime).match(/(\d+월\s*\d+일)/);
-        const timeMatch = String(currentCallTime).match(/(오전|오후)\s*\d+[:시]\s*\d*/);
-        if (dateInput) dateInput.value = dateMatch ? dateMatch[1] : '';
-        if (timeInput) timeInput.value = timeMatch ? timeMatch[0] : '';
+        const timeMatch = String(currentCallTime).match(/(오전|오후)\s*\d+[시:]\s*\d*/);
+        if (dateInput) dateInput.value = dateMatch ? _korDateToInput(dateMatch[1]) : '';
+        if (timeInput) timeInput.value = timeMatch ? _korTimeToInput(timeMatch[0]) : '';
     } else {
         if (dateInput) dateInput.value = '';
         if (timeInput) timeInput.value = '';
     }
     if (counselorInput) counselorInput.value = (currentCounselor && currentCounselor !== 'null' && currentCounselor !== 'undefined') ? currentCounselor : '';
 
-    // show 방식: class + style 둘 다 적용 (HTML 모달은 .show 클래스, 동적 모달은 style)
     modal.classList.add('show');
     modal.style.display = 'flex';
 };
@@ -761,7 +781,10 @@ window.saveSchedule = async function() {
     const dateVal = (document.getElementById('schedDateInput')?.value || '').trim();
     const timeVal = (document.getElementById('schedTimeInput')?.value || '').trim();
     const counselorVal = (document.getElementById('schedCounselorInput')?.value || '').trim();
-    const callTime = [dateVal, timeVal].filter(Boolean).join(' ');
+    // date/time input 값을 한국어 포맷으로 변환
+    const korDate = _inputToKorDate(dateVal);
+    const korTime = _inputToKorTime(timeVal);
+    const callTime = [korDate, korTime].filter(Boolean).join(' ');
     const { error } = await supabaseClient.from('applications').update({
         call_time: callTime || null,
         counselor_name: counselorVal || null
@@ -812,7 +835,32 @@ window.showOrderSummary=function(){let qOrd=($("searchOrd")?.value||"").toLowerC
 window.closeSummaryModal=function(){const modal=$("summaryModal");if(modal)modal.classList.remove('show');};
 window.sendToGoogleSheet=async function(){if(!window.currentSummaryData||window.currentSummaryData.length===0){showToast('데이터 없음');return;}const GAS_URL='https://script.google.com/macros/s/AKfycbynlyczuJ5VWzfG5IFOstLzkRybv4Yvjgo9bxDHoUQlK84gAehaTuCNommlmrXuFsJK/exec';const btn=document.getElementById('btn-send-sheet');if(btn){btn.innerText='전송 중...';btn.disabled=true;}try{let uniqueMembers=[...new Set(window.currentSummaryData.map(d=>d['성함']))].filter(name=>name!=="이름없음"&&name!=="");let invoiceData=uniqueMembers.map(name=>{let info=window.currentMemberInfoMap&&window.currentMemberInfoMap[name]?window.currentMemberInfoMap[name]:{phone:'',batch:''};return{"등록 일시":"","발주 구분":"","수령 센터":"","생두사":"","상품명":`[${name}] 님 최종 청구 금액`,"주문 수량":"","결제 금액":`CALC_TOTAL:${name}`,"기수":info.batch,"성함":name,"연락처":info.phone};});let payload=[...window.currentSummaryData,{"등록 일시":"","발주 구분":"","수령 센터":"","생두사":"","상품명":"--- ▼ 멤버별 총 결제 금액 명세서 ▼ ---","주문 수량":"","결제 금액":"","기수":"","성함":"","연락처":""},...invoiceData];await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});showToast("구글 시트에 명세서와 함께 전송되었습니다.");}catch(e){showToast("전송 오류");}finally{if(btn){btn.innerText='구글 시트 전송';btn.disabled=false;}}};
 window.downloadSummaryExcel=function(){if(!window.currentSummaryData||window.currentSummaryData.length===0){showToast('데이터 없음');return;}let csv="\uFEFF등록 일시,발주 구분,수령 센터,생두사,상품명,주문 수량,결제 금액,기수,성함,연락처\n";window.currentSummaryData.forEach(s=>{let dt=s['등록 일시']||'';let type=s['발주 구분']||'';let center=s['수령 센터']||'';let vendor=s['생두사']||'';let item=String(s['상품명']||'').replace(/"/g,'""');let qty=s['주문 수량']||'';let price=s['결제 금액']||'';let batch=String(s['기수']||'');let name=s['성함']||'';let phone=s['연락처']||'';csv+=`"${dt}","${type}","${center}","${vendor}","${item}","${qty}","${price}","${batch}","${name}","${phone}"\n`;});let uniqueMembers=[...new Set(window.currentSummaryData.map(d=>d['성함']))].filter(name=>name!=="이름없음"&&name!=="");if(uniqueMembers.length>0){csv+=`\n,,,,,,,,,\n`;csv+=`,,,,"--- ▼ 멤버별 총 결제 금액 명세서 ▼ ---",,,,,\n`;let dataEndRow=window.currentSummaryData.length+1;uniqueMembers.forEach(name=>{let info=window.currentMemberInfoMap&&window.currentMemberInfoMap[name]?window.currentMemberInfoMap[name]:{phone:'',batch:''};csv+=`,,,,"[${name}] 님 최종 청구 금액",,"=IFERROR(SUMIFS(G2:G${dataEndRow}, I2:I${dataEndRow}, ""${name}""), 0)","${info.batch}","${name}","${info.phone}"\n`;});}const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_발주명단_및_청구서_${new Date().toISOString().slice(0,10)}.csv`;link.click();};
-window.cancelAction=function(table,id){window.openCustomConfirm("일정 취소",null,`<div style="margin-bottom:12px;font-size:14px;font-weight:600;">취소 사유를 입력해주세요 (선택)</div><textarea id="cancelReasonInput" placeholder="당일 취소 등 사유를 간단히 적어주세요." style="width:100%;height:80px;padding:12px;border:1px solid var(--border-strong);border-radius:8px;resize:none;font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;"></textarea>`,async()=>{let reason=$("cancelReasonInput")?$("cancelReasonInput").value.trim():"";const{error}=await supabaseClient.from(table).update({status:'당일 취소',cancel_reason:reason}).eq('id',id);if(error)showToast("취소 처리 실패");else{showToast("당일 취소 처리되었습니다.");window.fetchCenterData();}},"취소 확정");};
+window.cancelAction=function(table,id){
+    // ★ 이벤트 날짜 vs 오늘 비교 → 당일취소/일반취소 자동 판단
+    const todayStr=(()=>{const t=new Date();return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;})();
+    let eventDateStr=null;
+    if(table==='reservations'){
+        const rec=gRes.find(r=>String(r.id)===String(id));
+        if(rec)eventDateStr=rec.res_date;
+    }else if(table==='trainings'){
+        const rec=gTrn.find(t=>String(t.id)===String(id));
+        if(rec){const cInfo=String(rec.content||'').split('||').map(s=>s.trim());if(cInfo[0]&&cInfo[0].match(/\d{4}-\d{2}-\d{2}/))eventDateStr=cInfo[0];}
+    }
+    const isSameDay=eventDateStr===todayStr;
+    const cancelStatus=isSameDay?'당일 취소':'취소';
+
+    window.openCustomConfirm("일정 취소",null,
+        `${isSameDay
+            ?`<div style="background:#fff0f0;border:1px solid #ffcdd2;border-radius:6px;padding:8px 12px;font-size:12px;color:var(--error);font-weight:700;margin-bottom:10px;">⚠️ 오늘 일정 — 당일 취소로 처리됩니다.</div>`
+            :`<div style="background:#f0f8ff;border:1px solid #b3d9ff;border-radius:6px;padding:8px 12px;font-size:12px;color:#185fa5;font-weight:700;margin-bottom:10px;">일반 취소로 처리됩니다.</div>`
+        }<div style="margin-bottom:8px;font-size:14px;font-weight:600;">취소 사유를 입력해주세요 (선택)</div><textarea id="cancelReasonInput" placeholder="취소 사유를 간단히 적어주세요." style="width:100%;height:80px;padding:12px;border:1px solid var(--border-strong);border-radius:8px;resize:none;font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;"></textarea>`,
+        async()=>{
+            let reason=$("cancelReasonInput")?$("cancelReasonInput").value.trim():"";
+            const{error}=await supabaseClient.from(table).update({status:cancelStatus,cancel_reason:reason}).eq('id',id);
+            if(error)showToast("취소 처리 실패");
+            else{showToast(isSameDay?"당일 취소 처리되었습니다.":"취소 처리되었습니다.");window.fetchCenterData();}
+        },"취소 확정");
+};
 window.toggleAllDay=function(checkbox){let blkStart=$("blkStart");let blkEnd=$("blkEnd");if(checkbox.checked){if(blkStart){blkStart.value='00:00';blkStart.disabled=true;blkStart.style.opacity='0.4';}if(blkEnd){blkEnd.value='23:59';blkEnd.disabled=true;blkEnd.style.opacity='0.4';}}else{if(blkStart){blkStart.disabled=false;blkStart.style.opacity='1';if(blkStart.value==='00:00')blkStart.value='09:00';}if(blkEnd){blkEnd.disabled=false;blkEnd.style.opacity='1';if(blkEnd.value==='23:59')blkEnd.value='18:00';}}};
 window.setupBlockModalControls=function(isEdit){let blkStartEl=$("blkStart");let blkEndEl=$("blkEnd");if(blkStartEl&&!document.getElementById('blkAllDayWrap')){let wrap=document.createElement('div');wrap.id='blkAllDayWrap';wrap.innerHTML=`<input type="checkbox" id="blkAllDay" onchange="window.toggleAllDay(this)"><label for="blkAllDay">하루 종일</label>`;let timeContainer=blkStartEl.parentNode;while(timeContainer&&blkEndEl&&!timeContainer.contains(blkEndEl)){timeContainer=timeContainer.parentNode;}if(timeContainer&&timeContainer.parentNode){timeContainer.parentNode.insertBefore(wrap,timeContainer);}else{blkStartEl.parentNode.insertBefore(wrap,blkStartEl);}}let allDayCb=document.getElementById('blkAllDay');if(allDayCb){allDayCb.checked=false;if(blkStartEl){blkStartEl.disabled=false;blkStartEl.style.opacity='1';}if(blkEndEl){blkEndEl.disabled=false;blkEndEl.style.opacity='1';}}if(!document.getElementById('blkRepeatSection')){let blkReasonEl=$("blkReason");if(blkReasonEl){let section=document.createElement('div');section.id='blkRepeatSection';section.innerHTML=`<div class="rp-row"><label>반복 유형</label><select id="blkRepeatType" onchange="window.updateRepeatPreview()"><option value="none">반복 없음</option><option value="weekly">매주 (같은 요일)</option><option value="daily">매일</option></select></div><div class="rp-row" id="blkRepeatCountRow" style="display:none;"><label>반복 횟수</label><input type="number" id="blkRepeatCount" min="2" max="52" placeholder="횟수" value="4" onchange="window.updateRepeatPreview()" oninput="window.updateRepeatPreview()"><span style="font-size:13px;color:var(--text-secondary);font-weight:500;">회</span></div><div id="blkRepeatPreview" style="display:none;"></div>`;blkReasonEl.parentNode.insertBefore(section,blkReasonEl);document.getElementById('blkRepeatType').addEventListener('change',function(){let countRow=document.getElementById('blkRepeatCountRow');let preview=document.getElementById('blkRepeatPreview');if(this.value==='none'){countRow.style.display='none';preview.style.display='none';}else{countRow.style.display='flex';preview.style.display='block';window.updateRepeatPreview();}});}}let repSection=document.getElementById('blkRepeatSection');if(repSection){repSection.style.display=isEdit?'none':'flex';if(!isEdit){let repType=document.getElementById('blkRepeatType');let repCount=document.getElementById('blkRepeatCount');let repCountRow=document.getElementById('blkRepeatCountRow');let repPreview=document.getElementById('blkRepeatPreview');if(repType)repType.value='none';if(repCount)repCount.value='4';if(repCountRow)repCountRow.style.display='none';if(repPreview)repPreview.style.display='none';}}};
 window.updateRepeatPreview=function(){let baseDateStr=$("blkDate")?$("blkDate").value:'';let repType=document.getElementById('blkRepeatType')?document.getElementById('blkRepeatType').value:'none';let repCount=parseInt(document.getElementById('blkRepeatCount')?document.getElementById('blkRepeatCount').value:'4')||4;let preview=document.getElementById('blkRepeatPreview');if(!preview||repType==='none'||!baseDateStr)return;let baseDate=new Date(baseDateStr+'T00:00:00');if(isNaN(baseDate.getTime()))return;let lastDate=new Date(baseDate);if(repType==='weekly')lastDate.setDate(lastDate.getDate()+(repCount-1)*7);else if(repType==='daily')lastDate.setDate(lastDate.getDate()+(repCount-1));let dow=['일','월','화','수','목','금','토'][baseDate.getDay()];let lastStr=`${lastDate.getFullYear()}-${String(lastDate.getMonth()+1).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;preview.style.display='block';preview.innerHTML=`📅 ${baseDateStr}(${dow}) 부터 ${repCount}회 → 마지막: ${lastStr}`;};
