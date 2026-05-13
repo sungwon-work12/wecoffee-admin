@@ -126,7 +126,7 @@ wecoffeeStyle.innerHTML = `
     .timeline-bar { position: absolute; height: 36px; top: 9px; border-radius: 8px; color: #fff; padding: 0 10px; display: flex; align-items: center; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 2; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.1); border: 1.5px solid rgba(255,255,255,0.8); box-sizing: border-box; }
     .bar-res { background: var(--primary); }
     .bar-trn { background: rgba(255, 121, 0, 0.65); color: #fff; }
-    .bar-blk { background: #9ca3af; color: #fff; }
+    .bar-blk { background: #9ca3af; color: #fff; box-shadow: none; border-color: rgba(255,255,255,0.25); }
     #trnContentModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99990; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
     #trnContentModal.show { display:flex; }
     #trnContentModal .tcm-box { background:#fff; border-radius:16px; width:100%; max-width:900px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; }
