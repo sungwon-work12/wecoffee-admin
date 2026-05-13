@@ -250,6 +250,7 @@ window.showCancelReason=function(reason){window.openCustomConfirm("당일 취소
 window.isOrderExpired=function(order,now){let baseDate=order.delivery_date?window.parseDeliveryDate(order.delivery_date):window.safeKST(order.created_at);let cancelBaseDate=order.updated_at?window.safeKST(order.updated_at):baseDate;let status=order.status||'주문 접수';if(['주문 접수','입금 대기','입금 확인 중','입금 확인','대기'].includes(status))return false;if(status==='주문 취소'||status==='품절')return(now.getTime()-cancelBaseDate.getTime())>48*60*60*1000;if(status==='센터 도착')return(now.getTime()-baseDate.getTime())>7*24*60*60*1000;return false;};
 
 // ▼▼▼ 파트2에서 이어집니다 (fetchCenterData 부터) ▼▼▼
+
 window.fetchCenterData = async function() {
   try {
     const now = new Date();
@@ -365,8 +366,9 @@ function renderBarsFor(equipName,zoneName,centerName){let barsHtml='';
   gRes.forEach(r=>{if(r.res_date===todayStr&&r.center===centerName&&!String(r.status).includes('취소')&&isMatch(r.space_equip,equipName,zoneName))
     barsHtml+=generateBar(r.res_time,`[${r.batch||'-'}] ${r.name}`,'bar-res',`${r.res_time} | [${r.batch||'-'}] ${r.name} | ${r.space_equip}`);
   });
-  gTrn.forEach(t=>{let cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length>=5&&cInfo[0]===todayStr&&cInfo[3]===centerName&&!String(t.status).includes('취소')){let matchBlk=gBlk.find(b=>b.block_date===cInfo[0]&&b.center===cInfo[3]&&`[${b.category}] ${b.reason}`===cInfo[4]);let blkSpace=matchBlk?matchBlk.space_equip:null;let matched=blkSpace?isMatch(blkSpace,equipName,zoneName):(equipName==='merged'||equipName==='공간 전체');if(matched)barsHtml+=generateBar(cInfo[2],`[수강] ${t.name}`,'bar-trn',`${cInfo[2]} | ${cInfo[4]} | ${t.name}`);}});
-  gBlk.forEach(b=>{if(b.block_date===todayStr&&b.center===centerName&&(isMatch(b.space_equip,equipName,zoneName)||(!b.space_equip&&(equipName==='merged'||equipName==='공간 전체'))))barsHtml+=generateBar(`${b.start_time}~${b.end_time}`,`[${b.category}] ${b.reason}`,'bar-blk',`${b.start_time}~${b.end_time} | ${b.reason}`);});
+  function matchSpace(spaceStr,eqName,znName){if(!spaceStr)return(eqName==='merged'||eqName==='공간 전체');return String(spaceStr).split(',').map(s=>s.trim()).some(sp=>isMatch(sp,eqName,znName));}
+  gTrn.forEach(t=>{let cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length>=5&&cInfo[0]===todayStr&&cInfo[3]===centerName&&!String(t.status).includes('취소')){let matchBlk=gBlk.find(b=>b.block_date===cInfo[0]&&b.center===cInfo[3]&&`[${b.category}] ${b.reason}`===cInfo[4]);let blkSpace=matchBlk?matchBlk.space_equip:null;if(matchSpace(blkSpace,equipName,zoneName))barsHtml+=generateBar(cInfo[2],`[수강] ${t.name}`,'bar-trn',`${cInfo[2]} | ${cInfo[4]} | ${t.name}`);}});
+  gBlk.forEach(b=>{if(b.block_date===todayStr&&b.center===centerName&&matchSpace(b.space_equip,equipName,zoneName))barsHtml+=generateBar(`${b.start_time}~${b.end_time}`,`[${b.category}] ${b.reason}`,'bar-blk',`${b.start_time}~${b.end_time} | ${b.reason}`);});
   return barsHtml;}
 let mapoSpaces=[{zone:'에스프레소존',equips:['공간 전체','아스토리아 스톰 1번(좌)','아스토리아 스톰 2번(우)']},{zone:'로스팅존',equips:['공간 전체','이지스터 800 1번(좌)','이지스터 800 2번(우)','이지스터 1.8','스트롱홀드 S7X']},{zone:'브루잉존',equips:['merged']},{zone:'커핑존',equips:['merged']},{zone:'스터디존',equips:['merged']}];
 let gwangjinSpaces=[{zone:'에스프레소존',equips:['공간 전체','시네소 MVP 1번(좌)','시네소 MVP 2번(우)','페마 페미나','산레모 You','이글원 프리마 프로','이글원 프리마 EXP']},{zone:'로스팅존',equips:['공간 전체','이지스터 800 1번(좌)','이지스터 800 2번(우)','이지스터 1.8 1번(좌)','이지스터 1.8 2번']},{zone:'브루잉존',equips:['merged']},{zone:'커핑존',equips:['merged']},{zone:'스터디룸',equips:['merged']}];
