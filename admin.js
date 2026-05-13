@@ -380,6 +380,7 @@ window.closeTimelineFullscreen=function(){const overlay=document.getElementById(
 document.addEventListener('keydown',function(e){if(e.key==='Escape')window.closeTimelineFullscreen();});
 
 // ▼▼▼ 파트3에서 이어집니다 (renderResTablePage 부터) ▼▼▼
+
 window.renderResTablePage = function() {
     let data = window.currentFilteredRes || [];
     let tbody = $("resTableBody");
@@ -577,8 +578,10 @@ window.cancelAction=function(table,id){
     const isSameDay=eventDateStr===todayStr;
     const cancelStatus=isSameDay?'당일 취소':'취소';
     window.openCustomConfirm("일정 취소",null,
-        `${isSameDay?`<div style="background:#fff0f0;border:1px solid #ffcdd2;border-radius:6px;padding:8px 12px;font-size:12px;color:var(--error);font-weight:700;margin-bottom:10px;">⚠️ 오늘 일정 — 당일 취소로 처리됩니다.</div>`:`<div style="background:#f0f8ff;border:1px solid #b3d9ff;border-radius:6px;padding:8px 12px;font-size:12px;color:#185fa5;font-weight:700;margin-bottom:10px;">일반 취소로 처리됩니다.</div>`}<div style="margin-bottom:8px;font-size:14px;font-weight:600;">취소 사유를 입력해주세요 (선택)</div><textarea id="cancelReasonInput" placeholder="취소 사유를 간단히 적어주세요." style="width:100%;height:80px;padding:12px;border:1px solid var(--border-strong);border-radius:8px;resize:none;font-family:inherit;font-size:14px;outline:none;box-sizing:border-box;"></textarea>`,
-        async()=>{let reason=$("cancelReasonInput")?$("cancelReasonInput").value.trim():"";const{error}=await supabaseClient.from(table).update({status:cancelStatus,cancel_reason:reason}).eq('id',id);if(error)showToast("취소 처리 실패");else{showToast(isSameDay?"당일 취소 처리되었습니다.":"취소 처리되었습니다.");window.fetchCenterData();}},"취소 확정");
+        isSameDay
+            ?`<div style="background:#fff0f0;border:1px solid #ffcdd2;border-radius:6px;padding:10px 14px;font-size:13px;color:var(--error);font-weight:700;">⚠️ 오늘 일정입니다. 당일 취소로 처리됩니다.</div>`
+            :`이 일정을 취소 처리하시겠습니까?`,
+        async()=>{const{error}=await supabaseClient.from(table).update({status:cancelStatus}).eq('id',id);if(error)showToast("취소 처리 실패");else{showToast(isSameDay?"당일 취소 처리되었습니다.":"취소 처리되었습니다.");window.fetchCenterData();}});
 };
 window.toggleAllDay=function(checkbox){let blkStart=$("blkStart");let blkEnd=$("blkEnd");if(checkbox.checked){if(blkStart){blkStart.value='00:00';blkStart.disabled=true;blkStart.style.opacity='0.4';}if(blkEnd){blkEnd.value='23:59';blkEnd.disabled=true;blkEnd.style.opacity='0.4';}}else{if(blkStart){blkStart.disabled=false;blkStart.style.opacity='1';if(blkStart.value==='00:00')blkStart.value='09:00';}if(blkEnd){blkEnd.disabled=false;blkEnd.style.opacity='1';if(blkEnd.value==='23:59')blkEnd.value='18:00';}}};
 window.setupBlockModalControls=function(isEdit){
