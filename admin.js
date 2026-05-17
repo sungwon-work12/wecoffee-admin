@@ -575,17 +575,17 @@ window.updateAppStatus = async function(id, field, value, selectEl) {
     showToast("변경되었습니다.");
 };
 
+// ★★★ 변경: blocked_applicants에 phone 원본 형식(대시 포함) 그대로 저장 ★★★
 window.handleStatusChange = async function(id, newStatus, currentCallTime, currentCounselor) {
     const app = globalApps.find(a => String(a.id) === String(id));
     const prevStatus = app ? app.status : null;
     const { error } = await supabaseClient.from('applications').update({ status: newStatus }).eq('id', id);
     if (error) { showToast("상태 변경 실패"); return; }
     if (app) app.status = newStatus;
-    const normPhone = app ? String(app.phone || '').replace(/\D/g, '') : '';
 
-    if (newStatus === '연락 두절' && normPhone) {
+    if (newStatus === '연락 두절' && app && app.phone) {
         const { error: blkErr } = await supabaseClient.from('blocked_applicants').upsert({
-            name: app.name, phone: normPhone, reason: '연락 두절',
+            name: app.name, phone: app.phone, reason: '연락 두절',
             application_id: id, blocked_at: new Date().toISOString()
         }, { onConflict: 'phone' });
         if (blkErr) { console.warn('블랙리스트 등록 실패:', blkErr); showToast("상태는 변경됐으나 차단 등록 실패."); }
@@ -594,8 +594,8 @@ window.handleStatusChange = async function(id, newStatus, currentCallTime, curre
         return;
     }
 
-    if (prevStatus === '연락 두절' && newStatus !== '연락 두절' && normPhone) {
-        await supabaseClient.from('blocked_applicants').delete().eq('phone', normPhone);
+    if (prevStatus === '연락 두절' && newStatus !== '연락 두절' && app && app.phone) {
+        await supabaseClient.from('blocked_applicants').delete().eq('phone', app.phone);
     }
 
     if (newStatus === '상담 일정 확정' || newStatus === '설문 완료') {
@@ -664,7 +664,6 @@ window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
 window.closeScheduleModal = function() { const modal = document.getElementById('scheduleModal'); if (modal) { modal.classList.remove('show'); modal.style.display = 'none'; } };
 window.saveSchedule = async function() { const modal = document.getElementById('scheduleModal'); if (!modal || !modal._targetId) return; const id = modal._targetId; const dateVal = (document.getElementById('schedDateInput')?.value || '').trim(); const timeVal = (document.getElementById('schedTimeInput')?.value || '').trim(); const counselorVal = (document.getElementById('schedCounselorInput')?.value || '').trim(); const callTime = [dateVal?window.formatBlockDate(dateVal):'', timeVal?window.formatBlockTime(timeVal):''].filter(Boolean).join(' '); const { error } = await supabaseClient.from('applications').update({ call_time: callTime || null, counselor_name: counselorVal || null }).eq('id', id); if (error) { showToast("저장 실패"); return; } const app = globalApps.find(a => String(a.id) === String(id)); if (app) { app.call_time = callTime; app.counselor_name = counselorVal; } window.closeScheduleModal(); window.applyFilterApp(); const surveyUrl=`https://www.wecoffee.co.kr/survey?uid=${id}&name=${encodeURIComponent(app?.name||'')}`;window.openCustomConfirm("가입 신청자 설문 링크",null,`<div style="text-align:center;font-size:14px;color:var(--text-secondary);line-height:1.7;">상담 일정이 저장되었습니다.<br><strong style="color:var(--text-display);font-size:15px;">${window.escapeHtml(app?.name||'')}님</strong>께 설문 링크를 전달하시겠어요?</div>`,surveyUrl,"복사하기"); };
 
-// ★★★ 핵심 변경: .action-wrap div 제거하고 select를 TD에 직접 배치 + display:block ★★★
 window.renderAppTable = function(data) {if(!$("appTableBody"))return;const tbody=$("appTableBody");tbody.innerHTML='';if(data.length===0){tbody.innerHTML=`<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`;return;}data.forEach(row=>{const interestFull=row.interest_area||'-';let routeDisplay=row.acquisition_channel||'-';const cStat=statusClassMap[row.status]||'st-wait';const cJoin=joinClassMap[row.join_status||'']||'jn-none';let timeBadgeHtml=(row.status==='상담 일정 확정'||row.status==='설문 완료')?`<div class="edit-schedule-link" onclick="window.openScheduleModal('${row.id}','${row.call_time}','${row.counselor_name}')">상담 일정 수정</div>`:'';let surveyBadge=(row.survey_job||row.survey_edu)?`<span class="status-badge badge-orange" style="margin-right:8px;font-size:11px;">설문완료</span>`:`<span class="status-badge badge-gray" style="margin-right:8px;font-size:11px;">미응답</span>`;let nameHtml=`${surveyBadge}<strong style="cursor:pointer;" onclick="window.openCrmModal('${row.id}')">${window.escapeHtml(row.name)}</strong>`;let mPreview=`<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span><span class="status-badge ${cStat}">${row.status}</span></div><div class="m-prev-title">[${row.desired_batch||'-'}] ${window.escapeHtml(row.name)} <span style="font-size:13px;color:var(--text-secondary);">(${window.escapeHtml(row.phone)})</span></div><div class="m-prev-desc">${window.escapeHtml(row.interest_area)}</div></td>`;const tr=document.createElement('tr');tr.innerHTML=`${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch||'-'}</td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(row.phone)}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="상담 진행 상황" style="vertical-align:top;"><select class="status-select ${cStat}" style="display:block;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time}','${row.counselor_name}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>상담 일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>설문 완료 (확정)</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option><option value="연락 두절" ${row.status==='연락 두절'?'selected':''}>연락 두절</option></select>${timeBadgeHtml}</td><td data-label="가입 여부" style="vertical-align:top;"><select class="status-select ${cJoin}" style="display:block;" onchange="window.updateAppStatus('${row.id}','join_status',this.value,this)" ${row.status==='상담 완료'?'':'disabled'}><option value="" ${!row.join_status?'selected':''}>선택 전</option><option value="고민 중" ${row.join_status==='고민 중'?'selected':''}>고민 중</option><option value="가입 완료" ${row.join_status==='가입 완료'?'selected':''}>가입 완료</option><option value="미가입" ${row.join_status==='미가입'?'selected':''}>미가입</option><option value="다음 기수 희망" ${row.join_status==='다음 기수 희망'?'selected':''}>다음 기수 희망</option></select></td>`;tbody.appendChild(tr);});}
 
 function getFrequency(arr){return Object.entries(arr.reduce((acc,val)=>{if(val)acc[val]=(acc[val]||0)+1;return acc;},{})).sort((a,b)=>b[1]-a[1]);}
