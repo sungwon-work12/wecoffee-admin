@@ -204,7 +204,7 @@ function fallbackCopyTextToClipboard(text,successMsg){var textArea=document.crea
 window.fetchGoogleCalendarEvents=async function(yyyy,mm){const API_KEY='AIzaSyAjtrSlv56VPhtqMYGsQd0L4q1AlZTW1Ng';const CALENDAR_ID='wecoffeekorea@gmail.com';try{const timeMin=new Date(yyyy,mm-1,1).toISOString();const timeMax=new Date(yyyy,mm,0,23,59,59).toISOString();const url=`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events?key=${API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;const response=await fetch(url);if(!response.ok)return[];const data=await response.json();return(data.items||[]).map(event=>{let dateStr,timeStr;if(event.start.date){dateStr=event.start.date;timeStr='종일';}else if(event.start.dateTime){dateStr=event.start.dateTime.split('T')[0];timeStr=event.start.dateTime.split('T')[1].substring(0,5);}else return null;return{date:dateStr,time:timeStr,start:timeStr,text:event.summary||'일정',type:'google'};}).filter(Boolean);}catch(error){return[];}};
 window.updateDailyInOutBanner=function(){let td=new Date();let ds=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;const getDailyEvents=(centerFilter)=>{let evts=[];gRes.forEach(r=>{if(r.res_date===ds&&r.center===centerFilter&&!String(r.status||'').includes('취소')){let st=String(r.res_time||"").split('~')[0].trim();let enParts=String(r.res_time||"").split('~');let en=enParts.length>1?enParts[1].trim():'';let spc=String(r.space_equip||"").split(' ')[0];evts.push({start:st,end:en,name:r.name,space:spc});}});return evts;};let centers=currentGlobalCenter==='전체'?['마포 센터','광진 센터']:[currentGlobalCenter];let html='';centers.forEach(c=>{let evts=getDailyEvents(c);if(evts.length===0){html+=`<div class="inout-card"><div style="font-weight:800;margin-bottom:8px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">${c}</div><div style="font-size:13px;color:var(--text-secondary);padding:8px 0;">오늘 확정된 예약이 없습니다.</div></div>`;}else{let first=[...evts].sort((a,b)=>String(a.start||'').localeCompare(String(b.start||'')))[0];let last=[...evts].sort((a,b)=>String(b.end||'').localeCompare(String(a.end||'')))[0];html+=`<div class="inout-card" style="padding:16px;gap:8px;border-radius:12px;border:1px solid var(--border-strong);background:#fff;align-items:flex-start;text-align:left;width:100%;box-sizing:border-box;"><div style="font-weight:800;font-size:15px;margin-bottom:12px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;width:100%;">${c}</div><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;width:100%;"><span style="font-weight:600;font-size:14px;color:var(--text-display);">[${first.space||''}] ${window.escapeHtml(first.name||'')}</span><span style="color:var(--text-secondary);font-size:13px;font-weight:600;">첫 입실 <strong style="color:var(--text-display);font-weight:600;">${first.start||''}</strong></span></div><div style="display:flex;align-items:center;justify-content:space-between;width:100%;"><span style="font-weight:600;font-size:14px;color:var(--text-display);">[${last.space||''}] ${window.escapeHtml(last.name||'')}</span><span style="color:var(--text-secondary);font-size:13px;font-weight:600;">최종 퇴실 <strong style="color:var(--text-display);font-weight:600;">${last.end||''}</strong></span></div></div>`;}});if($("dailyInOutBanner"))$("dailyInOutBanner").innerHTML=html;};
 
-// ★★★ PATCH 3: 당일 취소 누적 — 4회 이상 경고 + 나머지 아코디언 + 클릭 시 상세 모달 ★★★
+// ★★★ PATCH 3 (디자인 통일): 4회 이상 경고 카드 + 1~3회는 좌측 inout-card 톤과 동일한 흰색 아코디언 ★★★
 window.updateCancelAccumulationBanner=function(){
     let now=new Date();
     let y=now.getFullYear();
@@ -242,14 +242,14 @@ window.updateCancelAccumulationBanner=function(){
         html=`<div class="inout-card" style="text-align:center;color:var(--text-secondary);padding:16px;background:#fff;border:1px solid var(--border-strong);border-radius:12px;">이번 달 당일 취소 내역이 없습니다.</div>`;
     }else{
         warnings.forEach(([phone,user])=>{
-            html+=`<div onclick="window.openCancelDetailModal('${phone}')" style="padding:12px 16px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border:1px solid var(--error);background:#fff0f0;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#ffe5e5'" onmouseout="this.style.background='#fff0f0'"><div style="color:var(--error);font-weight:800;">[${user.batch||'-'}] ${window.escapeHtml(user.name)} <span style="background:var(--error);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:700;">경고</span></div><div style="font-size:14px;font-weight:800;color:var(--error);">${user.count}회</div></div>`;
+            html+=`<div onclick="window.openCancelDetailModal('${phone}')" style="padding:14px 16px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border:1px solid var(--error);background:#fff0f0;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#ffe5e5'" onmouseout="this.style.background='#fff0f0'"><div style="color:var(--error);font-weight:800;font-size:14px;">[${user.batch||'-'}] ${window.escapeHtml(user.name)} <span style="background:var(--error);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:700;vertical-align:middle;">경고</span></div><div style="font-size:14px;font-weight:800;color:var(--error);">${user.count}회</div></div>`;
         });
         if(nonWarnings.length>0){
             let restRows='';
             nonWarnings.forEach(([phone,user])=>{
-                restRows+=`<div onclick="window.openCancelDetailModal('${phone}')" style="padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;border:1px solid var(--border-strong);background:#fff;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='#fff'"><div style="color:var(--text-display);font-weight:700;">[${user.batch||'-'}] ${window.escapeHtml(user.name)}</div><div style="font-size:13px;font-weight:700;color:var(--text-secondary);">${user.count}회</div></div>`;
+                restRows+=`<div onclick="window.openCancelDetailModal('${phone}')" style="padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;border:1px solid var(--border-strong);background:#fff;cursor:pointer;transition:0.15s;" onmouseover="this.style.borderColor='var(--text-tertiary)'" onmouseout="this.style.borderColor='var(--border-strong)'"><div style="color:var(--text-display);font-weight:700;font-size:14px;">[${user.batch||'-'}] ${window.escapeHtml(user.name)}</div><div style="font-size:13px;font-weight:700;color:var(--text-secondary);">${user.count}회</div></div>`;
             });
-            html+=`<div style="margin-top:${warnings.length>0?'12px':'0'};border:1px solid var(--border-strong);border-radius:12px;overflow:hidden;background:#fff;"><div onclick="window.toggleCancelAccordion()" style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:#f9fafb;font-size:13px;font-weight:700;color:var(--text-secondary);transition:0.15s;" onmouseover="this.style.background='#f2f4f6'" onmouseout="this.style.background='#f9fafb'"><span>1~3회 누적 멤버 (${nonWarnings.length}명)</span><span id="cancelAccordionArrow">▼</span></div><div id="cancelAccordionContent" style="display:none;padding:12px;">${restRows}</div></div>`;
+            html+=`<div style="margin-top:${warnings.length>0?'8px':'0'};border:1px solid var(--border-strong);border-radius:12px;background:#fff;overflow:hidden;transition:0.15s;" onmouseover="this.style.borderColor='var(--text-tertiary)'" onmouseout="this.style.borderColor='var(--border-strong)'"><div onclick="window.toggleCancelAccordion()" style="padding:14px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:14px;font-weight:700;color:var(--text-secondary);background:#fff;"><span>1~3회 누적 멤버 (${nonWarnings.length}명)</span><span id="cancelAccordionArrow" style="color:var(--text-tertiary);font-size:12px;">▼</span></div><div id="cancelAccordionContent" style="display:none;padding:8px 12px 12px;border-top:1px solid var(--border-strong);">${restRows}</div></div>`;
         }
     }
     if($("cancelAccumulationBanner"))$("cancelAccumulationBanner").innerHTML=html;
@@ -296,12 +296,10 @@ let pollingTimer = null;
 
 function startRealtimeSync(){
     if(realtimeChannel) return;
-
     function debouncedFetchCenter() {
         clearTimeout(fetchDebounceTimer);
         fetchDebounceTimer = setTimeout(() => window.fetchCenterData(), 2000);
     }
-
     realtimeChannel = supabaseClient.channel('admin-realtime')
         .on('postgres_changes',{event:'*',schema:'public',table:'reservations'}, debouncedFetchCenter)
         .on('postgres_changes',{event:'*',schema:'public',table:'trainings'},    debouncedFetchCenter)
@@ -310,10 +308,7 @@ function startRealtimeSync(){
         .on('postgres_changes',{event:'*',schema:'public',table:'notices'},      debouncedFetchCenter)
         .on('postgres_changes',{event:'*',schema:'public',table:'applications'}, ()=>{ window.fetchApplications(); })
         .on('postgres_changes',{event:'*',schema:'public',table:'members'},      ()=>{ window.fetchMembers(); })
-        .subscribe((status) => {
-            console.log('[Realtime]', status);
-        });
-
+        .subscribe((status) => { console.log('[Realtime]', status); });
     if(pollingTimer) clearInterval(pollingTimer);
     pollingTimer = setInterval(() => { window.fetchCenterData(); }, 30000);
 }
@@ -330,6 +325,7 @@ window.closeOnBackdrop=function(event,modalId){if(event.target.id===modalId&&$(m
 window.showCancelReason=function(reason){window.openCustomConfirm("당일 취소 사유",null,`<div style="padding:16px;background:#f9fafb;border-radius:8px;text-align:left;font-size:14px;line-height:1.5;color:var(--text-display);border:1px solid var(--border-strong);white-space:pre-wrap;">${window.escapeHtml(reason||'사유가 기재되지 않았습니다.')}</div>`,()=>{},"확인");};
 window.isOrderExpired=function(order,now){let baseDate=order.delivery_date?window.parseDeliveryDate(order.delivery_date):window.safeKST(order.created_at);let cancelBaseDate=order.updated_at?window.safeKST(order.updated_at):baseDate;let status=order.status||'주문 접수';if(['주문 접수','입금 대기','입금 확인 중','입금 확인','대기'].includes(status))return false;if(status==='주문 취소'||status==='품절')return(now.getTime()-cancelBaseDate.getTime())>48*60*60*1000;if(status==='센터 도착')return(now.getTime()-baseDate.getTime())>7*24*60*60*1000;return false;};
 
+// ▼▼▼ 파트2에서 이어집니다 (fetchCenterData 부터) ▼▼▼
 // ▼▼▼ 파트2에서 이어집니다 (fetchCenterData 부터) ▼▼▼
 window.fetchCenterData = async function() {
   try {
