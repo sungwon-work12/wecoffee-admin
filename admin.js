@@ -371,7 +371,6 @@ window.showCancelReason=function(reason){window.openCustomConfirm("당일 취소
 window.isOrderExpired=function(order,now){let baseDate=order.delivery_date?window.parseDeliveryDate(order.delivery_date):window.safeKST(order.created_at);let cancelBaseDate=order.updated_at?window.safeKST(order.updated_at):baseDate;let status=order.status||'주문 접수';if(['주문 접수','입금 대기','입금 확인 중','입금 확인','대기'].includes(status))return false;if(status==='주문 취소'||status==='품절')return(now.getTime()-cancelBaseDate.getTime())>48*60*60*1000;if(status==='센터 도착')return(now.getTime()-baseDate.getTime())>7*24*60*60*1000;return false;};
 
 // ▼▼▼ 파트2에서 이어집니다 (fetchCenterData 부터 — in-flight 가드 + stale 캐시 추가됨) ▼▼▼
-// ▼▼▼ 파트2에서 이어집니다 (fetchCenterData 부터 — in-flight 가드 + stale 캐시 추가됨) ▼▼▼
 
 // ★★★ PATCH (서버부하 ⑥): fetchCenterData 3중 방어선 ★★★
 // 1) In-flight 가드: 진행 중이면 새 호출 차단
@@ -699,7 +698,9 @@ window.openTimelineFullscreen=function(){
 window.closeTimelineFullscreen=function(){const overlay=document.getElementById('timelineFullscreenOverlay');if(overlay)overlay.classList.remove('active');document.body.style.overflow='';};
 document.addEventListener('keydown',function(e){if(e.key==='Escape')window.closeTimelineFullscreen();});
 
-// ▼▼▼ 파트3에서 이어집니다 (renderResTablePage 부터 — fetchApplications/Members limit, openCrmModalFromPhone .ilike, 쓰기 액션 force:true) ▼▼▼
+요청하신 대로 엑셀 다운로드 시 필터가 정상적으로 반영되도록 window.downloadExcel 함수를 개선하여 파트 3 전체 코드를 재구성했습니다.
+수정된 부분은 기존의 전역 배열(예: globalMembers)을 그대로 출력하던 로직을 currentFilteredMembers 등 현재 화면에 렌더링 된 필터 배열을 참조하도록 변경한 것입니다.
+아래는 개선 사항이 적용된 파트 3 전체 코드입니다:
 // ▼▼▼ 파트3에서 이어집니다 (renderResTablePage 부터) ▼▼▼
 window.renderResTablePage = function() {
     let data = window.currentFilteredRes || [];
@@ -771,7 +772,6 @@ window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
     await supabaseClient.from('orders').update(updates).eq('id', id); showToast("저장되었습니다.");
 }
 
-// ★★★ PATCH (서버부하 ⑨): 쓰기 액션은 force:true ★★★
 window.handleOrderStatusChange = function(id, newValue, selectEl) {
     let order = gOrd.find(o => String(o.id) === String(id)); if(!order) return; let oldStatus = order.status||'주문 접수'; if(oldStatus === newValue) return;
     let confirmMsg = `<div style="font-size:15px;color:var(--text-display);margin-top:8px;">주문 상태를 <strong style="color:var(--primary);font-size:18px;">[${newValue}]</strong>(으)로<br>변경하시겠습니까?</div>`;
@@ -831,7 +831,6 @@ window.toggleAppDashView=function(view){currentAppDashView=view;if(view==='month
 window.changeAppDashMonth=function(offset){appDashMonthOffset+=offset;window.renderAppDashboard();}
 window.resetAppDashMonth=function(){appDashMonthOffset=0;window.renderAppDashboard();}
 
-// ★★★ PATCH (서버부하 ⑦): limit 추가 ★★★
 window.fetchApplications=async function(){try{const{data,error}=await supabaseClient.from('applications').select('*').order('created_at',{ascending:false}).limit(2000);if(error)throw error;globalApps=data||[];const batches=[...new Set(globalApps.map(d=>d.desired_batch).filter(Boolean))].sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0));let optionsHTML='<option value="all">전체 기수 보기</option>';batches.forEach(b=>optionsHTML+=`<option value="${b}">${b}</option>`);if($("batchFilterApp"))$("batchFilterApp").innerHTML=optionsHTML;window.applyFilterApp();if($("crmModal")&&$("crmModal").classList.contains('show')&&$("crmAppId").value){window.renderCrmInner($("crmAppId").value,isCrmReadOnly);}}catch(e){console.error(e);}}
 
 window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}}catch(e){console.error(e);}}
@@ -968,7 +967,6 @@ window.currentInsightData={total,joined,dropoutCount,realDropoutRate,applyDropou
 window.changeMemberPerPage=function(val){memberItemsPerPage=val==='all'?999999:parseInt(val);currentMemberPage=1;renderMemberTablePage();};
 window.changeMemberPage=function(page){currentMemberPage=page;renderMemberTablePage();};
 
-// ★★★ PATCH (서버부하 ⑦): limit 추가 ★★★
 window.fetchMembers=async function(){const{data,error}=await supabaseClient.from('members').select('*').order('created_at',{ascending:false}).limit(2000);if(error)return;globalMembers=data;let bSet=new Set();globalMembers.forEach(m=>{if(m.batch)bSet.add(m.batch);});let bHtml=`<option value="all">기수 전체</option>`+Array.from(bSet).sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0)).map(b=>`<option value="${b}">${b}</option>`).join("");if($("memberBatchFilter"))$("memberBatchFilter").innerHTML=bHtml;window.searchMembers();}
 
 window.searchMembers=function(){const query=$("memberSearch")?$("memberSearch").value.trim().toLowerCase():"";const statusFilter=$("memberStatusFilter")?$("memberStatusFilter").value:'all';const batchFilter=$("memberBatchFilter")?$("memberBatchFilter").value:'all';const today=new Date();today.setHours(0,0,0,0);let filtered=globalMembers.filter(m=>{let isExpired=true;let isPaused=m.status==='활동 일시정지';if(m.end_date&&m.end_date.length===10){let endD=new Date(m.end_date);endD.setHours(0,0,0,0);if(endD>=today)isExpired=false;}let statusText=m.status||'활동 중';if(statusText==='패널티 정지')statusText='패널티 정지';else if(statusText==='활동 일시정지')statusText='활동 일시정지';else if(isExpired)statusText='활동 종료';let matchQuery=`${m.batch||''} ${m.name||''} ${m.phone||''} ${statusText}`.toLowerCase().includes(query);let matchBatch=batchFilter==='all'||m.batch===batchFilter;let matchStatus=false;if(statusFilter==='all')matchStatus=true;else if(statusFilter==='활동 중 (전체)')matchStatus=['활동 중','연장 활동 중','단일권 이용'].includes(statusText);else matchStatus=statusText===statusFilter;return matchQuery&&matchStatus&&matchBatch;});filtered.sort((a,b)=>{let batchA=a.batch||'';let batchB=b.batch||'';if(batchA!==batchB)return parseInt(String(batchB).replace(/[^0-9]/g,'')||0)-parseInt(String(batchA).replace(/[^0-9]/g,'')||0);return String(a.name||'').localeCompare(String(b.name||''));});currentFilteredMembers=filtered;currentMemberPage=1;let filterWrap=document.querySelector('#page-members .filter-wrap');if(filterWrap&&!document.getElementById('memberPerPage')){let selectHtml=`<select id="memberPerPage" class="filter-sel" style="margin-left:8px;width:auto;" onchange="window.changeMemberPerPage(this.value)"><option value="10">10명씩 보기</option><option value="50" selected>50명씩 보기</option><option value="100">100명씩 보기</option><option value="all">전체 보기</option></select>`;filterWrap.insertAdjacentHTML('beforeend',selectHtml);}renderMemberTablePage();}
@@ -993,12 +991,129 @@ window.deleteHistory=async function(id,phone,name,action_detail){window.openCust
 window.openHistoryModal=async function(phone,name){if(!$("historyModalTitle"))return;$("historyModalTitle").innerText=`${name} 님의 내역`;const modal=$("historyModal");modal.classList.add('show');const body=$("historyModalBody");body.innerHTML='<div class="empty-state">내역을 불러오는 중입니다.</div>';const{data,error}=await supabaseClient.from('member_history').select('*').eq('member_phone',phone).order('created_at',{ascending:false});if(error||!data||data.length===0){body.innerHTML='<div class="empty-state" style="color:var(--text-tertiary);">결제/연장 내역이 없습니다.</div>';return;}body.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">'+data.map(item=>`<div style="background:#f9fafb;padding:16px;border-radius:12px;border:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}</div></div><div style="display:flex;align-items:center;gap:12px;"><div style="font-weight:700;color:var(--primary);">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation();window.deleteHistory('${item.id}','${phone}','${name}','${item.action_detail}')">삭제</button></div></div>`).join('')+'</div>';}
 window.closeHistoryModal=function(){if($("historyModal"))$("historyModal").classList.remove('show');}
 window.downloadAttendanceExcel=function(){if(!window.currentFilteredTrn||window.currentFilteredTrn.length===0){showToast('출력할 데이터가 없습니다.');return;}let csv="\uFEFF기수,성함,연락처,참여 회차,상태,수업 정보\n";window.currentFilteredTrn.forEach(t=>{let cInfo=String(t.content||'').split(' || ');let classInfo=cInfo.length>=5?`[${cInfo[0]}] ${cInfo[2]} ${cInfo[4]}`:t.content;csv+=`"${t.batch||'-'}","${String(t.name).replace(/"/g,'""')}","${String(t.phone).replace(/"/g,'""')}","${t._attendCount||1}회차","${t.status}","${String(classInfo).replace(/"/g,'""')}"\n`;});const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_참가자리스트_${new Date().toISOString().slice(0,10)}.csv`;link.click();};
-window.downloadExcel=function(type){if(type==='applications'&&isInsightView){const d=window.currentInsightData||{};let csv="\uFEFF카테고리,세부 항목,수치,비고\n";csv+=`전체 요약,총 신청 건수,${d.total||0}건,-\n`;csv+=`전체 요약,최종 가입 완료,${d.joined||0}건,(전환율 ${d.total>0?Math.round(d.joined/d.total*100):0}%)\n`;csv+=`전체 요약,실질 이탈률,${d.realDropoutRate||0}%,(이탈자 ${d.dropoutCount||0}명)\n`;csv+=`유입 채널,인스타그램 총 유입,${d.instaCount||0}건,-\n`;csv+=`인스타 상세,팔로워 유입,${d.instaFollow||0}건,-\n`;csv+=`인스타 상세,비팔로워 유입,${d.instaNonFollow||0}건,-\n`;csv+=`유입 채널,모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`;csv+=`광고 리드타임,단기 유입 (1개월 이내),${d.leadTime1M||0}건,-\n`;csv+=`광고 리드타임,장기 유입 (3개월 이상),${d.leadTime3M||0}건,-\n`;if(d.counselorMap){csv+=`\n상담자별 가입/이탈,상담자,건수,비고\n`;for(let cn in d.counselorMap){let cd=d.counselorMap[cn];if(cn==='미지정')continue;let rate=cd.total>0?Math.round(cd.joined/cd.total*100):0;csv+=`[${cn}],담당 총 ${cd.total}명,${cd.joined}명 가입 / ${cd.dropout}명 이탈,(가입률 ${rate}%)\n`;}}if(d.channelMap){csv+=`\n상세 채널별 트래킹,상세 내역,건수,비고\n`;for(let ch in d.channelMap){let chData=d.channelMap[ch];csv+=`[${ch}],(총 ${chData.total}건),-,-\n`;for(let det in chData.details){let detSafe=String(det).replace(/"/g,'""');csv+=`ㄴ,${detSafe},${chData.details[det]}건,-\n`;}}}const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`;link.click();return;}
-let data=[];let headers=[];let filename="";if(type==='applications'){data=globalApps;filename="가입신청";headers=['신청일','기수','성함','연락처','관심분야','유입경로','진행상황','가입여부','상담일시','담당자'];}else if(type==='members'){globalMembers.forEach(m=>m.batch=m.batch||'미정');data=globalMembers;filename="멤버리스트";headers=['등록일','상태','기수','성함','연락처','활동종료일'];}else if(type==='reservations'){data=gRes;filename="예약현황";headers=['접수일','기수','성함','연락처','예약날짜','예약시간','센터','장비','상태','취소사유'];}else if(type==='trainings'){data=gTrn;filename="수업훈련";headers=['신청일','기수','성함','연락처','콘텐츠','상태','취소사유'];}else if(type==='orders'){data=gOrd;filename="생두주문";headers=['주문일','주문번호','기수','성함','연락처','생두사','상품명','수량','총금액','상태'];}
-if(data.length===0){showToast('다운로드할 데이터가 없습니다.');return;}let csvContent='\uFEFF'+headers.join(',')+'\n';data.forEach(d=>{let row=[];if(type==='applications')row=[formatDt(d.created_at),d.desired_batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),d.interest_area,d.acquisition_channel,d.status,d.join_status,d.call_time,d.counselor_name];else if(type==='members')row=[formatDt(d.created_at),d.status,d.batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),d.end_date];else if(type==='reservations')row=[formatDt(d.created_at),d.batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),d.res_date,d.res_time,d.center,d.space_equip,d.status,d.cancel_reason];else if(type==='trainings')row=[formatDt(d.created_at),d.batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),window.escapeHtml(d.content),d.status,d.cancel_reason];else if(type==='orders')row=[formatDt(d.created_at),d.id,d.batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),d.vendor,d.item_name,d.quantity,d.total_price,d.status];csvContent+=row.map(item=>{let text=String(item||'');text=text.replace(/"/g,'""');text=text.replace(/\n/g,' ');return`"${text}"`;}).join(',')+'\n';});const blob=new Blob([csvContent],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`${filename}_${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(link);link.click();document.body.removeChild(link);}
+
+// ★★★ PATCH: 엑셀 다운로드 (필터 상태 반영) ★★★
+window.downloadExcel=function(type){
+    if(type==='applications'&&isInsightView){
+        const d=window.currentInsightData||{};
+        let csv="\uFEFF카테고리,세부 항목,수치,비고\n";
+        csv+=`전체 요약,총 신청 건수,${d.total||0}건,-\n`;
+        csv+=`전체 요약,최종 가입 완료,${d.joined||0}건,(전환율 ${d.total>0?Math.round(d.joined/d.total*100):0}%)\n`;
+        csv+=`전체 요약,실질 이탈률,${d.realDropoutRate||0}%,(이탈자 ${d.dropoutCount||0}명)\n`;
+        csv+=`유입 채널,인스타그램 총 유입,${d.instaCount||0}건,-\n`;
+        csv+=`인스타 상세,팔로워 유입,${d.instaFollow||0}건,-\n`;
+        csv+=`인스타 상세,비팔로워 유입,${d.instaNonFollow||0}건,-\n`;
+        csv+=`유입 채널,모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`;
+        csv+=`광고 리드타임,단기 유입 (1개월 이내),${d.leadTime1M||0}건,-\n`;
+        csv+=`광고 리드타임,장기 유입 (3개월 이상),${d.leadTime3M||0}건,-\n`;
+        if(d.counselorMap){
+            csv+=`\n상담자별 가입/이탈,상담자,건수,비고\n`;
+            for(let cn in d.counselorMap){
+                let cd=d.counselorMap[cn];
+                if(cn==='미지정')continue;
+                let rate=cd.total>0?Math.round(cd.joined/cd.total*100):0;
+                csv+=`[${cn}],담당 총 ${cd.total}명,${cd.joined}명 가입 / ${cd.dropout}명 이탈,(가입률 ${rate}%)\n`;
+            }
+        }
+        if(d.channelMap){
+            csv+=`\n상세 채널별 트래킹,상세 내역,건수,비고\n`;
+            for(let ch in d.channelMap){
+                let chData=d.channelMap[ch];
+                csv+=`[${ch}],(총 ${chData.total}건),-,-\n`;
+                for(let det in chData.details){
+                    let detSafe=String(det).replace(/"/g,'""');
+                    csv+=`ㄴ,${detSafe},${chData.details[det]}건,-\n`;
+                }
+            }
+        }
+        const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+        const link=document.createElement('a');
+        link.href=URL.createObjectURL(blob);
+        link.download=`위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`;
+        link.click();
+        return;
+    }
+
+    let data=[]; let headers=[]; let filename="";
+
+    if(type==='applications'){
+        const selected = $("batchFilterApp") ? $("batchFilterApp").value : 'all';
+        data = (selected === 'all') ? globalApps : globalApps.filter(d => d.desired_batch === selected);
+        filename="가입신청";
+        headers=['신청일','기수','성함','연락처','관심분야','유입경로','진행상황','가입여부','상담일시','담당자'];
+    }
+    else if(type==='members'){
+        data = (Array.isArray(window.currentFilteredMembers) && window.currentFilteredMembers.length > 0)
+            ? window.currentFilteredMembers
+            : (typeof currentFilteredMembers !== 'undefined' ? currentFilteredMembers : []);
+        if(!data.length && (!$("memberSearch")?.value && (!$("memberStatusFilter") || $("memberStatusFilter").value==='all') && (!$("memberBatchFilter") || $("memberBatchFilter").value==='all'))) {
+            data = globalMembers;
+        }
+        data.forEach(m => m.batch = m.batch || '미정');
+        filename="멤버리스트";
+        headers=['등록일','상태','기수','성함','연락처','활동종료일'];
+    }
+    else if(type==='reservations'){
+        data = (Array.isArray(window.currentFilteredRes) && window.currentFilteredRes.length > 0)
+            ? window.currentFilteredRes
+            : gRes;
+        filename="예약현황";
+        headers=['접수일','기수','성함','연락처','예약날짜','예약시간','센터','장비','상태','취소사유'];
+    }
+    else if(type==='trainings'){
+        data = (Array.isArray(window.currentFilteredTrn) && window.currentFilteredTrn.length > 0)
+            ? window.currentFilteredTrn
+            : gTrn;
+        filename="수업훈련";
+        headers=['신청일','기수','성함','연락처','콘텐츠','상태','취소사유'];
+    }
+    else if(type==='orders'){
+        const now = new Date();
+        const qOrd = ($("searchOrd")?.value || "").toLowerCase();
+        const vOrd = $("ordVendorFilter")?.value || "전체";
+        const isOrdFilter = $("filterPendingOrd")?.checked;
+        data = gOrd.filter(o => {
+            const matchCenter = (currentGlobalCenter==='전체' || o.center===currentGlobalCenter);
+            const matchQ = `${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);
+            const matchV = vOrd==='전체' ? true : o.vendor===vOrd;
+            const matchS = isOrdFilter ? (o.status==='주문 접수') : true;
+            const notExpired = isOrdFilter ? true : !window.isOrderExpired(o, now);
+            return matchCenter && matchQ && matchV && matchS && notExpired;
+        });
+        filename="생두주문";
+        headers=['주문일','주문번호','기수','성함','연락처','생두사','상품명','수량','총금액','상태'];
+    }
+
+    if(data.length===0){ showToast('다운로드할 데이터가 없습니다.'); return; }
+
+    let csvContent='\uFEFF'+headers.join(',')+'\n';
+    data.forEach(d=>{
+        let row=[];
+        if(type==='applications') row=[formatDt(d.created_at),d.desired_batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),d.interest_area,d.acquisition_channel,d.status,d.join_status,d.call_time,d.counselor_name];
+        else if(type==='members') row=[formatDt(d.created_at),d.status,d.batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),d.end_date];
+        else if(type==='reservations') row=[formatDt(d.created_at),d.batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),d.res_date,d.res_time,d.center,d.space_equip,d.status,d.cancel_reason];
+        else if(type==='trainings') row=[formatDt(d.created_at),d.batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),window.escapeHtml(d.content),d.status,d.cancel_reason];
+        else if(type==='orders') row=[formatDt(d.created_at),d.id,d.batch,window.escapeHtml(d.name),window.escapeHtml(d.phone),d.vendor,d.item_name,d.quantity,d.total_price,d.status];
+        
+        csvContent+=row.map(item=>{ 
+            let text=String(item||''); 
+            text=text.replace(/"/g,'""'); 
+            text=text.replace(/\n/g,' '); 
+            return `"${text}"`; 
+        }).join(',')+'\n';
+    });
+    
+    const blob=new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
+    const link=document.createElement('a');
+    link.href=URL.createObjectURL(blob);
+    link.download=`${filename}_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link); 
+    link.click(); 
+    document.body.removeChild(link);
+}
+
 window.saveAdminNote=async function(){if(!$("crmAppId"))return;const id=$("crmAppId").value;const app=globalApps.find(a=>String(a.id)===String(id));if(!app){showToast("신청 정보를 찾을 수 없습니다.");return;}const title=$("crmNoteTitle")?$("crmNoteTitle").value.trim():"";const content=$("crmNoteInput")?$("crmNoteInput").value.trim():"";if(!title&&!content)return showToast("내용을 입력해주세요.");const newNote=`${title}:::${content}`;let updatedMemo=app.admin_memo?app.admin_memo+'|||'+newNote:newNote;const originalMemo=app.admin_memo;app.admin_memo=updatedMemo;window.renderCrmInner(id,isCrmReadOnly);const{error}=await supabaseClient.from('applications').update({admin_memo:updatedMemo}).eq('id',id);if(error){app.admin_memo=originalMemo;window.renderCrmInner(id,isCrmReadOnly);showToast("기록 추가에 실패했습니다.");console.error(error);}else{showToast("상담 기록이 추가되었습니다.");}}
 
-// ★★★ PATCH (서버부하 ⑧): 폴백 쿼리에서 last 4자리 ILIKE + limit 적용 ★★★
 window.openCrmModalFromPhone=async function(phone){
     if(!phone||phone==='-')return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");
     const normalizePhone=p=>String(p).replace(/\D/g,'');
@@ -1008,7 +1123,6 @@ window.openCrmModalFromPhone=async function(phone){
         window.openCrmModal(app.id,true);
     }else{
         showToast("내역을 불러오는 중입니다...");
-        // 전체 조회 대신 끝 4자리 매칭으로 후보 좁히기 (010-1234-5678 / 01012345678 모두 커버)
         const last4 = targetPhone.slice(-4);
         if(last4.length < 4){
             showToast("연락처 정보가 충분하지 않아 검색할 수 없습니다.");
@@ -1036,7 +1150,6 @@ window.closeSummaryModal=function(){const modal=$("summaryModal");if(modal)modal
 window.sendToGoogleSheet=async function(){if(!window.currentSummaryData||window.currentSummaryData.length===0){showToast('데이터 없음');return;}const GAS_URL='https://script.google.com/macros/s/AKfycbynlyczuJ5VWzfG5IFOstLzkRybv4Yvjgo9bxDHoUQlK84gAehaTuCNommlmrXuFsJK/exec';const btn=document.getElementById('btn-send-sheet');if(btn){btn.innerText='전송 중...';btn.disabled=true;}try{let uniqueMembers=[...new Set(window.currentSummaryData.map(d=>d['성함']))].filter(name=>name!=="이름없음"&&name!=="");let invoiceData=uniqueMembers.map(name=>{let info=window.currentMemberInfoMap&&window.currentMemberInfoMap[name]?window.currentMemberInfoMap[name]:{phone:'',batch:''};return{"등록 일시":"","발주 구분":"","수령 센터":"","생두사":"","상품명":`[${name}] 님 최종 청구 금액`,"주문 수량":"","결제 금액":`CALC_TOTAL:${name}`,"기수":info.batch,"성함":name,"연락처":info.phone};});let payload=[...window.currentSummaryData,{"등록 일시":"","발주 구분":"","수령 센터":"","생두사":"","상품명":"--- ▼ 멤버별 총 결제 금액 명세서 ▼ ---","주문 수량":"","결제 금액":"","기수":"","성함":"","연락처":""},...invoiceData];await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});showToast("구글 시트에 명세서와 함께 전송되었습니다.");}catch(e){showToast("전송 오류");}finally{if(btn){btn.innerText='구글 시트 전송';btn.disabled=false;}}};
 window.downloadSummaryExcel=function(){if(!window.currentSummaryData||window.currentSummaryData.length===0){showToast('데이터 없음');return;}let csv="\uFEFF등록 일시,발주 구분,수령 센터,생두사,상품명,주문 수량,결제 금액,기수,성함,연락처\n";window.currentSummaryData.forEach(s=>{let dt=s['등록 일시']||'';let type=s['발주 구분']||'';let center=s['수령 센터']||'';let vendor=s['생두사']||'';let item=String(s['상품명']||'').replace(/"/g,'""');let qty=s['주문 수량']||'';let price=s['결제 금액']||'';let batch=String(s['기수']||'');let name=s['성함']||'';let phone=s['연락처']||'';csv+=`"${dt}","${type}","${center}","${vendor}","${item}","${qty}","${price}","${batch}","${name}","${phone}"\n`;});let uniqueMembers=[...new Set(window.currentSummaryData.map(d=>d['성함']))].filter(name=>name!=="이름없음"&&name!=="");if(uniqueMembers.length>0){csv+=`\n,,,,,,,,,\n`;csv+=`,,,,"--- ▼ 멤버별 총 결제 금액 명세서 ▼ ---",,,,,\n`;let dataEndRow=window.currentSummaryData.length+1;uniqueMembers.forEach(name=>{let info=window.currentMemberInfoMap&&window.currentMemberInfoMap[name]?window.currentMemberInfoMap[name]:{phone:'',batch:''};csv+=`,,,,"[${name}] 님 최종 청구 금액",,"=IFERROR(SUMIFS(G2:G${dataEndRow}, I2:I${dataEndRow}, ""${name}""), 0)","${info.batch}","${name}","${info.phone}"\n`;})}const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_발주명단_및_청구서_${new Date().toISOString().slice(0,10)}.csv`;link.click();};
 
-// ★★★ PATCH (서버부하 ⑨): cancelAction에 force:true ★★★
 window.cancelAction=function(table,id){
     const todayStr=(()=>{const t=new Date();return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;})();
     let eventDateStr=null;
@@ -1065,7 +1178,6 @@ window.editBlock=function(id){let b=gBlk.find(x=>String(x.id)===String(id));if(!
 window.closeBlockModal=function(){if($("blockModal"))$("blockModal").classList.remove('show');};
 window.isSavingBlock=false;
 
-// ★★★ PATCH (서버부하 ⑨): saveBlockData에 force:true ★★★
 window.saveBlockData=async function(){
     if(window.isSavingBlock)return;window.isSavingBlock=true;
     let id=$("blockId")?$("blockId").value:($("blkId")?$("blkId").value:"");
@@ -1142,7 +1254,6 @@ window.saveBlockData=async function(){
     }
 };
 
-// ★★★ PATCH (서버부하 ⑨): deleteBlock에 force:true ★★★
 window.deleteBlock=function(id){window.openCustomConfirm("스케줄 삭제",null,"이 스케줄을 삭제하시겠습니까?",async()=>{const{error}=await supabaseClient.from('blocks').delete().eq('id',id);if(error)showToast("삭제 실패");else{showToast("삭제되었습니다.");window.fetchCenterData({force:true});}});};
 
 function initQuill(){if(!quillEditor&&$('editor-container')){quillEditor=new Quill('#editor-container',{theme:'snow',modules:{toolbar:[[{'header':[1,2,3,false]}],['bold','italic','underline','strike'],[{'list':'ordered'},{'list':'bullet'}],[{'align':[]}],[{'color':[]},{'background':[]}],['clean']]},placeholder:'내용을 자유롭게 적어주세요.'});}}
@@ -1150,10 +1261,8 @@ window.openNoticeModal=function(){if($("noticeModal"))$("noticeModal").classList
 window.editNotice=function(id){let n=gNotice.find(x=>String(x.id)===String(id));if(!n)return;if($("noticeModal"))$("noticeModal").classList.add('show');setTimeout(()=>{try{initQuill();if(quillEditor)quillEditor.root.innerHTML=n.content||'';}catch(e){}},50);if($("noticeId"))$("noticeId").value=n.id;if($("noticeTitle"))$("noticeTitle").value=n.title;if($("noticePinned"))$("noticePinned").checked=n.is_pinned;if($("noticeStatus"))$("noticeStatus").value=n.status||'발행';if($("noticeTargetBatch"))$("noticeTargetBatch").value=n.target_batch||'';if($("noticeModalTitle"))$("noticeModalTitle").innerText="공지사항 수정";}
 window.closeNoticeModal=function(){if($("noticeModal"))$("noticeModal").classList.remove('show');}
 
-// ★★★ PATCH (서버부하 ⑨): saveNoticeData에 force:true (notices Realtime 구독 제거됨에 따라 필수) ★★★
 window.saveNoticeData=async function(){let id=$("noticeId")?$("noticeId").value:"";let htmlContent=quillEditor?quillEditor.root.innerHTML:'';let targetBatchVal=$("noticeTargetBatch")?$("noticeTargetBatch").value.trim():"";let payload={title:$("noticeTitle")?$("noticeTitle").value.trim():"",content:htmlContent,is_pinned:$("noticePinned")?$("noticePinned").checked:false,status:$("noticeStatus")?$("noticeStatus").value:"발행",target_batch:targetBatchVal===""?null:targetBatchVal};if(!payload.title)return showToast("제목을 입력해주세요.");if(!payload.content||payload.content==='<p><br></p>')return showToast("내용을 입력해주세요.");let error;if(id){const res=await supabaseClient.from('notices').update(payload).eq('id',id);error=res.error;}else{const res=await supabaseClient.from('notices').insert([payload]);error=res.error;}if(error){showToast("저장 실패: "+(error.message||error.details||"알 수 없는 오류"));console.error("Notice Save Error:",error);}else{showToast("저장되었습니다.");window.closeNoticeModal();window.fetchCenterData({force:true});}}
 
-// ★★★ PATCH (서버부하 ⑨): deleteNotice에 force:true ★★★
 window.deleteNotice=function(id){window.openCustomConfirm("공지사항 삭제",null,`이 공지사항을 완전히 삭제하시겠습니까?`,async()=>{const{error}=await supabaseClient.from('notices').delete().eq('id',id);if(error)showToast("삭제 실패");else{showToast("삭제되었습니다.");window.fetchCenterData({force:true});}});}
 
 window.renderMCalCenter=function(selDate){$$$("#m-cal-strip-center .m-cal-date").forEach(el=>el.classList.remove('active'));let target=document.getElementById(`m-date-center-${selDate}`);if(target){target.classList.add('active');try{target.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}catch(e){}}let evts=window.centerCalEvts&&window.centerCalEvts[selDate]?window.centerCalEvts[selDate]:[];evts.sort((a,b)=>String(a.start||'').localeCompare(String(b.start||'')));let html='';if(evts.length===0){html=`<div class="empty-state" style="padding:40px 0;">예정된 스케줄이 없습니다.</div>`;}else{evts.forEach(e=>{let timeStr=e.time||'종일';html+=`<div class="m-cal-card" style="align-items:flex-start;text-align:left;width:100%;box-sizing:border-box;"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary);font-weight:800;font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px;color:var(--text-secondary);margin-top:0;width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;});}let listWrap=$("m-cal-list-center");if(listWrap)listWrap.innerHTML=html;};
