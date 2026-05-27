@@ -962,7 +962,7 @@ window.renderCrmInner=function(id,isReadOnly=false){const app=globalApps.find(a=
     _profileItems.push(`<span style="font-weight:800;color:var(--text-display);font-size:15px;">[${app.desired_batch||'미정'}]</span>`);
     _profileItems.push(`<span style="color:var(--text-tertiary);font-size:12px;font-weight:600;">연락처</span>&nbsp;<span style="font-weight:700;color:var(--text-display);">${window.escapeHtml(window.normalizePhone(app.phone)||app.phone||'-')}</span>`);
     if(app.acquisition_channel) _profileItems.push(`<span style="color:var(--text-tertiary);font-size:12px;font-weight:600;">유입</span>&nbsp;<span style="font-weight:700;color:var(--text-display);">${window.escapeHtml(app.acquisition_channel)}</span>`);
-    if(app.desired_center) _profileItems.push(`<span style="color:var(--text-tertiary);font-size:12px;font-weight:600;">센터</span>&nbsp;<span style="font-weight:700;color:var(--text-display);">${window.escapeHtml(app.desired_center)}</span>`);
+    if(app.desired_center) _profileItems.push(`<span style="color:var(--text-tertiary);font-size:12px;font-weight:600;">희망센터</span>&nbsp;<span style="font-weight:700;color:var(--text-display);">${window.escapeHtml(app.desired_center)}</span>`);
     if(app.interest_level) _profileItems.push(`<span style="color:var(--text-tertiary);font-size:12px;font-weight:600;">관심도</span>&nbsp;<span style="font-weight:700;color:var(--primary);">${window.escapeHtml(app.interest_level)}</span>`);
     if($("crmProfile"))$("crmProfile").innerHTML=`<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 0;line-height:1.8;">${_profileItems.join(`<span style="color:var(--border-strong);margin:0 8px;">|</span>`)}</div>`;
     // ★ 요청3: call_time이 날짜 형식이면 "상담 예정일", 아니면 "통화 선호 시간"
@@ -1084,7 +1084,7 @@ window.renderAppTable = function(data) {
         let levelHtml = row.interest_level ? `<div style="font-size:12px;font-weight:700;color:var(--primary);margin-top:4px;line-height:1.3;">${window.escapeHtml(row.interest_level)}</div>` : '';
         // ★ 요청2: 모바일 카드에 유입경로, 희망센터, 통화선호시간/상담예정일 추가
         let _mRoute = row.acquisition_channel ? `<span style="color:var(--text-tertiary);font-size:11px;font-weight:600;">유입</span>&nbsp;<span style="font-weight:600;color:var(--text-secondary);">${window.escapeHtml(row.acquisition_channel)}</span>` : '';
-        let _mCenter = row.desired_center ? `<span style="color:var(--text-tertiary);font-size:11px;font-weight:600;">센터</span>&nbsp;<span style="font-weight:600;color:var(--text-secondary);">${window.escapeHtml(row.desired_center)}</span>` : '';
+        let _mCenter = row.desired_center ? `<span style="color:var(--text-tertiary);font-size:11px;font-weight:600;">희망센터</span>&nbsp;<span style="font-weight:600;color:var(--text-secondary);">${window.escapeHtml(row.desired_center)}</span>` : '';
         let _mMetaItems = [_mRoute, _mCenter].filter(Boolean);
         let _mMetaHtml = _mMetaItems.length > 0 ? `<div style="font-size:12px;margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;">${_mMetaItems.join('')}</div>` : '';
         // ★ 요청3: call_time 날짜 판별 → 라벨 분기 (UX라이팅 PC와 통일: "통화 선호 시간" / "상담 예정일")
