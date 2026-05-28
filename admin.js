@@ -470,121 +470,6 @@ window.closeOnBackdrop=function(event,modalId){if(event.target.id===modalId&&$(m
 window.showCancelReason=function(reason){window.openCustomConfirm("당일 취소 사유",null,`<div style="padding:16px;background:#f9fafb;border-radius:8px;text-align:left;font-size:14px;line-height:1.5;color:var(--text-display);border:1px solid var(--border-strong);white-space:pre-wrap;">${window.escapeHtml(reason||'사유가 기재되지 않았습니다.')}</div>`,()=>{},"확인");};
 window.isOrderExpired=function(order,now){let baseDate=order.delivery_date?window.parseDeliveryDate(order.delivery_date):window.safeKST(order.created_at);let cancelBaseDate=order.updated_at?window.safeKST(order.updated_at):baseDate;let status=order.status||'주문 접수';if(['주문 접수','입금 대기','입금 확인 중','입금 확인','대기'].includes(status))return false;if(status==='주문 취소'||status==='품절')return(now.getTime()-cancelBaseDate.getTime())>48*60*60*1000;if(status==='센터 도착')return(now.getTime()-baseDate.getTime())>7*24*60*60*1000;return false;};
 
-// ▼▼▼ 파트2에서 이어집니다 (fetchCenterData 부터) ▼▼▼
-// ★★★ PATCH (서버부하 ⑥ + B): fetchCenterData 3중 방어선 + orders 90일 필터 ★★★
-let isFetchingCenter = false;
-let lastCenterFetchAt = 0;
-const CENTER_STALE_MS = 120000; // 2분
-
-window.fetchCenterData = async function(opts) {
-  opts = opts || {};
-  const force = opts.force === true;
-
-  if (isFetchingCenter) return;
-
-  if (!force && (Date.now() - lastCenterFetchAt) < CENTER_STALE_MS && lastCenterFetchAt > 0) {
-    try { window.renderCenterData(); } catch(e) { console.error(e); }
-    try { window.renderDashboard(); } catch(e) { console.error(e); }
-    try { window.renderNoticeData(); } catch(e) { console.error(e); }
-    try {
-      if(!document.getElementById('timeline-area')) {
-        const dailyBanner=document.getElementById('dailyInOutBanner');
-        const cancelBanner=document.getElementById('cancelAccumulationBanner');
-        if(dailyBanner&&cancelBanner){let commonWrapper=dailyBanner.parentElement;while(commonWrapper&&!commonWrapper.contains(cancelBanner)){commonWrapper=commonWrapper.parentElement;}if(commonWrapper){const area=document.createElement('div');area.id='timeline-area';commonWrapper.insertAdjacentElement('afterend',area);}}
-        else if(dailyBanner&&dailyBanner.parentNode){let wrapper=dailyBanner.parentElement;if(wrapper.parentElement&&wrapper.parentElement.tagName==='DIV')wrapper=wrapper.parentElement;const area=document.createElement('div');area.id='timeline-area';wrapper.insertAdjacentElement('afterend',area);}
-      }
-      if(window.renderTimeline) window.renderTimeline();
-    } catch(e) { console.error(e); }
-    return;
-  }
-
-  isFetchingCenter = true;
-  const lockSafetyTimer = setTimeout(() => {
-    console.warn('[fetchCenterData] 안전 타임아웃 — 락 강제 해제');
-    isFetchingCenter = false;
-  }, 30000);
-
-  try {
-    const now = new Date();
-    const sixtyDaysAgo = new Date(now);
-    sixtyDaysAgo.setDate(now.getDate() - 60);
-    const sixtyDaysAgoDate = sixtyDaysAgo.toISOString().split('T')[0];
-    const sixtyDaysAgoISO = sixtyDaysAgo.toISOString();
-    const todayDate = now.toISOString().split('T')[0];
-
-    const [res, trn, ord, blk, noti] = await Promise.all([
-      supabaseClient.from('reservations')
-        .select('id, created_at, batch, name, phone, res_date, res_time, center, space_equip, status, cancel_reason')
-        .gte('res_date', sixtyDaysAgoDate)
-        .order('created_at', {ascending: false})
-        .limit(500),
-      supabaseClient.from('trainings')
-        .select('id, created_at, batch, name, phone, content, status, cancel_reason')
-        .gte('created_at', sixtyDaysAgoISO)
-        .order('created_at', {ascending: false})
-        .limit(500),
-      // ★ PATCH (B): 진행 중 상태는 기간 무관 전부 + 60일 이내 건. 오래된 진행 중 주문이 잘리는 사고 방지
-      supabaseClient.from('orders')
-        .select('*')
-        .or(`status.in.("주문 접수","입금 대기","입금 확인 중","입금 확인"),created_at.gte.${sixtyDaysAgoISO}`)
-        .order('created_at', {ascending: false})
-        .limit(1000),
-      supabaseClient.from('blocks')
-        .select('id, block_date, start_time, end_time, category, center, space_equip, reason, capacity, target_batch')
-        .gte('block_date', todayDate)
-        .order('block_date', {ascending: false}),
-      supabaseClient.from('notices')
-        .select('id, created_at, title, content, is_pinned, status, target_batch')
-        .order('created_at', {ascending: false})
-        .limit(100)
-    ]);
-
-    gRes = res?.data || [];
-    gTrn = trn?.data || [];
-    gOrd = ord?.data || [];
-    gBlk = blk?.data || [];
-    gNotice = noti?.data || [];
-
-    try {
-      gRes.forEach(r=>{if(r.space_equip)r.space_equip=String(r.space_equip).replace(/로스팅룸/g,'로스팅존');});
-      gBlk.forEach(b=>{if(b.space_equip)b.space_equip=String(b.space_equip).replace(/로스팅룸/g,'로스팅존');});
-      gTrn.forEach(t=>{if(t.content)t.content=String(t.content).replace(/로스팅룸/g,'로스팅존');});
-      let bSet=new Set();gRes.forEach(r=>{if(r.batch)bSet.add(r.batch);});gTrn.forEach(t=>{if(t.batch)bSet.add(t.batch);});
-      let bHtml=`<option value="전체">전체 기수</option>`+Array.from(bSet).sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0)).map(b=>`<option value="${b}">${b}</option>`).join("");
-      if($("dashBatchFilter")&&$("dashBatchFilter").innerHTML!==bHtml)$("dashBatchFilter").innerHTML=bHtml;
-      let sSet=new Set();gRes.forEach(r=>{if(r.space_equip)sSet.add(String(r.space_equip).split(' ')[0]);});
-      let sHtml=`<option value="전체">전체 공간/장비</option>`+Array.from(sSet).sort().map(s=>`<option value="${s}">${s}</option>`).join("");
-      if($("resSpaceFilter")&&$("resSpaceFilter").innerHTML.length<100)$("resSpaceFilter").innerHTML=sHtml;
-      let todayForFilter=new Date();todayForFilter.setHours(0,0,0,0);
-      let tSet=new Set();gTrn.forEach(t=>{let cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length>=5){let tDateObj=new Date(cInfo[0]);tDateObj.setHours(0,0,0,0);if(tDateObj>=todayForFilter)tSet.add(`[${cInfo[0]}] [${cInfo[2]}] ${cInfo[4]}`);}else{tSet.add(String(t.content||'').trim());}});
-      let tHtml=`<option value="전체">전체 콘텐츠</option>`+Array.from(tSet).sort().map(c=>`<option value="${window.escapeHtml(c)}">${window.escapeHtml(c)}</option>`).join("");
-      if($("trnContentFilter")&&$("trnContentFilter").innerHTML.length<100)$("trnContentFilter").innerHTML=tHtml;
-    } catch(err) { console.error("Data prep error:", err); }
-
-    lastCenterFetchAt = Date.now();
-
-  } catch(e) {
-    console.error("fetchCenterData Error:", e);
-  } finally {
-    clearTimeout(lockSafetyTimer);
-    isFetchingCenter = false;
-  }
-
-  try { window.renderCenterData(); } catch(e) { console.error(e); }
-  try { window.renderDashboard(); } catch(e) { console.error(e); }
-  try { window.renderNoticeData(); } catch(e) { console.error(e); }
-  try {
-    if(!document.getElementById('timeline-area')) {
-      const dailyBanner=document.getElementById('dailyInOutBanner');
-      const cancelBanner=document.getElementById('cancelAccumulationBanner');
-      if(dailyBanner&&cancelBanner){let commonWrapper=dailyBanner.parentElement;while(commonWrapper&&!commonWrapper.contains(cancelBanner)){commonWrapper=commonWrapper.parentElement;}if(commonWrapper){const area=document.createElement('div');area.id='timeline-area';commonWrapper.insertAdjacentElement('afterend',area);}}
-      else if(dailyBanner&&dailyBanner.parentNode){let wrapper=dailyBanner.parentElement;if(wrapper.parentElement&&wrapper.parentElement.tagName==='DIV')wrapper=wrapper.parentElement;const area=document.createElement('div');area.id='timeline-area';wrapper.insertAdjacentElement('afterend',area);}
-    }
-    if(window.renderTimeline) window.renderTimeline();
-  } catch(e) { console.error(e); }
-};
-
-// ▼▼▼ 파트1 끝 — 다음은 toggleDashView, renderCenterData, renderTimeline 등 (파트2) ▼▼▼
 // ▼▼▼ 파트2 시작 (toggleDashView 부터) ▼▼▼
 
 window.toggleDashView=function(view){currentDashView=view;if(view==='month'){if($("dashMonthNav"))$("dashMonthNav").style.display='flex';}else{if($("dashMonthNav"))$("dashMonthNav").style.display='none';currentDashMonthOffset=0;}window.renderDashboard();};
@@ -596,7 +481,7 @@ window.renderCenterData=function(){
   // ★ E-1: 렌더 직전 체크박스 상태 저장
   const _savedCheckboxes = (typeof window.preserveCheckboxState === 'function') ? window.preserveCheckboxState() : null;
 
-  const now=new Date();const oneMonthAgo=new Date();oneMonthAgo.setDate(now.getDate()-30);let todayForBlk=new Date();todayForBlk.setHours(0,0,0,0);
+  const now=new Date();const oneMonthAgo=new Date(now.getFullYear(),now.getMonth(),1);oneMonthAgo.setHours(0,0,0,0);let todayForBlk=new Date();todayForBlk.setHours(0,0,0,0);
   try{window.updateDailyInOutBanner();if(window.updateCancelAccumulationBanner)window.updateCancelAccumulationBanner();}catch(e){}
   try{const addTooltipToText=(textMatch,id,tooltipText,isLong=false)=>{let titles=document.querySelectorAll('.page-title,.section-title,h2,h3,.table-toolbar > div,.sub-page-title');titles.forEach(el=>{if(el.textContent.includes(textMatch)&&!document.getElementById(id)&&!el.closest('#dynamic-ord-container')){let sub=el.querySelector('.sub-text');if(sub)sub.remove();el.style.display='flex';el.style.alignItems='center';el.style.gap='6px';el.insertAdjacentHTML('beforeend',`<i id="${id}" class="info-tooltip ${isLong?'long-text':''}" data-tippy="${tooltipText}" onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">i</i>`);}});};
   let resTitle=document.querySelector('#sub-res .table-toolbar .section-title');if(resTitle&&resTitle.textContent.includes('상세 예약 로그'))resTitle.innerHTML='센터 예약 리스트';if(resTitle&&!document.getElementById('resAccordionBtn')){resTitle.innerHTML+=`<button id="resAccordionBtn" class="btn-outline btn-sm" style="margin-left:12px;font-size:12px;padding:2px 8px;height:26px;" onclick="window.toggleResAccordion()">접기 ▲</button>`;}
@@ -961,11 +846,11 @@ window.renderCrmInner=function(id,isReadOnly=false){const app=globalApps.find(a=
     let _row = (label, value, valueStyle) => `<div style="display:flex;align-items:baseline;gap:0;"><span style="color:var(--text-tertiary);font-size:13px;font-weight:600;width:68px;flex-shrink:0;">${label}</span><span style="${valueStyle||'font-weight:700;color:var(--text-display);font-size:14px;'}">${value}</span></div>`;
     let _profileHtml = '';
     _profileHtml += _row('연락처', window.escapeHtml(window.normalizePhone(app.phone)||app.phone||'-'));
-    if(app.interest_area) _profileHtml += _row('관심분야', window.escapeHtml(app.interest_area), 'font-weight:700;color:var(--text-display);font-size:14px;line-height:1.5;');
-    if(app.acquisition_channel) _profileHtml += _row('유입', window.escapeHtml(app.acquisition_channel));
+    if(app.interest_area) _profileHtml += _row('관심 분야', window.escapeHtml(app.interest_area), 'font-weight:700;color:var(--text-display);font-size:14px;line-height:1.5;');
+    if(app.acquisition_channel) _profileHtml += _row('유입 경로', window.escapeHtml(app.acquisition_channel));
     if(app.known_duration) _profileHtml += _row('인지 기간', window.escapeHtml(app.known_duration));
     if(app.interest_level) _profileHtml += _row('관심도', window.escapeHtml(app.interest_level), 'font-weight:700;color:var(--primary);font-size:14px;');
-    if(app.desired_center) _profileHtml += _row('희망센터', window.escapeHtml(app.desired_center));
+    if(app.desired_center) _profileHtml += _row('희망 센터', window.escapeHtml(app.desired_center));
     if($("crmProfile"))$("crmProfile").innerHTML=`<div style="display:flex;flex-direction:column;gap:6px;">${_profileHtml}</div>`;
     // ★ 요청3: call_time 라벨 분기 + 프로필 블록과 시각적 분리
     let _rawCallTime = app.call_time && app.call_time !== 'null' ? app.call_time : '';
@@ -1075,7 +960,7 @@ window.renderAppTable = function(data) {
     tbody.innerHTML='';
     if(data.length===0){tbody.innerHTML=`<tr><td colspan="8" class="empty-state">내역이 없습니다.</td></tr>`;return;}
     // 모바일 전용 셀 CSS 주입 (1회)
-    if(!document.getElementById('wc-m-only-style')){const s=document.createElement('style');s.id='wc-m-only-style';s.textContent='.m-only-cell{display:none!important}@media(max-width:768px){tr.expanded .m-only-cell{display:block!important}}';document.head.appendChild(s);}
+    if(!document.getElementById('wc-m-only-style')){const s=document.createElement('style');s.id='wc-m-only-style';s.textContent='.m-only-cell{display:none!important}@media(max-width:768px){tr.expanded .m-only-cell{display:block!important;padding-top:10px!important;padding-bottom:10px!important}}';document.head.appendChild(s);}
     data.forEach(row=>{
         const interestFull=row.interest_area||'-';
         let routeDisplay=row.acquisition_channel||'-';
@@ -1092,7 +977,7 @@ window.renderAppTable = function(data) {
         // ★ m-preview: 식별 정보만 (날짜, 상태, 기수+이름+연락처)
         let mPreview=`<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span><span class="status-badge ${cStat}">${row.status}</span></div><div class="m-prev-title">[${row.desired_batch||'-'}] ${window.escapeHtml(row.name)} <span style="font-size:13px;color:var(--text-secondary);">(${window.escapeHtml(window.normalizePhone(row.phone)||row.phone||'')})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
         const tr=document.createElement('tr');
-        tr.innerHTML=`${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch||'-'}</td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(window.normalizePhone(row.phone)||row.phone||'')}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="${window.escapeHtml(_mTimeLabel)}" class="m-only-cell"><span style="font-weight:600;">${window.escapeHtml(_mTimeValue)}</span></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="인지 기간" class="m-only-cell">${window.escapeHtml(row.known_duration||'-')}</td><td data-label="관심도" class="m-only-cell"><span style="color:var(--primary);font-weight:700;">${window.escapeHtml(row.interest_level||'-')}</span></td><td data-label="희망센터" class="m-only-cell">${window.escapeHtml(row.desired_center||'-')}</td><td data-label="상담 진행 상황" style="vertical-align:top !important;"><select class="status-select ${cStat}" style="display:block;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time}','${row.counselor_name}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>상담 일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>상담 설문 완료</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option><option value="연락 두절" ${row.status==='연락 두절'?'selected':''}>연락 두절</option></select>${timeBadgeHtml}</td><td data-label="가입 여부" style="vertical-align:top !important;"><select class="status-select ${cJoin}" style="display:block;" onchange="window.updateAppStatus('${row.id}','join_status',this.value,this)" ${row.status==='상담 완료'?'':'disabled'}><option value="" ${!row.join_status?'selected':''}>선택 전</option><option value="고민 중" ${row.join_status==='고민 중'?'selected':''}>고민 중</option><option value="연락 후 미가입" ${row.join_status==='연락 후 미가입'?'selected':''}>연락 후 미가입</option><option value="상담 후 미가입" ${row.join_status==='상담 후 미가입'?'selected':''}>상담 후 미가입</option><option value="가입 완료" ${row.join_status==='가입 완료'?'selected':''}>가입 완료</option><option value="미가입" ${row.join_status==='미가입'?'selected':''}>미가입</option><option value="다음 기수 희망" ${row.join_status==='다음 기수 희망'?'selected':''}>다음 기수 희망</option></select></td>`;
+        tr.innerHTML=`${mPreview}<td data-label="신청일시">${formatDt(row.created_at)}</td><td data-label="기수">${row.desired_batch||'-'}</td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(window.normalizePhone(row.phone)||row.phone||'')}</td><td data-label="관심 분야"><div>${interestFull}</div></td><td data-label="유입 경로"><div>${routeDisplay}</div></td><td data-label="인지 기간" class="m-only-cell">${window.escapeHtml(row.known_duration||'-')}</td><td data-label="관심도" class="m-only-cell"><span style="color:var(--primary);font-weight:700;">${window.escapeHtml(row.interest_level||'-')}</span></td><td data-label="희망 센터" class="m-only-cell">${window.escapeHtml(row.desired_center||'-')}</td><td data-label="${window.escapeHtml(_mTimeLabel)}" class="m-only-cell"><span style="font-weight:600;">${window.escapeHtml(_mTimeValue)}</span></td><td data-label="상담 진행 상황" style="vertical-align:top !important;"><select class="status-select ${cStat}" style="display:block;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time}','${row.counselor_name}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>상담 일정 조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>상담 일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>상담 설문 완료</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option><option value="연락 두절" ${row.status==='연락 두절'?'selected':''}>연락 두절</option></select>${timeBadgeHtml}</td><td data-label="가입 여부" style="vertical-align:top !important;"><select class="status-select ${cJoin}" style="display:block;" onchange="window.updateAppStatus('${row.id}','join_status',this.value,this)" ${row.status==='상담 완료'?'':'disabled'}><option value="" ${!row.join_status?'selected':''}>선택 전</option><option value="고민 중" ${row.join_status==='고민 중'?'selected':''}>고민 중</option><option value="연락 후 미가입" ${row.join_status==='연락 후 미가입'?'selected':''}>연락 후 미가입</option><option value="상담 후 미가입" ${row.join_status==='상담 후 미가입'?'selected':''}>상담 후 미가입</option><option value="가입 완료" ${row.join_status==='가입 완료'?'selected':''}>가입 완료</option><option value="미가입" ${row.join_status==='미가입'?'selected':''}>미가입</option><option value="다음 기수 희망" ${row.join_status==='다음 기수 희망'?'selected':''}>다음 기수 희망</option></select></td>`;
         tbody.appendChild(tr);
     });
 }
