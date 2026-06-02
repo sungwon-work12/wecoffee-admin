@@ -900,7 +900,7 @@ window.handlePaymentStatus=function(id,newValue,selectEl){
     if(effectiveOld===newValue)return;
     let isRollback=(effectiveOld==='입금 확인 중'||effectiveOld==='입금 확인')&&(newValue==='입금 대기'||newValue==='주문 접수');
     let confirmMsg=isRollback?`<div style="background:#fff0f0;border:1px solid #ffcdd2;border-radius:8px;padding:16px;text-align:left;"><div style="color:var(--error);font-weight:800;font-size:14px;margin-bottom:8px;">롤백 경고</div><div style="font-size:14px;color:var(--text-display);line-height:1.5;">현재 <b>[${effectiveOld}]</b> 상태입니다.<br>정말 <b style="color:var(--error);">[${newValue}]</b>(으)로 되돌리시겠습니까?</div></div>`:`<div style="font-size:15px;color:var(--text-display);">결제 상태를 <b style="color:var(--primary);">[${newValue}]</b>(으)로 변경하시겠습니까?</div>`;
-    window.openCustomConfirm("결제 상태 변경",null,confirmMsg,async()=>{const{error}=await supabaseClient.from('orders').update({status:newValue}).eq('id',id);if(error)showToast("변경 실패");else{showToast(`[${newValue}] 상태로 변경되었습니다.`);window.fetchCenterData({force:true});}},"변경하기");
+    window.openCustomConfirm("결제 상태 변경",null,confirmMsg,async()=>{const{error}=await supabaseClient.from('orders').update({status:newValue}).eq('id',id);if(error)showToast("변경 실패");else{showToast(`[${newValue}] 상태로 변경되었습니다.`);try{await supabaseClient.from('invoice_logs').insert([{order_id:String(id),action:'status_changed',field_name:'status',old_value:effectiveOld,new_value:newValue,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}window.fetchCenterData({force:true});}},"변경하기");
     selectEl.value=effectiveOld;
 };
 window.handleDeliveryStatus=function(id,newValue,selectEl){
@@ -908,7 +908,7 @@ window.handleDeliveryStatus=function(id,newValue,selectEl){
     let targetStatus=newValue==='센터 도착'?'센터 도착':'입금 확인';
     if(order.status===targetStatus){selectEl.value=newValue;return;}
     let confirmMsg=newValue==='센터 도착'?`<div style="font-size:15px;color:var(--text-display);">배송 상태를 <b style="color:var(--primary);">[센터 도착]</b>(으)로 변경하시겠습니까?</div>`:`<div style="font-size:15px;color:var(--text-display);">센터 도착을 취소하고 <b>[입금 확인]</b> 상태로 되돌리시겠습니까?</div>`;
-    window.openCustomConfirm("배송 상태 변경",null,confirmMsg,async()=>{const{error}=await supabaseClient.from('orders').update({status:targetStatus}).eq('id',id);if(error)showToast("변경 실패");else{showToast(`[${targetStatus}] 상태로 변경되었습니다.`);window.fetchCenterData({force:true});}},"변경하기");
+    window.openCustomConfirm("배송 상태 변경",null,confirmMsg,async()=>{let oldSt=order.status||'';const{error}=await supabaseClient.from('orders').update({status:targetStatus}).eq('id',id);if(error)showToast("변경 실패");else{showToast(`[${targetStatus}] 상태로 변경되었습니다.`);try{await supabaseClient.from('invoice_logs').insert([{order_id:String(id),action:'status_changed',field_name:'delivery_status',old_value:oldSt,new_value:targetStatus,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}window.fetchCenterData({force:true});}},"변경하기");
     selectEl.value=order.status==='센터 도착'?'센터 도착':'';
 };
 window.toggleOrderDetail=function(orderId,dateKey){
@@ -1350,8 +1350,6 @@ window.showInvoiceModal=async function(){
 
     let now=new Date();
     let activeOrders=gOrd.filter(o=>{
-        let st=o.status||'';
-        if(['주문 취소','품절','센터 도착'].includes(st))return false;
         if(window.isOrderExpired(o,now))return false;
         return(currentGlobalCenter==='전체'||o.center===currentGlobalCenter);
     });
@@ -1445,7 +1443,7 @@ window.showInvoiceModal=async function(){
 
     body.innerHTML=html;
     window._invoiceMainHtml=html;
-    footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">전체 변경 이력</button><button class="btn-outline" style="border-color:#32b06a;color:#32b06a;padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.sendInvoiceToSheet()">구글 시트 전송</button>`;
+    footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
 };
 
 window.closeInvoiceModal=function(){let modal=document.getElementById('invoiceModal');if(modal)modal.style.display='none';};
@@ -1457,10 +1455,10 @@ window.showInvoiceLogs=async function(){
     body.innerHTML='<div class="empty-state">이력을 불러오는 중...</div>';
     footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;
     try{
-        const{data,error}=await supabaseClient.from('invoice_logs').select('*').eq('action','price_changed').order('created_at',{ascending:false}).limit(200);
-        if(error||!data||data.length===0){body.innerHTML='<div class="empty-state" style="padding:40px 0;color:var(--text-tertiary);">금액 변경 이력이 없습니다.</div>';return;}
-        let rows=data.map(log=>`<tr><td style="padding:10px 12px;white-space:nowrap;">${formatDt(log.created_at)}</td><td style="padding:10px 12px;font-weight:700;">${window.escapeHtml(log.target_member||'-')}</td><td style="padding:10px 12px;color:var(--text-tertiary);">${window.escapeHtml(log.old_value||'(없음)')}</td><td style="padding:10px 12px;font-weight:700;color:var(--primary);">${window.escapeHtml(log.new_value||'(없음)')}</td><td style="padding:10px 12px;font-size:12px;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</td></tr>`).join('');
-        body.innerHTML=`<div style="font-size:16px;font-weight:800;color:var(--text-display);margin-bottom:16px;">전체 금액 변경 이력</div><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:2px solid var(--border-strong);"><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">시각</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">멤버</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 전</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 후</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경자</th></tr></thead><tbody>${rows}</tbody></table>`;
+        const{data,error}=await supabaseClient.from('invoice_logs').select('*').in('action',['price_changed','status_changed']).order('created_at',{ascending:false}).limit(200);
+        if(error||!data||data.length===0){body.innerHTML='<div class="empty-state" style="padding:40px 0;color:var(--text-tertiary);">변경 이력이 없습니다.</div>';return;}
+        let rows=data.map(log=>{let actionLabel=log.action==='price_changed'?'금액':'상태';return `<tr><td style="padding:10px 12px;white-space:nowrap;">${formatDt(log.created_at)}</td><td style="padding:10px 12px;font-weight:700;">${window.escapeHtml(log.target_member||'-')}</td><td style="padding:10px 12px;"><span style="font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600;${log.action==='price_changed'?'background:#fff6ef;color:var(--primary);':'background:#eef2ff;color:#4f46e5;'}">${actionLabel}</span></td><td style="padding:10px 12px;color:var(--text-tertiary);">${window.escapeHtml(log.old_value||'(없음)')}</td><td style="padding:10px 12px;font-weight:700;color:var(--primary);">${window.escapeHtml(log.new_value||'(없음)')}</td><td style="padding:10px 12px;font-size:12px;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</td></tr>`;}).join('');
+        body.innerHTML=`<div style="font-size:16px;font-weight:800;color:var(--text-display);margin-bottom:16px;">전체 변경 이력</div><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:2px solid var(--border-strong);"><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">시각</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">멤버</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">구분</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 전</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 후</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경자</th></tr></thead><tbody>${rows}</tbody></table>`;
     }catch(e){body.innerHTML='<div class="empty-state" style="color:var(--error);">이력 조회 실패</div>';console.error(e);}
 };
 
@@ -1468,15 +1466,9 @@ window.restoreInvoiceMain=function(){
     let body=document.getElementById('invoiceModalBody');
     let footer=document.getElementById('invoiceModalFooter');
     if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;
-    if(footer)footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">전체 변경 이력</button><button class="btn-outline" style="border-color:#32b06a;color:#32b06a;padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.sendInvoiceToSheet()">구글 시트 전송</button>`;
+    if(footer)footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
 };
 
-window.sendInvoiceToSheet=async function(){
-    if(!window.currentSummaryData||window.currentSummaryData.length===0){
-        showToast("발주 요약을 먼저 실행한 뒤 구글 시트 전송해주세요.");return;
-    }
-    window.sendToGoogleSheet();
-};
 
 window.ensureInvoiceButton=function(){
     if(document.getElementById('invoiceBtn'))return;
