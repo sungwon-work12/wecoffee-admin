@@ -101,6 +101,7 @@ wecoffeeStyle.innerHTML = `
     .info-tooltip:hover { color: #505967; border-color: #505967; }
     .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
     .pagination-btn { height:32px; min-width:32px; padding:0 8px; border:1px solid var(--border-strong); background:#fff; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:0.2s; }
+    td[data-label="접수일"], td[data-label="신청일"], td[data-label="신청일시"], td[data-label="등록일"], td[data-label="주문 시간"], td[data-label="작성일"] { white-space:nowrap !important; }
     .pagination-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
     .pagination-btn:disabled { opacity:0.5; cursor:not-allowed; }
     .dash-cal-grid, .dash-cal-cell, .desktop-cal { overflow: visible !important; }
@@ -1327,7 +1328,8 @@ window.saveCrmStatus=async function(){
 };
 
 
-// ── 명세서 (신규 — 멤버별 청구 + 금액 입력자/시각 + 변경 이력) ──
+
+// ── 명세서 (멤버별 → 발주일/센터별 그루핑 + 입력자/수정자 이력) ──
 window.showInvoiceModal=async function(){
     let modal=document.getElementById('invoiceModal');
     if(!modal){
@@ -1342,7 +1344,6 @@ window.showInvoiceModal=async function(){
     footer.innerHTML='';
     modal.style.display='flex';
 
-    // ── 활성 주문 필터 (취소/품절/센터도착 제외) ──
     let now=new Date();
     let activeOrders=gOrd.filter(o=>{
         let st=o.status||'';
@@ -1353,60 +1354,97 @@ window.showInvoiceModal=async function(){
 
     if(activeOrders.length===0){body.innerHTML='<div class="empty-state" style="padding:60px 0;">표시할 주문 내역이 없습니다.</div>';return;}
 
-    // ── invoice_logs 조회 (최근 금액 입력 기록) ──
+    // invoice_logs 전체 조회 (order별 모든 이력)
     let orderIds=activeOrders.map(o=>String(o.id));
-    let logsMap={};
+    let allLogs={};
     try{
-        const{data:logs}=await supabaseClient.from('invoice_logs').select('*').in('order_id',orderIds).eq('action','price_changed').order('created_at',{ascending:false});
-        if(logs)logs.forEach(log=>{if(!logsMap[log.order_id])logsMap[log.order_id]=log;});
+        const{data:logs}=await supabaseClient.from('invoice_logs').select('*').in('order_id',orderIds).eq('action','price_changed').order('created_at',{ascending:true});
+        if(logs)logs.forEach(log=>{
+            if(!allLogs[log.order_id])allLogs[log.order_id]=[];
+            allLogs[log.order_id].push(log);
+        });
     }catch(e){console.warn('invoice_logs query failed',e);}
 
-    // ── 멤버별 그룹핑 ──
-    let memberGroups={};
+    // 멤버 → 발주일+센터 → 아이템 그루핑
+    let members={};
     activeOrders.forEach(o=>{
         let name=o.name||'이름없음';
-        if(!memberGroups[name])memberGroups[name]={batch:o.batch||'-',phone:o.phone||'-',items:[]};
-        let cNm=o.item_name||'';let m=String(cNm).match(/(.+) \[(?:희望:\s*)?(\d+)[\/\.](\d+).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}
-        let log=logsMap[String(o.id)];
-        memberGroups[name].items.push({vendor:o.vendor||'',itemName:cNm,quantity:o.quantity||'',price:o.total_price||'',enteredBy:log?log.performed_by:'',enteredAt:log?formatDt(log.created_at):''});
+        let deliveryLabel=window.formatDeliveryDateFull(o.delivery_date);
+        let center=o.center||'미지정';
+        let groupKey=`${deliveryLabel}__${center}`;
+
+        if(!members[name])members[name]={batch:o.batch||'-',phone:o.phone||'-',groups:{}};
+        if(!members[name].groups[groupKey])members[name].groups[groupKey]={deliveryLabel,center,items:[]};
+
+        let cNm=o.item_name||'';
+        let m=String(cNm).match(/(.+) \[(?:희望:\s*)?(\d+)[\/\.](\d+).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}
+
+        let logs=allLogs[String(o.id)]||[];
+        let latestLog=logs.length>0?logs[logs.length-1]:null;
+        let hasEdits=logs.length>1;
+
+        members[name].groups[groupKey].items.push({
+            vendor:o.vendor||'',itemName:cNm,quantity:o.quantity||'',price:o.total_price||'',
+            enteredBy:latestLog?latestLog.performed_by:'',
+            enteredAt:latestLog?formatDt(latestLog.created_at):'',
+            logs:logs,hasEdits:hasEdits,orderId:String(o.id)
+        });
     });
 
-    // ── 멤버 카드 HTML ──
-    let grandTotal=0;let html='';
-    Object.entries(memberGroups).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([name,data])=>{
-        let totalAmt=0,enteredCount=0,totalCount=data.items.length;
-        data.items.forEach(item=>{let p=parseInt(String(item.price||'0').replace(/[^0-9]/g,''))||0;totalAmt+=p;if(item.price)enteredCount++;});
-        grandTotal+=totalAmt;
-        let unenteredCount=totalCount-enteredCount;
-        let statusText=unenteredCount>0
-            ?`<span style="color:var(--error);font-weight:700;">${totalCount}건 중 ${unenteredCount}건 미입력</span>`
-            :`<span style="color:var(--success);font-weight:700;">${totalCount}건 전체 입력 완료</span>`;
+    // HTML 렌더링
+    let html='';
+    Object.entries(members).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([name,data])=>{
+        let memberTotal=0,enteredCount=0,totalCount=0;
 
-        html+=`<div style="margin-bottom:16px;padding:16px;background:#fff;border:1px solid var(--border-strong);border-radius:12px;">`;
-        html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border-strong);"><div style="font-weight:800;font-size:15px;color:var(--text-display);">[${data.batch}] ${window.escapeHtml(name)}</div><div style="font-size:13px;">${statusText}</div></div>`;
+        html+=`<div style="margin-bottom:20px;padding:16px;background:#fff;border:1px solid var(--border-strong);border-radius:12px;">`;
+        html+=`<div style="font-weight:800;font-size:15px;color:var(--text-display);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border-strong);">[${data.batch}] ${window.escapeHtml(name)} <span style="font-size:12px;font-weight:500;color:var(--text-tertiary);margin-left:6px;">${window.escapeHtml(data.phone)}</span></div>`;
 
-        data.items.forEach(item=>{
-            let priceDisplay=item.price?`<span style="font-weight:700;color:var(--text-display);">${item.price}</span>`:`<span style="color:var(--error);font-weight:600;">미입력</span>`;
-            let logDisplay=item.enteredBy?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">${item.enteredBy} · ${item.enteredAt}</div>`:'';
-            html+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;font-size:13px;border-bottom:1px solid #f2f4f6;">`;
-            html+=`<div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);">${window.escapeHtml(item.vendor)} | ${window.escapeHtml(item.itemName)} (${item.quantity})</div>`;
-            html+=`<div style="flex-shrink:0;text-align:right;padding-left:12px;">${priceDisplay}${logDisplay}</div></div>`;
+        Object.values(data.groups).forEach(group=>{
+            html+=`<div style="margin-bottom:12px;"><div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;padding:4px 8px;background:#fff6ef;border-radius:6px;display:inline-block;">${group.deliveryLabel} · ${group.center}</div>`;
+
+            group.items.forEach(item=>{
+                totalCount++;
+                let amt=parseInt(String(item.price||'0').replace(/[^0-9]/g,''))||0;
+                memberTotal+=amt;
+                if(item.price)enteredCount++;
+
+                let priceHtml=item.price
+                    ?`<span style="font-weight:700;color:var(--text-display);">${item.price}</span>`
+                    :`<span style="color:var(--error);font-weight:600;">미입력</span>`;
+
+                let enteredHtml=item.enteredBy
+                    ?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">입력: ${item.enteredBy} · ${item.enteredAt}</div>`
+                    :'';
+
+                let editHtml='';
+                if(item.hasEdits){
+                    let logId='log-'+item.orderId;
+                    let logRows=item.logs.map(l=>`<div style="font-size:11px;padding:3px 0;color:var(--text-tertiary);border-bottom:1px solid #f2f4f6;">${formatDt(l.created_at)} | ${l.performed_by} | ${l.old_value||'(없음)'} → ${l.new_value}</div>`).join('');
+                    editHtml=`<div style="margin-top:3px;"><span style="font-size:10px;color:var(--primary);cursor:pointer;font-weight:700;" onclick="let el=document.getElementById('${logId}');el.style.display=el.style.display==='none'?'block':'none';">변경 이력 (${item.logs.length}건)</span><div id="${logId}" style="display:none;margin-top:4px;padding:6px 8px;background:#f9fafb;border-radius:6px;">${logRows}</div></div>`;
+                }
+
+                html+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;font-size:13px;border-bottom:1px solid #f2f4f6;">`;
+                html+=`<div style="flex:1;min-width:0;color:var(--text-secondary);line-height:1.5;">${window.escapeHtml(item.vendor)} | ${window.escapeHtml(item.itemName)} <span style="color:var(--text-tertiary);">(${item.quantity})</span></div>`;
+                html+=`<div style="flex-shrink:0;text-align:right;padding-left:12px;min-width:100px;">${priceHtml}${enteredHtml}${editHtml}</div></div>`;
+            });
+            html+=`</div>`;
         });
 
-        html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:2px solid var(--text-tertiary);"><span style="font-size:13px;font-weight:700;color:var(--text-secondary);">총 청구 금액</span><span style="font-size:18px;font-weight:800;color:var(--primary);">${totalAmt>0?totalAmt.toLocaleString()+'원':'—'}</span></div></div>`;
-    });
+        let unenteredCount=totalCount-enteredCount;
+        let statusText=unenteredCount>0
+            ?`<span style="color:var(--error);font-size:12px;font-weight:600;">${totalCount}건 중 ${unenteredCount}건 미입력</span>`
+            :`<span style="color:var(--success);font-size:12px;font-weight:600;">전체 입력 완료</span>`;
 
-    html+=`<div style="margin-top:8px;padding:16px;background:var(--primary);border-radius:12px;display:flex;justify-content:space-between;align-items:center;"><span style="font-size:15px;font-weight:700;color:#fff;">전체 합산 총액</span><span style="font-size:22px;font-weight:900;color:#fff;">${grandTotal>0?grandTotal.toLocaleString()+'원':'—'}</span></div>`;
+        html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:2px solid var(--text-tertiary);"><div><span style="font-size:14px;font-weight:700;color:var(--text-secondary);">총 청구 금액</span> ${statusText}</div><span style="font-size:18px;font-weight:800;color:var(--primary);">${memberTotal>0?memberTotal.toLocaleString()+'원':'—'}</span></div></div>`;
+    });
 
     body.innerHTML=html;
     window._invoiceMainHtml=html;
-
-    footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">금액 변경 이력</button><button class="btn-outline" style="border-color:#32b06a;color:#32b06a;padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.sendInvoiceToSheet()">구글 시트 전송</button>`;
+    footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">전체 변경 이력</button><button class="btn-outline" style="border-color:#32b06a;color:#32b06a;padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.sendInvoiceToSheet()">구글 시트 전송</button>`;
 };
 
 window.closeInvoiceModal=function(){let modal=document.getElementById('invoiceModal');if(modal)modal.style.display='none';};
 
-// ── 금액 변경 이력 (모달 내 뷰 전환) ──
 window.showInvoiceLogs=async function(){
     let body=document.getElementById('invoiceModalBody');
     let footer=document.getElementById('invoiceModalFooter');
@@ -1416,16 +1454,16 @@ window.showInvoiceLogs=async function(){
     try{
         const{data,error}=await supabaseClient.from('invoice_logs').select('*').eq('action','price_changed').order('created_at',{ascending:false}).limit(200);
         if(error||!data||data.length===0){body.innerHTML='<div class="empty-state" style="padding:40px 0;color:var(--text-tertiary);">금액 변경 이력이 없습니다.</div>';return;}
-        let rows=data.map(log=>`<tr><td style="padding:10px 12px;font-size:13px;color:var(--text-secondary);">${formatDt(log.created_at)}</td><td style="padding:10px 12px;font-weight:700;">${window.escapeHtml(log.target_member||'-')}</td><td style="padding:10px 12px;color:var(--text-tertiary);">${window.escapeHtml(log.old_value||'(없음)')}</td><td style="padding:10px 12px;font-weight:700;color:var(--primary);">${window.escapeHtml(log.new_value||'(없음)')}</td><td style="padding:10px 12px;font-size:13px;color:var(--text-secondary);">${window.escapeHtml(log.performed_by||'-')}</td></tr>`).join('');
-        body.innerHTML=`<div style="font-size:16px;font-weight:800;color:var(--text-display);margin-bottom:16px;">금액 변경 이력</div><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:2px solid var(--border-strong);"><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 시각</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">멤버</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 전</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 후</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경자</th></tr></thead><tbody>${rows}</tbody></table>`;
-    }catch(e){body.innerHTML='<div class="empty-state" style="color:var(--error);">이력 조회 중 오류가 발생했습니다.</div>';console.error(e);}
+        let rows=data.map(log=>`<tr><td style="padding:10px 12px;white-space:nowrap;">${formatDt(log.created_at)}</td><td style="padding:10px 12px;font-weight:700;">${window.escapeHtml(log.target_member||'-')}</td><td style="padding:10px 12px;color:var(--text-tertiary);">${window.escapeHtml(log.old_value||'(없음)')}</td><td style="padding:10px 12px;font-weight:700;color:var(--primary);">${window.escapeHtml(log.new_value||'(없음)')}</td><td style="padding:10px 12px;font-size:12px;">${window.escapeHtml(log.performed_by||'-')}</td></tr>`).join('');
+        body.innerHTML=`<div style="font-size:16px;font-weight:800;color:var(--text-display);margin-bottom:16px;">전체 금액 변경 이력</div><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:2px solid var(--border-strong);"><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">시각</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">멤버</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 전</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 후</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경자</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }catch(e){body.innerHTML='<div class="empty-state" style="color:var(--error);">이력 조회 실패</div>';console.error(e);}
 };
 
 window.restoreInvoiceMain=function(){
     let body=document.getElementById('invoiceModalBody');
     let footer=document.getElementById('invoiceModalFooter');
     if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;
-    if(footer)footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">금액 변경 이력</button><button class="btn-outline" style="border-color:#32b06a;color:#32b06a;padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.sendInvoiceToSheet()">구글 시트 전송</button>`;
+    if(footer)footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">전체 변경 이력</button><button class="btn-outline" style="border-color:#32b06a;color:#32b06a;padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.sendInvoiceToSheet()">구글 시트 전송</button>`;
 };
 
 window.sendInvoiceToSheet=async function(){
@@ -1435,7 +1473,6 @@ window.sendInvoiceToSheet=async function(){
     window.sendToGoogleSheet();
 };
 
-// ── 명세서 버튼 자동 삽입 (발주 요약 버튼 옆) ──
 window.ensureInvoiceButton=function(){
     if(document.getElementById('invoiceBtn'))return;
     let btns=document.querySelectorAll('button,.btn');
