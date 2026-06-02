@@ -8,6 +8,8 @@ let currentGlobalCenter = '전체', currentDashView = 'week', currentDashMonthOf
 let currentSummaryData = [], currentInsightData = {};
 let isCrmReadOnly = false;
 let currentAdminEmail = '';
+const adminNameMap = {'sungwon.work@gmail.com':'박성원','sungbin0528@gmail.com':'조성빈','ocarinist89@gmail.com':'강현준','klaesiksoul@gmail.com':'최현준'};
+window.getAdminName = function(email) { if(!email) return ''; return adminNameMap[email] || email; };
 let quillEditor = null;
 let isAppInitialized = false;
 let realtimeChannel = null;
@@ -487,6 +489,7 @@ window.fetchCenterData = async function(opts) {
         else if(dailyBanner&&dailyBanner.parentNode){let wrapper=dailyBanner.parentElement;if(wrapper.parentElement&&wrapper.parentElement.tagName==='DIV')wrapper=wrapper.parentElement;const area=document.createElement('div');area.id='timeline-area';wrapper.insertAdjacentElement('afterend',area);}
       }
       if(window.renderTimeline) window.renderTimeline();
+      if(window.ensureInvoiceButton) window.ensureInvoiceButton();
     } catch(e) { console.error(e); }
     return;
   }
@@ -573,6 +576,7 @@ window.fetchCenterData = async function(opts) {
       else if(dailyBanner&&dailyBanner.parentNode){let wrapper=dailyBanner.parentElement;if(wrapper.parentElement&&wrapper.parentElement.tagName==='DIV')wrapper=wrapper.parentElement;const area=document.createElement('div');area.id='timeline-area';wrapper.insertAdjacentElement('afterend',area);}
     }
     if(window.renderTimeline) window.renderTimeline();
+    if(window.ensureInvoiceButton) window.ensureInvoiceButton();
   } catch(e) { console.error(e); }
 };
 
@@ -1406,20 +1410,21 @@ window.showInvoiceModal=async function(){
                 totalCount++;
                 let amt=parseInt(String(item.price||'0').replace(/[^0-9]/g,''))||0;
                 memberTotal+=amt;
-                if(item.price)enteredCount++;
+                let hasValidPrice=amt>0;
+                if(hasValidPrice)enteredCount++;
 
-                let priceHtml=item.price
+                let priceHtml=hasValidPrice
                     ?`<span style="font-weight:700;color:var(--text-display);">${item.price}</span>`
                     :`<span style="color:var(--error);font-weight:600;">미입력</span>`;
 
                 let enteredHtml=item.enteredBy
-                    ?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">입력: ${item.enteredBy} · ${item.enteredAt}</div>`
-                    :'';
+                    ?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">입력: ${window.getAdminName(item.enteredBy)} · ${item.enteredAt}</div>`
+                    :(hasValidPrice?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">입력 기록 없음</div>`:'');
 
                 let editHtml='';
                 if(item.hasEdits){
                     let logId='log-'+item.orderId;
-                    let logRows=item.logs.map(l=>`<div style="font-size:11px;padding:3px 0;color:var(--text-tertiary);border-bottom:1px solid #f2f4f6;">${formatDt(l.created_at)} | ${l.performed_by} | ${l.old_value||'(없음)'} → ${l.new_value}</div>`).join('');
+                    let logRows=item.logs.map(l=>`<div style="font-size:11px;padding:3px 0;color:var(--text-tertiary);border-bottom:1px solid #f2f4f6;">${formatDt(l.created_at)} | ${window.getAdminName(l.performed_by)} | ${l.old_value||'(없음)'} → ${l.new_value}</div>`).join('');
                     editHtml=`<div style="margin-top:3px;"><span style="font-size:10px;color:var(--primary);cursor:pointer;font-weight:700;" onclick="let el=document.getElementById('${logId}');el.style.display=el.style.display==='none'?'block':'none';">변경 이력 (${item.logs.length}건)</span><div id="${logId}" style="display:none;margin-top:4px;padding:6px 8px;background:#f9fafb;border-radius:6px;">${logRows}</div></div>`;
                 }
 
@@ -1454,7 +1459,7 @@ window.showInvoiceLogs=async function(){
     try{
         const{data,error}=await supabaseClient.from('invoice_logs').select('*').eq('action','price_changed').order('created_at',{ascending:false}).limit(200);
         if(error||!data||data.length===0){body.innerHTML='<div class="empty-state" style="padding:40px 0;color:var(--text-tertiary);">금액 변경 이력이 없습니다.</div>';return;}
-        let rows=data.map(log=>`<tr><td style="padding:10px 12px;white-space:nowrap;">${formatDt(log.created_at)}</td><td style="padding:10px 12px;font-weight:700;">${window.escapeHtml(log.target_member||'-')}</td><td style="padding:10px 12px;color:var(--text-tertiary);">${window.escapeHtml(log.old_value||'(없음)')}</td><td style="padding:10px 12px;font-weight:700;color:var(--primary);">${window.escapeHtml(log.new_value||'(없음)')}</td><td style="padding:10px 12px;font-size:12px;">${window.escapeHtml(log.performed_by||'-')}</td></tr>`).join('');
+        let rows=data.map(log=>`<tr><td style="padding:10px 12px;white-space:nowrap;">${formatDt(log.created_at)}</td><td style="padding:10px 12px;font-weight:700;">${window.escapeHtml(log.target_member||'-')}</td><td style="padding:10px 12px;color:var(--text-tertiary);">${window.escapeHtml(log.old_value||'(없음)')}</td><td style="padding:10px 12px;font-weight:700;color:var(--primary);">${window.escapeHtml(log.new_value||'(없음)')}</td><td style="padding:10px 12px;font-size:12px;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</td></tr>`).join('');
         body.innerHTML=`<div style="font-size:16px;font-weight:800;color:var(--text-display);margin-bottom:16px;">전체 금액 변경 이력</div><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:2px solid var(--border-strong);"><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">시각</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">멤버</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 전</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 후</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경자</th></tr></thead><tbody>${rows}</tbody></table>`;
     }catch(e){body.innerHTML='<div class="empty-state" style="color:var(--error);">이력 조회 실패</div>';console.error(e);}
 };
@@ -1489,6 +1494,6 @@ window.ensureInvoiceButton=function(){
         summaryBtn.parentNode.insertBefore(invoiceBtn,summaryBtn.nextSibling);
     }
 };
-let _invoiceBtnCheck=setInterval(()=>{window.ensureInvoiceButton();if(document.getElementById('invoiceBtn'))clearInterval(_invoiceBtnCheck);},2000);
+// fetchCenterData 완료 후 자동 호출됨 (Part 1에서 호출)
 
 // ▼▼▼ 파트4 끝 (전체 코드 끝) ▼▼▼
