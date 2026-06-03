@@ -1409,9 +1409,8 @@ window.showInvoiceModal=async function(){
                 if(hasValidPrice)enteredCount++;
 
                 let priceStr=hasValidPrice?`<span style="font-weight:800;color:#111;">${item.price}</span>`:`<span style="font-weight:700;color:#ef4444;">미입력</span>`;
-                let stColor=item.status==='입금 확인 중'?'#2563eb':(item.status==='입금 대기'?'#f59e0b':'#6b7280');
-                let stBg=item.status==='입금 확인 중'?'#eff6ff':(item.status==='입금 대기'?'#fffbeb':'#f3f4f6');
-                let stOpts=['주문 접수','입금 대기','입금 확인 중'].map(s=>`<option value="${s}" ${item.status===s?'selected':''}>${s}</option>`).join('');
+                let stOpts=['주문 접수','입금 대기','입금 확인 중','입금 확인'].map(s=>`<option value="${s}" ${item.status===s?'selected':''}>${s}</option>`).join('');
+                let stClass=item.status==='입금 확인'?'st-confirmed':(item.status==='입금 대기'||item.status==='입금 확인 중')?'st-arranging':'st-wait';
 
                 let metaHtml='';
                 if(item.enteredBy){metaHtml=`<span style="color:#aaa;">${window.getAdminName(item.enteredBy)} · ${item.enteredAt}</span>`;}
@@ -1429,7 +1428,7 @@ window.showInvoiceModal=async function(){
                         <div style="flex:1;min-width:0;font-size:13px;color:#444;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${window.escapeHtml(item.vendor)} | ${window.escapeHtml(item.itemName)} <span style="color:#aaa;">(${item.quantity})</span></div>
                         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
                             ${priceStr}
-                            <select style="font-size:11px;padding:4px 20px 4px 8px;border:1px solid #e5e5e5;border-radius:6px;background:${stBg};color:${stColor};font-weight:700;cursor:pointer;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select>
+                            <select class="status-select ${stClass}" style="font-size:11px;padding:4px 20px 4px 8px;border-radius:6px;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select>
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;">${metaHtml}${editToggle}</div>
@@ -1488,7 +1487,7 @@ window.showInvoiceLogs=async function(){
             let isPrice=log.action==='price_changed';
             let badgeColor=isPrice?'#ff7900':'#2563eb';
             let badgeBg=isPrice?'#fff7f0':'#eff6ff';
-            let badgeText=isPrice?'금액':'상태';
+            let badgeText=isPrice?'금액':'결제';
             let order=gOrd.find(o=>String(o.id)===String(log.order_id));
             let itemName=order?(order.item_name||'').replace(/\s*\[.*?\]\s*$/,''):'';
             if(itemName.length>35)itemName=itemName.slice(0,35)+'…';
@@ -1504,7 +1503,7 @@ window.showInvoiceLogs=async function(){
                 ${itemName?`<div style="font-size:12px;color:#888;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${window.escapeHtml(itemName)}</div>`:''}
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <div style="font-size:13px;color:#666;"><span style="color:#bbb;">${window.escapeHtml(log.old_value||'—')}</span> <span style="color:#ccc;">→</span> <span style="font-weight:700;color:#111;">${window.escapeHtml(log.new_value||'—')}</span></div>
-                    <span style="font-size:11px;color:#aaa;">by ${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</span>
+                    <span style="font-size:11px;color:#aaa;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</span>
                 </div>
             </div>`;
         }).join('');
