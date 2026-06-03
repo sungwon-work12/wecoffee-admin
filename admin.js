@@ -1333,13 +1333,13 @@ window.saveCrmStatus=async function(){
 
 
 
-// ── 명세서 (멤버별 → 발주일/센터별 그루핑 + 입력자/수정자 이력) ──
+// ── 명세서 (멤버별 → 발주일/센터별 + 결제 상태 변경 + 툴팁 + 체크박스 연동) ──
 window.showInvoiceModal=async function(){
     let modal=document.getElementById('invoiceModal');
     if(!modal){
         modal=document.createElement('div');modal.id='invoiceModal';
         modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99990;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
-        modal.innerHTML=`<div style="background:#fff;border-radius:16px;width:100%;max-width:800px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.18);overflow:hidden;"><div style="padding:20px 24px 16px;border-bottom:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div style="font-size:18px;font-weight:900;color:var(--text-display);">멤버별 청구 명세서</div><button onclick="window.closeInvoiceModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-tertiary);line-height:1;">✕</button></div><div id="invoiceModalBody" style="flex:1;overflow-y:auto;padding:20px 24px;"></div><div id="invoiceModalFooter" style="padding:16px 24px;border-top:1px solid var(--border-strong);display:flex;justify-content:center;gap:8px;flex-wrap:wrap;"></div></div>`;
+        modal.innerHTML=`<div style="background:#fff;border-radius:16px;width:100%;max-width:800px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.18);overflow:hidden;"><div style="padding:20px 24px 16px;border-bottom:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:18px;font-weight:900;color:var(--text-display);">멤버별 청구 명세서</span><i class="info-tooltip long-text" data-tippy="멤버별 주문 건의 발주일, 수령 센터, 결제 금액, 입금 현황을 확인하고 관리합니다. 금액·상태 변경 시 담당 근무자가 자동 기록됩니다. 입금 확인·센터 도착·취소·품절 건은 자동 정리되며, 데이터는 서버에 보관됩니다. 주문 리스트에서 체크한 건이 있으면 해당 건만 표시됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">i</i></div><button onclick="window.closeInvoiceModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-tertiary);line-height:1;">✕</button></div><div id="invoiceModalBody" style="flex:1;overflow-y:auto;padding:20px 24px;"></div><div id="invoiceModalFooter" style="padding:16px 24px;border-top:1px solid var(--border-strong);"></div></div>`;
         document.body.appendChild(modal);
     }
     let body=document.getElementById('invoiceModalBody');
@@ -1348,23 +1348,26 @@ window.showInvoiceModal=async function(){
     footer.innerHTML='';
     modal.style.display='flex';
 
-    let now=new Date();
+    // 체크박스 연동
+    let checkedBoxes=document.querySelectorAll('.chk-ord:checked, input[type="checkbox"][class*="chk-ord-dyn-"]:checked');
+    let checkedIds=Array.from(checkedBoxes).map(cb=>String(cb.value)).filter(val=>val!=="on");
+
+    // 필터: 주문 접수 / 입금 대기 / 입금 확인 중만 표시
     let activeOrders=gOrd.filter(o=>{
-        if(window.isOrderExpired(o,now))return false;
+        let st=o.status||'';
+        if(!['주문 접수','입금 대기','입금 확인 중'].includes(st))return false;
+        if(checkedIds.length>0)return checkedIds.includes(String(o.id));
         return(currentGlobalCenter==='전체'||o.center===currentGlobalCenter);
     });
 
-    if(activeOrders.length===0){body.innerHTML='<div class="empty-state" style="padding:60px 0;">표시할 주문 내역이 없습니다.</div>';return;}
+    if(activeOrders.length===0){body.innerHTML='<div class="empty-state" style="padding:60px 0;">표시할 주문 내역이 없습니다.</div>';footer.innerHTML=`<button class="btn-outline" style="padding:12px;font-size:14px;font-weight:700;width:100%;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;return;}
 
-    // invoice_logs 전체 조회 (order별 모든 이력)
+    // invoice_logs 전체 조회
     let orderIds=activeOrders.map(o=>String(o.id));
     let allLogs={};
     try{
         const{data:logs}=await supabaseClient.from('invoice_logs').select('*').in('order_id',orderIds).eq('action','price_changed').order('created_at',{ascending:true});
-        if(logs)logs.forEach(log=>{
-            if(!allLogs[log.order_id])allLogs[log.order_id]=[];
-            allLogs[log.order_id].push(log);
-        });
+        if(logs)logs.forEach(log=>{if(!allLogs[log.order_id])allLogs[log.order_id]=[];allLogs[log.order_id].push(log);});
     }catch(e){console.warn('invoice_logs query failed',e);}
 
     // 멤버 → 발주일+센터 → 아이템 그루핑
@@ -1374,36 +1377,27 @@ window.showInvoiceModal=async function(){
         let deliveryLabel=window.formatDeliveryDateFull(o.delivery_date);
         let center=o.center||'미지정';
         let groupKey=`${deliveryLabel}__${center}`;
-
         if(!members[name])members[name]={batch:o.batch||'-',phone:o.phone||'-',groups:{}};
         if(!members[name].groups[groupKey])members[name].groups[groupKey]={deliveryLabel,center,items:[]};
-
-        let cNm=o.item_name||'';
-        let m=String(cNm).match(/(.+) \[(?:희望:\s*)?(\d+)[\/\.](\d+).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}
-
+        let cNm=o.item_name||'';let m=String(cNm).match(/(.+) \[(?:희望:\s*)?(\d+)[\/\.](\d+).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}
         let logs=allLogs[String(o.id)]||[];
         let latestLog=logs.length>0?logs[logs.length-1]:null;
-        let hasEdits=logs.length>1;
-
         members[name].groups[groupKey].items.push({
-            vendor:o.vendor||'',itemName:cNm,quantity:o.quantity||'',price:o.total_price||'',
-            enteredBy:latestLog?latestLog.performed_by:'',
-            enteredAt:latestLog?formatDt(latestLog.created_at):'',
-            logs:logs,hasEdits:hasEdits,orderId:String(o.id)
+            vendor:o.vendor||'',itemName:cNm,quantity:o.quantity||'',price:o.total_price||'',status:o.status||'주문 접수',
+            enteredBy:latestLog?latestLog.performed_by:'',enteredAt:latestLog?formatDt(latestLog.created_at):'',
+            logs:logs,hasEdits:logs.length>1,orderId:String(o.id)
         });
     });
 
     // HTML 렌더링
-    let html='';
+    let html='';let firstNoLog=true;
     Object.entries(members).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([name,data])=>{
         let memberTotal=0,enteredCount=0,totalCount=0;
-
         html+=`<div style="margin-bottom:20px;padding:16px;background:#fff;border:1px solid var(--border-strong);border-radius:12px;">`;
         html+=`<div style="font-weight:800;font-size:15px;color:var(--text-display);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border-strong);">[${data.batch}] ${window.escapeHtml(name)} <span style="font-size:12px;font-weight:500;color:var(--text-tertiary);margin-left:6px;">${window.escapeHtml(data.phone)}</span></div>`;
 
         Object.values(data.groups).forEach(group=>{
             html+=`<div style="margin-bottom:12px;"><div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;padding:4px 8px;background:#fff6ef;border-radius:6px;display:inline-block;">${group.deliveryLabel} · ${group.center}</div>`;
-
             group.items.forEach(item=>{
                 totalCount++;
                 let amt=parseInt(String(item.price||'0').replace(/[^0-9]/g,''))||0;
@@ -1415,9 +1409,14 @@ window.showInvoiceModal=async function(){
                     ?`<span style="font-weight:700;color:var(--text-display);">${item.price}</span>`
                     :`<span style="color:var(--error);font-weight:600;">미입력</span>`;
 
+                // 결제 상태 드롭다운
+                let stOpts=['주문 접수','입금 대기','입금 확인 중'].map(s=>`<option value="${s}" ${item.status===s?'selected':''}>${s}</option>`).join('');
+                let stClass=item.status==='입금 확인 중'?'st-checking':(item.status==='입금 대기'?'st-arranging':'');
+                let statusHtml=`<select class="status-select ${stClass}" style="font-size:11px;padding:3px 22px 3px 6px;border-radius:4px;margin-top:3px;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select>`;
+
                 let enteredHtml=item.enteredBy
                     ?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">입력: ${window.getAdminName(item.enteredBy)} · ${item.enteredAt}</div>`
-                    :(hasValidPrice?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">입력 기록 없음</div>`:'');
+                    :(hasValidPrice?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">입력 기록 없음${firstNoLog?(firstNoLog=false,` <i class="info-tooltip" data-tippy="시스템 업데이트 이전 입력분은 기록이 없습니다. 이후 변경 건부터 자동 기록됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()" style="font-size:10px;vertical-align:middle;">i</i>`):''}` + `</div>`:'');
 
                 let editHtml='';
                 if(item.hasEdits){
@@ -1426,9 +1425,9 @@ window.showInvoiceModal=async function(){
                     editHtml=`<div style="margin-top:3px;"><span style="font-size:10px;color:var(--primary);cursor:pointer;font-weight:700;" onclick="let el=document.getElementById('${logId}');el.style.display=el.style.display==='none'?'block':'none';">변경 이력 (${item.logs.length}건)</span><div id="${logId}" style="display:none;margin-top:4px;padding:6px 8px;background:#f9fafb;border-radius:6px;">${logRows}</div></div>`;
                 }
 
-                html+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;font-size:13px;border-bottom:1px solid #f2f4f6;">`;
+                html+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;font-size:13px;border-bottom:1px solid #f2f4f6;">`;
                 html+=`<div style="flex:1;min-width:0;color:var(--text-secondary);line-height:1.5;">${window.escapeHtml(item.vendor)} | ${window.escapeHtml(item.itemName)} <span style="color:var(--text-tertiary);">(${item.quantity})</span></div>`;
-                html+=`<div style="flex-shrink:0;text-align:right;padding-left:12px;min-width:100px;">${priceHtml}${enteredHtml}${editHtml}</div></div>`;
+                html+=`<div style="flex-shrink:0;text-align:right;padding-left:12px;min-width:120px;">${priceHtml}<div>${statusHtml}</div>${enteredHtml}${editHtml}</div></div>`;
             });
             html+=`</div>`;
         });
@@ -1437,23 +1436,37 @@ window.showInvoiceModal=async function(){
         let statusText=unenteredCount>0
             ?`<span style="color:var(--error);font-size:12px;font-weight:600;">${totalCount}건 중 ${unenteredCount}건 미입력</span>`
             :`<span style="color:var(--success);font-size:12px;font-weight:600;">전체 입력 완료</span>`;
-
         html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:2px solid var(--text-tertiary);"><div><span style="font-size:14px;font-weight:700;color:var(--text-secondary);">총 청구 금액</span> ${statusText}</div><span style="font-size:18px;font-weight:800;color:var(--primary);">${memberTotal>0?memberTotal.toLocaleString()+'원':'—'}</span></div></div>`;
     });
 
     body.innerHTML=html;
     window._invoiceMainHtml=html;
-    footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
+    footer.innerHTML=`<button class="btn-outline" style="padding:12px;font-size:14px;font-weight:700;width:100%;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
 };
 
 window.closeInvoiceModal=function(){let modal=document.getElementById('invoiceModal');if(modal)modal.style.display='none';};
 
+// 명세서 내 결제 상태 변경
+window.handleInvoiceStatusChange=async function(orderId,newValue,selectEl){
+    let order=gOrd.find(o=>String(o.id)===String(orderId));if(!order)return;
+    let oldStatus=order.status||'주문 접수';
+    if(oldStatus===newValue)return;
+    const{error}=await supabaseClient.from('orders').update({status:newValue}).eq('id',orderId);
+    if(error){showToast("변경 실패");selectEl.value=oldStatus;return;}
+    try{await supabaseClient.from('invoice_logs').insert([{order_id:String(orderId),action:'status_changed',field_name:'status',old_value:oldStatus,new_value:newValue,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}
+    order.status=newValue;
+    showToast(`[${newValue}] 상태로 변경되었습니다.`);
+    if(newValue==='입금 확인'){showToast('입금 확인 처리되어 명세서에서 제외됩니다.');setTimeout(()=>window.showInvoiceModal(),800);}
+    window.fetchCenterData({force:true});
+};
+
+// 전체 변경 이력 (금액 + 상태)
 window.showInvoiceLogs=async function(){
     let body=document.getElementById('invoiceModalBody');
     let footer=document.getElementById('invoiceModalFooter');
     if(!body)return;
     body.innerHTML='<div class="empty-state">이력을 불러오는 중...</div>';
-    footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;
+    footer.innerHTML=`<button class="btn-outline" style="padding:12px;font-size:14px;font-weight:700;width:100%;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;
     try{
         const{data,error}=await supabaseClient.from('invoice_logs').select('*').in('action',['price_changed','status_changed']).order('created_at',{ascending:false}).limit(200);
         if(error||!data||data.length===0){body.innerHTML='<div class="empty-state" style="padding:40px 0;color:var(--text-tertiary);">변경 이력이 없습니다.</div>';return;}
@@ -1466,9 +1479,8 @@ window.restoreInvoiceMain=function(){
     let body=document.getElementById('invoiceModalBody');
     let footer=document.getElementById('invoiceModalFooter');
     if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;
-    if(footer)footer.innerHTML=`<button class="btn-outline" style="padding:10px 20px;font-size:14px;font-weight:700;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
+    if(footer)footer.innerHTML=`<button class="btn-outline" style="padding:12px;font-size:14px;font-weight:700;width:100%;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
 };
-
 
 window.ensureInvoiceButton=function(){
     if(document.getElementById('invoiceBtn'))return;
@@ -1485,7 +1497,12 @@ window.ensureInvoiceButton=function(){
         invoiceBtn.onclick=function(){window.showInvoiceModal();};
         summaryBtn.parentNode.insertBefore(invoiceBtn,summaryBtn.nextSibling);
     }
+    // 발주 요약 모달 헤더에 툴팁 삽입
+    if(!document.getElementById('tt-ord-summary')){
+        let summaryModal=document.getElementById('summaryModal');
+        if(summaryModal){let titleEl=summaryModal.querySelector('.modal-title,h2,h3,.section-title');if(titleEl&&!titleEl.querySelector('#tt-ord-summary')){titleEl.style.display='flex';titleEl.style.alignItems='center';titleEl.style.gap='8px';titleEl.insertAdjacentHTML('beforeend',`<i id="tt-ord-summary" class="info-tooltip long-text" data-tippy="발주일(월·목)별 주문 품목과 수량을 생두사 기준으로 정리합니다. '주문 접수' 상태의 건만 표시되며, 금액 입력 후 상태가 변경되면 자동으로 제외됩니다. 주문 리스트에서 체크한 건이 있으면 해당 건만 표시됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">i</i>`);}}
+    }
 };
 // fetchCenterData 완료 후 자동 호출됨 (Part 1에서 호출)
 
-// ▼▼▼ 파트4 끝 (전체 코드 끝) ▼▼▼
+// ▼▼▼ 파트4 끝 (전체 코드 끝) ▼▼▼                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
