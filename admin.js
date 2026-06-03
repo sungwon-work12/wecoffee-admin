@@ -1333,26 +1333,33 @@ window.saveCrmStatus=async function(){
 
 
 
-// ── 명세서 (멤버별 → 발주일/센터별 + 결제 상태 변경 + 툴팁 + 체크박스 연동) ──
+// ── 명세서 (디자인 리뉴얼 — 밀집 레이아웃 + 카드형 이력) ──
 window.showInvoiceModal=async function(){
     let modal=document.getElementById('invoiceModal');
     if(!modal){
         modal=document.createElement('div');modal.id='invoiceModal';
-        modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99990;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
-        modal.innerHTML=`<div style="background:#fff;border-radius:16px;width:100%;max-width:800px;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.18);overflow:hidden;"><div style="padding:20px 24px 16px;border-bottom:1px solid var(--border-strong);display:flex;justify-content:space-between;align-items:center;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:18px;font-weight:900;color:var(--text-display);">멤버별 청구 명세서</span><i class="info-tooltip long-text" data-tippy="멤버별 주문 건의 발주일, 수령 센터, 결제 금액, 입금 현황을 확인하고 관리합니다. 금액·상태 변경 시 담당 근무자가 자동 기록됩니다. 입금 확인·센터 도착·취소·품절 건은 자동 정리되며, 데이터는 서버에 보관됩니다. 주문 리스트에서 체크한 건이 있으면 해당 건만 표시됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">i</i></div><button onclick="window.closeInvoiceModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-tertiary);line-height:1;">✕</button></div><div id="invoiceModalBody" style="flex:1;overflow-y:auto;padding:20px 24px;"></div><div id="invoiceModalFooter" style="padding:16px 24px;border-top:1px solid var(--border-strong);"></div></div>`;
+        modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:99990;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+        modal.innerHTML=`<div style="background:#fff;border-radius:20px;width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.15);overflow:hidden;">
+            <div style="padding:24px 28px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f0f0f0;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:20px;font-weight:900;color:#111;letter-spacing:-0.5px;">멤버별 청구 명세서</span>
+                    <i class="info-tooltip long-text" data-tippy="멤버별 주문 건의 발주일, 수령 센터, 결제 금액, 입금 현황을 확인하고 관리합니다. 금액·상태 변경 시 담당 근무자가 자동 기록됩니다. 입금 확인·센터 도착·취소·품절 건은 자동 정리되며, 데이터는 서버에 보관됩니다. 주문 리스트에서 체크한 건이 있으면 해당 건만 표시됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">i</i>
+                </div>
+                <button onclick="window.closeInvoiceModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;line-height:1;padding:4px;">✕</button>
+            </div>
+            <div id="invoiceModalBody" style="flex:1;overflow-y:auto;padding:20px 28px;background:#fafafa;"></div>
+            <div id="invoiceModalFooter" style="padding:16px 28px 20px;background:#fff;border-top:1px solid #f0f0f0;"></div>
+        </div>`;
         document.body.appendChild(modal);
     }
     let body=document.getElementById('invoiceModalBody');
     let footer=document.getElementById('invoiceModalFooter');
-    body.innerHTML='<div class="empty-state">불러오는 중...</div>';
+    body.innerHTML='<div style="text-align:center;padding:60px 0;color:#aaa;font-weight:600;">불러오는 중...</div>';
     footer.innerHTML='';
     modal.style.display='flex';
 
-    // 체크박스 연동
     let checkedBoxes=document.querySelectorAll('.chk-ord:checked, input[type="checkbox"][class*="chk-ord-dyn-"]:checked');
     let checkedIds=Array.from(checkedBoxes).map(cb=>String(cb.value)).filter(val=>val!=="on");
-
-    // 필터: 주문 접수 / 입금 대기 / 입금 확인 중만 표시
     let activeOrders=gOrd.filter(o=>{
         let st=o.status||'';
         if(!['주문 접수','입금 대기','입금 확인 중'].includes(st))return false;
@@ -1360,17 +1367,15 @@ window.showInvoiceModal=async function(){
         return(currentGlobalCenter==='전체'||o.center===currentGlobalCenter);
     });
 
-    if(activeOrders.length===0){body.innerHTML='<div class="empty-state" style="padding:60px 0;">표시할 주문 내역이 없습니다.</div>';footer.innerHTML=`<button class="btn-outline" style="padding:12px;font-size:14px;font-weight:700;width:100%;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;return;}
+    if(activeOrders.length===0){body.innerHTML='<div style="text-align:center;padding:80px 0;color:#bbb;font-size:15px;font-weight:600;">표시할 주문 내역이 없습니다.</div>';footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;return;}
 
-    // invoice_logs 전체 조회
     let orderIds=activeOrders.map(o=>String(o.id));
     let allLogs={};
     try{
         const{data:logs}=await supabaseClient.from('invoice_logs').select('*').in('order_id',orderIds).eq('action','price_changed').order('created_at',{ascending:true});
         if(logs)logs.forEach(log=>{if(!allLogs[log.order_id])allLogs[log.order_id]=[];allLogs[log.order_id].push(log);});
-    }catch(e){console.warn('invoice_logs query failed',e);}
+    }catch(e){}
 
-    // 멤버 → 발주일+센터 → 아이템 그루핑
     let members={};
     activeOrders.forEach(o=>{
         let name=o.name||'이름없음';
@@ -1389,15 +1394,13 @@ window.showInvoiceModal=async function(){
         });
     });
 
-    // HTML 렌더링
     let html='';let firstNoLog=true;
     Object.entries(members).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([name,data])=>{
         let memberTotal=0,enteredCount=0,totalCount=0;
-        html+=`<div style="margin-bottom:20px;padding:16px;background:#fff;border:1px solid var(--border-strong);border-radius:12px;">`;
-        html+=`<div style="font-weight:800;font-size:15px;color:var(--text-display);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border-strong);">[${data.batch}] ${window.escapeHtml(name)} <span style="font-size:12px;font-weight:500;color:var(--text-tertiary);margin-left:6px;">${window.escapeHtml(data.phone)}</span></div>`;
+        let itemsHtml='';
 
         Object.values(data.groups).forEach(group=>{
-            html+=`<div style="margin-bottom:12px;"><div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;padding:4px 8px;background:#fff6ef;border-radius:6px;display:inline-block;">${group.deliveryLabel} · ${group.center}</div>`;
+            itemsHtml+=`<div style="padding:4px 0 8px;"><div style="font-size:11px;font-weight:700;color:#ff7900;background:#fff7f0;padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:6px;">${group.deliveryLabel} · ${group.center}</div>`;
             group.items.forEach(item=>{
                 totalCount++;
                 let amt=parseInt(String(item.price||'0').replace(/[^0-9]/g,''))||0;
@@ -1405,48 +1408,58 @@ window.showInvoiceModal=async function(){
                 let hasValidPrice=amt>0;
                 if(hasValidPrice)enteredCount++;
 
-                let priceHtml=hasValidPrice
-                    ?`<span style="font-weight:700;color:var(--text-display);">${item.price}</span>`
-                    :`<span style="color:var(--error);font-weight:600;">미입력</span>`;
-
-                // 결제 상태 드롭다운
+                let priceStr=hasValidPrice?`<span style="font-weight:800;color:#111;">${item.price}</span>`:`<span style="font-weight:700;color:#ef4444;">미입력</span>`;
+                let stColor=item.status==='입금 확인 중'?'#2563eb':(item.status==='입금 대기'?'#f59e0b':'#6b7280');
+                let stBg=item.status==='입금 확인 중'?'#eff6ff':(item.status==='입금 대기'?'#fffbeb':'#f3f4f6');
                 let stOpts=['주문 접수','입금 대기','입금 확인 중'].map(s=>`<option value="${s}" ${item.status===s?'selected':''}>${s}</option>`).join('');
-                let stClass=item.status==='입금 확인 중'?'st-checking':(item.status==='입금 대기'?'st-arranging':'');
-                let statusHtml=`<select class="status-select ${stClass}" style="font-size:11px;padding:3px 22px 3px 6px;border-radius:4px;margin-top:3px;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select>`;
 
-                let enteredHtml=item.enteredBy
-                    ?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">입력: ${window.getAdminName(item.enteredBy)} · ${item.enteredAt}</div>`
-                    :(hasValidPrice?`<div style="font-size:11px;color:var(--text-tertiary);margin-top:2px;">입력 기록 없음${firstNoLog?(firstNoLog=false,` <i class="info-tooltip" data-tippy="시스템 업데이트 이전 입력분은 기록이 없습니다. 이후 변경 건부터 자동 기록됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()" style="font-size:10px;vertical-align:middle;">i</i>`):''}` + `</div>`:'');
+                let metaHtml='';
+                if(item.enteredBy){metaHtml=`<span style="color:#aaa;">${window.getAdminName(item.enteredBy)} · ${item.enteredAt}</span>`;}
+                else if(hasValidPrice){metaHtml=`<span style="color:#ccc;">기록 없음${firstNoLog?(firstNoLog=false,' <i class="info-tooltip" data-tippy="시스템 업데이트 이전 입력분은 기록이 없습니다. 이후 변경 건부터 자동 기록됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()" style="font-size:10px;vertical-align:middle;">i</i>'):''}</span>`;}
 
-                let editHtml='';
+                let editToggle='';
                 if(item.hasEdits){
-                    let logId='log-'+item.orderId;
-                    let logRows=item.logs.map(l=>`<div style="font-size:11px;padding:3px 0;color:var(--text-tertiary);border-bottom:1px solid #f2f4f6;">${formatDt(l.created_at)} | ${window.getAdminName(l.performed_by)} | ${l.old_value||'(없음)'} → ${l.new_value}</div>`).join('');
-                    editHtml=`<div style="margin-top:3px;"><span style="font-size:10px;color:var(--primary);cursor:pointer;font-weight:700;" onclick="let el=document.getElementById('${logId}');el.style.display=el.style.display==='none'?'block':'none';">변경 이력 (${item.logs.length}건)</span><div id="${logId}" style="display:none;margin-top:4px;padding:6px 8px;background:#f9fafb;border-radius:6px;">${logRows}</div></div>`;
+                    let logId='lg-'+item.orderId;
+                    let logCards=item.logs.map(l=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;color:#888;border-bottom:1px solid #f5f5f5;"><span>${formatDt(l.created_at)}</span><span>${window.getAdminName(l.performed_by)}</span><span>${l.old_value||'—'} → ${l.new_value}</span></div>`).join('');
+                    editToggle=`<span style="color:#ff7900;cursor:pointer;font-weight:700;margin-left:6px;" onclick="let e=document.getElementById('${logId}');e.style.display=e.style.display==='none'?'block':'none';">이력${item.logs.length}</span><div id="${logId}" style="display:none;margin-top:4px;padding:8px 10px;background:#fafafa;border-radius:8px;border:1px solid #f0f0f0;">${logCards}</div>`;
                 }
 
-                html+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;font-size:13px;border-bottom:1px solid #f2f4f6;">`;
-                html+=`<div style="flex:1;min-width:0;color:var(--text-secondary);line-height:1.5;">${window.escapeHtml(item.vendor)} | ${window.escapeHtml(item.itemName)} <span style="color:var(--text-tertiary);">(${item.quantity})</span></div>`;
-                html+=`<div style="flex-shrink:0;text-align:right;padding-left:12px;min-width:120px;">${priceHtml}<div>${statusHtml}</div>${enteredHtml}${editHtml}</div></div>`;
+                itemsHtml+=`<div style="padding:10px 0;border-bottom:1px solid #f5f5f5;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:0;font-size:13px;color:#444;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${window.escapeHtml(item.vendor)} | ${window.escapeHtml(item.itemName)} <span style="color:#aaa;">(${item.quantity})</span></div>
+                        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                            ${priceStr}
+                            <select style="font-size:11px;padding:4px 20px 4px 8px;border:1px solid #e5e5e5;border-radius:6px;background:${stBg};color:${stColor};font-weight:700;cursor:pointer;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;">${metaHtml}${editToggle}</div>
+                </div>`;
             });
-            html+=`</div>`;
+            itemsHtml+=`</div>`;
         });
 
         let unenteredCount=totalCount-enteredCount;
-        let statusText=unenteredCount>0
-            ?`<span style="color:var(--error);font-size:12px;font-weight:600;">${totalCount}건 중 ${unenteredCount}건 미입력</span>`
-            :`<span style="color:var(--success);font-size:12px;font-weight:600;">전체 입력 완료</span>`;
-        html+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:2px solid var(--text-tertiary);"><div><span style="font-size:14px;font-weight:700;color:var(--text-secondary);">총 청구 금액</span> ${statusText}</div><span style="font-size:18px;font-weight:800;color:var(--primary);">${memberTotal>0?memberTotal.toLocaleString()+'원':'—'}</span></div></div>`;
+        let statusBadge=unenteredCount>0
+            ?`<span style="font-size:11px;color:#ef4444;font-weight:700;">${totalCount}건 중 ${unenteredCount}건 미입력</span>`
+            :`<span style="font-size:11px;color:#22c55e;font-weight:700;">전체 입력 완료</span>`;
+        let totalStr=memberTotal>0?memberTotal.toLocaleString()+'원':'—';
+
+        html+=`<div style="background:#fff;border-radius:16px;border:1px solid #eee;margin-bottom:12px;overflow:hidden;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #f0f0f0;border-left:4px solid #ff7900;">
+                <div><span style="font-weight:800;font-size:15px;color:#111;">[${data.batch}] ${window.escapeHtml(name)}</span> <span style="font-size:12px;color:#bbb;margin-left:4px;">${window.escapeHtml(data.phone)}</span></div>
+                <div style="text-align:right;"><div style="font-size:18px;font-weight:900;color:#111;">${totalStr}</div>${statusBadge}</div>
+            </div>
+            <div style="padding:8px 16px 12px;">${itemsHtml}</div>
+        </div>`;
     });
 
     body.innerHTML=html;
     window._invoiceMainHtml=html;
-    footer.innerHTML=`<button class="btn-outline" style="padding:12px;font-size:14px;font-weight:700;width:100%;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
+    footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
 };
 
 window.closeInvoiceModal=function(){let modal=document.getElementById('invoiceModal');if(modal)modal.style.display='none';};
 
-// 명세서 내 결제 상태 변경
 window.handleInvoiceStatusChange=async function(orderId,newValue,selectEl){
     let order=gOrd.find(o=>String(o.id)===String(orderId));if(!order)return;
     let oldStatus=order.status||'주문 접수';
@@ -1455,31 +1468,56 @@ window.handleInvoiceStatusChange=async function(orderId,newValue,selectEl){
     if(error){showToast("변경 실패");selectEl.value=oldStatus;return;}
     try{await supabaseClient.from('invoice_logs').insert([{order_id:String(orderId),action:'status_changed',field_name:'status',old_value:oldStatus,new_value:newValue,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}
     order.status=newValue;
-    showToast(`[${newValue}] 상태로 변경되었습니다.`);
-    if(newValue==='입금 확인'){showToast('입금 확인 처리되어 명세서에서 제외됩니다.');setTimeout(()=>window.showInvoiceModal(),800);}
+    showToast(`[${newValue}] 변경 완료`);
+    if(newValue==='입금 확인'){showToast('입금 확인 — 명세서에서 제외됩니다.');setTimeout(()=>window.showInvoiceModal(),600);}
     window.fetchCenterData({force:true});
 };
 
-// 전체 변경 이력 (금액 + 상태)
+// 전체 변경 이력 (카드형)
 window.showInvoiceLogs=async function(){
     let body=document.getElementById('invoiceModalBody');
     let footer=document.getElementById('invoiceModalFooter');
     if(!body)return;
-    body.innerHTML='<div class="empty-state">이력을 불러오는 중...</div>';
-    footer.innerHTML=`<button class="btn-outline" style="padding:12px;font-size:14px;font-weight:700;width:100%;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;
+    body.innerHTML='<div style="text-align:center;padding:60px 0;color:#aaa;">이력을 불러오는 중...</div>';
+    footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;
     try{
         const{data,error}=await supabaseClient.from('invoice_logs').select('*').in('action',['price_changed','status_changed']).order('created_at',{ascending:false}).limit(200);
-        if(error||!data||data.length===0){body.innerHTML='<div class="empty-state" style="padding:40px 0;color:var(--text-tertiary);">변경 이력이 없습니다.</div>';return;}
-        let rows=data.map(log=>{let actionLabel=log.action==='price_changed'?'금액':'상태';return `<tr><td style="padding:10px 12px;white-space:nowrap;">${formatDt(log.created_at)}</td><td style="padding:10px 12px;font-weight:700;">${window.escapeHtml(log.target_member||'-')}</td><td style="padding:10px 12px;"><span style="font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600;${log.action==='price_changed'?'background:#fff6ef;color:var(--primary);':'background:#eef2ff;color:#4f46e5;'}">${actionLabel}</span></td><td style="padding:10px 12px;color:var(--text-tertiary);">${window.escapeHtml(log.old_value||'(없음)')}</td><td style="padding:10px 12px;font-weight:700;color:var(--primary);">${window.escapeHtml(log.new_value||'(없음)')}</td><td style="padding:10px 12px;font-size:12px;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</td></tr>`;}).join('');
-        body.innerHTML=`<div style="font-size:16px;font-weight:800;color:var(--text-display);margin-bottom:16px;">전체 변경 이력</div><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="border-bottom:2px solid var(--border-strong);"><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">시각</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">멤버</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">구분</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 전</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경 후</th><th style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-tertiary);">변경자</th></tr></thead><tbody>${rows}</tbody></table>`;
-    }catch(e){body.innerHTML='<div class="empty-state" style="color:var(--error);">이력 조회 실패</div>';console.error(e);}
+        if(error||!data||data.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}
+
+        let cards=data.map(log=>{
+            let isPrice=log.action==='price_changed';
+            let badgeColor=isPrice?'#ff7900':'#2563eb';
+            let badgeBg=isPrice?'#fff7f0':'#eff6ff';
+            let badgeText=isPrice?'금액':'상태';
+            let order=gOrd.find(o=>String(o.id)===String(log.order_id));
+            let itemName=order?(order.item_name||'').replace(/\s*\[.*?\]\s*$/,''):'';
+            if(itemName.length>35)itemName=itemName.slice(0,35)+'…';
+
+            return `<div style="padding:14px 16px;background:#fff;border:1px solid #eee;border-radius:12px;margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:11px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:2px 8px;border-radius:4px;">${badgeText}</span>
+                        <span style="font-weight:800;font-size:14px;color:#111;">${window.escapeHtml(log.target_member||'-')}</span>
+                    </div>
+                    <span style="font-size:11px;color:#aaa;">${formatDt(log.created_at)}</span>
+                </div>
+                ${itemName?`<div style="font-size:12px;color:#888;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${window.escapeHtml(itemName)}</div>`:''}
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div style="font-size:13px;color:#666;"><span style="color:#bbb;">${window.escapeHtml(log.old_value||'—')}</span> <span style="color:#ccc;">→</span> <span style="font-weight:700;color:#111;">${window.escapeHtml(log.new_value||'—')}</span></div>
+                    <span style="font-size:11px;color:#aaa;">by ${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        body.innerHTML=`<div style="margin-bottom:16px;"><span style="font-size:18px;font-weight:900;color:#111;">전체 변경 이력</span></div>${cards}`;
+    }catch(e){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#ef4444;">이력 조회 실패</div>';console.error(e);}
 };
 
 window.restoreInvoiceMain=function(){
     let body=document.getElementById('invoiceModalBody');
     let footer=document.getElementById('invoiceModalFooter');
     if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;
-    if(footer)footer.innerHTML=`<button class="btn-outline" style="padding:12px;font-size:14px;font-weight:700;width:100%;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
+    if(footer)footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
 };
 
 window.ensureInvoiceButton=function(){
@@ -1497,12 +1535,7 @@ window.ensureInvoiceButton=function(){
         invoiceBtn.onclick=function(){window.showInvoiceModal();};
         summaryBtn.parentNode.insertBefore(invoiceBtn,summaryBtn.nextSibling);
     }
-    // 발주 요약 모달 헤더에 툴팁 삽입
-    if(!document.getElementById('tt-ord-summary')){
-        let summaryModal=document.getElementById('summaryModal');
-        if(summaryModal){let titleEl=summaryModal.querySelector('.modal-title,h2,h3,.section-title');if(titleEl&&!titleEl.querySelector('#tt-ord-summary')){titleEl.style.display='flex';titleEl.style.alignItems='center';titleEl.style.gap='8px';titleEl.insertAdjacentHTML('beforeend',`<i id="tt-ord-summary" class="info-tooltip long-text" data-tippy="발주일(월·목)별 주문 품목과 수량을 생두사 기준으로 정리합니다. '주문 접수' 상태의 건만 표시되며, 금액 입력 후 상태가 변경되면 자동으로 제외됩니다. 주문 리스트에서 체크한 건이 있으면 해당 건만 표시됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">i</i>`);}}
-    }
 };
 // fetchCenterData 완료 후 자동 호출됨 (Part 1에서 호출)
 
-// ▼▼▼ 파트4 끝 (전체 코드 끝) ▼▼▼                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+// ▼▼▼ 파트4 끝 (전체 코드 끝) ▼▼▼
