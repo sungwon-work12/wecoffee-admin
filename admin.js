@@ -1408,7 +1408,9 @@ window.showInvoiceModal=async function(){
                 let hasValidPrice=amt>0;
                 if(hasValidPrice)enteredCount++;
 
-                let priceStr=hasValidPrice?`<span style="font-weight:800;color:#111;">${item.price}</span>`:`<span style="font-weight:700;color:#ef4444;">미입력</span>`;
+                let rawAmt=String(item.price||'').replace(/[^0-9]/g,'');
+                let displayPrice=hasValidPrice?comma(rawAmt)+'원':'';
+                let priceStr=`<input type="text" value="${displayPrice}" placeholder="금액" style="width:90px;font-size:13px;font-weight:700;color:${hasValidPrice?'#111':'#ccc'};text-align:right;border:1px solid ${hasValidPrice?'#e5e5e5':'#fca5a5'};border-radius:6px;padding:5px 8px;outline:none;background:${hasValidPrice?'#fff':'#fff5f5'};transition:0.15s;" onfocus="this.style.borderColor='#ff7900';this.select();" onblur="this.style.borderColor='#e5e5e5';window.handleInvoicePriceInput('${item.orderId}',this.value,this)">`;
                 let stOpts=['주문 접수','입금 대기','입금 확인 중','입금 확인'].map(s=>`<option value="${s}" ${item.status===s?'selected':''}>${s}</option>`).join('');
                 let stClass=item.status==='입금 확인'?'st-confirmed':(item.status==='입금 대기'||item.status==='입금 확인 중')?'st-arranging':'st-wait';
 
@@ -1472,6 +1474,27 @@ window.handleInvoiceStatusChange=async function(orderId,newValue,selectEl){
     window.fetchCenterData({force:true});
 };
 
+// 명세서 내 금액 입력 (주문 리스트와 동기화)
+window.handleInvoicePriceInput=async function(orderId,val,inputEl){
+    let numOnly=String(val).replace(/[^0-9]/g,'');
+    let formatted=numOnly?comma(numOnly)+'원':'';
+    let order=gOrd.find(o=>String(o.id)===String(orderId));if(!order)return;
+    let oldPrice=order.total_price||'';
+    if(oldPrice===formatted){inputEl.value=formatted;return;}
+    let updates={total_price:formatted};
+    let newStatus=order.status;
+    if(numOnly&&order.status==='주문 접수'){updates.status='입금 대기';newStatus='입금 대기';}
+    order.total_price=formatted;order.status=newStatus;
+    inputEl.value=formatted;
+    inputEl.style.color=formatted?'#111':'#ccc';
+    inputEl.style.borderColor='#e5e5e5';
+    inputEl.style.background=formatted?'#fff':'#fff5f5';
+    await supabaseClient.from('orders').update(updates).eq('id',orderId);
+    if(oldPrice!==formatted){try{await supabaseClient.from('invoice_logs').insert([{order_id:String(orderId),action:'price_changed',field_name:'total_price',old_value:oldPrice,new_value:formatted,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}}
+    showToast('저장되었습니다.');
+    window.fetchCenterData({force:true});
+};
+
 // 전체 변경 이력 (카드형)
 window.showInvoiceLogs=async function(){
     let body=document.getElementById('invoiceModalBody');
@@ -1480,10 +1503,14 @@ window.showInvoiceLogs=async function(){
     body.innerHTML='<div style="text-align:center;padding:60px 0;color:#aaa;">이력을 불러오는 중...</div>';
     footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;
     try{
-        const{data,error}=await supabaseClient.from('invoice_logs').select('*').in('action',['price_changed','status_changed']).order('created_at',{ascending:false}).limit(200);
+        const{data,error}=await supabaseClient.from('invoice_logs').select('*').in('action',['price_changed','status_changed']).order('created_at',{ascending:false}).limit(500);
         if(error||!data||data.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}
+        let activeIds=new Set(gOrd.map(o=>String(o.id)));
+        let filtered=data.filter(log=>activeIds.has(String(log.order_id)));
 
-        let cards=data.map(log=>{
+        if(filtered.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}
+
+        let cards=filtered.map(log=>{
             let isPrice=log.action==='price_changed';
             let badgeColor=isPrice?'#ff7900':'#2563eb';
             let badgeBg=isPrice?'#fff7f0':'#eff6ff';
