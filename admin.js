@@ -1002,7 +1002,7 @@ window.closeCrmModal=function(){if($("crmModal"))$("crmModal").classList.remove(
 window.openCrmModal=function(id,isReadOnly=false){isCrmReadOnly=isReadOnly;if($("crmAppId"))$("crmAppId").value=id;window.renderCrmInner(id,isReadOnly);if($("crmModal"))$("crmModal").classList.add('show');};
 
 window.renderCrmInner=function(id,isReadOnly=false){const app=globalApps.find(a=>String(a.id)===String(id));if(!app)return;let cCount=0;let now=new Date();let monthPrefix=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;if(gRes&&gTrn){gRes.forEach(r=>{if(window.samePhone(r.phone,app.phone)&&r.status==='당일 취소'&&String(r.res_date||r.created_at).startsWith(monthPrefix))cCount++;});gTrn.forEach(t=>{if(window.samePhone(t.phone,app.phone)&&t.status==='당일 취소'){let dStr=String(t.content||'').split(' || ')[0]||String(t.created_at);if(dStr.startsWith(monthPrefix))cCount++;}});}let warnHtml=cCount>=4?`<span style="background:var(--error);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:700;vertical-align:middle;">경고</span>`:'';if($("crmName"))$("crmName").innerHTML=`<span style="font-weight:800;color:var(--text-display);margin-right:4px;">${app.desired_batch||'미정'}</span> ${window.escapeHtml(app.name||'이름 없음')} ${warnHtml}`;
-    let _row = (label, value, valueStyle) => `<div style="display:flex;align-items:baseline;"><span style="color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;min-width:80px;flex-shrink:0;margin-right:12px;">${label}</span><span style="${valueStyle||'font-weight:700;color:var(--text-display);font-size:14px;'}">${value}</span></div>`;
+    let _row = (label, value, valueStyle) => `<div style="display:flex;align-items:baseline;width:100%;"><span style="color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;min-width:80px;flex-shrink:0;margin-right:12px;">${label}</span><span style="${valueStyle||'font-weight:700;color:var(--text-display);font-size:14px;'}">${value}</span></div>`;
     let _profileHtml = '';
     _profileHtml += _row('연락처', window.escapeHtml(window.normalizePhone(app.phone)||app.phone||'-'));
     if(app.interest_area) _profileHtml += _row('관심 분야', window.escapeHtml(app.interest_area), 'font-weight:700;color:var(--text-display);font-size:14px;line-height:1.5;');
@@ -1010,7 +1010,7 @@ window.renderCrmInner=function(id,isReadOnly=false){const app=globalApps.find(a=
     if(app.known_duration) _profileHtml += _row('인지 기간', window.escapeHtml(app.known_duration));
     if(app.interest_level) _profileHtml += _row('관심도', window.escapeHtml(window.mapInterestLevel(app.interest_level)), 'font-weight:700;color:var(--primary);font-size:14px;');
     if(app.desired_center) _profileHtml += _row('희망 센터', window.escapeHtml(app.desired_center));
-    if($("crmProfile"))$("crmProfile").innerHTML=`<div style="display:flex;flex-direction:column;gap:6px;">${_profileHtml}</div>`;
+    if($("crmProfile")){$("crmProfile").style.flexDirection='column';$("crmProfile").innerHTML=`<div style="display:flex;flex-direction:column;gap:6px;width:100%;">${_profileHtml}</div>`;}
     let _rawCallTime = app.call_time && app.call_time !== 'null' ? app.call_time : '';
     let _isScheduled = /^\d{4}-\d{2}-\d{2}/.test(_rawCallTime);
     let _timeLabel = _isScheduled ? '상담 예정일' : '통화 선호 시간';
@@ -1410,7 +1410,7 @@ window.showInvoiceModal=async function(){
 
                 let rawAmt=String(item.price||'').replace(/[^0-9]/g,'');
                 let displayPrice=hasValidPrice?comma(rawAmt)+'원':'';
-                let priceStr=`<input type="text" value="${displayPrice}" placeholder="금액" style="width:90px;font-size:13px;font-weight:700;color:${hasValidPrice?'#111':'#ccc'};text-align:right;border:1px solid ${hasValidPrice?'#e5e5e5':'#fca5a5'};border-radius:6px;padding:5px 8px;outline:none;background:${hasValidPrice?'#fff':'#fff5f5'};transition:0.15s;" onfocus="this.style.borderColor='#ff7900';this.select();" onblur="this.style.borderColor='#e5e5e5';window.handleInvoicePriceInput('${item.orderId}',this.value,this)">`;
+                let priceStr=`<input type="text" value="${displayPrice}" placeholder="금액 입력" style="width:100px;font-size:13px;font-weight:600;color:${hasValidPrice?'#111':'#aaa'};text-align:right;border:1px solid var(--border-strong);border-radius:6px;padding:6px 10px;outline:none;background:#fff;height:34px;box-sizing:border-box;" onfocus="this.style.borderColor='var(--primary)';this.select();" onblur="this.style.borderColor='var(--border-strong)';window.handleInvoicePriceInput('${item.orderId}',this.value,this)">`;
                 let stOpts=['주문 접수','입금 대기','입금 확인 중','입금 확인'].map(s=>`<option value="${s}" ${item.status===s?'selected':''}>${s}</option>`).join('');
                 let stClass=item.status==='입금 확인'?'st-confirmed':(item.status==='입금 대기'||item.status==='입금 확인 중')?'st-arranging':'st-wait';
 
@@ -1426,10 +1426,10 @@ window.showInvoiceModal=async function(){
                 }
 
                 itemsHtml+=`<div style="padding:10px 0;border-bottom:1px solid #f5f5f5;">
-                    <div style="font-size:13px;color:#444;line-height:1.5;margin-bottom:6px;">${window.escapeHtml(item.vendor)} | ${window.escapeHtml(item.itemName)} <span style="color:#aaa;">(${item.quantity})</span></div>
+                    <div style="font-size:13px;color:#444;line-height:1.5;margin-bottom:6px;"><span style="color:#999;font-size:12px;">${window.escapeHtml(item.vendor)}</span> <span style="color:#111;font-weight:600;">${window.escapeHtml(item.itemName)}</span> <span style="color:#aaa;">(${item.quantity})</span></div>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                         ${priceStr}
-                        <select class="status-select ${stClass}" style="font-size:11px;padding:4px 20px 4px 8px;border-radius:6px;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select>
+                        <select class="status-select ${stClass}" style="font-size:12px;padding:6px 24px 6px 10px;border-radius:6px;height:34px;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select>
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;">${metaHtml}${editToggle}</div>
                 </div>`;
@@ -1555,14 +1555,14 @@ window.ensureInvoiceButton=function(){
         wrapper.appendChild(summaryBtn);
         let invoiceBtn=document.createElement('button');
         invoiceBtn.id='invoiceBtn';
-        invoiceBtn.style.cssText='padding:10px 20px;font-size:14px;font-weight:700;background:#fff;color:var(--primary);border:2px solid var(--primary);border-radius:8px;cursor:pointer;transition:0.15s;white-space:nowrap;';
+        invoiceBtn.style.cssText='padding:10px 16px;font-size:14px;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;transition:0.15s;white-space:nowrap;height:38px;display:inline-flex;align-items:center;justify-content:center;';
         invoiceBtn.textContent='명세서';
-        invoiceBtn.onmouseover=function(){this.style.background='var(--primary)';this.style.color='#fff';};
-        invoiceBtn.onmouseout=function(){this.style.background='#fff';this.style.color='var(--primary)';};
+        invoiceBtn.onmouseover=function(){this.style.opacity='0.9';};
+        invoiceBtn.onmouseout=function(){this.style.opacity='1';};
         invoiceBtn.onclick=function(){window.showInvoiceModal();};
         wrapper.appendChild(invoiceBtn);
     }
 };
 // fetchCenterData 완료 후 자동 호출됨 (Part 1에서 호출)
 
-// ▼▼▼ 파트4 끝 (전체 코드 끝) ▼▼▼
+// ▼▼▼ 파트4 끝 (전체 코드 끝) ▼▼▼            
