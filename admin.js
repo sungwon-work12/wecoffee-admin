@@ -1010,7 +1010,7 @@ window.renderCrmInner=function(id,isReadOnly=false){const app=globalApps.find(a=
     if(app.known_duration) _profileHtml += _row('인지 기간', window.escapeHtml(app.known_duration));
     if(app.interest_level) _profileHtml += _row('관심도', window.escapeHtml(window.mapInterestLevel(app.interest_level)), 'font-weight:700;color:var(--primary);font-size:14px;');
     if(app.desired_center) _profileHtml += _row('희망 센터', window.escapeHtml(app.desired_center));
-    if($("crmProfile")){$("crmProfile").style.flexDirection='column';$("crmProfile").innerHTML=`<div style="display:flex;flex-direction:column;gap:6px;width:100%;">${_profileHtml}</div>`;}
+    if($("crmProfile")){$("crmProfile").setAttribute('style','display:block;font-size:14px;line-height:1.5;');$("crmProfile").innerHTML=`<div style="display:flex;flex-direction:column;gap:6px;width:100%;">${_profileHtml}</div>`;}
     let _rawCallTime = app.call_time && app.call_time !== 'null' ? app.call_time : '';
     let _isScheduled = /^\d{4}-\d{2}-\d{2}/.test(_rawCallTime);
     let _timeLabel = _isScheduled ? '상담 예정일' : '통화 선호 시간';
@@ -1426,7 +1426,7 @@ window.showInvoiceModal=async function(){
                 }
 
                 itemsHtml+=`<div style="padding:10px 0;border-bottom:1px solid #f5f5f5;">
-                    <div style="font-size:13px;color:#444;line-height:1.5;margin-bottom:6px;"><span style="color:#999;font-size:12px;">${window.escapeHtml(item.vendor)}</span> <span style="color:#111;font-weight:600;">${window.escapeHtml(item.itemName)}</span> <span style="color:#aaa;">(${item.quantity})</span></div>
+                    <div style="font-size:13px;line-height:1.5;margin-bottom:6px;"><span style="color:#999;font-size:12px;">${window.escapeHtml(item.vendor)}</span> <span style="color:#bbb;margin:0 4px;">|</span> <span style="color:#111;font-weight:600;">${window.escapeHtml(item.itemName)}</span> <span style="color:#999;font-weight:500;margin-left:4px;">${item.quantity}</span></div>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                         ${priceStr}
                         <select class="status-select ${stClass}" style="font-size:12px;padding:6px 24px 6px 10px;border-radius:6px;height:34px;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select>
@@ -1514,20 +1514,21 @@ window.showInvoiceLogs=async function(){
             let badgeBg=isPrice?'#fff7f0':'#eff6ff';
             let badgeText=isPrice?'금액':'결제';
             let order=gOrd.find(o=>String(o.id)===String(log.order_id));
+            let vendor=order?order.vendor||'':'';
             let itemName=order?(order.item_name||'').replace(/\s*\[.*?\]\s*$/,''):'';
-            if(itemName.length>35)itemName=itemName.slice(0,35)+'…';
+            let qty=order?order.quantity||'':'';
 
-            return `<div style="padding:14px 16px;background:#fff;border:1px solid #eee;border-radius:12px;margin-bottom:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            return `<div style="padding:16px 20px;background:#fff;border:1px solid #eee;border-radius:14px;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
                     <div style="display:flex;align-items:center;gap:8px;">
-                        <span style="font-size:11px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:2px 8px;border-radius:4px;">${badgeText}</span>
-                        <span style="font-weight:800;font-size:14px;color:#111;">${window.escapeHtml(log.target_member||'-')}</span>
+                        <span style="font-size:12px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:3px 10px;border-radius:6px;">${badgeText}</span>
+                        <span style="font-weight:800;font-size:16px;color:#111;">${window.escapeHtml(log.target_member||'-')}</span>
                     </div>
-                    <span style="font-size:11px;color:#aaa;">${formatDt(log.created_at)}</span>
+                    <span style="font-size:12px;color:#999;">${formatDt(log.created_at)}</span>
                 </div>
-                ${itemName?`<div style="font-size:12px;color:#888;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${window.escapeHtml(itemName)}</div>`:''}
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <div style="font-size:13px;color:#666;"><span style="color:#bbb;">${window.escapeHtml(log.old_value||'—')}</span> <span style="color:#ccc;">→</span> <span style="font-weight:700;color:#111;">${window.escapeHtml(log.new_value||'—')}</span></div>
+                ${itemName?`<div style="font-size:14px;margin-bottom:10px;line-height:1.4;"><span style="color:#999;">${window.escapeHtml(vendor)}</span> <span style="color:#ccc;">|</span> <span style="color:#333;font-weight:600;">${window.escapeHtml(itemName)}</span>${qty?` <span style="color:#999;">${qty}</span>`:''}</div>`:''}
+                <div style="background:#f9fafb;padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+                    <div style="font-size:14px;"><span style="color:#aaa;">${window.escapeHtml(log.old_value||'—')}</span> <span style="color:#ccc;font-weight:600;">→</span> <span style="font-weight:800;color:#111;font-size:15px;">${window.escapeHtml(log.new_value||'—')}</span></div>
                     <span style="font-size:11px;color:#aaa;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</span>
                 </div>
             </div>`;
