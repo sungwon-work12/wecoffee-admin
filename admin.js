@@ -1207,30 +1207,30 @@ window.renderAppTable = function(data) {
                 let _preferredTime=(!_isScheduled&&_rawTime)?_rawTime:'';
                 let _scheduledTime=(_isScheduled&&timeDisplay)?timeDisplay:'';
                 let _interestTags=(row.interest_area||'').split(',').map(s=>s.trim()).filter(Boolean).slice(0,3);
-                let _interestHtml=_interestTags.map(t=>`<span style="background:#f2f4f6;color:var(--text-secondary);font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;white-space:nowrap;">${window.escapeHtml(t.length>8?t.slice(0,8)+'…':t)}</span>`).join('');
-                let _levelShort=row.interest_level?({'꼭 가입하고 싶어요':'관심 높음','상담 후 결정하고 싶어요':'관심 보통','아직 고민 중이에요':'탐색 중'}[row.interest_level]||''):'';
-                let _levelColor=_levelShort==='관심 높음'?'var(--primary)':(_levelShort==='관심 보통'?'var(--blue)':'var(--text-tertiary)');
+                let _interestHtml=_interestTags.map(t=>`<span style="color:var(--text-tertiary);font-size:11px;font-weight:600;">${window.escapeHtml(t.length>10?t.slice(0,10)+'…':t)}</span>`).join('<span style="color:var(--border-strong);margin:0 2px;">·</span>');
                 let _counselor=(row.counselor_name&&row.counselor_name!=='null')?row.counselor_name:'';
+                let _metaParts=[];
+                _metaParts.push(window.escapeHtml(window.normalizePhone(row.phone)||row.phone||''));
+                if(row.acquisition_channel)_metaParts.push(window.escapeHtml(row.acquisition_channel));
+                if(_scheduledTime)_metaParts.push(`<span style="color:var(--success);font-weight:700;">${window.escapeHtml(_scheduledTime)}</span>${_counselor?` <span style="color:var(--text-tertiary);">${window.escapeHtml(_counselor)}</span>`:''}`);
+                else if(_preferredTime)_metaParts.push(window.escapeHtml(_preferredTime));
 
-                accHtml+=`<div style="background:#fff;border:1px solid var(--border-strong);border-left:3px solid ${cfg.color};border-radius:10px;padding:16px 20px;margin-bottom:6px;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.06)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='none';this.style.transform='none'" onclick="window.openCrmModal('${row.id}')">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+                accHtml+=`<div style="background:#fff;border:1px solid var(--border-strong);border-left:3px solid ${cfg.color};border-radius:8px;padding:10px 14px;margin-bottom:4px;cursor:pointer;transition:all 0.12s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)'" onmouseout="this.style.boxShadow='none'" onclick="window.openCrmModal('${row.id}')">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
                         <div style="flex:1;min-width:0;">
-                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
-                                <span style="font-weight:800;font-size:16px;color:var(--text-display);letter-spacing:-0.3px;">${row.desired_batch||'-'} ${window.escapeHtml(row.name)}</span>
+                            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+                                <span style="font-weight:800;font-size:14px;color:var(--text-display);">${row.desired_batch||'-'} ${window.escapeHtml(row.name)}</span>
                                 ${surveyBadge}${ghostBadge}
-                                ${_levelShort?`<span style="font-size:11px;font-weight:700;color:${_levelColor};">${_levelShort}</span>`:''}
                             </div>
-                            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:4px 20px;font-size:13px;line-height:1.6;">
-                                <div style="display:flex;align-items:center;"><span style="color:var(--text-tertiary);font-size:12px;font-weight:600;width:52px;flex-shrink:0;">연락처</span><span style="color:var(--text-display);font-weight:600;">${window.escapeHtml(window.normalizePhone(row.phone)||row.phone||'')}</span></div>
-                                <div style="display:flex;align-items:center;"><span style="color:var(--text-tertiary);font-size:12px;font-weight:600;width:52px;flex-shrink:0;">유입</span><span style="color:var(--text-secondary);font-weight:500;">${window.escapeHtml(row.acquisition_channel||'-')}</span></div>
-                                ${_scheduledTime?`<div style="display:flex;align-items:center;"><span style="color:var(--text-tertiary);font-size:12px;font-weight:600;width:52px;flex-shrink:0;">상담일</span><span style="color:var(--success);font-weight:700;">${window.escapeHtml(_scheduledTime)}</span>${_counselor?`<span style="color:var(--text-tertiary);font-size:11px;margin-left:6px;">· ${window.escapeHtml(_counselor)}</span>`:''}</div>`:(_preferredTime?`<div style="display:flex;align-items:center;"><span style="color:var(--text-tertiary);font-size:12px;font-weight:600;width:52px;flex-shrink:0;">선호</span><span style="color:var(--text-secondary);font-weight:500;">${window.escapeHtml(_preferredTime)}</span></div>`:'')}
-                                ${_interestHtml?`<div style="display:flex;align-items:center;gap:4px;overflow:hidden;">${_interestHtml}</div>`:''}
+                            <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;display:flex;align-items:center;flex-wrap:wrap;gap:2px;">
+                                ${_metaParts.join('<span style="color:var(--border-strong);margin:0 4px;">·</span>')}
                             </div>
-                            ${timeBadgeHtml?`<div style="margin-top:6px;">${timeBadgeHtml}</div>`:''}
+                            ${_interestHtml?`<div style="margin-top:2px;line-height:1.4;">${_interestHtml}</div>`:''}
+                            ${timeBadgeHtml?`<div style="margin-top:2px;">${timeBadgeHtml}</div>`:''}
                         </div>
-                        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:flex-end;" onclick="event.stopPropagation();">
-                            <select class="status-select ${cStat}" style="font-size:12px;height:32px;padding:4px 24px 4px 8px;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time||''}','${row.counselor_name||''}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>설문 완료</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option><option value="연락 두절" ${row.status==='연락 두절'?'selected':''}>연락 두절</option></select>
-                            <select class="status-select ${cJoin}" style="font-size:12px;height:32px;padding:4px 24px 4px 8px;" onchange="window.updateAppStatus('${row.id}','join_status',this.value,this)"><option value="" ${!row.join_status?'selected':''}>미정</option><option value="고민 중" ${row.join_status==='고민 중'?'selected':''}>고민 중</option><option value="가입 완료" ${row.join_status==='가입 완료'?'selected':''}>가입 완료</option><option value="미가입" ${row.join_status==='미가입'?'selected':''}>미가입</option><option value="다음 기수 희망" ${row.join_status==='다음 기수 희망'?'selected':''}>다음 기수</option><option value="연락 후 미가입" ${row.join_status==='연락 후 미가입'?'selected':''}>연락후 미가입</option><option value="상담 후 미가입" ${row.join_status==='상담 후 미가입'?'selected':''}>상담후 미가입</option></select>
+                        <div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation();">
+                            <select class="status-select ${cStat}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time||''}','${row.counselor_name||''}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>설문 완료</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option><option value="연락 두절" ${row.status==='연락 두절'?'selected':''}>연락 두절</option></select>
+                            <select class="status-select ${cJoin}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.updateAppStatus('${row.id}','join_status',this.value,this)"><option value="" ${!row.join_status?'selected':''}>미정</option><option value="고민 중" ${row.join_status==='고민 중'?'selected':''}>고민 중</option><option value="가입 완료" ${row.join_status==='가입 완료'?'selected':''}>가입 완료</option><option value="미가입" ${row.join_status==='미가입'?'selected':''}>미가입</option><option value="다음 기수 희망" ${row.join_status==='다음 기수 희망'?'selected':''}>다음 기수</option><option value="연락 후 미가입" ${row.join_status==='연락 후 미가입'?'selected':''}>연락후 미가입</option><option value="상담 후 미가입" ${row.join_status==='상담 후 미가입'?'selected':''}>상담후 미가입</option></select>
                         </div>
                     </div>
                 </div>`;
