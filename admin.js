@@ -104,6 +104,7 @@ wecoffeeStyle.innerHTML = `
     .nth-badge { margin-left:6px; font-size:11px; padding:2px 6px; border-radius:4px; background:#e8f0fe; color:#1a73e8; font-weight:800; vertical-align:middle; display:inline-block; letter-spacing:-0.5px; }
     .pagination-btn { height:32px; min-width:32px; padding:0 8px; border:1px solid var(--border-strong); background:#fff; border-radius:6px; font-size:13px; font-weight:600; cursor:pointer; transition:0.2s; }
     td[data-label="접수일"], td[data-label="신청일"], td[data-label="신청일시"], td[data-label="등록일"], td[data-label="주문 시간"], td[data-label="작성일"] { white-space:nowrap !important; }
+    @media screen and (max-width:768px) { td::before { min-width:90px !important; } }
     .pagination-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
     .pagination-btn:disabled { opacity:0.5; cursor:not-allowed; }
     .dash-cal-grid, .dash-cal-cell, .desktop-cal { overflow: visible !important; }
