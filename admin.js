@@ -1357,11 +1357,11 @@ let funnelSteps=[
 {l:'상담 완료',n:counseled,pct:total>0?Math.round(counseled/total*100):0,color:'#7b1fa2'},
 {l:'가입 완료',n:joined,pct:total>0?Math.round(joined/total*100):0,color:'var(--success)'}
 ];
-let funnelHtml=`<div class="stat-card wc-anim-card" style="padding:28px;animation-delay:0.1s;width:100%;max-width:100%;"><div style="font-size:18px;font-weight:800;margin-bottom:24px;color:var(--text-display);">고객 전환 퍼널</div><div style="display:flex;flex-direction:column;gap:12px;">`;
+let funnelHtml=`<div class="stat-card wc-anim-card" style="padding:32px;animation-delay:0.1s;width:100%;max-width:100%;box-sizing:border-box;"><div style="font-size:18px;font-weight:800;margin-bottom:28px;color:var(--text-display);">고객 전환 퍼널</div><div style="width:100%;display:flex;flex-direction:column;gap:16px;">`;
 funnelSteps.forEach((st,i)=>{
-let barW=Math.max(st.pct,8);
-let arrow=i>0?`<span style="font-size:12px;color:var(--text-tertiary);font-weight:700;">${st.pct}% 도달</span>`:'';
-funnelHtml+=`<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-size:14px;font-weight:700;color:var(--text-display);">${st.l}</span><div style="display:flex;align-items:center;gap:8px;">${arrow}<span style="font-size:18px;font-weight:900;color:${st.color};">${st.n}명</span></div></div><div style="background:#f2f4f6;height:28px;border-radius:8px;overflow:hidden;"><div class="wc-anim-bar" style="width:${barW}%;height:100%;background:${st.color};border-radius:8px;opacity:0.85;animation-delay:${0.3+i*0.15}s;"></div></div></div>`;
+let barW=Math.max(st.pct,6);
+let pctLabel=i>0?`<span style="font-size:12px;color:var(--text-tertiary);font-weight:600;margin-left:8px;">${st.pct}% 도달</span>`:'';
+funnelHtml+=`<div style="width:100%;"><div style="display:flex;align-items:baseline;margin-bottom:8px;gap:8px;"><span style="font-size:15px;font-weight:700;color:var(--text-display);">${st.l}</span>${pctLabel}<span style="margin-left:auto;font-size:20px;font-weight:900;color:${st.color};">${st.n}명</span></div><div class="wc-anim-bar" style="width:${barW}%;height:32px;background:${st.color};border-radius:8px;opacity:0.9;animation-delay:${0.3+i*0.15}s;"></div></div>`;
 });
 funnelHtml+=`</div></div>`;
 if($("statsFunnel")){$("statsFunnel").innerHTML=funnelHtml;$("statsFunnel").style.display='block';}
