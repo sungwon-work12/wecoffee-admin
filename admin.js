@@ -989,7 +989,7 @@ window.parseCallTime=function(t){const s=String(t||'').trim();if(!s||s==='null'|
 window.renderAppDailyBanner=function(filteredApps){let td=new Date();let mm=td.getMonth()+1;let dd=td.getDate();let scheduled=filteredApps.filter(a=>(a.status==='상담 일정 확정'||a.status==='설문 완료')&&a.call_time);let todayEvts=scheduled.filter(app=>{const p=window.parseCallTime(app.call_time);return p&&p.month===mm&&p.day===dd;});let html='';if(todayEvts.length===0){html=`<div class="inout-card"><div style="font-weight:800;margin-bottom:8px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">오늘의 상담 일정</div><div style="font-size:13px;color:var(--text-secondary);padding:8px 0;">오늘 확정된 상담 일정이 없습니다.</div></div>`;}else{html=`<div class="inout-card"><div style="font-weight:800;font-size:15px;margin-bottom:12px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">오늘의 상담 일정 (${todayEvts.length}건)</div><div style="display:flex;flex-direction:column;gap:12px;">`;todayEvts.sort((a,b)=>{const pA=window.parseCallTime(a.call_time);const pB=window.parseCallTime(b.call_time);const tA=pA&&pA.hour!==null?pA.hour*60+pA.minute:0;const tB=pB&&pB.hour!==null?pB.hour*60+pB.minute:0;return tA-tB;});todayEvts.forEach(evt=>{const p=window.parseCallTime(evt.call_time);let timeStr=p&&p.timeStr?p.timeStr:evt.call_time;html+=`<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;width:100%;"><div style="color:var(--primary);background:var(--primary-light);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;">${timeStr}</div> <div style="font-weight:800;flex-shrink:0;">${evt.desired_batch||'-'} ${window.escapeHtml(evt.name)}</div> <div style="font-weight:500;color:var(--text-secondary);flex-shrink:0;">(${window.escapeHtml(evt.phone)}) | 담당: ${window.escapeHtml(evt.counselor_name||'미정')}</div></div>`;});html+=`</div></div>`;}if($("appDailyBanner"))$("appDailyBanner").innerHTML=html;};
 
 window.renderAppDashboard=async function(){const now=new Date();let targetDate=new Date(now.getFullYear(),now.getMonth()+appDashMonthOffset,1);const yyyy=targetDate.getFullYear();const mm=targetDate.getMonth();const daysInMonth=new Date(yyyy,mm+1,0).getDate();const currDay=now.getDay();if(currentAppDashView==='month'&&$("appDashMonthTitle"))$("appDashMonthTitle").innerText=`${yyyy}년 ${mm+1}월`;await window.fetchHolidays(yyyy);let scheduledApps=globalApps.filter(a=>(a.status==='상담 일정 확정'||a.status==='설문 완료')&&a.call_time);let calEvts={};if(currentAppDashView==='week'){let startOfWeek=new Date(now.getFullYear(),now.getMonth(),now.getDate()-currDay);for(let i=0;i<7;i++){let dObj=new Date(startOfWeek.getFullYear(),startOfWeek.getMonth(),startOfWeek.getDate()+i);let ds=`${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`;calEvts[ds]=[];}}else{for(let d=1;d<=daysInMonth;d++){let ds=`${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;calEvts[ds]=[];}}scheduledApps.forEach(app=>{const p=window.parseCallTime(app.call_time);if(p&&p.month){let ds=`${yyyy}-${String(p.month).padStart(2,'0')}-${String(p.day).padStart(2,'0')}`;if(calEvts[ds]){let timeStr=p.timeStr||app.call_time;calEvts[ds].push({time:timeStr,text:`${app.desired_batch||'-'} ${window.escapeHtml(app.name)}`,tooltip:`${timeStr} | 담당: ${window.escapeHtml(app.counselor_name||'미정')}`});}}});let mHtml=`<div class="dash-cal-grid"><div class="dash-cal-header" style="color:var(--error);">일</div><div class="dash-cal-header">월</div><div class="dash-cal-header">화</div><div class="dash-cal-header">수</div><div class="dash-cal-header">목</div><div class="dash-cal-header">금</div><div class="dash-cal-header" style="color:var(--blue);">토</div>`;let iterDates=Object.keys(calEvts).sort();if(currentAppDashView==='month'){let firstDay=new Date(yyyy,mm,1).getDay();for(let i=0;i<firstDay;i++)mHtml+=`<div class="dash-cal-cell empty"></div>`;}iterDates.forEach(ds=>{let dObj=new Date(ds);let evts=calEvts[ds];let holidayName=window.getHoliday(dObj.getFullYear(),dObj.getMonth()+1,dObj.getDate());let dateClass=holidayName?'holiday-date':'';let dateText=dObj.getDate()+(holidayName?` <span style="font-size:10px;font-weight:600;display:block;float:right;">${holidayName}</span>`:'');let evtsHtml=evts.slice(0,3).map(e=>`<div class="dash-item" style="background:#FFF6EF;border-left-color:var(--primary);color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');if(evts.length>3){let hiddenText=evts.slice(3).map(e=>`${e.time||''} | ${e.text||''}`).join('<br>');evtsHtml+=`<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length-3}건 더보기</div><div class="dash-tooltip" style="text-align:left;white-space:nowrap;font-weight:normal;">${hiddenText}</div></div>`;}mHtml+=`<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;});mHtml+=`</div>`;window.appCalEvts=calEvts;let mobStrip=`<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-app">`;iterDates.forEach(ds=>{let dObj=new Date(ds);let dayKr=["일","월","화","수","목","금","토"][dObj.getDay()];let hasEvt=calEvts[ds].length>0?'has-evt':'';mobStrip+=`<div class="m-cal-date" id="m-date-app-${ds}" onclick="window.renderMCalApp('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`;});mobStrip+=`</div><div id="m-cal-list-app" class="m-cal-list"></div></div>`;if($("appDashContent"))$("appDashContent").innerHTML=`<div class="desktop-cal">${mHtml}</div>`+mobStrip;let td=new Date();let todayStr=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;window.renderMCalApp(calEvts[todayStr]?todayStr:iterDates[0]);}
-window.toggleInsight=function(){isInsightView=!isInsightView;let insightArea=$("app-insight-area");if(insightArea){insightArea.style.paddingTop="32px";insightArea.style.display=isInsightView?"block":"none";}if($("app-table-area"))$("app-table-area").style.display=isInsightView?"none":"block";if($("insightToggleBtn"))$("insightToggleBtn").innerText=isInsightView?"리스트 보기":"인사이트 보기";if(isInsightView)window.applyFilterApp();}
+window.toggleInsight=function(){isInsightView=!isInsightView;let insightArea=$("app-insight-area");if(insightArea){insightArea.style.paddingTop="32px";insightArea.style.paddingBottom="120px";insightArea.style.display=isInsightView?"block":"none";}if($("app-table-area"))$("app-table-area").style.display=isInsightView?"none":"block";if($("insightToggleBtn"))$("insightToggleBtn").innerText=isInsightView?"리스트 보기":"인사이트 보기";if(isInsightView)window.applyFilterApp();}
 window.toggleAppDashView=function(view){currentAppDashView=view;if(view==='month'){if($("appDashMonthNav"))$("appDashMonthNav").style.display='flex';}else{if($("appDashMonthNav"))$("appDashMonthNav").style.display='none';appDashMonthOffset=0;}window.renderAppDashboard();}
 window.changeAppDashMonth=function(offset){appDashMonthOffset+=offset;window.renderAppDashboard();}
 window.resetAppDashMonth=function(){appDashMonthOffset=0;window.renderAppDashboard();}
@@ -1302,7 +1302,7 @@ if(!document.getElementById('wc-insight-anim')){const s=document.createElement('
 @keyframes wcBarGrow{from{width:0}to{width:var(--target-w)}}
 @keyframes wcCountUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .wc-anim-card{animation:wcFadeUp 0.5s ease forwards;opacity:0}
-.wc-anim-bar{animation:wcBarGrow 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s forwards;width:0!important}
+.wc-anim-bar{width:0;animation:wcBarGrow 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s forwards}
 .wc-anim-num{animation:wcCountUp 0.4s ease 0.2s forwards;opacity:0}
 `;document.head.appendChild(s);}
 
@@ -1357,7 +1357,7 @@ let funnelSteps=[
 {l:'상담 완료',n:counseled,pct:total>0?Math.round(counseled/total*100):0,color:'#7b1fa2'},
 {l:'가입 완료',n:joined,pct:total>0?Math.round(joined/total*100):0,color:'var(--success)'}
 ];
-let funnelHtml=`<div class="stat-card wc-anim-card" style="padding:28px;animation-delay:0.1s"><div style="font-size:18px;font-weight:800;margin-bottom:24px;color:var(--text-display);">고객 전환 퍼널</div><div style="display:flex;flex-direction:column;gap:12px;">`;
+let funnelHtml=`<div class="stat-card wc-anim-card" style="padding:28px;animation-delay:0.1s;width:100%;max-width:100%;"><div style="font-size:18px;font-weight:800;margin-bottom:24px;color:var(--text-display);">고객 전환 퍼널</div><div style="display:flex;flex-direction:column;gap:12px;">`;
 funnelSteps.forEach((st,i)=>{
 let barW=Math.max(st.pct,8);
 let arrow=i>0?`<span style="font-size:12px;color:var(--text-tertiary);font-weight:700;">${st.pct}% 도달</span>`:'';
@@ -1369,28 +1369,27 @@ if($("statsFunnel")){$("statsFunnel").innerHTML=funnelHtml;$("statsFunnel").styl
 // Stage-separated dropout
 let preColor=preCounselRate>=20?'var(--error)':(preCounselRate>=10?'#f59e0b':'var(--text-display)');
 let postColor=postCounselRate>=30?'var(--error)':(postCounselRate>=15?'#f59e0b':'var(--text-display)');
-let dropoutHtml=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+let dropoutHtml=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
 <div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.15s">
 <div style="font-size:14px;color:var(--text-secondary);font-weight:700;margin-bottom:4px;">상담 전 이탈률</div>
-<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;">연락 성공자 ${contacted}명 기준</div>
-<div class="wc-anim-num" style="font-size:48px;font-weight:900;color:${preColor};line-height:1;letter-spacing:-2px;">${preCounselRate}<span style="font-size:24px;">%</span></div>
-<div style="margin-top:12px;font-size:13px;color:var(--text-secondary);">연락 후 미가입 <strong style="color:var(--text-display);">${stage1}명</strong></div>
-<div style="width:100%;margin-top:12px;background:#f2f4f6;height:6px;border-radius:3px;overflow:hidden;"><div class="wc-anim-bar" style="--target-w:${preCounselRate}%;height:100%;background:${preColor};animation-delay:0.5s;border-radius:3px;"></div></div>
+<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">연락 성공자 ${contacted}명 기준</div>
+<div class="wc-anim-num" style="font-size:44px;font-weight:900;color:${preColor};line-height:1;letter-spacing:-2px;">${preCounselRate}<span style="font-size:22px;">%</span></div>
+<div style="margin-top:14px;font-size:13px;color:var(--text-secondary);">연락 후 미가입 <strong style="color:var(--text-display);">${stage1}명</strong></div>
+<div style="width:100%;margin-top:10px;background:#f2f4f6;height:6px;border-radius:3px;overflow:hidden;"><div class="wc-anim-bar" style="--target-w:${preCounselRate}%;height:100%;background:${preColor};animation-delay:0.5s;border-radius:3px;"></div></div>
 </div>
 <div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.22s">
 <div style="font-size:14px;color:var(--text-secondary);font-weight:700;margin-bottom:4px;">상담 후 이탈률</div>
-<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px;">상담 완료자 ${counseled}명 기준</div>
-<div class="wc-anim-num" style="font-size:48px;font-weight:900;color:${postColor};line-height:1;letter-spacing:-2px;">${postCounselRate}<span style="font-size:24px;">%</span></div>
-<div style="margin-top:12px;font-size:13px;color:var(--text-secondary);">상담 후 미가입 <strong style="color:var(--text-display);">${stage2}명</strong></div>
-<div style="width:100%;margin-top:12px;background:#f2f4f6;height:6px;border-radius:3px;overflow:hidden;"><div class="wc-anim-bar" style="--target-w:${postCounselRate}%;height:100%;background:${postColor};animation-delay:0.5s;border-radius:3px;"></div></div>
-</div></div>
-<div class="stat-card wc-anim-card" style="padding:20px 28px;text-align:left;align-items:flex-start;margin-bottom:24px;animation-delay:0.28s">
-<div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
-<div style="font-size:13px;color:var(--text-tertiary);font-weight:600;">미가입 (기타/미분류)</div>
-<div style="font-size:15px;font-weight:800;color:var(--text-display);">${stage3}명</div>
+<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">상담 완료자 ${counseled}명 기준</div>
+<div class="wc-anim-num" style="font-size:44px;font-weight:900;color:${postColor};line-height:1;letter-spacing:-2px;">${postCounselRate}<span style="font-size:22px;">%</span></div>
+<div style="margin-top:14px;font-size:13px;color:var(--text-secondary);">상담 후 미가입 <strong style="color:var(--text-display);">${stage2}명</strong></div>
+<div style="width:100%;margin-top:10px;background:#f2f4f6;height:6px;border-radius:3px;overflow:hidden;"><div class="wc-anim-bar" style="--target-w:${postCounselRate}%;height:100%;background:${postColor};animation-delay:0.5s;border-radius:3px;"></div></div>
 </div>
-<div style="margin-top:8px;font-size:12px;color:var(--text-tertiary);">연락 두절 ${ghostCount}명은 이탈률 산정에서 제외</div>
-</div>`;
+<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.28s">
+<div style="font-size:14px;color:var(--text-secondary);font-weight:700;margin-bottom:4px;">기타 미가입</div>
+<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">분류 미지정 ${stage3}명</div>
+<div class="wc-anim-num" style="font-size:44px;font-weight:900;color:var(--text-tertiary);line-height:1;letter-spacing:-2px;">${stage3}<span style="font-size:22px;">명</span></div>
+<div style="margin-top:14px;font-size:12px;color:var(--text-tertiary);line-height:1.5;">연락 두절 ${ghostCount}명은<br>이탈률에 미포함</div>
+</div></div>`;
 
 // Counselor chart
 let counselorChartHtml='';
