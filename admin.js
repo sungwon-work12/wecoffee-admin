@@ -216,6 +216,7 @@ wecoffeeStyle.innerHTML = `
     #blkRepeatSection select, #blkRepeatSection input { height:36px; border:1px solid var(--border-strong,#e5e8eb); border-radius:8px; padding:0 10px; font-size:13px; font-weight:600; background:#fff; color:var(--text-display); outline:none; }
     #blkRepeatSection input[type="number"] { width:70px; }
     #blkRepeatPreview { font-size:12px; color:var(--primary,#ff7900); font-weight:700; margin-top:2px; }
+    .page, .sub-page { padding-bottom: 80px !important; }
     @media (max-width: 1024px) { .mem-action-wrap { flex-wrap: nowrap !important; overflow-x: auto; } }
     @media (max-width: 768px) {
         .wecoffee-banner-wrap, .banner-grid { flex-direction: column; }
@@ -1077,16 +1078,16 @@ window.updateAppStatus = async function(id, field, value, selectEl) {
     if (field === 'join_status' && value === '가입 완료' && app) {
         const batchNum = parseInt(String(app.desired_batch || '').replace(/[^0-9]/g, '')) || 0;
         if (batchNum >= 35) {
-            const alreadyMember = globalMembers.find(m => window.samePhone(m.phone, app.phone));
-            if (!alreadyMember) {
+            const { data: existingMember } = await supabaseClient.from('members').select('id').eq('phone', app.phone).maybeSingle();
+            if (!existingMember) {
                 let endDate;
                 const sameBatch = globalMembers.filter(m => m.batch === app.desired_batch && m.end_date);
                 if (sameBatch.length > 0) {
                     endDate = sameBatch[0].end_date;
                 } else {
                     let d = new Date(); d.setDate(1); d.setHours(0,0,0,0);
-                    d.setMonth(d.getMonth() + 6);
-                    endDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+                    d.setMonth(d.getMonth() + 7); d.setDate(0);
+                    endDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                 }
                 const { error: memErr } = await supabaseClient.from('members').insert([{
                     name: app.name,
@@ -1163,7 +1164,7 @@ window.renderAppTable = function(data) {
     ].map(s=>`<div style="background:#f9fafb;border:1px solid var(--border-strong);border-radius:12px;padding:16px;text-align:center;"><div style="font-size:24px;font-weight:800;${s.c}">${s.n}</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;font-weight:600;">${s.l}</div></div>`).join('');
 
     // Sort ascending (oldest first)
-    let sorted=[...data].sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));
+    let sorted=[...data].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
 
     // 연락 두절 history map (phone → [{batch, status at time}])
     let ghostMap={};
@@ -1243,8 +1244,10 @@ window.renderAppTable = function(data) {
                 let _counselor=(row.counselor_name&&row.counselor_name!=='null')?row.counselor_name:'';
                 let _lbl='<span style="color:var(--text-tertiary);font-size:12px;font-weight:600;">';
                 let _metaParts=[];
+                _metaParts.push(`${_lbl}신청일</span> ${formatDt(row.created_at)}`);
                 _metaParts.push(`${_lbl}연락처</span> ${window.escapeHtml(window.normalizePhone(row.phone)||row.phone||'')}`);
                 if(row.acquisition_channel)_metaParts.push(`${_lbl}유입 경로</span> ${window.escapeHtml(row.acquisition_channel)}`);
+                if(row.desired_center)_metaParts.push(`${_lbl}희망 센터</span> ${window.escapeHtml(row.desired_center)}`);
                 if(_scheduledTime)_metaParts.push(`${_lbl}상담 예정일</span> <span style="color:var(--success);font-weight:700;">${window.escapeHtml(_scheduledTime)}</span>${_counselor?` <span style="color:var(--text-tertiary);">${window.escapeHtml(_counselor)}</span>`:''}`);
                 else if(_preferredTime)_metaParts.push(`${_lbl}통화 선호 시간</span> ${window.escapeHtml(_preferredTime)}`);
 
@@ -1414,17 +1417,19 @@ let h=`<div class="wc-anim-card" style="margin-bottom:10px;animation-delay:${0.1
 if(lb==='기타'&&Object.keys(interestEtcMap).length>0){Object.entries(interestEtcMap).sort((a,b)=>b[1]-a[1]).forEach(det=>{let dp=cnt>0?Math.round((det[1]/cnt)*100):0;h+=`<div style="display:flex;align-items:center;margin-top:8px;padding-left:14px;"><div style="color:var(--text-tertiary);margin-right:8px;font-size:12px;font-weight:800;">ㄴ</div><div style="flex:1;"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;"><span>${det[0]}</span><span>${det[1]}건</span></div><div style="background:#f2f4f6;height:4px;border-radius:2px;overflow:hidden;"><div class="wc-anim-bar" style="width:${dp}%;height:100%;background:rgba(255,121,0,0.3);border-radius:2px;animation-delay:0.6s"></div></div></div></div>`;});}
 return h+`</div>`;}).join('');
 
-let chartsHtml=`<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;margin-bottom:24px;animation-delay:0.1s"><div style="font-size:18px;font-weight:800;margin-bottom:24px;">유입 경로 분석</div><div style="width:100%;">${treeHtml}</div></div>
-<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;margin-bottom:24px;animation-delay:0.15s"><div style="font-size:18px;font-weight:800;margin-bottom:24px;">관심 분야 (가입 목적)</div><div style="width:100%;">${interestChartHtml}</div></div>`;
+let channelCard=`<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.1s;height:fit-content;"><div style="font-size:18px;font-weight:800;margin-bottom:24px;">유입 경로 분석</div><div style="width:100%;">${treeHtml}</div></div>`;
+let interestCard=`<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.15s;height:fit-content;"><div style="font-size:18px;font-weight:800;margin-bottom:24px;">관심 분야 (가입 목적)</div><div style="width:100%;">${interestChartHtml}</div></div>`;
 
-container.innerHTML=dropoutHtml+counselorCard+chartsHtml;
+container.innerHTML=dropoutHtml
+    +`<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">${counselorCard}<div></div></div>`
+    +`<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">${channelCard}${interestCard}</div>`;
 
 // Known duration
 let knownDurData=getFrequency(data.map(d=>d.known_duration).filter(Boolean));
-if(knownDurData.length>0){let kdHtml=`<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.2s"><div style="font-size:18px;font-weight:800;margin-bottom:24px;">위커피 인지 기간</div><div style="width:100%;">`;
+if(knownDurData.length>0){let kdHtml=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;"><div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.2s;height:fit-content;"><div style="font-size:18px;font-weight:800;margin-bottom:24px;">위커피 인지 기간</div><div style="width:100%;">`;
 knownDurData.forEach((item,i)=>{let pct=total===0?0:Math.round((item[1]/total)*100);let op=i===0?1:(i===1?0.85:0.6);
 kdHtml+=`<div class="wc-anim-card" style="margin-bottom:10px;animation-delay:${0.1+i*0.06}s"><div style="font-size:14px;font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between;"><span>${item[0]}</span><span style="color:var(--text-secondary);font-size:13px;">${item[1]}건 (${pct}%)</span></div><div style="background:#f2f4f6;height:10px;border-radius:5px;overflow:hidden;"><div class="wc-anim-bar" style="width:${pct}%;height:100%;background:rgba(255,121,0,${op});border-radius:5px;animation-delay:${0.3+i*0.08}s"></div></div></div>`;});
-kdHtml+=`</div></div>`;container.innerHTML+=kdHtml;}
+kdHtml+=`</div></div><div></div></div>`;container.innerHTML+=kdHtml;}
 
 window.currentInsightData={total,joined,dropoutCount:totalDropout,preCounselRate,postCounselRate,ghostCount,instaCount:channelMap['인스타그램']?channelMap['인스타그램'].total:0,adCount:channelMap['광고']?channelMap['광고'].total:0,instaFollow:safeData.instaFollow,instaNonFollow:safeData.instaNonFollow,leadTime1M:safeData.adNow,leadTime3M:safeData.leadTime3M,channelMap,counselorMap,knownDurData};
 }
