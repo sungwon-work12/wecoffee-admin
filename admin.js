@@ -880,7 +880,7 @@ window.resetAppDashMonth=function(){appDashMonthOffset=0;window.renderAppDashboa
 
 window.fetchApplications=async function(){try{const{data,error}=await supabaseClient.from('applications').select('*').order('created_at',{ascending:false}).limit(2000);if(error)throw error;globalApps=data||[];const batches=[...new Set(globalApps.map(d=>d.desired_batch).filter(Boolean))].sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0));let optionsHTML='<option value="all">전체 기수 보기</option>';batches.forEach(b=>optionsHTML+=`<option value="${b}">${b}</option>`);if($("batchFilterApp"))$("batchFilterApp").innerHTML=optionsHTML;window.applyFilterApp();if($("crmModal")&&$("crmModal").classList.contains('show')&&$("crmAppId").value){window.renderCrmInner($("crmAppId").value,isCrmReadOnly);}}catch(e){console.error(e);}}
 
-window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}}catch(e){console.error(e);}}
+window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}if(typeof window.ensureBatchConfigBtn==='function')window.ensureBatchConfigBtn();}catch(e){console.error(e);}}
 const statusClassMap={'대기':'st-wait','상담 일정 조율 중':'st-arranging','상담 일정 확정':'st-confirmed','상담 완료':'st-completed','연락 두절':'st-ghosted','설문 완료':'st-confirmed','품절':'st-ghosted'};
 const joinClassMap={'':'jn-none','고민 중':'jn-thinking','연락 후 미가입':'jn-declined','상담 후 미가입':'jn-declined','가입 완료':'jn-joined','미가입':'jn-declined','다음 기수 희망':'jn-next'};
 
@@ -1571,7 +1571,7 @@ ${counselorHtml}
     const zone3 = knownDurData.length > 0 ? `<div class="ins-grid-bot wc-fade" style="animation-delay:0.18s;"><div class="ins-card"><div class="ins-section-title">위커피 인지 기간</div>${knownHtml}</div><div></div><div></div></div>` : '';
 
     if ($("insightSummaryText")) $("insightSummaryText").innerHTML = '';
-    if ($("statsCards")) $("statsCards").innerHTML = '';
+    if ($("statsCards")) { $("statsCards").innerHTML = ''; $("statsCards").className = ''; $("statsCards").style.display = 'none'; }
     if ($("statsFunnel")) { $("statsFunnel").innerHTML = ''; $("statsFunnel").style.display = 'none'; }
 
     container.innerHTML = zone1 + `<div class="ins-grid-mid">${zone2Left}${zone2Mid}${zone2Right}</div>` + zone3;
