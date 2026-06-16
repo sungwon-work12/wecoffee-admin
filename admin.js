@@ -1103,7 +1103,7 @@ window.closeBatchConfigModal = function() {
 // ★ 신규: 가입·상담 신청 관리 페이지 상단에 기수 설정 버튼 추가
 window.ensureBatchConfigBtn = function() {
     if (document.getElementById('batchConfigBtn')) return;
-    const filterArea = document.querySelector('#page-applications .filter-wrap, #page-applications .table-toolbar');
+    const filterArea = document.querySelector('#page-applications .header-actions, #page-applications .filter-wrap, #page-applications .table-toolbar');
     if (!filterArea) return;
     const btn = document.createElement('button');
     btn.id = 'batchConfigBtn';
@@ -1401,11 +1401,12 @@ window.showInvoiceLogs=async function(){let body=document.getElementById('invoic
 window.restoreInvoiceMain=function(){let body=document.getElementById('invoiceModalBody');let footer=document.getElementById('invoiceModalFooter');if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;if(footer)footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;};
 window.ensureInvoiceButton=function(){if(document.getElementById('invoiceBtn'))return;let btns=document.querySelectorAll('button,.btn');let summaryBtn=Array.from(btns).find(b=>b.textContent.includes('발주 요약'));if(summaryBtn&&summaryBtn.parentNode){let wrapper=document.createElement('div');wrapper.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';summaryBtn.parentNode.insertBefore(wrapper,summaryBtn);wrapper.appendChild(summaryBtn);let invoiceBtn=document.createElement('button');invoiceBtn.id='invoiceBtn';invoiceBtn.style.cssText='padding:10px 16px;font-size:14px;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;transition:0.15s;white-space:nowrap;height:38px;display:inline-flex;align-items:center;justify-content:center;';invoiceBtn.textContent='명세서';invoiceBtn.onmouseover=function(){this.style.opacity='0.9';};invoiceBtn.onmouseout=function(){this.style.opacity='1';};invoiceBtn.onclick=function(){window.showInvoiceModal();};wrapper.appendChild(invoiceBtn);}};
 
-// ★ 신규: renderStatistics — 1140px 3존 그리드 레이아웃
+
 window.renderStatistics = function(data) {
     if (!$("statsContainer")) return;
     const container = $("statsContainer");
     container.innerHTML = '';
+    // ★ HTML 클래스 충돌 방지 (insight-grid-2 제거)
     container.className = '';
     container.style.cssText = 'margin-bottom:40px;';
     if (data.length === 0) {
@@ -1420,9 +1421,9 @@ window.renderStatistics = function(data) {
 @keyframes wcScaleX{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .wc-fade{animation:wcFadeUp 0.4s ease forwards;opacity:0;}
 .wc-bar{transform-origin:left;transform:scaleX(0);animation:wcScaleX 0.7s cubic-bezier(0.22,1,0.36,1) forwards;}
-.ins-grid-top{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;}
-.ins-grid-mid{display:grid;grid-template-columns:5fr 4fr 3fr;gap:12px;margin-bottom:16px;}
-.ins-grid-bot{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.ins-num-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+.ins-2col{display:grid;grid-template-columns:3fr 2fr;gap:12px;margin-bottom:16px;}
+.ins-3col{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
 .ins-card{background:#fff;border:1px solid var(--border-strong);border-radius:14px;padding:20px 22px;}
 .ins-label{font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:6px;}
 .ins-num{font-size:30px;font-weight:900;line-height:1;letter-spacing:-1px;color:var(--text-display);}
@@ -1433,22 +1434,26 @@ window.renderStatistics = function(data) {
 .ins-row-label{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:4px;}
 .ins-sub-item{padding-left:12px;margin-top:4px;}
 .ins-sub-label{display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:3px;}
-.ins-funnel-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
-.ins-funnel-label{font-size:12px;color:var(--text-secondary);font-weight:600;width:60px;flex-shrink:0;}
-.ins-funnel-bar{height:30px;border-radius:6px;display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:700;color:#fff;flex:1;}
-.ins-funnel-pct{font-size:12px;font-weight:700;color:var(--text-secondary);width:36px;text-align:right;flex-shrink:0;}
-.ins-dropout-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px;}
+.ins-funnel-step{margin-bottom:16px;}
+.ins-funnel-step:last-child{margin-bottom:0;}
+.ins-funnel-label-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+.ins-funnel-name{font-size:13px;font-weight:600;color:var(--text-secondary);}
+.ins-funnel-pct{font-size:12px;color:var(--text-tertiary);}
+.ins-funnel-num{font-size:22px;font-weight:900;color:var(--text-display);text-align:right;}
+.ins-dropout-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .ins-dropout-cell{background:#f9fafb;border-radius:10px;padding:14px;}
 .ins-section-title{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px;}
 .ins-counselor-item{margin-bottom:14px;}
 .ins-counselor-item:last-child{margin-bottom:0;}
 @media(max-width:900px){
-  .ins-grid-top{grid-template-columns:repeat(3,1fr);}
-  .ins-grid-mid{grid-template-columns:1fr;}
-  .ins-grid-bot{grid-template-columns:1fr 1fr;}
+  .ins-num-row{grid-template-columns:repeat(2,1fr);}
+  .ins-2col{grid-template-columns:1fr;}
+  .ins-3col{grid-template-columns:1fr;}
 }`;
         document.head.appendChild(s);
     }
+
+    // 데이터 계산
     const total = data.length;
     const ghostCount = data.filter(d => d.status === '연락 두절').length;
     const contacted = total - ghostCount;
@@ -1460,6 +1465,7 @@ window.renderStatistics = function(data) {
     const stage3 = data.filter(d => d.join_status === '미가입').length;
     const preCounselRate = contacted > 0 ? Math.round((stage1 / contacted) * 100) : 0;
     const postCounselRate = counseled > 0 ? Math.round((stage2 / counseled) * 100) : 0;
+
     const counselorMap = {};
     data.forEach(d => {
         const cn = (d.counselor_name && d.counselor_name !== 'null' && d.counselor_name.trim()) ? d.counselor_name.trim() : '미지정';
@@ -1469,7 +1475,8 @@ window.renderStatistics = function(data) {
         else if (['연락 후 미가입', '상담 후 미가입', '미가입'].includes(d.join_status)) counselorMap[cn].dropout++;
         else counselorMap[cn].pending++;
     });
-    const counselorList = Object.entries(counselorMap).filter(([k, v]) => v.total > 0 && k !== '미지정').sort((a, b) => (b[1].total > 0 ? b[1].joined / b[1].total : 0) - (a[1].total > 0 ? a[1].joined / a[1].total : 0));
+    const counselorList = Object.entries(counselorMap).filter(([k]) => k !== '미지정').sort((a, b) => (b[1].joined / (b[1].total||1)) - (a[1].joined / (a[1].total||1)));
+
     let channelMap = {};
     let safeData = { instaFollow: 0, instaNonFollow: 0, adNow: 0, leadTime3M: 0 };
     data.forEach(d => {
@@ -1485,101 +1492,124 @@ window.renderStatistics = function(data) {
         else if (ch === '기타') det = etc;
         if (det) channelMap[ch].details[det] = (channelMap[ch].details[det] || 0) + 1;
     });
+
     let interestAll = [];
-    let interestEtcMap = {};
-    data.forEach(d => { if (d.interest_area) String(d.interest_area).split(',').map(s => s.trim()).filter(Boolean).forEach(v => { if (v.startsWith('기타')) { let ci = v.indexOf(':'); if (ci > -1) { interestAll.push('기타'); let ed = v.substring(ci + 1).trim(); if (ed) interestEtcMap[ed] = (interestEtcMap[ed] || 0) + 1; } else interestAll.push('기타'); } else interestAll.push(v); }); });
+    data.forEach(d => { if (d.interest_area) String(d.interest_area).split(',').map(s => s.trim()).filter(Boolean).forEach(v => { if (v.startsWith('기타')) { let ci = v.indexOf(':'); interestAll.push(ci > -1 ? '기타' : v); } else interestAll.push(v); }); });
     function getFrequency(arr) { return Object.entries(arr.reduce((acc, val) => { if (val) acc[val] = (acc[val] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1]); }
     const interestData = getFrequency(interestAll);
-    const topInterest = interestData.length > 0 ? interestData[0][0] : '없음';
-    const topInterestRate = total > 0 && interestData.length > 0 ? Math.round((interestData[0][1] / total) * 100) : 0;
     const knownDurData = getFrequency(data.map(d => d.known_duration).filter(Boolean));
     const instaCount = channelMap['인스타그램'] ? channelMap['인스타그램'].total : 0;
     const adCount = channelMap['광고'] ? channelMap['광고'].total : 0;
+    const instaTotal = safeData.instaFollow + safeData.instaNonFollow;
+    const followPct = instaTotal > 0 ? Math.round((safeData.instaFollow / instaTotal) * 100) : 0;
 
-    // 1존: 핵심 숫자 5개
-    const zone1 = `<div class="ins-grid-top wc-fade" style="animation-delay:0s;">
-<div class="ins-card"><div class="ins-label">총 신청</div><div class="ins-num">${total}<span style="font-size:16px;color:var(--text-secondary);margin-left:3px;">건</span></div></div>
+    // ──────────────────────────────────────
+    // 1행: 숫자 카드 4개
+    // ──────────────────────────────────────
+    const zoneNumbers = `<div class="ins-num-row wc-fade">
+<div class="ins-card"><div class="ins-label">총 신청 건수</div><div class="ins-num">${total}<span style="font-size:16px;color:var(--text-secondary);margin-left:3px;">건</span></div></div>
 <div class="ins-card"><div class="ins-label">최종 가입 전환율</div><div class="ins-num" style="color:var(--primary);">${convRate}<span style="font-size:16px;margin-left:2px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">가입 ${joined}명 / 상담 ${counseled}명</div></div>
 <div class="ins-card"><div class="ins-label">인스타그램 유입</div><div class="ins-num">${instaCount}<span style="font-size:16px;color:var(--text-secondary);margin-left:3px;">건</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">팔로워 ${safeData.instaFollow}명 · 비팔로워 ${safeData.instaNonFollow}명</div></div>
-<div class="ins-card"><div class="ins-label">주요 관심 분야</div><div style="font-size:18px;font-weight:800;color:var(--text-display);margin-top:4px;line-height:1.2;">${window.escapeHtml(topInterest)}</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${topInterestRate}% · ${interestData.length > 0 ? interestData[0][1] : 0}건</div></div>
 <div class="ins-card"><div class="ins-label">광고 유입</div><div class="ins-num">${adCount}<span style="font-size:16px;color:var(--text-secondary);margin-left:3px;">건</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">단기 ${safeData.adNow}명 · 장기 ${safeData.leadTime3M}명</div></div>
 </div>`;
 
-    // 2존 좌: 퍼널 + 이탈
+    // ──────────────────────────────────────
+    // 2행: 고객 전환 퍼널 (full-width)
+    // ──────────────────────────────────────
     const funnelSteps = [
-        { l: '신청 접수', n: total, pct: 100, color: '#222' },
+        { l: '신청 접수', n: total, pct: 100, color: '#333d4b' },
         { l: '연락 성공', n: contacted, pct: total > 0 ? Math.round(contacted / total * 100) : 0, color: '#378ADD' },
         { l: '상담 완료', n: counseled, pct: total > 0 ? Math.round(counseled / total * 100) : 0, color: '#7F77DD' },
         { l: '가입 완료', n: joined, pct: total > 0 ? Math.round(joined / total * 100) : 0, color: '#1D9E75' }
     ];
+    const zoneFunnel = `<div class="ins-card wc-fade" style="margin-bottom:16px;animation-delay:0.06s;">
+<div style="font-size:15px;font-weight:800;color:var(--text-display);text-align:center;margin-bottom:20px;">고객 전환 퍼널</div>
+${funnelSteps.map((st, i) => `<div class="ins-funnel-step">
+<div class="ins-funnel-label-row"><span class="ins-funnel-name">${st.l} <span style="color:var(--text-tertiary);font-size:12px;">${st.pct}% 도달</span></span><span class="ins-funnel-num" style="color:${st.color};">${st.n}명</span></div>
+<div style="height:20px;border-radius:6px;overflow:hidden;background:#f2f4f6;"><div class="wc-bar" style="height:100%;background:${st.color};width:${Math.max(st.pct, 3)}%;border-radius:6px;animation-delay:${0.15 + i * 0.1}s;"></div></div>
+</div>`).join('')}
+</div>`;
+
+    // ──────────────────────────────────────
+    // 3행: 이탈 분석 (3fr) + 상담자별 성과 (2fr)
+    // ──────────────────────────────────────
     const preColor = preCounselRate >= 20 ? 'var(--error)' : (preCounselRate >= 10 ? '#f59e0b' : 'var(--text-display)');
     const postColor = postCounselRate >= 30 ? 'var(--error)' : (postCounselRate >= 15 ? '#f59e0b' : 'var(--text-display)');
-    const zone2Left = `<div class="ins-card wc-fade" style="animation-delay:0.06s;">
-<div class="ins-section-title">고객 전환 퍼널</div>
-${funnelSteps.map((st, i) => `<div class="ins-funnel-row"><div class="ins-funnel-label">${st.l}</div><div class="ins-funnel-bar wc-bar" style="background:${st.color};width:${Math.max(st.pct, 4)}%;animation-delay:${0.2 + i * 0.1}s;">${st.n}명</div><div class="ins-funnel-pct">${st.pct}%</div></div>`).join('')}
-<div style="height:1px;background:var(--border-strong);margin:16px 0;"></div>
+    const zoneDropout = `<div class="ins-card wc-fade" style="animation-delay:0.1s;">
 <div class="ins-section-title">이탈 분석</div>
 <div class="ins-dropout-grid">
-<div class="ins-dropout-cell"><div class="ins-label">상담 전 이탈률</div><div style="font-size:28px;font-weight:900;color:${preColor};line-height:1;">${preCounselRate}<span style="font-size:14px;">%</span></div><div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">연락 후 미가입 ${stage1}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${preCounselRate}%;background:${preColor};animation-delay:0.5s;"></div></div></div>
-<div class="ins-dropout-cell"><div class="ins-label">상담 후 이탈률</div><div style="font-size:28px;font-weight:900;color:${postColor};line-height:1;">${postCounselRate}<span style="font-size:14px;">%</span></div><div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">상담 후 미가입 ${stage2}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${postCounselRate}%;background:${postColor};animation-delay:0.6s;"></div></div></div>
-<div class="ins-dropout-cell"><div class="ins-label">연락 두절</div><div style="font-size:28px;font-weight:900;color:var(--text-tertiary);line-height:1;">${ghostCount}<span style="font-size:14px;">명</span></div><div style="font-size:11px;color:var(--text-secondary);margin-top:3px;">이탈률 미포함</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${total > 0 ? Math.round(ghostCount/total*100) : 0}%;background:#b4b2a9;animation-delay:0.7s;"></div></div></div>
+<div class="ins-dropout-cell"><div class="ins-label">상담 전 이탈률</div><div style="font-size:32px;font-weight:900;color:${preColor};line-height:1;">${preCounselRate}<span style="font-size:16px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">연락 성공자 ${contacted}명 기준</div><div style="font-size:12px;color:var(--text-secondary);">연락 후 미가입 ${stage1}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${preCounselRate}%;background:${preColor};animation-delay:0.4s;"></div></div></div>
+<div class="ins-dropout-cell"><div class="ins-label">상담 후 이탈률</div><div style="font-size:32px;font-weight:900;color:${postColor};line-height:1;">${postCounselRate}<span style="font-size:16px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">상담 완료자 ${counseled}명 기준</div><div style="font-size:12px;color:var(--text-secondary);">상담 후 미가입 ${stage2}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${postCounselRate}%;background:${postColor};animation-delay:0.5s;"></div></div></div>
+<div class="ins-dropout-cell"><div class="ins-label">기타 미가입</div><div style="font-size:32px;font-weight:900;color:var(--text-tertiary);line-height:1;">${stage3}<span style="font-size:16px;">명</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">분류 미지정 이탈</div><div style="font-size:12px;color:var(--text-secondary);">연락 두절 ${ghostCount}명은 이탈률에 미포함</div></div>
 </div></div>`;
 
-    // 2존 중: 유입 경로 + 관심 분야
+    const counselorHtml = counselorList.length > 0 ? counselorList.map(([name, stats], i) => {
+        const jp = stats.total > 0 ? Math.round((stats.joined / stats.total) * 100) : 0;
+        const dp = stats.total > 0 ? Math.round((stats.dropout / stats.total) * 100) : 0;
+        const pp = stats.total > 0 ? Math.round((stats.pending / stats.total) * 100) : 0;
+        return `<div class="ins-counselor-item wc-fade" style="animation-delay:${0.1+i*0.08}s;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-size:15px;font-weight:800;color:var(--text-display);">${window.escapeHtml(name)}</span><span style="font-size:13px;color:var(--text-secondary);">${stats.joined}/${stats.total}명 <span style="color:var(--primary);font-weight:800;font-size:15px;">(${jp}%)</span></span></div><div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:#f2f4f6;"><div class="wc-bar" style="width:${jp}%;background:#1D9E75;animation-delay:${0.3+i*0.1}s;"></div><div class="wc-bar" style="width:${dp}%;background:#E24B4A;animation-delay:${0.4+i*0.1}s;"></div><div class="wc-bar" style="width:${pp}%;background:#d1d5db;animation-delay:${0.5+i*0.1}s;"></div></div><div style="display:flex;gap:14px;margin-top:6px;font-size:12px;color:var(--text-tertiary);"><span><span style="display:inline-block;width:8px;height:8px;background:#1D9E75;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>가입 ${stats.joined}</span><span><span style="display:inline-block;width:8px;height:8px;background:#E24B4A;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>이탈 ${stats.dropout}</span><span><span style="display:inline-block;width:8px;height:8px;background:#d1d5db;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>진행 중 ${stats.pending}</span></div></div>`;
+    }).join('') : `<div style="font-size:13px;color:var(--text-tertiary);padding:20px 0;text-align:center;">상담자 데이터 없음</div>`;
+
+    const zoneCounselor = `<div class="ins-card wc-fade" style="animation-delay:0.14s;">
+<div class="ins-section-title">상담자별 성과</div>
+${counselorHtml}
+</div>`;
+
+    // ──────────────────────────────────────
+    // 4행: 유입 경로 + 관심 분야 + 인지 기간 (3등분)
+    // ──────────────────────────────────────
     const sortedCh = Object.entries(channelMap).sort((a, b) => b[1].total - a[1].total);
     const channelHtml = sortedCh.map((item, i) => {
         const ch = item[0], ct = item[1].total;
         const pct = total > 0 ? Math.round((ct / total) * 100) : 0;
         const opacity = i === 0 ? 1 : i === 1 ? 0.75 : 0.5;
         const dets = Object.entries(item[1].details).sort((a, b) => b[1] - a[1]);
-        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);">${ch}</span><span style="color:var(--text-secondary);">${ct}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:rgba(255,121,0,${opacity});animation-delay:${0.3+i*0.07}s;"></div></div>${dets.slice(0,3).map(det=>`<div class="ins-sub-item"><div class="ins-sub-label"><span>ㄴ ${window.escapeHtml(det[0])}</span><span>${det[1]}건</span></div></div>`).join('')}</div>`;
+        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">${ch}</span><span style="color:var(--text-secondary);">${ct}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:rgba(255,121,0,${opacity});animation-delay:${0.3+i*0.07}s;"></div></div>${dets.slice(0,4).map(det=>`<div class="ins-sub-item"><div class="ins-sub-label"><span>ㄴ ${window.escapeHtml(det[0])}</span><span>${det[1]}건</span></div></div>`).join('')}</div>`;
     }).join('');
+
     const interestHtml = interestData.slice(0, 6).map((item, i) => {
         const pct = total > 0 ? Math.round((item[1] / total) * 100) : 0;
         const opacity = i === 0 ? 1 : i === 1 ? 0.8 : i === 2 ? 0.6 : 0.4;
-        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);">${window.escapeHtml(item[0])}</span><span style="color:var(--text-secondary);">${item[1]}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:rgba(127,119,221,${opacity});animation-delay:${0.3+i*0.07}s;"></div></div></div>`;
+        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">${window.escapeHtml(item[0])}</span><span style="color:var(--text-secondary);">${item[1]}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:rgba(127,119,221,${opacity});animation-delay:${0.3+i*0.07}s;"></div></div></div>`;
     }).join('');
-    const zone2Mid = `<div class="ins-card wc-fade" style="animation-delay:0.1s;">
-<div class="ins-section-title">유입 경로</div>
+
+    const knownHtml = knownDurData.slice(0, 6).map((item, i) => {
+        const pct = total > 0 ? Math.round((item[1] / total) * 100) : 0;
+        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">${window.escapeHtml(item[0])}</span><span style="color:var(--text-secondary);">${item[1]}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:#378ADD;animation-delay:${0.3+i*0.07}s;"></div></div></div>`;
+    }).join('');
+
+    const zoneChannels = `<div class="ins-card wc-fade" style="animation-delay:0.18s;">
+<div class="ins-section-title">유입 경로 분석</div>
 ${channelHtml}
-<div style="height:1px;background:var(--border-strong);margin:16px 0;"></div>
+</div>`;
+
+    const zoneInterest = `<div class="ins-card wc-fade" style="animation-delay:0.22s;">
 <div class="ins-section-title">관심 분야 (가입 목적)</div>
 ${interestHtml}
 </div>`;
 
-    // 2존 우: 상담자 성과 + 인스타 팔로우
-    const counselorHtml = counselorList.length > 0 ? counselorList.map(([name, stats], i) => {
-        const jp = stats.total > 0 ? Math.round((stats.joined / stats.total) * 100) : 0;
-        const dp = stats.total > 0 ? Math.round((stats.dropout / stats.total) * 100) : 0;
-        const pp = stats.total > 0 ? Math.round((stats.pending / stats.total) * 100) : 0;
-        return `<div class="ins-counselor-item wc-fade" style="animation-delay:${0.1+i*0.08}s;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;"><span style="font-size:14px;font-weight:700;color:var(--text-display);">${window.escapeHtml(name)}</span><span style="font-size:12px;color:var(--text-secondary);">${stats.joined}/${stats.total}명 <span style="color:var(--primary);font-weight:700;">${jp}%</span></span></div><div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:#f2f4f6;"><div class="wc-bar" style="width:${jp}%;background:#1D9E75;animation-delay:${0.4+i*0.1}s;"></div><div class="wc-bar" style="width:${dp}%;background:#E24B4A;animation-delay:${0.5+i*0.1}s;"></div><div class="wc-bar" style="width:${pp}%;background:#d1d5db;animation-delay:${0.6+i*0.1}s;"></div></div><div style="display:flex;gap:12px;margin-top:5px;font-size:11px;color:var(--text-tertiary);"><span><span style="display:inline-block;width:8px;height:8px;background:#1D9E75;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>가입 ${stats.joined}</span><span><span style="display:inline-block;width:8px;height:8px;background:#E24B4A;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>이탈 ${stats.dropout}</span><span><span style="display:inline-block;width:8px;height:8px;background:#d1d5db;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>진행 중 ${stats.pending}</span></div></div>`;
-    }).join('') : `<div style="font-size:13px;color:var(--text-tertiary);padding:20px 0;text-align:center;">상담자 데이터 없음</div>`;
-    const instaTotal = safeData.instaFollow + safeData.instaNonFollow;
-    const followPct = instaTotal > 0 ? Math.round((safeData.instaFollow / instaTotal) * 100) : 0;
-    const zone2Right = `<div class="ins-card wc-fade" style="animation-delay:0.14s;">
-<div class="ins-section-title">상담자별 성과</div>
-${counselorHtml}
-<div style="height:1px;background:var(--border-strong);margin:16px 0;"></div>
-<div class="ins-section-title">인스타 팔로우 비율</div>
-<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:#f2f4f6;margin-bottom:6px;"><div class="wc-bar" style="width:${followPct}%;background:var(--primary);animation-delay:0.5s;"></div></div>
-<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);"><span>팔로워 <strong style="color:var(--text-display);">${safeData.instaFollow}명</strong> (${followPct}%)</span><span>비팔로워 <strong style="color:var(--text-display);">${safeData.instaNonFollow}명</strong></span></div>
+    const zoneKnown = `<div class="ins-card wc-fade" style="animation-delay:0.26s;">
+<div class="ins-section-title">위커피 인지 기간</div>
+${knownHtml.length > 0 ? knownHtml : '<div style="font-size:13px;color:var(--text-tertiary);text-align:center;padding:20px 0;">데이터 없음</div>'}
 </div>`;
 
-    // 3존: 인지 기간
-    const knownHtml = knownDurData.slice(0, 5).map((item, i) => {
-        const pct = total > 0 ? Math.round((item[1] / total) * 100) : 0;
-        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);">${window.escapeHtml(item[0])}</span><span style="color:var(--text-secondary);">${item[1]}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:#378ADD;animation-delay:${0.3+i*0.07}s;"></div></div></div>`;
-    }).join('');
-    const zone3 = knownDurData.length > 0 ? `<div class="wc-fade" style="animation-delay:0.18s;"><div class="ins-card"><div class="ins-section-title">위커피 인지 기간</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px 32px;">${knownHtml}</div></div></div>` : '';
-
+    // ──────────────────────────────────────
+    // DOM 초기화 & 조립
+    // ──────────────────────────────────────
     if ($("insightSummaryText")) $("insightSummaryText").innerHTML = '';
+    // ★ HTML에 남아있는 statsCards/statsFunnel 숨김 처리
     if ($("statsCards")) { $("statsCards").innerHTML = ''; $("statsCards").className = ''; $("statsCards").style.display = 'none'; }
     if ($("statsFunnel")) { $("statsFunnel").innerHTML = ''; $("statsFunnel").style.display = 'none'; }
 
-    container.innerHTML = zone1 + `<div class="ins-grid-mid">${zone2Left}${zone2Mid}${zone2Right}</div>` + zone3;
+    container.innerHTML =
+        zoneNumbers +
+        zoneFunnel +
+        `<div class="ins-2col">${zoneDropout}${zoneCounselor}</div>` +
+        `<div class="ins-3col">${zoneChannels}${zoneInterest}${zoneKnown}</div>`;
 
     window.currentInsightData = {
         total, joined, dropoutCount: stage1 + stage2 + stage3,
+        realDropoutRate: contacted > 0 ? Math.round(((stage1 + stage2 + stage3) / contacted) * 100) : 0,
         preCounselRate, postCounselRate, ghostCount,
         instaCount, adCount,
         instaFollow: safeData.instaFollow, instaNonFollow: safeData.instaNonFollow,
