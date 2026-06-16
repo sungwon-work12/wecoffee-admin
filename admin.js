@@ -1406,6 +1406,8 @@ window.renderStatistics = function(data) {
     if (!$("statsContainer")) return;
     const container = $("statsContainer");
     container.innerHTML = '';
+    container.className = '';
+    container.style.cssText = 'margin-bottom:40px;';
     if (data.length === 0) {
         if ($("insightSummaryText")) $("insightSummaryText").innerHTML = "<div style='padding:16px;'>데이터가 부족합니다.</div>";
         return;
