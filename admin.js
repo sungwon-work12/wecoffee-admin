@@ -1570,7 +1570,7 @@ ${counselorHtml}
         const pct = total > 0 ? Math.round((item[1] / total) * 100) : 0;
         return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);">${window.escapeHtml(item[0])}</span><span style="color:var(--text-secondary);">${item[1]}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:#378ADD;animation-delay:${0.3+i*0.07}s;"></div></div></div>`;
     }).join('');
-    const zone3 = knownDurData.length > 0 ? `<div class="ins-grid-bot wc-fade" style="animation-delay:0.18s;"><div class="ins-card"><div class="ins-section-title">위커피 인지 기간</div>${knownHtml}</div><div></div><div></div></div>` : '';
+    const zone3 = knownDurData.length > 0 ? `<div class="wc-fade" style="animation-delay:0.18s;"><div class="ins-card"><div class="ins-section-title">위커피 인지 기간</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px 32px;">${knownHtml}</div></div></div>` : '';
 
     if ($("insightSummaryText")) $("insightSummaryText").innerHTML = '';
     if ($("statsCards")) { $("statsCards").innerHTML = ''; $("statsCards").className = ''; $("statsCards").style.display = 'none'; }
