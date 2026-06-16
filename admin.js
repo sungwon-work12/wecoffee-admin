@@ -880,7 +880,7 @@ window.resetAppDashMonth=function(){appDashMonthOffset=0;window.renderAppDashboa
 
 window.fetchApplications=async function(){try{const{data,error}=await supabaseClient.from('applications').select('*').order('created_at',{ascending:false}).limit(2000);if(error)throw error;globalApps=data||[];const batches=[...new Set(globalApps.map(d=>d.desired_batch).filter(Boolean))].sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0));let optionsHTML='<option value="all">전체 기수 보기</option>';batches.forEach(b=>optionsHTML+=`<option value="${b}">${b}</option>`);if($("batchFilterApp"))$("batchFilterApp").innerHTML=optionsHTML;window.applyFilterApp();if($("crmModal")&&$("crmModal").classList.contains('show')&&$("crmAppId").value){window.renderCrmInner($("crmAppId").value,isCrmReadOnly);}}catch(e){console.error(e);}}
 
-window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}if(typeof window.ensureBatchConfigBtn==='function')window.ensureBatchConfigBtn();}catch(e){console.error(e);}}
+window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}if(typeof window.renderBatchInfoBadge==='function')window.renderBatchInfoBadge();}catch(e){console.error(e);}}
 const statusClassMap={'대기':'st-wait','상담 일정 조율 중':'st-arranging','상담 일정 확정':'st-confirmed','상담 완료':'st-completed','연락 두절':'st-ghosted','설문 완료':'st-confirmed','품절':'st-ghosted'};
 const joinClassMap={'':'jn-none','고민 중':'jn-thinking','연락 후 미가입':'jn-declined','상담 후 미가입':'jn-declined','가입 완료':'jn-joined','미가입':'jn-declined','다음 기수 희망':'jn-next'};
 
@@ -1026,7 +1026,7 @@ window._doRegisterMember = async function(app, endDate) {
 };
 
 // ★ 신규: 기수 시작일 설정 모달 (첫 가입완료 시 자동 + 상단 버튼으로 재열람)
-window.openBatchConfigModal = function(batchName, onSave) {
+window.openBatchConfigModal = async function(batchName, onSave) {
     let modal = document.getElementById('batchConfigModal');
     if (!modal) {
         modal = document.createElement('div');
@@ -1057,6 +1057,16 @@ window.openBatchConfigModal = function(batchName, onSave) {
     </div>`;
     modal._onSave = onSave || null;
     modal.style.display = 'flex';
+    // ★ 기존 값 조회해서 채워넣기
+    if (batchName) {
+        try {
+            const { data: conf } = await supabaseClient.from('batch_config').select('start_date').eq('batch', batchName).maybeSingle();
+            if (conf && conf.start_date) {
+                const startInput = document.getElementById('batchConfigStartDate');
+                if (startInput) { startInput.value = conf.start_date; window.updateBatchEndPreview(); }
+            }
+        } catch(e) {}
+    }
 };
 
 window.updateBatchEndPreview = function() {
@@ -1100,22 +1110,34 @@ window.closeBatchConfigModal = function() {
     if (modal) modal.style.display = 'none';
 };
 
-// ★ 신규: 가입·상담 신청 관리 페이지 상단에 기수 설정 버튼 추가
-window.ensureBatchConfigBtn = function() {
-    if (document.getElementById('batchConfigBtn')) return;
-    const filterArea = document.querySelector('#page-applications .header-actions, #page-applications .filter-wrap, #page-applications .table-toolbar');
-    if (!filterArea) return;
-    const btn = document.createElement('button');
-    btn.id = 'batchConfigBtn';
-    btn.className = 'btn-outline';
-    btn.style.cssText = 'padding:8px 14px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:6px;';
-    btn.innerHTML = '⚙ 기수 시작일 설정';
-    btn.onclick = function() {
-        const selected = $("batchFilterApp") ? $("batchFilterApp").value : '';
-        const batchName = selected && selected !== 'all' ? selected : '';
-        window.openBatchConfigModal(batchName, null);
-    };
-    filterArea.appendChild(btn);
+// ★ 인라인 배지: 기수 활동기간 표시 + 수정 링크
+window.renderBatchInfoBadge = async function() {
+    const selected = $("batchFilterApp") ? $("batchFilterApp").value : 'all';
+    let badge = document.getElementById('batchInfoBadge');
+    if (!badge) {
+        const pageHeader = document.querySelector('#page-applications .page-header');
+        if (!pageHeader) return;
+        badge = document.createElement('div');
+        badge.id = 'batchInfoBadge';
+        badge.style.cssText = 'padding:8px 0 0;font-size:13px;font-weight:600;color:var(--text-secondary);display:flex;align-items:center;gap:8px;justify-content:flex-end;';
+        pageHeader.appendChild(badge);
+    }
+    if (selected === 'all') { badge.style.display = 'none'; return; }
+    badge.style.display = 'flex';
+    badge.innerHTML = '<span style="color:var(--text-tertiary);">조회 중...</span>';
+    try {
+        const { data: conf } = await supabaseClient.from('batch_config').select('start_date').eq('batch', selected).maybeSingle();
+        if (conf && conf.start_date) {
+            let sd = new Date(conf.start_date + 'T00:00:00');
+            let ed = new Date(conf.start_date + 'T00:00:00');
+            ed.setMonth(ed.getMonth() + 6); ed.setDate(ed.getDate() - 1);
+            let sdStr = `${sd.getFullYear()}.${String(sd.getMonth()+1).padStart(2,'0')}.${String(sd.getDate()).padStart(2,'0')}`;
+            let edStr = `${ed.getFullYear()}.${String(ed.getMonth()+1).padStart(2,'0')}.${String(ed.getDate()).padStart(2,'0')}`;
+            badge.innerHTML = `<span style="color:var(--text-display);font-weight:700;">${window.escapeHtml(selected)} 활동기간</span><span style="color:var(--primary);font-weight:800;">${sdStr} ~ ${edStr}</span><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="color:var(--text-tertiary);cursor:pointer;font-weight:500;text-decoration:underline;text-underline-offset:2px;transition:color 0.12s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-tertiary)'">수정</span>`;
+        } else {
+            badge.innerHTML = `<span style="color:var(--text-tertiary);">${window.escapeHtml(selected)} 활동기간 미설정</span><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="color:var(--primary);cursor:pointer;font-weight:700;text-decoration:underline;text-underline-offset:2px;">설정하기</span>`;
+        }
+    } catch(e) { badge.innerHTML = ''; }
 };
 
 window.handleStatusChange = async function(id, newStatus, currentCallTime, currentCounselor) {
@@ -1159,8 +1181,7 @@ window.renderAppTable = function(data) {
     if(!tableWrap)return;
     if(!document.getElementById('wc-m-only-style')){const s=document.createElement('style');s.id='wc-m-only-style';s.textContent='.m-only-cell{display:none!important}@media(max-width:768px){tr.expanded .m-only-cell{display:block!important;padding-top:10px!important;padding-bottom:10px!important}}';document.head.appendChild(s);}
 
-    // ★ 기수 설정 버튼 삽입
-    window.ensureBatchConfigBtn();
+    // ★ 인라인 배지는 applyFilterApp에서 호출
 
     let total=data.length;
     let counseled=data.filter(d=>d.status==='상담 완료').length;
@@ -1440,7 +1461,7 @@ window.renderStatistics = function(data) {
 .ins-funnel-name{font-size:13px;font-weight:600;color:var(--text-secondary);}
 .ins-funnel-pct{font-size:12px;color:var(--text-tertiary);}
 .ins-funnel-num{font-size:22px;font-weight:900;color:var(--text-display);text-align:right;}
-.ins-dropout-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.ins-dropout-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
 .ins-dropout-cell{background:#f9fafb;border-radius:10px;padding:14px;}
 .ins-section-title{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px;}
 .ins-counselor-item{margin-bottom:14px;}
@@ -1460,9 +1481,8 @@ window.renderStatistics = function(data) {
     const counseled = data.filter(d => d.status === '상담 완료').length;
     const joined = data.filter(d => d.join_status === '가입 완료').length;
     const convRate = total > 0 ? Math.round((joined / total) * 100) : 0;
-    const stage1 = data.filter(d => d.join_status === '연락 후 미가입').length;
+    const stage1 = data.filter(d => d.join_status === '연락 후 미가입' || d.join_status === '미가입').length;
     const stage2 = data.filter(d => d.join_status === '상담 후 미가입').length;
-    const stage3 = data.filter(d => d.join_status === '미가입').length;
     const preCounselRate = contacted > 0 ? Math.round((stage1 / contacted) * 100) : 0;
     const postCounselRate = counseled > 0 ? Math.round((stage2 / counseled) * 100) : 0;
 
@@ -1540,7 +1560,8 @@ ${funnelSteps.map((st, i) => `<div class="ins-funnel-step">
 <div class="ins-dropout-grid">
 <div class="ins-dropout-cell"><div class="ins-label">상담 전 이탈률</div><div style="font-size:32px;font-weight:900;color:${preColor};line-height:1;">${preCounselRate}<span style="font-size:16px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">연락 성공자 ${contacted}명 기준</div><div style="font-size:12px;color:var(--text-secondary);">연락 후 미가입 ${stage1}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${preCounselRate}%;background:${preColor};animation-delay:0.4s;"></div></div></div>
 <div class="ins-dropout-cell"><div class="ins-label">상담 후 이탈률</div><div style="font-size:32px;font-weight:900;color:${postColor};line-height:1;">${postCounselRate}<span style="font-size:16px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">상담 완료자 ${counseled}명 기준</div><div style="font-size:12px;color:var(--text-secondary);">상담 후 미가입 ${stage2}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${postCounselRate}%;background:${postColor};animation-delay:0.5s;"></div></div></div>
-<div class="ins-dropout-cell"><div class="ins-label">기타 미가입</div><div style="font-size:32px;font-weight:900;color:var(--text-tertiary);line-height:1;">${stage3}<span style="font-size:16px;">명</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">분류 미지정 이탈</div><div style="font-size:12px;color:var(--text-secondary);">연락 두절 ${ghostCount}명은 이탈률에 미포함</div></div>
+</div>
+<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;text-align:right;">연락 두절 ${ghostCount}명은 이탈률에 미포함</div>
 </div></div>`;
 
     const counselorHtml = counselorList.length > 0 ? counselorList.map(([name, stats], i) => {
@@ -1608,8 +1629,8 @@ ${knownHtml.length > 0 ? knownHtml : '<div style="font-size:13px;color:var(--tex
         `<div class="ins-3col">${zoneChannels}${zoneInterest}${zoneKnown}</div>`;
 
     window.currentInsightData = {
-        total, joined, dropoutCount: stage1 + stage2 + stage3,
-        realDropoutRate: contacted > 0 ? Math.round(((stage1 + stage2 + stage3) / contacted) * 100) : 0,
+        total, joined, dropoutCount: stage1 + stage2,
+        realDropoutRate: contacted > 0 ? Math.round(((stage1 + stage2) / contacted) * 100) : 0,
         preCounselRate, postCounselRate, ghostCount,
         instaCount, adCount,
         instaFollow: safeData.instaFollow, instaNonFollow: safeData.instaNonFollow,
