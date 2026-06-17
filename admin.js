@@ -970,6 +970,7 @@ window.updateAppStatus = async function(id, field, value, selectEl) {
                 const sameBatch = globalMembers.filter(m => m.batch === app.desired_batch && m.end_date);
                 if (sameBatch.length > 0) {
                     endDate = sameBatch[0].end_date;
+                    console.log(`[멤버등록] 1순위 적용 — 기존 멤버(${sameBatch[0].name}) 종료일 복사: ${endDate}`);
                 }
 
                 // 2순위: batch_config에서 start_date 조회 → +6개월 -1일
@@ -980,18 +981,22 @@ window.updateAppStatus = async function(id, field, value, selectEl) {
                             .select('start_date')
                             .eq('batch', app.desired_batch)
                             .maybeSingle();
+                        console.log(`[멤버등록] 2순위 조회 — batch='${app.desired_batch}', 결과:`, batchConf);
                         if (batchConf && batchConf.start_date) {
                             let startD = new Date(batchConf.start_date + 'T00:00:00');
                             startD.setMonth(startD.getMonth() + 6);
                             startD.setDate(startD.getDate() - 1);
                             endDate = `${startD.getFullYear()}-${String(startD.getMonth()+1).padStart(2,'0')}-${String(startD.getDate()).padStart(2,'0')}`;
+                            console.log(`[멤버등록] 2순위 적용 — start_date=${batchConf.start_date} → 종료일=${endDate}`);
                         }
-                    } catch(e) { console.warn('batch_config 조회 실패:', e); }
+                    } catch(e) { console.warn('[멤버등록] 2순위 batch_config 조회 실패:', e); }
                 }
 
                 // 3순위: batch_config 없음 → 기수 시작일 설정 팝업 오픈
                 if (!endDate) {
+                    console.log(`[멤버등록] 3순위 — batch_config 없음, 모달 오픈`);
                     window.openBatchConfigModal(app.desired_batch, async (confirmedEndDate) => {
+                        console.log(`[멤버등록] 3순위 모달 저장 — 종료일=${confirmedEndDate}`);
                         await window._doRegisterMember(app, confirmedEndDate);
                     });
                     return;
@@ -1008,6 +1013,7 @@ window.updateAppStatus = async function(id, field, value, selectEl) {
 
 // ★ 신규: 멤버 등록 실행 함수
 window._doRegisterMember = async function(app, endDate) {
+    console.log(`[멤버등록] 최종 실행 — ${app.name}(${app.desired_batch}), 종료일=${endDate}`);
     const { error: memErr } = await supabaseClient.from('members').insert([{
         name: app.name,
         phone: app.phone,
@@ -1110,34 +1116,26 @@ window.closeBatchConfigModal = function() {
     if (modal) modal.style.display = 'none';
 };
 
-// ★ 인라인 배지: 기수 활동기간 표시 + 수정 링크
+// ★ 기수 활동기간: 서브타이틀에 자연스럽게 통합 (토스 패턴)
 window.renderBatchInfoBadge = async function() {
     const selected = $("batchFilterApp") ? $("batchFilterApp").value : 'all';
-    let badge = document.getElementById('batchInfoBadge');
-    if (!badge) {
-        const pageHeader = document.querySelector('#page-applications .page-header');
-        if (!pageHeader) return;
-        badge = document.createElement('div');
-        badge.id = 'batchInfoBadge';
-        badge.style.cssText = 'padding:8px 0 0;font-size:13px;font-weight:600;color:var(--text-secondary);display:flex;align-items:center;gap:8px;justify-content:flex-end;';
-        pageHeader.appendChild(badge);
-    }
-    if (selected === 'all') { badge.style.display = 'none'; return; }
-    badge.style.display = 'flex';
-    badge.innerHTML = '<span style="color:var(--text-tertiary);">조회 중...</span>';
+    const subtitle = $("app-subtitle");
+    if (!subtitle) return;
+    const defaultText = '유입된 신청 내역의 상태를 관리하고 상담 일정을 확정합니다.';
+    if (selected === 'all') { subtitle.innerHTML = defaultText; return; }
+    subtitle.innerHTML = `<span style="color:var(--text-tertiary);">조회 중...</span>`;
     try {
         const { data: conf } = await supabaseClient.from('batch_config').select('start_date').eq('batch', selected).maybeSingle();
         if (conf && conf.start_date) {
             let sd = new Date(conf.start_date + 'T00:00:00');
             let ed = new Date(conf.start_date + 'T00:00:00');
             ed.setMonth(ed.getMonth() + 6); ed.setDate(ed.getDate() - 1);
-            let sdStr = `${sd.getFullYear()}.${String(sd.getMonth()+1).padStart(2,'0')}.${String(sd.getDate()).padStart(2,'0')}`;
-            let edStr = `${ed.getFullYear()}.${String(ed.getMonth()+1).padStart(2,'0')}.${String(ed.getDate()).padStart(2,'0')}`;
-            badge.innerHTML = `<span style="color:var(--text-display);font-weight:700;">${window.escapeHtml(selected)} 활동기간</span><span style="color:var(--primary);font-weight:800;">${sdStr} ~ ${edStr}</span><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="color:var(--text-tertiary);cursor:pointer;font-weight:500;text-decoration:underline;text-underline-offset:2px;transition:color 0.12s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-tertiary)'">수정</span>`;
+            let fmt = d => `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+            subtitle.innerHTML = `<span style="font-weight:700;color:var(--text-display);">${window.escapeHtml(selected)}</span> 활동기간 <span style="font-weight:800;color:var(--primary);letter-spacing:-0.3px;">${fmt(sd)} – ${fmt(ed)}</span> <span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="color:var(--text-tertiary);cursor:pointer;font-weight:600;margin-left:4px;transition:color 0.15s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-tertiary)'">수정</span>`;
         } else {
-            badge.innerHTML = `<span style="color:var(--text-tertiary);">${window.escapeHtml(selected)} 활동기간 미설정</span><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="color:var(--primary);cursor:pointer;font-weight:700;text-decoration:underline;text-underline-offset:2px;">설정하기</span>`;
+            subtitle.innerHTML = `<span style="font-weight:700;color:var(--text-display);">${window.escapeHtml(selected)}</span> 활동기간 미설정 <span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="color:var(--primary);cursor:pointer;font-weight:700;margin-left:4px;">설정하기</span>`;
         }
-    } catch(e) { badge.innerHTML = ''; }
+    } catch(e) { subtitle.innerHTML = defaultText; }
 };
 
 window.handleStatusChange = async function(id, newStatus, currentCallTime, currentCounselor) {
@@ -1443,8 +1441,8 @@ window.renderStatistics = function(data) {
 .wc-fade{animation:wcFadeUp 0.4s ease forwards;opacity:0;}
 .wc-bar{transform-origin:left;transform:scaleX(0);animation:wcScaleX 0.7s cubic-bezier(0.22,1,0.36,1) forwards;}
 .ins-num-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
-.ins-2col{display:grid;grid-template-columns:3fr 2fr;gap:12px;margin-bottom:16px;}
-.ins-3col{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.ins-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.ins-4col{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
 .ins-card{background:#fff;border:1px solid var(--border-strong);border-radius:14px;padding:20px 22px;}
 .ins-label{font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:6px;}
 .ins-num{font-size:30px;font-weight:900;line-height:1;letter-spacing:-1px;color:var(--text-display);}
@@ -1469,7 +1467,7 @@ window.renderStatistics = function(data) {
 @media(max-width:900px){
   .ins-num-row{grid-template-columns:repeat(2,1fr);}
   .ins-2col{grid-template-columns:1fr;}
-  .ins-3col{grid-template-columns:1fr;}
+  .ins-4col{grid-template-columns:repeat(2,1fr);}
 }`;
         document.head.appendChild(s);
     }
@@ -1542,7 +1540,7 @@ window.renderStatistics = function(data) {
         { l: '상담 완료', n: counseled, pct: total > 0 ? Math.round(counseled / total * 100) : 0, color: '#7F77DD' },
         { l: '가입 완료', n: joined, pct: total > 0 ? Math.round(joined / total * 100) : 0, color: '#1D9E75' }
     ];
-    const zoneFunnel = `<div class="ins-card wc-fade" style="margin-bottom:16px;animation-delay:0.06s;">
+    const zoneFunnel = `<div class="ins-card wc-fade" style="animation-delay:0.06s;">
 <div style="font-size:15px;font-weight:800;color:var(--text-display);text-align:center;margin-bottom:20px;">고객 전환 퍼널</div>
 ${funnelSteps.map((st, i) => `<div class="ins-funnel-step">
 <div class="ins-funnel-label-row"><span class="ins-funnel-name">${st.l} <span style="color:var(--text-tertiary);font-size:12px;">${st.pct}% 도달</span></span><span class="ins-funnel-num" style="color:${st.color};">${st.n}명</span></div>
@@ -1624,9 +1622,8 @@ ${knownHtml.length > 0 ? knownHtml : '<div style="font-size:13px;color:var(--tex
 
     container.innerHTML =
         zoneNumbers +
-        zoneFunnel +
-        `<div class="ins-2col">${zoneDropout}${zoneCounselor}</div>` +
-        `<div class="ins-3col">${zoneChannels}${zoneInterest}${zoneKnown}</div>`;
+        `<div class="ins-2col">${zoneFunnel}${zoneDropout}</div>` +
+        `<div class="ins-4col">${zoneCounselor}${zoneChannels}${zoneInterest}${zoneKnown}</div>`;
 
     window.currentInsightData = {
         total, joined, dropoutCount: stage1 + stage2,
