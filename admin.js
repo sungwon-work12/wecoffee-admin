@@ -588,15 +588,6 @@ window.renderTimeline=function(){
                 barsHtml+=generateBar(r.res_time,`${r.batch||'-'} ${r.name}`,'bar-res',`${r.res_time} | ${r.batch||'-'} ${r.name} | ${r.space_equip}`);
         });
         function matchSpace(spaceStr,eqName,znName){if(!spaceStr)return(eqName==='merged'||eqName==='공간 전체');return String(spaceStr).split(',').map(s=>s.trim()).some(sp=>isMatch(sp,eqName,znName));}
-        gTrn.forEach(t=>{
-            let cInfo=String(t.content||'').split('||').map(s=>s.trim());
-            if(cInfo.length>=5&&cInfo[0]===displayDate&&cInfo[3]===centerName&&!String(t.status).includes('취소')){
-                let matchBlk=gBlk.find(b=>b.block_date===cInfo[0]&&b.center===cInfo[3]&&`[${b.category}] ${b.reason}`===cInfo[4]);
-                let blkSpace=matchBlk?matchBlk.space_equip:null;
-                if(matchSpace(blkSpace,equipName,zoneName))
-                    barsHtml+=generateBar(cInfo[2],`[수강] ${t.name}`,'bar-trn',`${cInfo[2]} | ${cInfo[4]} | ${t.name}`);
-            }
-        });
         gBlk.forEach(b=>{
             if(b.block_date===displayDate&&b.center===centerName&&matchSpace(b.space_equip,equipName,zoneName))
                 barsHtml+=generateBar(`${b.start_time}~${b.end_time}`,`[${b.category}] ${b.reason}`,'bar-blk',`${b.start_time}~${b.end_time} | ${b.reason}`);
@@ -1116,14 +1107,27 @@ window.closeBatchConfigModal = function() {
     if (modal) modal.style.display = 'none';
 };
 
-// ★ 기수 활동기간: 서브타이틀에 자연스럽게 통합 (토스 패턴)
+// ★ 기수 활동기간: 헤더 아래 인포 스트립 (토스 패턴)
 window.renderBatchInfoBadge = async function() {
     const selected = $("batchFilterApp") ? $("batchFilterApp").value : 'all';
-    const subtitle = $("app-subtitle");
-    if (!subtitle) return;
-    const defaultText = '유입된 신청 내역의 상태를 관리하고 상담 일정을 확정합니다.';
-    if (selected === 'all') { subtitle.innerHTML = defaultText; return; }
-    subtitle.innerHTML = `<span style="color:var(--text-tertiary);">조회 중...</span>`;
+    let strip = document.getElementById('batchPeriodStrip');
+    if (!strip) {
+        const pageHeader = document.querySelector('#page-applications .page-header');
+        if (!pageHeader) return;
+        strip = document.createElement('div');
+        strip.id = 'batchPeriodStrip';
+        strip.style.cssText = 'overflow:hidden;transition:max-height 0.25s ease,opacity 0.25s ease,margin 0.25s ease;';
+        pageHeader.insertAdjacentElement('afterend', strip);
+    }
+    // 이전 인라인 요소 제거
+    let oldInfo = document.getElementById('batchPeriodInfo');
+    if (oldInfo) oldInfo.remove();
+    if (selected === 'all') {
+        strip.style.maxHeight = '0'; strip.style.opacity = '0'; strip.style.marginTop = '0'; strip.style.marginBottom = '0';
+        return;
+    }
+    strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fafafa;border-left:3px solid var(--primary);border-radius:0 10px 10px 0;"><span style="color:var(--text-tertiary);font-size:13px;font-weight:600;">불러오는 중...</span><span></span></div>`;
+    strip.style.maxHeight = '60px'; strip.style.opacity = '1'; strip.style.marginTop = '16px'; strip.style.marginBottom = '0';
     try {
         const { data: conf } = await supabaseClient.from('batch_config').select('start_date').eq('batch', selected).maybeSingle();
         if (conf && conf.start_date) {
@@ -1131,11 +1135,11 @@ window.renderBatchInfoBadge = async function() {
             let ed = new Date(conf.start_date + 'T00:00:00');
             ed.setMonth(ed.getMonth() + 6); ed.setDate(ed.getDate() - 1);
             let fmt = d => `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-            subtitle.innerHTML = `<span style="font-weight:700;color:var(--text-display);">${window.escapeHtml(selected)}</span> 활동기간 <span style="font-weight:800;color:var(--primary);letter-spacing:-0.3px;">${fmt(sd)} – ${fmt(ed)}</span> <span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="color:var(--text-tertiary);cursor:pointer;font-weight:600;margin-left:4px;transition:color 0.15s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-tertiary)'">수정</span>`;
+            strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fafafa;border-left:3px solid var(--primary);border-radius:0 10px 10px 0;"><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:14px;font-weight:800;color:var(--text-display);">${window.escapeHtml(selected)}</span><span style="font-size:13px;font-weight:600;color:var(--text-tertiary);">활동기간</span><span style="font-size:14px;font-weight:800;color:var(--primary);letter-spacing:-0.3px;">${fmt(sd)} – ${fmt(ed)}</span></div><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="font-size:13px;font-weight:600;color:var(--text-tertiary);cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-tertiary)'">수정</span></div>`;
         } else {
-            subtitle.innerHTML = `<span style="font-weight:700;color:var(--text-display);">${window.escapeHtml(selected)}</span> 활동기간 미설정 <span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="color:var(--primary);cursor:pointer;font-weight:700;margin-left:4px;">설정하기</span>`;
+            strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fafafa;border-left:3px solid var(--border-strong);border-radius:0 10px 10px 0;"><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:14px;font-weight:800;color:var(--text-display);">${window.escapeHtml(selected)}</span><span style="font-size:13px;font-weight:600;color:var(--text-tertiary);">활동기간 미설정</span></div><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="font-size:13px;font-weight:700;color:var(--primary);cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">설정하기</span></div>`;
         }
-    } catch(e) { subtitle.innerHTML = defaultText; }
+    } catch(e) { strip.style.maxHeight = '0'; strip.style.opacity = '0'; }
 };
 
 window.handleStatusChange = async function(id, newStatus, currentCallTime, currentCounselor) {
@@ -1459,7 +1463,7 @@ window.renderStatistics = function(data) {
 .ins-funnel-name{font-size:13px;font-weight:600;color:var(--text-secondary);}
 .ins-funnel-pct{font-size:12px;color:var(--text-tertiary);}
 .ins-funnel-num{font-size:22px;font-weight:900;color:var(--text-display);text-align:right;}
-.ins-dropout-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.ins-dropout-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 .ins-dropout-cell{background:#f9fafb;border-radius:10px;padding:14px;}
 .ins-section-title{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px;}
 .ins-counselor-item{margin-bottom:14px;}
@@ -1558,8 +1562,8 @@ ${funnelSteps.map((st, i) => `<div class="ins-funnel-step">
 <div class="ins-dropout-grid">
 <div class="ins-dropout-cell"><div class="ins-label">상담 전 이탈률</div><div style="font-size:32px;font-weight:900;color:${preColor};line-height:1;">${preCounselRate}<span style="font-size:16px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">연락 성공자 ${contacted}명 기준</div><div style="font-size:12px;color:var(--text-secondary);">연락 후 미가입 ${stage1}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${preCounselRate}%;background:${preColor};animation-delay:0.4s;"></div></div></div>
 <div class="ins-dropout-cell"><div class="ins-label">상담 후 이탈률</div><div style="font-size:32px;font-weight:900;color:${postColor};line-height:1;">${postCounselRate}<span style="font-size:16px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">상담 완료자 ${counseled}명 기준</div><div style="font-size:12px;color:var(--text-secondary);">상담 후 미가입 ${stage2}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${postCounselRate}%;background:${postColor};animation-delay:0.5s;"></div></div></div>
+<div class="ins-dropout-cell"><div class="ins-label">연락 두절</div><div style="font-size:32px;font-weight:900;color:var(--text-tertiary);line-height:1;">${ghostCount}<span style="font-size:16px;">명</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">이탈률에 미포함</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${total > 0 ? Math.round(ghostCount/total*100) : 0}%;background:#b4b2a9;animation-delay:0.6s;"></div></div></div>
 </div>
-<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;text-align:right;">연락 두절 ${ghostCount}명은 이탈률에 미포함</div>
 </div></div>`;
 
     const counselorHtml = counselorList.length > 0 ? counselorList.map(([name, stats], i) => {
