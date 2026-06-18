@@ -1127,7 +1127,7 @@ window.renderBatchInfoBadge = async function() {
         return;
     }
     strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#fafafa;border-left:3px solid var(--primary);border-radius:0 10px 10px 0;"><span style="color:var(--text-tertiary);font-size:13px;font-weight:600;">불러오는 중...</span><span></span></div>`;
-    strip.style.maxHeight = '60px'; strip.style.opacity = '1'; strip.style.marginTop = '24px'; strip.style.marginBottom = '16px';
+    strip.style.maxHeight = '60px'; strip.style.opacity = '1'; strip.style.marginTop = '24px'; strip.style.marginBottom = '28px';
     try {
         const { data: conf } = await supabaseClient.from('batch_config').select('start_date').eq('batch', selected).maybeSingle();
         if (conf && conf.start_date) {
