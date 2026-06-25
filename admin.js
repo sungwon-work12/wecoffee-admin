@@ -749,6 +749,7 @@ function generateOrderRows(fOrd, chkClass, dateKey) {
   }).join("");
 }
 
+// ★ 수정: 금액 변경 시 invoice_logs에 자동 기록
 window.handlePriceInput = async function(id, val, currentStatus, inputEl) {
     let formatted = val ? comma(val) + '원' : ''; let updates = { total_price: formatted }; let newStatus = currentStatus;
     if(val && currentStatus === '주문 접수') { updates.status = '입금 대기'; newStatus = '입금 대기'; }
@@ -861,7 +862,7 @@ window.renderMCalApp = window.renderAppMCal;
 
 window.parseCallTime=function(t){const s=String(t||'').trim();if(!s||s==='null'||s==='undefined')return null;let iso=s.match(/(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s]+(\d{1,2}):(\d{2}))?/);if(iso){const h=iso[4]?parseInt(iso[4],10):null;const mi=iso[5]?parseInt(iso[5],10):0;let ts='';if(h!==null){const ap=h>=12?'오후':'오전';const h12=(h%12)||12;ts=`${ap} ${h12}:${String(mi).padStart(2,'0')}`;}return{month:parseInt(iso[2],10),day:parseInt(iso[3],10),hour:h,minute:mi,timeStr:ts};}let kor=s.match(/(\d+)\s*월\s*(\d+)\s*일/);if(kor){const tm=s.match(/(오전|오후)\s+(\d+)[시:]\s*(\d+)?/);let h=null,mi=0,ts='';if(tm){h=parseInt(tm[2],10);if(tm[1]==='오후'&&h!==12)h+=12;if(tm[1]==='오전'&&h===12)h=0;mi=tm[3]?parseInt(tm[3],10):0;ts=`${tm[1]} ${tm[2]}:${tm[3]?String(parseInt(tm[3],10)).padStart(2,'0'):'00'}`;}return{month:parseInt(kor[1],10),day:parseInt(kor[2],10),hour:h,minute:mi,timeStr:ts};}return null;};
 
-window.renderAppDailyBanner=function(filteredApps){let td=new Date();let mm=td.getMonth()+1;let dd=td.getDate();let scheduled=filteredApps.filter(a=>(a.status==='상담 일정 확정'||a.status==='설문 완료')&&a.call_time);let todayEvts=scheduled.filter(app=>{const p=window.parseCallTime(app.call_time);return p&&p.month===mm&&p.day===dd;});let html='';if(todayEvts.length===0){html=`<div class="inout-card"><div style="font-weight:800;margin-bottom:8px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">오늘의 상담 일정</div><div style="font-size:13px;color:var(--text-secondary);padding:8px 0;">오늘 확정된 상담 일정이 없습니다.</div></div>`;}else{html=`<div class="inout-card"><div style="font-weight:800;font-size:15px;margin-bottom:12px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">오늘의 상담 일정 (${todayEvts.length}건)</div><div style="display:flex;flex-direction:column;gap:12px;">`;todayEvts.sort((a,b)=>{const pA=window.parseCallTime(a.call_time);const pB=window.parseCallTime(b.call_time);const tA=pA&&pA.hour!==null?pA.hour*60+pA.minute:0;const tB=pB&&pB.hour!==null?pB.hour*60+pB.minute:0;return tA-tB;});todayEvts.forEach(evt=>{const p=window.parseCallTime(evt.call_time);let timeStr=p&&p.timeStr?p.timeStr:evt.call_time;html+=`<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;width:100%;"><div style="color:var(--primary);background:var(--primary-light);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;">${timeStr}</div> <div style="font-weight:800;flex-shrink:0;">${evt.desired_batch||'-'} ${window.escapeHtml(evt.name)}</div> <div style="font-weight:500;color:var(--text-secondary);flex-shrink:0;">(${window.escapeHtml(evt.phone)}) | 담당: ${window.escapeHtml(evt.counselor_name||'미정')}</div></div>`;});html+=`</div></div>`;}if($("appDailyBanner"))$("appDailyBanner").innerHTML=html;};
+window.renderAppDailyBanner=function(filteredApps){let td=new Date();let mm=td.getMonth()+1;let dd=td.getDate();let scheduled=filteredApps.filter(a=>(a.status==='상담 일정 확정'||a.status==='설문 완료')&&a.call_time);let todayEvts=scheduled.filter(app=>{const p=window.parseCallTime(app.call_time);return p&&p.month===mm&&p.day===dd;});let html='';if(todayEvts.length===0){html=`<div class="inout-card"><div style="font-weight:800;margin-bottom:8px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">오늘의 상담 일정</div><div style="font-size:13px;color:var(--text-secondary);padding:8px 0;">오늘 확정된 상담 일정이 없습니다.</div></div>`;}else{html=`<div class="inout-card"><div style="font-weight:800;font-size:15px;margin-bottom:12px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">오늘의 상담 일정 (${todayEvts.length}건)</div><div style="display:flex;flex-direction:column;gap:12px;">`;todayEvts.sort((a,b)=>{const pA=window.parseCallTime(a.call_time);const pB=window.parseCallTime(b.call_time);const tA=pA&&pA.hour!==null?pA.hour*60+pA.minute:0;const tB=pB&&pB.hour!==null?pB.hour*60+pB.minute:0;return tA-tB;});todayEvts.forEach(evt=>{const p=window.parseCallTime(evt.call_time);let timeStr=p&&p.timeStr?p.timeStr:evt.call_time;html+=`<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:4px;width:100%;"><div style="color:var(--primary);background:var(--primary-light);padding:4px 8px;border-radius:4px;font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;">${timeStr}</div> <div style="font-weight:800;flex-shrink:0;">${evt.desired_batch||'-'} ${window.escapeHtml(evt.name)}</div> <div style="font-weight:500;color:var(--text-secondary);flex-shrink:0;">(${window.escapeHtml(evt.phone)}) | ${window.escapeHtml(evt.desired_center||'')} | 담당: ${window.escapeHtml(evt.counselor_name||'미정')}</div></div>`;});html+=`</div></div>`;}if($("appDailyBanner"))$("appDailyBanner").innerHTML=html;};
 
 window.renderAppDashboard=async function(){const now=new Date();let targetDate=new Date(now.getFullYear(),now.getMonth()+appDashMonthOffset,1);const yyyy=targetDate.getFullYear();const mm=targetDate.getMonth();const daysInMonth=new Date(yyyy,mm+1,0).getDate();const currDay=now.getDay();if(currentAppDashView==='month'&&$("appDashMonthTitle"))$("appDashMonthTitle").innerText=`${yyyy}년 ${mm+1}월`;await window.fetchHolidays(yyyy);let scheduledApps=globalApps.filter(a=>(a.status==='상담 일정 확정'||a.status==='설문 완료')&&a.call_time);let calEvts={};if(currentAppDashView==='week'){let startOfWeek=new Date(now.getFullYear(),now.getMonth(),now.getDate()-currDay);for(let i=0;i<7;i++){let dObj=new Date(startOfWeek.getFullYear(),startOfWeek.getMonth(),startOfWeek.getDate()+i);let ds=`${dObj.getFullYear()}-${String(dObj.getMonth()+1).padStart(2,'0')}-${String(dObj.getDate()).padStart(2,'0')}`;calEvts[ds]=[];}}else{for(let d=1;d<=daysInMonth;d++){let ds=`${yyyy}-${String(mm+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;calEvts[ds]=[];}}scheduledApps.forEach(app=>{const p=window.parseCallTime(app.call_time);if(p&&p.month){let ds=`${yyyy}-${String(p.month).padStart(2,'0')}-${String(p.day).padStart(2,'0')}`;if(calEvts[ds]){let timeStr=p.timeStr||app.call_time;calEvts[ds].push({time:timeStr,text:`${app.desired_batch||'-'} ${window.escapeHtml(app.name)}`,tooltip:`${timeStr} | 담당: ${window.escapeHtml(app.counselor_name||'미정')}`});}}});let mHtml=`<div class="dash-cal-grid"><div class="dash-cal-header" style="color:var(--error);">일</div><div class="dash-cal-header">월</div><div class="dash-cal-header">화</div><div class="dash-cal-header">수</div><div class="dash-cal-header">목</div><div class="dash-cal-header">금</div><div class="dash-cal-header" style="color:var(--blue);">토</div>`;let iterDates=Object.keys(calEvts).sort();if(currentAppDashView==='month'){let firstDay=new Date(yyyy,mm,1).getDay();for(let i=0;i<firstDay;i++)mHtml+=`<div class="dash-cal-cell empty"></div>`;}iterDates.forEach(ds=>{let dObj=new Date(ds);let evts=calEvts[ds];let holidayName=window.getHoliday(dObj.getFullYear(),dObj.getMonth()+1,dObj.getDate());let dateClass=holidayName?'holiday-date':'';let dateText=dObj.getDate()+(holidayName?` <span style="font-size:10px;font-weight:600;display:block;float:right;">${holidayName}</span>`:'');let evtsHtml=evts.slice(0,3).map(e=>`<div class="dash-item" style="background:#FFF6EF;border-left-color:var(--primary);color:var(--primary);"><div class="dash-item-text"><span class="dash-time">${e.time||''}</span>${e.text||''}</div><div class="dash-tooltip">${e.tooltip||''}</div></div>`).join('');if(evts.length>3){let hiddenText=evts.slice(3).map(e=>`${e.time||''} | ${e.text||''}`).join('<br>');evtsHtml+=`<div class="dash-cal-more-wrap"><div class="dash-cal-more">+${evts.length-3}건 더보기</div><div class="dash-tooltip" style="text-align:left;white-space:nowrap;font-weight:normal;">${hiddenText}</div></div>`;}mHtml+=`<div class="dash-cal-cell"><div class="dash-cal-date ${dateClass}">${dateText}</div>${evtsHtml}</div>`;});mHtml+=`</div>`;window.appCalEvts=calEvts;let mobStrip=`<div class="mobile-cal"><div class="m-cal-strip" id="m-cal-strip-app">`;iterDates.forEach(ds=>{let dObj=new Date(ds);let dayKr=["일","월","화","수","목","금","토"][dObj.getDay()];let hasEvt=calEvts[ds].length>0?'has-evt':'';mobStrip+=`<div class="m-cal-date" id="m-date-app-${ds}" onclick="window.renderMCalApp('${ds}')"><span class="m-cal-day">${dayKr}</span><span class="m-cal-num">${dObj.getDate()}</span><div class="m-cal-dot ${hasEvt}"></div></div>`;});mobStrip+=`</div><div id="m-cal-list-app" class="m-cal-list"></div></div>`;if($("appDashContent"))$("appDashContent").innerHTML=`<div class="desktop-cal">${mHtml}</div>`+mobStrip;let td=new Date();let todayStr=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;window.renderMCalApp(calEvts[todayStr]?todayStr:iterDates[0]);}
 window.toggleInsight=function(){isInsightView=!isInsightView;let insightArea=$("app-insight-area");if(insightArea){insightArea.style.paddingTop="32px";insightArea.style.paddingBottom="120px";insightArea.style.display=isInsightView?"block":"none";}if($("app-table-area"))$("app-table-area").style.display=isInsightView?"none":"block";if($("insightToggleBtn"))$("insightToggleBtn").innerText=isInsightView?"리스트 보기":"인사이트 보기";if(isInsightView)window.applyFilterApp();}
@@ -871,7 +872,7 @@ window.resetAppDashMonth=function(){appDashMonthOffset=0;window.renderAppDashboa
 
 window.fetchApplications=async function(){try{const{data,error}=await supabaseClient.from('applications').select('*').order('created_at',{ascending:false}).limit(2000);if(error)throw error;globalApps=data||[];const batches=[...new Set(globalApps.map(d=>d.desired_batch).filter(Boolean))].sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0));let optionsHTML='<option value="all">전체 기수 보기</option>';batches.forEach(b=>optionsHTML+=`<option value="${b}">${b}</option>`);if($("batchFilterApp"))$("batchFilterApp").innerHTML=optionsHTML;window.applyFilterApp();if($("crmModal")&&$("crmModal").classList.contains('show')&&$("crmAppId").value){window.renderCrmInner($("crmAppId").value,isCrmReadOnly);}}catch(e){console.error(e);}}
 
-window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}if(typeof window.renderBatchInfoBadge==='function')window.renderBatchInfoBadge();}catch(e){console.error(e);}}
+window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}}catch(e){console.error(e);}}
 const statusClassMap={'대기':'st-wait','상담 일정 조율 중':'st-arranging','상담 일정 확정':'st-confirmed','상담 완료':'st-completed','연락 두절':'st-ghosted','설문 완료':'st-confirmed','품절':'st-ghosted'};
 const joinClassMap={'':'jn-none','고민 중':'jn-thinking','연락 후 미가입':'jn-declined','상담 후 미가입':'jn-declined','가입 완료':'jn-joined','미가입':'jn-declined','다음 기수 희망':'jn-next'};
 
@@ -903,9 +904,8 @@ window.renderCrmInner=function(id,isReadOnly=false){const app=globalApps.find(a=
             _timeValue=window.escapeHtml(_rawCallTime);
         }
     }
-    if($("crmTimeBadge"))$("crmTimeBadge").innerHTML=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-strong,#e5e8eb);"><div style="display:table;width:100%;padding:4px 0;"><span style="display:table-cell;color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;padding-right:12px;vertical-align:top;white-space:nowrap;">${_timeLabel}</span><span style="display:table-cell;vertical-align:top;font-weight:700;color:var(--text-display);font-size:14px;">${_timeValue}</span></div></div>`;const job=app.survey_job;const edu=app.survey_edu;const goal=app.survey_goal;const brand=app.survey_brand;const region=app.survey_region;const ageGroup=app.survey_age_group;const curious=app.survey_curious;const useTime=app.survey_use_time;const expectations=app.survey_expectations;if($("crmSurveyResult")){if(job||edu||region||ageGroup){$("crmSurveyResult").innerHTML=`<div class="crm-box"><div class="crm-label">1. 거주 지역</div><div class="crm-answer">${window.escapeHtml(region)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">2. 연령대</div><div class="crm-answer">${window.escapeHtml(ageGroup)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">3. 직업 상태</div><div class="crm-answer">${window.escapeHtml(job)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${window.escapeHtml(brand)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">5. 과거 교육 피드백</div><div class="crm-answer">${window.escapeHtml(edu)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">6. 커피 지식 궁금한 점</div><div class="crm-answer">${window.escapeHtml(curious)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">7. 달성 목표 (니즈)</div><div class="crm-answer">${window.escapeHtml(goal)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">8. 이용 희망 시간대</div><div class="crm-answer">${window.escapeHtml(useTime)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">9. 기대/바라는 점</div><div class="crm-answer">${window.escapeHtml(expectations)||'<span class="crm-empty">미작성</span>'}</div></div>`;}else{let _survUrl='https://www.wecoffee.co.kr/survey?uid='+app.id+'&name='+encodeURIComponent(app.name||'');$("crmSurveyResult").innerHTML=`<div style="text-align:center;padding:40px 20px;background:#fff;border-radius:12px;border:1px dashed var(--border-strong);"><div style="font-size:16px;font-weight:700;color:var(--text-secondary);margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div><button class="btn-outline" style="color:var(--primary);border-color:var(--primary);padding:12px 24px;font-size:15px;" onclick="window.copySurveyTemplate('${app.id}')">상담 안내 메시지 복사하기</button></div>`;}}let notesHtml='';if(app.admin_memo){let notes=app.admin_memo.split('|||');notes.forEach(note=>{let parts=note.split(':::');if(parts.length===2){notesHtml+=`<div class="crm-box"><div class="crm-label">${window.escapeHtml(parts[0])}</div><div class="crm-answer">${window.escapeHtml(parts[1]).replace(/\n/g,'<br>')}</div></div>`;}else if(note.trim()){notesHtml+=`<div class="crm-box"><div class="crm-answer">${window.escapeHtml(note.trim()).replace(/\n/g,'<br>')}</div></div>`;}});}if(!notesHtml)notesHtml=`<div style="font-size:13px;color:var(--text-tertiary);text-align:center;padding:10px;">등록된 상담 기록이 없습니다.</div>`;if($("crmAdminNotes"))$("crmAdminNotes").innerHTML=notesHtml;if($("crmNoteTitle"))$("crmNoteTitle").value='';if($("crmNoteInput"))$("crmNoteInput").value='';let initialStatus=app.join_status||(app.status==='상담 완료'?'상담 완료':'');if(!initialStatus||initialStatus==='대기')initialStatus='상담 완료';if($("crmStatusSelect"))$("crmStatusSelect").value=initialStatus;if($("crmNoteInputWrap"))$("crmNoteInputWrap").style.display=isReadOnly?'none':'block';if($("crmStatusActionArea"))$("crmStatusActionArea").style.display=isReadOnly?'none':'flex';}
+    if($("crmTimeBadge"))$("crmTimeBadge").innerHTML=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-strong,#e5e8eb);"><div style="display:table;width:100%;padding:4px 0;"><span style="display:table-cell;color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;padding-right:12px;vertical-align:top;white-space:nowrap;">${_timeLabel}</span><span style="display:table-cell;vertical-align:top;font-weight:700;color:var(--text-display);font-size:14px;">${_timeValue}</span></div></div>`;const job=app.survey_job;const edu=app.survey_edu;const goal=app.survey_goal;const brand=app.survey_brand;const region=app.survey_region;const ageGroup=app.survey_age_group;const curious=app.survey_curious;const useTime=app.survey_use_time;const expectations=app.survey_expectations;if($("crmSurveyResult")){if(job||edu||region||ageGroup){$("crmSurveyResult").innerHTML=`<div class="crm-box"><div class="crm-label">1. 거주 지역</div><div class="crm-answer">${window.escapeHtml(region)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">2. 연령대</div><div class="crm-answer">${window.escapeHtml(ageGroup)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">3. 직업 상태</div><div class="crm-answer">${window.escapeHtml(job)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${window.escapeHtml(brand)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">5. 과거 교육 피드백</div><div class="crm-answer">${window.escapeHtml(edu)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">6. 커피 지식 궁금한 점</div><div class="crm-answer">${window.escapeHtml(curious)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">7. 달성 목표 (니즈)</div><div class="crm-answer">${window.escapeHtml(goal)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">8. 이용 희망 시간대</div><div class="crm-answer">${window.escapeHtml(useTime)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">9. 기대/바라는 점</div><div class="crm-answer">${window.escapeHtml(expectations)||'<span class="crm-empty">미작성</span>'}</div></div>`;}else{let _survUrl='https://www.wecoffee.co.kr/survey?uid='+app.id+'&name='+encodeURIComponent(app.name||'');$("crmSurveyResult").innerHTML=`<div style="text-align:center;padding:40px 20px;background:#fff;border-radius:12px;border:1px dashed var(--border-strong);"><div style="font-size:16px;font-weight:700;color:var(--text-secondary);margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div><button class="btn-outline" style="color:var(--primary);border-color:var(--primary);padding:12px 24px;font-size:15px;" onclick="window.copySurveyTemplate('${app.id}')">상담 안내 메시지 복사하기</button></div>`;}}let notesHtml='';if(app.admin_memo){let notes=app.admin_memo.split('|||');notes.forEach(note=>{let parts=note.split(':::');if(parts.length===2){notesHtml+=`<div class="crm-box"><div class="crm-label">${window.escapeHtml(parts[0])}</div><div class="crm-answer">${window.escapeHtml(parts[1]).replace(/\n/g,'<br>')}</div></div>`;}else if(note.trim()){notesHtml+=`<div class="crm-box"><div class="crm-answer">${window.escapeHtml(note.trim()).replace(/\n/g,'<br>')}</div></div>`;}});}if(!notesHtml)notesHtml=`<div style="font-size:13px;color:var(--text-tertiary);text-align:center;padding:10px;">등록된 상담 기록이 없습니다.</div>`;if($("crmAdminNotes"))$("crmAdminNotes").innerHTML=notesHtml;if($("crmNoteTitle"))$("crmNoteTitle").style.display='none';if($("crmNoteInput")){$("crmNoteInput").value='';$("crmNoteInput").placeholder='상담 기록을 입력하세요';}let initialStatus=app.join_status||(app.status==='상담 완료'?'상담 완료':'');if(!initialStatus||initialStatus==='대기')initialStatus='상담 완료';if($("crmStatusSelect"))$("crmStatusSelect").value=initialStatus;if($("crmNoteInputWrap"))$("crmNoteInputWrap").style.display=isReadOnly?'none':'block';if($("crmStatusActionArea"))$("crmStatusActionArea").style.display=isReadOnly?'none':'flex';}
 
-// ★ 수정: updateAppStatus — batch_config 연동 자동 종료일 계산 + 기수 설정 팝업
 window.updateAppStatus = async function(id, field, value, selectEl) {
     const app = globalApps.find(a => String(a.id) === String(id));
     const prevValue = app ? app[field] : null;
@@ -949,197 +949,37 @@ window.updateAppStatus = async function(id, field, value, selectEl) {
     if (error) { showToast("변경 실패"); return; }
     if (app) app[field] = value;
 
-    // ★ 35기 이상 가입 완료 시 → 자동 멤버 등록 (batch_config 연동)
+    // 35기 이상 가입 완료 시 → members 자동 등록
     if (field === 'join_status' && value === '가입 완료' && app) {
         const batchNum = parseInt(String(app.desired_batch || '').replace(/[^0-9]/g, '')) || 0;
         if (batchNum >= 35) {
             const { data: existingMember } = await supabaseClient.from('members').select('id').eq('phone', app.phone).maybeSingle();
             if (!existingMember) {
-                let endDate = null;
-
-                // 1순위: 같은 기수 기존 멤버의 종료일
+                let endDate;
                 const sameBatch = globalMembers.filter(m => m.batch === app.desired_batch && m.end_date);
                 if (sameBatch.length > 0) {
                     endDate = sameBatch[0].end_date;
-                    console.log(`[멤버등록] 1순위 적용 — 기존 멤버(${sameBatch[0].name}) 종료일 복사: ${endDate}`);
+                } else {
+                    let d = new Date(); d.setDate(1); d.setHours(0,0,0,0);
+                    d.setMonth(d.getMonth() + 7); d.setDate(0);
+                    endDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                 }
-
-                // 2순위: batch_config에서 start_date 조회 → +6개월 -1일
-                if (!endDate) {
-                    try {
-                        const { data: batchConf } = await supabaseClient
-                            .from('batch_config')
-                            .select('start_date')
-                            .eq('batch', app.desired_batch)
-                            .maybeSingle();
-                        console.log(`[멤버등록] 2순위 조회 — batch='${app.desired_batch}', 결과:`, batchConf);
-                        if (batchConf && batchConf.start_date) {
-                            let startD = new Date(batchConf.start_date + 'T00:00:00');
-                            startD.setMonth(startD.getMonth() + 6);
-                            startD.setDate(startD.getDate() - 1);
-                            endDate = `${startD.getFullYear()}-${String(startD.getMonth()+1).padStart(2,'0')}-${String(startD.getDate()).padStart(2,'0')}`;
-                            console.log(`[멤버등록] 2순위 적용 — start_date=${batchConf.start_date} → 종료일=${endDate}`);
-                        }
-                    } catch(e) { console.warn('[멤버등록] 2순위 batch_config 조회 실패:', e); }
-                }
-
-                // 3순위: batch_config 없음 → 기수 시작일 설정 팝업 오픈
-                if (!endDate) {
-                    console.log(`[멤버등록] 3순위 — batch_config 없음, 모달 오픈`);
-                    window.openBatchConfigModal(app.desired_batch, async (confirmedEndDate) => {
-                        console.log(`[멤버등록] 3순위 모달 저장 — 종료일=${confirmedEndDate}`);
-                        await window._doRegisterMember(app, confirmedEndDate);
-                    });
-                    return;
-                }
-
-                await window._doRegisterMember(app, endDate);
+                const { error: memErr } = await supabaseClient.from('members').insert([{
+                    name: app.name,
+                    phone: app.phone,
+                    batch: app.desired_batch,
+                    end_date: endDate,
+                    status: '활동 중'
+                }]);
+                if (memErr) { console.error('멤버 등록 실패:', memErr); showToast("가입 완료 처리됨 (멤버 자동 등록 실패 — 수동 확인 필요)"); }
+                else { showToast(`${app.name} 님이 멤버로 등록되었습니다. (종료일: ${endDate})`); window.fetchMembers(); }
+                window.applyFilterApp();
                 return;
             }
         }
     }
 
     showToast("변경되었습니다.");
-};
-
-// ★ 신규: 멤버 등록 실행 함수
-window._doRegisterMember = async function(app, endDate) {
-    console.log(`[멤버등록] 최종 실행 — ${app.name}(${app.desired_batch}), 종료일=${endDate}`);
-    const { error: memErr } = await supabaseClient.from('members').insert([{
-        name: app.name,
-        phone: app.phone,
-        batch: app.desired_batch,
-        end_date: endDate,
-        status: '활동 중'
-    }]);
-    if (memErr) {
-        console.error('멤버 등록 실패:', memErr);
-        showToast("가입 완료 처리됨 (멤버 자동 등록 실패 — 수동 확인 필요)");
-    } else {
-        showToast(`${app.name} 님이 멤버로 등록되었습니다. (종료일: ${endDate})`);
-        window.fetchMembers();
-    }
-    window.applyFilterApp();
-};
-
-// ★ 신규: 기수 시작일 설정 모달 (첫 가입완료 시 자동 + 상단 버튼으로 재열람)
-window.openBatchConfigModal = async function(batchName, onSave) {
-    let modal = document.getElementById('batchConfigModal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'batchConfigModal';
-        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99995;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
-        document.body.appendChild(modal);
-    }
-    modal.innerHTML = `<div style="background:#fff;border-radius:16px;width:100%;max-width:440px;box-shadow:0 8px 32px rgba(0,0,0,0.18);overflow:hidden;">
-        <div style="padding:24px 24px 16px;border-bottom:1px solid var(--border-strong);">
-            <div style="font-size:17px;font-weight:800;color:var(--text-display);margin-bottom:4px;" id="batchConfigTitle">${window.escapeHtml(batchName || '')} 기수 시작일 설정</div>
-            <div style="font-size:13px;color:var(--text-secondary);">활동 시작일을 입력하면 종료일(+6개월)이 자동 계산됩니다.</div>
-        </div>
-        <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;">
-            <div>
-                <label style="font-size:13px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">기수명</label>
-                <input id="batchConfigName" type="text" value="${window.escapeHtml(batchName || '')}" placeholder="예: 35기" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-strong)'">
-            </div>
-            <div>
-                <label style="font-size:13px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">활동 시작일</label>
-                <input id="batchConfigStartDate" type="date" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-strong)';window.updateBatchEndPreview();" oninput="window.updateBatchEndPreview();">
-            </div>
-            <div id="batchEndPreview" style="display:none;padding:12px 14px;background:#f0f9f4;border-radius:8px;border:1px solid #c3e6d0;font-size:13px;color:#1a7a45;font-weight:700;"></div>
-        </div>
-        <div style="padding:16px 24px;border-top:1px solid var(--border-strong);display:flex;justify-content:flex-end;gap:8px;">
-            <button class="btn-outline" onclick="window.closeBatchConfigModal()" style="padding:10px 20px;">취소</button>
-            <button onclick="window.saveBatchConfig()" style="padding:10px 20px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">저장</button>
-        </div>
-    </div>`;
-    modal._onSave = onSave || null;
-    modal.style.display = 'flex';
-    // ★ 기존 값 조회해서 채워넣기
-    if (batchName) {
-        try {
-            const { data: conf } = await supabaseClient.from('batch_config').select('start_date').eq('batch', batchName).maybeSingle();
-            if (conf && conf.start_date) {
-                const startInput = document.getElementById('batchConfigStartDate');
-                if (startInput) { startInput.value = conf.start_date; window.updateBatchEndPreview(); }
-            }
-        } catch(e) {}
-    }
-};
-
-window.updateBatchEndPreview = function() {
-    const startVal = document.getElementById('batchConfigStartDate')?.value;
-    const preview = document.getElementById('batchEndPreview');
-    if (!startVal || !preview) return;
-    let d = new Date(startVal + 'T00:00:00');
-    d.setMonth(d.getMonth() + 6);
-    d.setDate(d.getDate() - 1);
-    let endStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    let dow = ['일','월','화','수','목','금','토'][d.getDay()];
-    preview.style.display = 'block';
-    preview.textContent = `활동 종료일: ${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${dow}) — ${endStr}`;
-};
-
-window.saveBatchConfig = async function() {
-    const modal = document.getElementById('batchConfigModal');
-    const batchName = document.getElementById('batchConfigName')?.value.trim();
-    const startDate = document.getElementById('batchConfigStartDate')?.value;
-    if (!batchName || !startDate) { showToast("기수명과 시작일을 모두 입력해주세요."); return; }
-
-    // 종료일 계산
-    let d = new Date(startDate + 'T00:00:00');
-    d.setMonth(d.getMonth() + 6);
-    d.setDate(d.getDate() - 1);
-    let endDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-    // batch_config upsert
-    const { error } = await supabaseClient.from('batch_config').upsert([{ batch: batchName, start_date: startDate }], { onConflict: 'batch' });
-    if (error) { showToast("저장 실패: " + error.message); return; }
-
-    showToast(`${batchName} 시작일이 저장되었습니다. 종료일: ${endDate}`);
-
-    const onSave = modal._onSave;
-    window.closeBatchConfigModal();
-    if (typeof onSave === 'function') onSave(endDate);
-};
-
-window.closeBatchConfigModal = function() {
-    const modal = document.getElementById('batchConfigModal');
-    if (modal) modal.style.display = 'none';
-};
-
-// ★ 기수 활동기간: 헤더 아래 인포 스트립 (토스 패턴)
-window.renderBatchInfoBadge = async function() {
-    const selected = $("batchFilterApp") ? $("batchFilterApp").value : 'all';
-    let strip = document.getElementById('batchPeriodStrip');
-    if (!strip) {
-        const pageHeader = document.querySelector('#page-applications .page-header');
-        if (!pageHeader) return;
-        strip = document.createElement('div');
-        strip.id = 'batchPeriodStrip';
-        strip.style.cssText = 'overflow:hidden;transition:max-height 0.25s ease,opacity 0.25s ease,margin 0.25s ease;';
-        pageHeader.insertAdjacentElement('afterend', strip);
-    }
-    // 이전 인라인 요소 제거
-    let oldInfo = document.getElementById('batchPeriodInfo');
-    if (oldInfo) oldInfo.remove();
-    if (selected === 'all') {
-        strip.style.maxHeight = '0'; strip.style.opacity = '0'; strip.style.marginTop = '0'; strip.style.marginBottom = '0';
-        return;
-    }
-    strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#fafafa;border-left:3px solid var(--primary);border-radius:0 10px 10px 0;"><span style="color:var(--text-tertiary);font-size:13px;font-weight:600;">불러오는 중...</span><span></span></div>`;
-    strip.style.maxHeight = '60px'; strip.style.opacity = '1'; strip.style.marginTop = '24px'; strip.style.marginBottom = '28px';
-    try {
-        const { data: conf } = await supabaseClient.from('batch_config').select('start_date').eq('batch', selected).maybeSingle();
-        if (conf && conf.start_date) {
-            let sd = new Date(conf.start_date + 'T00:00:00');
-            let ed = new Date(conf.start_date + 'T00:00:00');
-            ed.setMonth(ed.getMonth() + 6); ed.setDate(ed.getDate() - 1);
-            let fmt = d => `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-            strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#fafafa;border-left:3px solid var(--primary);border-radius:0 10px 10px 0;"><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:14px;font-weight:800;color:var(--text-display);">${window.escapeHtml(selected)}</span><span style="font-size:13px;font-weight:600;color:var(--text-tertiary);">활동기간</span><span style="font-size:14px;font-weight:800;color:var(--primary);letter-spacing:-0.3px;">${fmt(sd)} – ${fmt(ed)}</span></div><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="font-size:13px;font-weight:600;color:var(--text-tertiary);cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-tertiary)'">수정</span></div>`;
-        } else {
-            strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#fafafa;border-left:3px solid var(--border-strong);border-radius:0 10px 10px 0;"><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:14px;font-weight:800;color:var(--text-display);">${window.escapeHtml(selected)}</span><span style="font-size:13px;font-weight:600;color:var(--text-tertiary);">활동기간 미설정</span></div><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="font-size:13px;font-weight:700;color:var(--primary);cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">설정하기</span></div>`;
-        }
-    } catch(e) { strip.style.maxHeight = '0'; strip.style.opacity = '0'; }
 };
 
 window.handleStatusChange = async function(id, newStatus, currentCallTime, currentCounselor) {
@@ -1162,6 +1002,7 @@ window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
     if (!modal) { modal = document.createElement('div'); modal.id = 'scheduleModal'; modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99990;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;'; document.body.appendChild(modal); }
     if (needsBuild) {
         modal.innerHTML = `<div style="background:#fff;border-radius:16px;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,0.18);overflow:hidden;"><div style="padding:20px 24px 16px;border-bottom:1px solid var(--border-strong);"><div style="font-size:16px;font-weight:800;color:var(--text-display);">상담 일정 설정</div></div><div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;"><div><label style="font-size:13px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">상담 날짜</label><div class="input-with-icon-right" style="position:relative;"><input id="schedDateInput" type="text" placeholder="MMDD (예: 0514)" class="input-search icon-p" style="width:100%;box-sizing:border-box;" onblur="this.value=window.formatBlockDate(this.value)"><input type="date" class="hidden-native-picker" onchange="document.getElementById('schedDateInput').value=this.value;document.getElementById('schedDateInput').blur();"><svg class="input-icon-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div></div><div><label style="font-size:13px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">상담 시간</label><div class="input-with-icon-right" style="position:relative;"><input id="schedTimeInput" type="text" placeholder="HHMM (예: 1430)" class="input-search icon-p" style="width:100%;box-sizing:border-box;" onblur="this.value=window.formatBlockTime(this.value)"><input type="time" class="hidden-native-picker" onchange="document.getElementById('schedTimeInput').value=this.value.replace(':','');document.getElementById('schedTimeInput').blur();"><svg class="input-icon-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div></div><div><label style="font-size:13px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">상담 예정자</label><input id="schedCounselorInput" type="text" placeholder="담당자 이름" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;background:#fff;color:var(--text-display);" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-strong)'"></div></div><div style="padding:16px 24px;border-top:1px solid var(--border-strong);display:flex;justify-content:flex-end;gap:8px;"><button class="btn-outline" onclick="window.closeScheduleModal()" style="padding:10px 20px;">취소</button><button onclick="window.saveSchedule()" style="padding:10px 20px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;">저장</button></div></div>`;
+        /* 여백 클릭 닫힘 방지 — 입력 내용 보호 */
     }
     modal._targetId = id;
     const dateInput = document.getElementById('schedDateInput'); const timeInput = document.getElementById('schedTimeInput'); const counselorInput = document.getElementById('schedCounselorInput');
@@ -1181,10 +1022,9 @@ window.saveSchedule = async function() { const modal = document.getElementById('
 window.renderAppTable = function(data) {
     let tableWrap=document.querySelector('#app-table-area .table-wrap');
     if(!tableWrap)return;
-    if(!document.getElementById('wc-m-only-style')){const s=document.createElement('style');s.id='wc-m-only-style';s.textContent='.m-only-cell{display:none!important}@media(max-width:768px){tr.expanded .m-only-cell{display:block!important;padding-top:10px!important;padding-bottom:10px!important}}';document.head.appendChild(s);}
+    if(!document.getElementById('wc-m-only-style')){const s=document.createElement('style');s.id='wc-m-only-style';s.textContent='.m-only-cell{display:none!important}@media(max-width:768px){tr.expanded .m-only-cell{display:block!important;padding-top:10px!important;padding-bottom:10px!important}.app-card-meta{flex-direction:column!important;align-items:flex-start!important;gap:2px!important}.app-card-meta .meta-sep{display:none!important}.app-card-actions{flex-direction:row!important;width:100%!important;margin-top:8px!important}.app-card-actions select{flex:1!important;font-size:13px!important;height:36px!important}}';document.head.appendChild(s);}
 
-    // ★ 인라인 배지는 applyFilterApp에서 호출
-
+    // Stats
     let total=data.length;
     let counseled=data.filter(d=>d.status==='상담 완료').length;
     let joined=data.filter(d=>d.join_status==='가입 완료').length;
@@ -1198,8 +1038,10 @@ window.renderAppTable = function(data) {
         {n:convRate+'%',l:'전환율',c:'color:var(--primary);'}
     ].map(s=>`<div style="background:#f9fafb;border:1px solid var(--border-strong);border-radius:12px;padding:16px;text-align:center;"><div style="font-size:24px;font-weight:800;${s.c}">${s.n}</div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;font-weight:600;">${s.l}</div></div>`).join('');
 
+    // Sort ascending (oldest first)
     let sorted=[...data].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
 
+    // 연락 두절 history map (phone → [{batch, status at time}])
     let ghostMap={};
     globalApps.forEach(a=>{
         if(a.status==='연락 두절'&&a.phone){
@@ -1209,25 +1051,45 @@ window.renderAppTable = function(data) {
         }
     });
 
+    // Group by status
     let statusOrder=['대기','상담 일정 조율 중','상담 일정 확정','설문 완료','상담 완료','연락 두절'];
     let groups={};statusOrder.forEach(s=>groups[s]=[]);
     sorted.forEach(row=>{let st=row.status||'대기';if(!groups[st])groups[st]=[];groups[st].push(row);});
 
+    // Merge 확정+설문
     let mergedConfirm=[...(groups['상담 일정 확정']||[]),...(groups['설문 완료']||[])];
+
+    // 상담 완료 소그룹 분리
+    let completedAll=groups['상담 완료']||[];
+    let compJoined=completedAll.filter(d=>d.join_status==='가입 완료');
+    let compThinking=completedAll.filter(d=>d.join_status==='고민 중');
+    let compNext=completedAll.filter(d=>d.join_status==='다음 기수 희망');
+    let compDeclined=completedAll.filter(d=>['미가입','연락 후 미가입','상담 후 미가입'].includes(d.join_status));
+    let compPending=completedAll.filter(d=>!d.join_status||d.join_status===''||!['가입 완료','고민 중','다음 기수 희망','미가입','연락 후 미가입','상담 후 미가입'].includes(d.join_status));
 
     let statusConfig=[
         {key:'대기',label:'대기',color:'#888',items:groups['대기']||[]},
         {key:'조율',label:'상담 일정 조율 중',color:'#3182f6',items:groups['상담 일정 조율 중']||[]},
         {key:'확정',label:'상담 일정 확정 / 설문 완료',color:'#32b06a',items:mergedConfirm},
-        {key:'완료',label:'상담 완료',color:'#7b1fa2',items:groups['상담 완료']||[]},
+        {key:'완료_가입',label:'상담 완료 — 가입 완료',color:'#32b06a',items:compJoined,parent:'상담 완료',parentColor:'#7b1fa2',parentTotal:completedAll.length},
+        {key:'완료_고민',label:'상담 완료 — 고민 중',color:'#f59e0b',items:compThinking},
+        {key:'완료_다음기수',label:'상담 완료 — 다음 기수 희망',color:'#3182f6',items:compNext},
+        {key:'완료_미가입',label:'상담 완료 — 미가입',color:'#ef4444',items:compDeclined},
+        {key:'완료_미정',label:'상담 완료 — 미정',color:'#9ca3af',items:compPending},
         {key:'두절',label:'연락 두절',color:'#f04452',items:groups['연락 두절']||[]},
     ];
 
+    // Build accordion HTML
     let accHtml='';
     statusConfig.forEach((cfg,gi)=>{
-        let isOpen=cfg.items.length>0&&(cfg.key==='대기'||cfg.key==='조율'||cfg.key==='확정');
+        // 상담 완료 그룹 헤더
+        if(cfg.parent&&cfg.key==='완료_가입'){
+            accHtml+=`<div style="margin-top:16px;margin-bottom:4px;padding:10px 16px;font-size:16px;font-weight:800;color:${cfg.parentColor};display:flex;align-items:center;gap:8px;"><span style="width:12px;height:12px;border-radius:50%;background:${cfg.parentColor};flex-shrink:0;"></span>${cfg.parent} <span style="font-weight:600;color:var(--text-secondary);font-size:14px;">(${cfg.parentTotal}명)</span></div>`;
+        }
+        let savedAcc=localStorage.getItem('wecoffee_acc_'+cfg.key);
+        let isOpen=savedAcc?savedAcc==='open':(cfg.items.length>0&&(cfg.key==='대기'||cfg.key==='조율'||cfg.key==='확정'));
         accHtml+=`<div style="margin-bottom:12px;">
-        <div onclick="let c=this.nextElementSibling;let a=this.querySelector('.acc-arrow');if(c.style.display==='none'){c.style.display='block';a.textContent='▲';}else{c.style.display='none';a.textContent='▼';}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f9fafb;border:1px solid var(--border-strong);border-radius:10px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#f2f4f6'" onmouseout="this.style.background='#f9fafb'">
+        <div onclick="let c=this.nextElementSibling;let a=this.querySelector('.acc-arrow');let k=this.getAttribute('data-acc-key');if(c.style.display==='none'){c.style.display='block';a.textContent='▲';if(k)localStorage.setItem(k,'open');}else{c.style.display='none';a.textContent='▼';if(k)localStorage.setItem(k,'closed');}" data-acc-key="wecoffee_acc_${cfg.key}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f9fafb;border:1px solid var(--border-strong);border-radius:10px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#f2f4f6'" onmouseout="this.style.background='#f9fafb'">
             <div style="display:flex;align-items:center;gap:8px;">
                 <span style="width:10px;height:10px;border-radius:50%;background:${cfg.color};flex-shrink:0;"></span>
                 <span style="font-size:15px;font-weight:700;color:var(--text-display);">${cfg.label}</span>
@@ -1246,6 +1108,8 @@ window.renderAppTable = function(data) {
                 let cStat=statusClassMap[row.status]||'st-wait';
                 let cJoin=joinClassMap[row.join_status||'']||'jn-none';
                 let surveyBadge=(row.survey_job||row.survey_edu)?`<span class="status-badge badge-orange" style="font-size:11px;margin-left:6px;">설문완료</span>`:`<span class="status-badge badge-gray" style="font-size:11px;margin-left:6px;">미응답</span>`;
+
+                // 연락 두절 history badge
                 let ghostBadge='';
                 let ph=String(row.phone||'').replace(/\D/g,'');
                 let ghostHistory=(ghostMap[ph]||[]).filter(g=>String(g.id)!==String(row.id));
@@ -1253,13 +1117,18 @@ window.renderAppTable = function(data) {
                     let ghostBatches=ghostHistory.map(g=>g.batch).join(', ');
                     ghostBadge=`<span style="background:#fff0f0;color:#f04452;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;cursor:pointer;" onclick="event.stopPropagation();window.showGhostHistory('${ph}')" data-tippy="${ghostBatches} 연락두절 이력" onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">${ghostBatches} 연락두절</span>`;
                 }
+
+                // Time display
                 let _rawTime=row.call_time&&row.call_time!=='null'?row.call_time:'';
                 let _isScheduled=/^\d{4}-\d{2}-\d{2}/.test(_rawTime);
                 let timeDisplay='';
                 if(_rawTime){
                     if(_isScheduled){let _cp=_rawTime.split(' ');let _dn='',_tn='';if(_cp[0]){let _dp=_cp[0].split('-');let _dObj=new Date(parseInt(_dp[0]),parseInt(_dp[1])-1,parseInt(_dp[2]));let _dow=['일','월','화','수','목','금','토'][_dObj.getDay()];_dn=`${parseInt(_dp[1])}/${parseInt(_dp[2])}(${_dow})`;}if(_cp[1]){let _tp=_cp[1].split(':');let _h=parseInt(_tp[0]),_m=_tp[1]||'00';let _ap=_h>=12?'오후':'오전';let _h12=_h%12||12;_tn=` ${_ap} ${_h12}:${_m}`;}timeDisplay=(_dn+_tn).trim();}else{timeDisplay=_rawTime;}
                 }
+
                 let timeBadgeHtml=(row.status==='상담 일정 확정'||row.status==='설문 완료')?`<div class="edit-schedule-link" onclick="event.stopPropagation();window.openScheduleModal('${row.id}','${row.call_time}','${row.counselor_name}')">일정 수정</div>`:'';
+                
+
                 let _preferredTime=(!_isScheduled&&_rawTime)?_rawTime:'';
                 let _scheduledTime=(_isScheduled&&timeDisplay)?timeDisplay:'';
                 let _interestTags=(row.interest_area||'').split(',').map(s=>s.trim()).filter(Boolean).slice(0,3);
@@ -1281,13 +1150,13 @@ window.renderAppTable = function(data) {
                                 <span style="font-weight:800;font-size:15px;color:var(--text-display);">${row.desired_batch||'-'} ${window.escapeHtml(row.name)}</span>
                                 ${surveyBadge}${ghostBadge}
                             </div>
-                            <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;display:flex;align-items:center;flex-wrap:wrap;gap:3px;">
-                                ${_metaParts.join('<span style="color:var(--border-strong);margin:0 4px;">·</span>')}
+                            <div class="app-card-meta" style="font-size:13px;color:var(--text-secondary);line-height:1.6;display:flex;align-items:center;flex-wrap:wrap;gap:3px;">
+                                ${_metaParts.join('<span class="meta-sep" style="color:var(--border-strong);margin:0 4px;">·</span>')}
                             </div>
                             ${_interestHtml?`<div style="margin-top:2px;line-height:1.4;">${_interestHtml}</div>`:''}
                             ${timeBadgeHtml?`<div style="margin-top:2px;">${timeBadgeHtml}</div>`:''}
                         </div>
-                        <div style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation();">
+                        <div class="app-card-actions" style="display:flex;gap:4px;flex-shrink:0;" onclick="event.stopPropagation();">
                             <select class="status-select ${cStat}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time||''}','${row.counselor_name||''}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>설문 완료</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option><option value="연락 두절" ${row.status==='연락 두절'?'selected':''}>연락 두절</option></select>
                             <select class="status-select ${cJoin}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.updateAppStatus('${row.id}','join_status',this.value,this)"><option value="" ${!row.join_status?'selected':''}>미정</option><option value="고민 중" ${row.join_status==='고민 중'?'selected':''}>고민 중</option><option value="가입 완료" ${row.join_status==='가입 완료'?'selected':''}>가입 완료</option><option value="미가입" ${row.join_status==='미가입'?'selected':''}>미가입</option><option value="다음 기수 희망" ${row.join_status==='다음 기수 희망'?'selected':''}>다음 기수</option><option value="연락 후 미가입" ${row.join_status==='연락 후 미가입'?'selected':''}>연락후 미가입</option><option value="상담 후 미가입" ${row.join_status==='상담 후 미가입'?'selected':''}>상담후 미가입</option></select>
                         </div>
@@ -1298,13 +1167,164 @@ window.renderAppTable = function(data) {
         accHtml+=`</div></div>`;
     });
 
+    // Hide original table, render accordion
     tableWrap.style.display='none';
     let accContainer=document.getElementById('appAccordionContainer');
     if(!accContainer){accContainer=document.createElement('div');accContainer.id='appAccordionContainer';tableWrap.parentNode.insertBefore(accContainer,tableWrap.nextSibling);}
     accContainer.innerHTML=accHtml;
 }
 
-window.showGhostHistory=function(phoneDigits){let history=globalApps.filter(a=>a.status==='연락 두절'&&String(a.phone||'').replace(/\D/g,'')===phoneDigits);if(history.length===0)return showToast('연락 두절 이력이 없습니다.');let html=history.map(a=>`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="font-weight:700;font-size:14px;color:var(--text-display);margin-bottom:4px;">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>상담 메모: ${window.escapeHtml((a.admin_memo||'없음').split('|||').pop())}</div></div>`).join('');window.openCustomConfirm('연락 두절 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');}
+window.showGhostHistory=function(phoneDigits){
+    let history=globalApps.filter(a=>a.status==='연락 두절'&&String(a.phone||'').replace(/\D/g,'')===phoneDigits);
+    if(history.length===0)return showToast('연락 두절 이력이 없습니다.');
+    let html=history.map(a=>`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;">
+        <div style="font-weight:700;font-size:14px;color:var(--text-display);margin-bottom:4px;">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>상담 메모: ${window.escapeHtml((a.admin_memo||'없음').split('|||').pop())}</div>
+    </div>`).join('');
+    window.openCustomConfirm('연락 두절 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');
+}
+
+function getFrequency(arr){return Object.entries(arr.reduce((acc,val)=>{if(val)acc[val]=(acc[val]||0)+1;return acc;},{})).sort((a,b)=>b[1]-a[1]);}
+function generateBarHTML(label,count,maxCount,opacity=1){const percent=maxCount===0?0:Math.round((count/maxCount)*100);return `<div style="margin-bottom:8px;"><div style="font-size:13px;font-weight:600;margin-bottom:4px;display:flex;justify-content:space-between;"><span>${label}</span><span style="color:var(--text-secondary);font-size:12px;">${count}건 (${percent}%)</span></div><div style="background:var(--border-strong);height:8px;border-radius:4px;overflow:hidden;"><div style="width:${percent}%;background:rgba(255,121,0,${opacity});height:100%;"></div></div></div>`;}
+
+window.renderStatistics=function(data){
+if(!$("statsContainer"))return;const container=$("statsContainer");container.innerHTML='';
+if(data.length===0){if($("insightSummaryText"))$("insightSummaryText").innerHTML="<div style='padding:16px;'>데이터가 부족합니다.</div>";return;}
+
+// Animation helper
+if(!document.getElementById('wc-insight-anim')){const s=document.createElement('style');s.id='wc-insight-anim';s.textContent=`
+@keyframes wcFadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes wcScaleX{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes wcCountUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.wc-anim-card{animation:wcFadeUp 0.5s ease forwards;opacity:0}
+.wc-anim-bar{transform-origin:left;transform:scaleX(0);animation:wcScaleX 0.8s cubic-bezier(0.22,1,0.36,1) 0.3s forwards}
+.wc-anim-num{animation:wcCountUp 0.4s ease 0.2s forwards;opacity:0}
+`;document.head.appendChild(s);}
+
+const total=data.length;
+const ghostCount=data.filter(d=>d.status==='연락 두절').length;
+const contacted=total-ghostCount;
+const counseled=data.filter(d=>d.status==='상담 완료').length;
+const joined=data.filter(d=>d.join_status==='가입 완료').length;
+const convRate=total>0?Math.round((joined/total)*100):0;
+const stage1=data.filter(d=>d.join_status==='연락 후 미가입').length;
+const stage2=data.filter(d=>d.join_status==='상담 후 미가입').length;
+const stage3=data.filter(d=>d.join_status==='미가입').length;
+const preCounselRate=contacted>0?Math.round((stage1/contacted)*100):0;
+const postCounselRate=counseled>0?Math.round((stage2/counseled)*100):0;
+const totalDropout=stage1+stage2+stage3;
+
+// Counselor map
+const counselorMap={};data.forEach(d=>{const cn=(d.counselor_name&&d.counselor_name!=='null'&&d.counselor_name.trim())?d.counselor_name.trim():'미지정';if(!counselorMap[cn])counselorMap[cn]={total:0,joined:0,dropout:0,pending:0};counselorMap[cn].total++;if(d.join_status==='가입 완료')counselorMap[cn].joined++;else if(['연락 후 미가입','상담 후 미가입','미가입'].includes(d.join_status))counselorMap[cn].dropout++;else counselorMap[cn].pending++;});
+const counselorList=Object.entries(counselorMap).filter(([k,v])=>v.total>0&&k!=='미지정').sort((a,b)=>(b[1].total>0?b[1].joined/b[1].total:0)-(a[1].total>0?a[1].joined/a[1].total:0));
+
+// Channel map
+let channelMap={};let safeData={instaFollow:0,instaNonFollow:0,adNow:0,leadTime3M:0};
+data.forEach(d=>{let raw=String(d.acquisition_channel||'기타');let ch=raw;let etc='';if(raw.startsWith('기타')){let ci=raw.indexOf(':');if(ci>-1){ch='기타';etc=raw.substring(ci+1).trim();}else ch='기타';}if(!channelMap[ch])channelMap[ch]={total:0,details:{}};channelMap[ch].total++;let det='';if(ch==='인스타그램'){if(d.is_follow==='네, 팔로우하고 있어요')safeData.instaFollow++;else if(d.is_follow)safeData.instaNonFollow++;det=d.follow_duration||d.is_follow||'';}else if(ch==='광고'){det=d.ad_duration||'';if(det==='최근 일주일 이내'||det==='한 달 이내')safeData.adNow++;else if(det==='3개월 이내'||det==='1년 이내')safeData.leadTime3M++;}else if(ch==='기타')det=etc;if(det){channelMap[ch].details[det]=(channelMap[ch].details[det]||0)+1;}});
+
+// Interest
+let interestAll=[];let interestEtcMap={};
+data.forEach(d=>{if(d.interest_area)String(d.interest_area).split(',').map(s=>s.trim()).filter(Boolean).forEach(v=>{if(v.startsWith('기타')){let ci=v.indexOf(':');if(ci>-1){interestAll.push('기타');let ed=v.substring(ci+1).trim();if(ed)interestEtcMap[ed]=(interestEtcMap[ed]||0)+1;}else interestAll.push('기타');}else interestAll.push(v);});});
+let interestData=getFrequency(interestAll);
+let topInterest=interestData.length>0?interestData[0][0]:'없음';
+let topInterestRate=total>0&&interestData.length>0?Math.round((interestData[0][1]/total)*100):0;
+
+// Summary cards (top)
+let summaryHtml=`<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:32px;">
+<div class="wc-anim-card" style="flex:1;min-width:260px;background:#fff;border:1px solid var(--border-strong);border-radius:16px;padding:28px;text-align:center;animation-delay:0s"><div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;">기수 주요 관심 분야</div><div class="wc-anim-num" style="font-size:22px;font-weight:800;color:var(--text-display);">${topInterest} <span style="font-size:16px;color:var(--primary);">(${topInterestRate}%)</span></div></div>
+<div class="wc-anim-card" style="flex:1;min-width:260px;background:#fff;border:1px solid var(--border-strong);border-radius:16px;padding:28px;text-align:center;animation-delay:0.08s"><div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;">인스타그램 팔로워 유입</div><div class="wc-anim-num" style="font-size:16px;font-weight:700;color:var(--text-display);">팔로워 <span style="font-size:24px;color:var(--primary);font-weight:800;">${safeData.instaFollow}</span>명 <span style="color:var(--border-strong);margin:0 8px;">|</span> 비팔로워 <span style="font-size:22px;font-weight:800;">${safeData.instaNonFollow}</span>명</div></div>
+<div class="wc-anim-card" style="flex:1;min-width:260px;background:#fff;border:1px solid var(--border-strong);border-radius:16px;padding:28px;text-align:center;animation-delay:0.16s"><div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;">광고 리드타임 (노출 → 신청)</div><div class="wc-anim-num" style="font-size:16px;font-weight:700;color:var(--text-display);">단기 <span style="font-size:24px;color:var(--primary);font-weight:800;">${safeData.adNow}</span>명 <span style="color:var(--border-strong);margin:0 8px;">|</span> 장기 <span style="font-size:22px;font-weight:800;">${safeData.leadTime3M}</span>명</div></div></div>`;
+if($("insightSummaryText"))$("insightSummaryText").innerHTML=summaryHtml;
+
+// Stats cards
+let cardsHtml=[
+{n:total,u:'건',l:'총 신청 건수',c:'',d:0},
+{n:convRate,u:'%',l:'최종 가입 전환율',c:'color:var(--primary);',d:0.06},
+{n:channelMap['인스타그램']?channelMap['인스타그램'].total:0,u:'건',l:'인스타그램 유입',c:'',d:0.12},
+{n:channelMap['광고']?channelMap['광고'].total:0,u:'건',l:'광고 유입',c:'',d:0.18}
+].map(s=>`<div class="stat-card wc-anim-card" style="padding:28px 20px;animation-delay:${s.d}s"><div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;font-weight:600;">${s.l}</div><div class="wc-anim-num" style="font-size:32px;font-weight:900;${s.c}line-height:1;letter-spacing:-1px;">${s.n}<span style="font-size:16px;margin-left:2px;">${s.u}</span></div></div>`).join('');
+if($("statsCards"))$("statsCards").innerHTML=cardsHtml;
+
+// Funnel with animation
+let funnelSteps=[
+{l:'신청 접수',n:total,pct:100,color:'var(--text-display)'},
+{l:'연락 성공',n:contacted,pct:total>0?Math.round(contacted/total*100):0,color:'#3182f6'},
+{l:'상담 완료',n:counseled,pct:total>0?Math.round(counseled/total*100):0,color:'#7b1fa2'},
+{l:'가입 완료',n:joined,pct:total>0?Math.round(joined/total*100):0,color:'var(--success)'}
+];
+let funnelHtml=`<div class="stat-card wc-anim-card" style="padding:32px;animation-delay:0.1s;width:100%;max-width:100%;box-sizing:border-box;"><div style="font-size:18px;font-weight:800;margin-bottom:28px;color:var(--text-display);">고객 전환 퍼널</div><div style="width:100%;display:flex;flex-direction:column;gap:16px;">`;
+funnelSteps.forEach((st,i)=>{
+let barW=Math.max(st.pct,6);
+let pctLabel=i>0?`<span style="font-size:12px;color:var(--text-tertiary);font-weight:600;margin-left:8px;">${st.pct}% 도달</span>`:'';
+funnelHtml+=`<div style="width:100%;"><div style="display:flex;align-items:baseline;margin-bottom:8px;gap:8px;"><span style="font-size:15px;font-weight:700;color:var(--text-display);">${st.l}</span>${pctLabel}<span style="margin-left:auto;font-size:20px;font-weight:900;color:${st.color};">${st.n}명</span></div><div class="wc-anim-bar" style="width:${barW}%;height:32px;background:${st.color};border-radius:8px;opacity:0.9;animation-delay:${0.3+i*0.15}s;"></div></div>`;
+});
+funnelHtml+=`</div></div>`;
+if($("statsFunnel")){$("statsFunnel").innerHTML=funnelHtml;$("statsFunnel").style.display='block';}
+
+// Stage-separated dropout
+let preColor=preCounselRate>=20?'var(--error)':(preCounselRate>=10?'#f59e0b':'var(--text-display)');
+let postColor=postCounselRate>=30?'var(--error)':(postCounselRate>=15?'#f59e0b':'var(--text-display)');
+let dropoutHtml=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.15s">
+<div style="font-size:14px;color:var(--text-secondary);font-weight:700;margin-bottom:4px;">상담 전 이탈률</div>
+<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">연락 성공자 ${contacted}명 기준</div>
+<div class="wc-anim-num" style="font-size:44px;font-weight:900;color:${preColor};line-height:1;letter-spacing:-2px;">${preCounselRate}<span style="font-size:22px;">%</span></div>
+<div style="margin-top:14px;font-size:13px;color:var(--text-secondary);">연락 후 미가입 <strong style="color:var(--text-display);">${stage1}명</strong></div>
+<div style="width:100%;margin-top:10px;background:#f2f4f6;height:6px;border-radius:3px;overflow:hidden;"><div class="wc-anim-bar" style="width:${preCounselRate}%;height:100%;background:${preColor};animation-delay:0.5s;border-radius:3px;"></div></div>
+</div>
+<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.22s">
+<div style="font-size:14px;color:var(--text-secondary);font-weight:700;margin-bottom:4px;">상담 후 이탈률</div>
+<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">상담 완료자 ${counseled}명 기준</div>
+<div class="wc-anim-num" style="font-size:44px;font-weight:900;color:${postColor};line-height:1;letter-spacing:-2px;">${postCounselRate}<span style="font-size:22px;">%</span></div>
+<div style="margin-top:14px;font-size:13px;color:var(--text-secondary);">상담 후 미가입 <strong style="color:var(--text-display);">${stage2}명</strong></div>
+<div style="width:100%;margin-top:10px;background:#f2f4f6;height:6px;border-radius:3px;overflow:hidden;"><div class="wc-anim-bar" style="width:${postCounselRate}%;height:100%;background:${postColor};animation-delay:0.5s;border-radius:3px;"></div></div>
+</div>
+<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.28s">
+<div style="font-size:14px;color:var(--text-secondary);font-weight:700;margin-bottom:4px;">기타 미가입</div>
+<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">분류 미지정 ${stage3}명</div>
+<div class="wc-anim-num" style="font-size:44px;font-weight:900;color:var(--text-tertiary);line-height:1;letter-spacing:-2px;">${stage3}<span style="font-size:22px;">명</span></div>
+<div style="margin-top:14px;font-size:12px;color:var(--text-tertiary);line-height:1.5;">연락 두절 ${ghostCount}명은<br>이탈률에 미포함</div>
+</div></div>`;
+
+// Counselor chart
+let counselorChartHtml='';
+counselorList.forEach(([name,stats],i)=>{
+const jp=stats.total>0?(stats.joined/stats.total)*100:0;
+const dp=stats.total>0?(stats.dropout/stats.total)*100:0;
+const pp=stats.total>0?(stats.pending/stats.total)*100:0;
+counselorChartHtml+=`<div class="wc-anim-card" style="margin-bottom:20px;animation-delay:${0.1+i*0.08}s"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:15px;font-weight:800;color:var(--text-display);">${window.escapeHtml(name)}</span><span style="font-size:13px;font-weight:600;color:var(--text-secondary);">${stats.joined}/${stats.total}명 <span style="color:var(--primary);font-weight:800;">(${Math.round(jp)}%)</span></span></div><div style="display:flex;height:16px;border-radius:8px;overflow:hidden;background:#f2f4f6;"><div class="wc-anim-bar" style="width:${jp}%;height:100%;background:#32b06a;animation-delay:${0.4+i*0.1}s"></div><div class="wc-anim-bar" style="width:${dp}%;height:100%;background:#e85d5d;animation-delay:${0.5+i*0.1}s"></div><div class="wc-anim-bar" style="width:${pp}%;height:100%;background:#d1d5db;animation-delay:${0.6+i*0.1}s"></div></div><div style="display:flex;gap:14px;margin-top:8px;font-size:12px;color:var(--text-tertiary);font-weight:600;"><span><span style="display:inline-block;width:8px;height:8px;background:#32b06a;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>가입 ${stats.joined}</span><span><span style="display:inline-block;width:8px;height:8px;background:#e85d5d;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>이탈 ${stats.dropout}</span><span><span style="display:inline-block;width:8px;height:8px;background:#d1d5db;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>진행 중 ${stats.pending}</span></div></div>`;});
+let counselorCard=counselorList.length>0?`<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;margin-bottom:24px;animation-delay:0.15s"><div style="font-size:18px;font-weight:800;margin-bottom:24px;color:var(--text-display);">상담자별 성과</div><div style="width:100%;">${counselorChartHtml}</div></div>`:'';
+
+// Channel tree + Interest charts
+let sortedCh=Object.entries(channelMap).sort((a,b)=>b[1].total-a[1].total);
+let treeHtml='';
+sortedCh.forEach((item,i)=>{let ch=item[0],ct=item[1].total,dets=item[1].details;let op=i===0?1:(i===1?0.85:(i===2?0.65:0.45));let pct=total>0?Math.round((ct/total)*100):0;
+treeHtml+=`<div class="wc-anim-card" style="margin-bottom:16px;animation-delay:${0.1+i*0.06}s"><div style="font-size:14px;font-weight:800;color:var(--text-display);margin-bottom:6px;display:flex;justify-content:space-between;"><span>${i+1}. ${ch}</span><span>${ct}건 (${pct}%)</span></div><div style="background:#f2f4f6;height:10px;border-radius:5px;overflow:hidden;"><div class="wc-anim-bar" style="width:${pct}%;height:100%;background:rgba(255,121,0,${op});border-radius:5px;animation-delay:${0.3+i*0.08}s"></div></div>`;
+let sd=Object.entries(dets).sort((a,b)=>b[1]-a[1]);
+sd.forEach(det=>{let dp=Math.round((det[1]/ct)*100);treeHtml+=`<div style="display:flex;align-items:center;margin-top:8px;padding-left:14px;"><div style="color:var(--text-tertiary);margin-right:8px;font-size:12px;font-weight:800;">ㄴ</div><div style="flex:1;"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;"><span>${det[0]}</span><span>${det[1]}건</span></div><div style="background:#f2f4f6;height:4px;border-radius:2px;overflow:hidden;"><div class="wc-anim-bar" style="width:${dp}%;height:100%;background:rgba(255,121,0,${op*0.4});border-radius:2px;animation-delay:${0.5+i*0.08}s"></div></div></div></div>`;});
+treeHtml+=`</div>`;});
+
+let interestChartHtml=getFrequency(interestAll).map((item,i)=>{let lb=item[0],cnt=item[1];let op=i===0?1:(i===1?0.85:0.6);let pct=total===0?0:Math.round((cnt/total)*100);
+let h=`<div class="wc-anim-card" style="margin-bottom:10px;animation-delay:${0.1+i*0.06}s"><div style="font-size:14px;font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between;"><span>${lb}</span><span style="color:var(--text-secondary);font-size:13px;">${cnt}건 (${pct}%)</span></div><div style="background:#f2f4f6;height:10px;border-radius:5px;overflow:hidden;"><div class="wc-anim-bar" style="width:${pct}%;height:100%;background:rgba(255,121,0,${op});border-radius:5px;animation-delay:${0.3+i*0.08}s"></div></div>`;
+if(lb==='기타'&&Object.keys(interestEtcMap).length>0){Object.entries(interestEtcMap).sort((a,b)=>b[1]-a[1]).forEach(det=>{let dp=cnt>0?Math.round((det[1]/cnt)*100):0;h+=`<div style="display:flex;align-items:center;margin-top:8px;padding-left:14px;"><div style="color:var(--text-tertiary);margin-right:8px;font-size:12px;font-weight:800;">ㄴ</div><div style="flex:1;"><div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;"><span>${det[0]}</span><span>${det[1]}건</span></div><div style="background:#f2f4f6;height:4px;border-radius:2px;overflow:hidden;"><div class="wc-anim-bar" style="width:${dp}%;height:100%;background:rgba(255,121,0,0.3);border-radius:2px;animation-delay:0.6s"></div></div></div></div>`;});}
+return h+`</div>`;}).join('');
+
+let channelCard=`<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.1s;height:fit-content;"><div style="font-size:18px;font-weight:800;margin-bottom:24px;">유입 경로 분석</div><div style="width:100%;">${treeHtml}</div></div>`;
+let interestCard=`<div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.15s;height:fit-content;"><div style="font-size:18px;font-weight:800;margin-bottom:24px;">관심 분야 (가입 목적)</div><div style="width:100%;">${interestChartHtml}</div></div>`;
+
+container.innerHTML=dropoutHtml
+    +`<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">${counselorCard}<div></div></div>`
+    +`<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">${channelCard}${interestCard}</div>`;
+
+// Known duration
+let knownDurData=getFrequency(data.map(d=>d.known_duration).filter(Boolean));
+if(knownDurData.length>0){let kdHtml=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;"><div class="stat-card wc-anim-card" style="padding:28px;text-align:left;align-items:flex-start;animation-delay:0.2s;height:fit-content;"><div style="font-size:18px;font-weight:800;margin-bottom:24px;">위커피 인지 기간</div><div style="width:100%;">`;
+knownDurData.forEach((item,i)=>{let pct=total===0?0:Math.round((item[1]/total)*100);let op=i===0?1:(i===1?0.85:0.6);
+kdHtml+=`<div class="wc-anim-card" style="margin-bottom:10px;animation-delay:${0.1+i*0.06}s"><div style="font-size:14px;font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between;"><span>${item[0]}</span><span style="color:var(--text-secondary);font-size:13px;">${item[1]}건 (${pct}%)</span></div><div style="background:#f2f4f6;height:10px;border-radius:5px;overflow:hidden;"><div class="wc-anim-bar" style="width:${pct}%;height:100%;background:rgba(255,121,0,${op});border-radius:5px;animation-delay:${0.3+i*0.08}s"></div></div></div>`;});
+kdHtml+=`</div></div><div></div></div>`;container.innerHTML+=kdHtml;}
+
+window.currentInsightData={total,joined,dropoutCount:totalDropout,preCounselRate,postCounselRate,ghostCount,instaCount:channelMap['인스타그램']?channelMap['인스타그램'].total:0,adCount:channelMap['광고']?channelMap['광고'].total:0,instaFollow:safeData.instaFollow,instaNonFollow:safeData.instaNonFollow,leadTime1M:safeData.adNow,leadTime3M:safeData.leadTime3M,channelMap,counselorMap,knownDurData};
+}
 
 // ▼▼▼ 파트3 끝 — 파트4에서 이어집니다 ▼▼▼
 
@@ -1378,27 +1398,89 @@ window.downloadExcel = function(type) {
     }catch(err){console.error("Excel Download Error: ",err);if(typeof showToast==='function')showToast('엑셀 다운로드 중 오류가 발생했습니다.');}
 };
 
-window.copySurveyTemplate=function(appId){let app=globalApps.find(a=>String(a.id)===String(appId));if(!app)return showToast('신청 정보를 찾을 수 없습니다.');let surveyUrl=`https://www.wecoffee.co.kr/survey?uid=${app.id}&name=${encodeURIComponent(app.name||'')}`;let scheduleStr='미정';if(app.call_time&&app.call_time!=='null'){let ct=String(app.call_time).split(' ');let dateNice='',timeNice='';if(ct[0]&&ct[0].includes('-')){let dp=ct[0].split('-');let dObj=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));let dow=['일','월','화','수','목','금','토'][dObj.getDay()];dateNice=`${parseInt(dp[1])}월 ${parseInt(dp[2])}일(${dow})`;}if(ct[1]&&ct[1].includes(':')){let tp=ct[1].split(':');let h=parseInt(tp[0]),m=tp[1]||'00';let ap=h>=12?'오후':'오전';let h12=h%12||12;timeNice=`${ap} ${h12}:${m}`;}if(dateNice&&timeNice)scheduleStr=`${dateNice}, ${timeNice}`;else if(dateNice)scheduleStr=dateNice;else scheduleStr=app.call_time;}let msg=`안녕하세요 ${app?.name||''}님, 통화했던 위커피 운영팀입니다 :)\n상담일정은 ${scheduleStr} 입니다.\n\n오시기 전에 아래 링크의 설문을 작성해주시길 부탁드립니다.\n\n[Wecoffee 주소]\n마포 센터: 서울 마포구 월드컵북로 41 301호\n광진 센터: 서울 광진구 능동로36길 18 3층\n\n*센터 내 지정 주차 공간은 마련되어 있지 않습니다.\n차량으로 방문하실 경우 인근의 공영 주차장 이용을 부탁드립니다.\n\n[상담 전 작성설문]\n${surveyUrl}\n\n[상담 전 홈페이지 내용을 꼼꼼히 숙지해주세요]\nwww.wecoffee.co.kr`;window.copyTxt(msg,'상담 안내 메시지가 복사되었습니다.');};
+window.copySurveyTemplate=function(appId){
+    let app=globalApps.find(a=>String(a.id)===String(appId));if(!app)return showToast('신청 정보를 찾을 수 없습니다.');
+    let surveyUrl=`https://www.wecoffee.co.kr/survey?uid=${app.id}&name=${encodeURIComponent(app.name||'')}`;
+    let scheduleStr='미정';
+    if(app.call_time&&app.call_time!=='null'){let ct=String(app.call_time).split(' ');let dateNice='',timeNice='';if(ct[0]&&ct[0].includes('-')){let dp=ct[0].split('-');let dObj=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));let dow=['일','월','화','수','목','금','토'][dObj.getDay()];dateNice=`${parseInt(dp[1])}월 ${parseInt(dp[2])}일(${dow})`;}if(ct[1]&&ct[1].includes(':')){let tp=ct[1].split(':');let h=parseInt(tp[0]),m=tp[1]||'00';let ap=h>=12?'오후':'오전';let h12=h%12||12;timeNice=`${ap} ${h12}:${m}`;}if(dateNice&&timeNice)scheduleStr=`${dateNice}, ${timeNice}`;else if(dateNice)scheduleStr=dateNice;else scheduleStr=app.call_time;}
+    let msg=`안녕하세요 ${app?.name||''}님, 통화했던 위커피 운영팀입니다 :)\n상담일정은 ${scheduleStr} 입니다.\n\n오시기 전에 아래 링크의 설문을 작성해주시길 부탁드립니다.\n\n[Wecoffee 주소]\n마포 센터: 서울 마포구 월드컵북로 41 301호\n광진 센터: 서울 광진구 능동로36길 18 3층\n\n*센터 내 지정 주차 공간은 마련되어 있지 않습니다.\n차량으로 방문하실 경우 인근의 공영 주차장 이용을 부탁드립니다.\n\n[상담 전 작성설문]\n${surveyUrl}\n\n[상담 전 홈페이지 내용을 꼼꼼히 숙지해주세요]\nwww.wecoffee.co.kr`;
+    window.copyTxt(msg,'상담 안내 메시지가 복사되었습니다.');
+};
 
-window.saveAdminNote=async function(){if(!$("crmAppId"))return;const id=$("crmAppId").value;const app=globalApps.find(a=>String(a.id)===String(id));if(!app){showToast("신청 정보를 찾을 수 없습니다.");return;}const title=$("crmNoteTitle")?$("crmNoteTitle").value.trim():"";const content=$("crmNoteInput")?$("crmNoteInput").value.trim():"";if(!title&&!content)return showToast("내용을 입력해주세요.");const newNote=`${title}:::${content}`;let updatedMemo=app.admin_memo?app.admin_memo+'|||'+newNote:newNote;const originalMemo=app.admin_memo;app.admin_memo=updatedMemo;window.renderCrmInner(id,isCrmReadOnly);const{error}=await supabaseClient.from('applications').update({admin_memo:updatedMemo}).eq('id',id);if(error){app.admin_memo=originalMemo;window.renderCrmInner(id,isCrmReadOnly);showToast("기록 추가에 실패했습니다.");console.error(error);}else{showToast("상담 기록이 추가되었습니다.");}}
+window.saveAdminNote=async function(){if(!$("crmAppId"))return;const id=$("crmAppId").value;const app=globalApps.find(a=>String(a.id)===String(id));if(!app){showToast("신청 정보를 찾을 수 없습니다.");return;}const content=$("crmNoteInput")?$("crmNoteInput").value.trim():"";if(!content)return showToast("내용을 입력해주세요.");let nd=new Date();let autoTitle=`${nd.getMonth()+1}/${nd.getDate()} ${nd.getHours()>=12?'오후':'오전'} ${nd.getHours()%12||12}:${String(nd.getMinutes()).padStart(2,'0')}`;let admin=window.getAdminName(currentAdminEmail);if(admin)autoTitle+=` (${admin})`;const newNote=`${autoTitle}:::${content}`;let updatedMemo=app.admin_memo?app.admin_memo+'|||'+newNote:newNote;const originalMemo=app.admin_memo;app.admin_memo=updatedMemo;window.renderCrmInner(id,isCrmReadOnly);const{error}=await supabaseClient.from('applications').update({admin_memo:updatedMemo}).eq('id',id);if(error){app.admin_memo=originalMemo;window.renderCrmInner(id,isCrmReadOnly);showToast("기록 추가에 실패했습니다.");console.error(error);}else{showToast("상담 기록이 추가되었습니다.");}}
 
-window.openCrmModalFromPhone=async function(phone){if(!phone||phone==='-')return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");const targetDigits=String(phone).replace(/\D/g,'');let app=globalApps.find(a=>window.samePhone(a.phone,phone));if(app){window.openCrmModal(app.id,true);}else{showToast("내역을 불러오는 중입니다...");const last4=targetDigits.slice(-4);if(last4.length<4){showToast("연락처 정보가 충분하지 않아 검색할 수 없습니다.");return;}const{data,error}=await supabaseClient.from('applications').select('*').ilike('phone',`%${last4}`).limit(50);if(!error&&data){let matched=data.find(a=>window.samePhone(a.phone,phone));if(matched){if(!globalApps.find(a=>String(a.id)===String(matched.id)))globalApps.push(matched);window.openCrmModal(matched.id,true);return;}}showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");}};
+window.openCrmModalFromPhone=async function(phone){
+    if(!phone||phone==='-')return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");
+    const targetDigits=String(phone).replace(/\D/g,'');
+    let app=globalApps.find(a=>window.samePhone(a.phone,phone));
+    if(app){window.openCrmModal(app.id,true);}else{
+        showToast("내역을 불러오는 중입니다...");
+        const last4=targetDigits.slice(-4);
+        if(last4.length<4){showToast("연락처 정보가 충분하지 않아 검색할 수 없습니다.");return;}
+        const{data,error}=await supabaseClient.from('applications').select('*').ilike('phone',`%${last4}`).limit(50);
+        if(!error&&data){let matched=data.find(a=>window.samePhone(a.phone,phone));if(matched){if(!globalApps.find(a=>String(a.id)===String(matched.id)))globalApps.push(matched);window.openCrmModal(matched.id,true);return;}}
+        showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");
+    }
+}
 
+
+// ── 발주 요약 (기존 기능 그대로 — 수량/품목 중심) ──
 window.showOrderSummary=function(){let qOrd=($("searchOrd")?.value||"").toLowerCase();let vOrd=$("ordVendorFilter")?.value||"전체";let checkedBoxes=document.querySelectorAll('.chk-ord:checked, input[type="checkbox"][class*="chk-ord-dyn-"]:checked');let checkedIds=Array.from(checkedBoxes).map(cb=>String(cb.value)).filter(val=>val!=="on");let pendingOrders=gOrd.filter(o=>{if(checkedIds.length>0){if(o.status!=='주문 접수')return false;return checkedIds.includes(String(o.id));}else{if(o.status!=='주문 접수')return false;let matchCenter=(currentGlobalCenter==='전체'||o.center===currentGlobalCenter);let matchQ=`${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);let matchV=vOrd==='전체'?true:o.vendor===vOrd;return matchCenter&&matchQ&&matchV;}});if(pendingOrders.length===0){$("summaryModalBody").innerHTML='<div class="empty-state" style="padding:80px 0;">요약할 정상 발주(주문 접수) 내역이 없습니다.</div>';}else{window.currentMemberInfoMap={};pendingOrders.forEach(o=>{if(o.name&&o.name!=='이름없음'&&!window.currentMemberInfoMap[o.name])window.currentMemberInfoMap[o.name]={phone:o.phone||'-',batch:String(o.batch||'-')};});let grouped={};pendingOrders.forEach(o=>{let center=o.center||'미지정';let cNm=o.item_name;let targetDayStr=window.formatDeliveryDateFull(o.delivery_date);let bigKey=`[${targetDayStr} 발주] ${center}`;let vendor=o.vendor||'기타 생두사';let m=String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}if(!grouped[bigKey])grouped[bigKey]={};if(!grouped[bigKey][vendor])grouped[bigKey][vendor]={totalGrams:0,items:{}};if(!grouped[bigKey][vendor].items[cNm])grouped[bigKey][vendor].items[cNm]={totalGrams:0,orderers:[]};let rawQty=String(o.quantity||'0').trim().toLowerCase();let numMatch=rawQty.match(/[0-9.]+/);let numVal=numMatch?parseFloat(numMatch[0]):0;let grams=rawQty.includes('kg')?numVal*1000:numVal;grouped[bigKey][vendor].totalGrams+=grams;grouped[bigKey][vendor].items[cNm].totalGrams+=grams;let safePhone=(!o.phone||String(o.phone).trim()==='undefined')?'-':o.phone;let safeName=(!o.name||String(o.name).trim()==='undefined')?'이름없음':o.name;let safeBatch=(!o.batch||String(o.batch).trim()==='undefined')?'-':String(o.batch);grouped[bigKey][vendor].items[cNm].orderers.push({batch:safeBatch,name:safeName,phone:safePhone,rawQty:o.quantity||'0'});});let html=`<div style="display:flex;flex-direction:column;gap:0;width:100%;min-width:0;">`;let sortedBigKeys=Object.keys(grouped).sort();sortedBigKeys.forEach(bigKey=>{html+=`<div style="font-size:18px;font-weight:900;color:var(--text-display);margin-top:32px;padding-bottom:12px;border-bottom:3px solid var(--text-display);letter-spacing:-0.5px;">${bigKey}</div>`;let sortedVendors=Object.keys(grouped[bigKey]).sort();sortedVendors.forEach(vendor=>{let vData=grouped[bigKey][vendor];html+=`<div style="margin-top:20px;font-size:15px;font-weight:800;color:var(--primary);padding-left:4px;">${window.escapeHtml(vendor)}</div>`;let sortedItems=Object.keys(vData.items).sort();sortedItems.forEach(item=>{let d=vData.items[item];let displayQty=d.totalGrams>=1000?(d.totalGrams%1000===0?(d.totalGrams/1000)+'kg':(d.totalGrams/1000)+'kg'):d.totalGrams+'g';displayQty=displayQty.replace('.0kg','kg');let ordererText=d.orderers.map(ord=>`[${ord.batch}] ${ord.name}(${ord.rawQty})`).join(', ');html+=`<div style="margin:12px 0;padding:16px;background:#fff;border:1px solid var(--border-strong);border-radius:12px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div style="flex:1;font-weight:700;font-size:15px;color:var(--text-display);line-height:1.4;">${window.escapeHtml(item)}</div><div style="font-size:20px;font-weight:900;color:var(--primary);margin-left:12px;white-space:nowrap;">${displayQty}</div></div><div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;line-height:1.5;">주문자: ${window.escapeHtml(ordererText)}</div><div style="margin-top:10px;text-align:right;"><span style="font-size:11px;color:var(--primary);cursor:pointer;font-weight:800;border:1px solid var(--primary);padding:4px 10px;border-radius:6px;" onclick="window.copyTxt('${String(item).replace(/'/g,"\\'")}','상품명이 복사되었습니다.')">상품명 복사</span></div></div>`;});let vTotalQty=vData.totalGrams>=1000?(vData.totalGrams%1000===0?(vData.totalGrams/1000)+'kg':(vData.totalGrams/1000)+'kg'):vData.totalGrams+'g';vTotalQty=vTotalQty.replace('.0kg','kg');html+=`<div style="margin-bottom:24px;padding:16px;background:#f9fafb;border-radius:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid #e5e8eb;"><span style="font-size:13px;font-weight:600;color:var(--text-secondary);">${window.escapeHtml(vendor)} 선택된 발주 총 수량</span><span style="font-size:18px;font-weight:900;color:var(--text-display);">${vTotalQty}</span></div>`;});});html+=`<div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border);display:flex;justify-content:center;gap:8px;"><button class="btn-outline" style="border-color:#32b06a;color:#32b06a;padding:12px 24px;font-size:14px;font-weight:700;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button></div></div>`;$("summaryModalBody").innerHTML=html;let exportData=[];pendingOrders.forEach(o=>{let dateGroup=window.formatDeliveryDateFull(o.delivery_date);let cNm=o.item_name;let m=String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}let safePhone=(!o.phone||String(o.phone).trim()==='undefined')?'-':o.phone;let safeName=(!o.name||String(o.name).trim()==='undefined')?'이름없음':o.name;let safeBatch=(!o.batch||String(o.batch).trim()==='undefined')?'-':String(o.batch);exportData.push({"등록 일시":formatDt(o.created_at),"발주 구분":dateGroup+" 발주","수령 센터":o.center||"미지정","생두사":o.vendor||"기타 생두사","상품명":cNm,"주문 수량":o.quantity||"0","결제 금액":"","기수":safeBatch,"성함":safeName,"연락처":safePhone});});exportData.sort((a,b)=>{if(a["발주 구분"]!==b["발주 구분"])return a["발주 구분"].localeCompare(b["발주 구분"]);if(a["수령 센터"]!==b["수령 센터"])return a["수령 센터"].localeCompare(b["수령 센터"]);if(a["생두사"]!==b["생두사"])return a["생두사"].localeCompare(b["생두사"]);return a["상품명"].localeCompare(b["상품명"]);});let separatedData=[];let prevCenter=null;exportData.forEach(row=>{if(prevCenter!==null&&prevCenter!==row["수령 센터"])separatedData.push({"등록 일시":"","발주 구분":"","수령 센터":"▼ "+row["수령 센터"]+" ▼","생두사":"","상품명":"","주문 수량":"","결제 금액":"","기수":"","성함":"","연락처":""});separatedData.push(row);prevCenter=row["수령 센터"];});window.currentSummaryData=separatedData;}const modal=$("summaryModal");if(modal)modal.classList.add('show');};
 window.closeSummaryModal=function(){const modal=$("summaryModal");if(modal)modal.classList.remove('show');};
 window.sendToGoogleSheet=async function(){if(!window.currentSummaryData||window.currentSummaryData.length===0){showToast('데이터 없음');return;}const GAS_URL='https://script.google.com/macros/s/AKfycbynlyczuJ5VWzfG5IFOstLzkRybv4Yvjgo9bxDHoUQlK84gAehaTuCNommlmrXuFsJK/exec';const btn=document.getElementById('btn-send-sheet');if(btn){btn.innerText='전송 중...';btn.disabled=true;}try{let uniqueMembers=[...new Set(window.currentSummaryData.map(d=>d['성함']))].filter(name=>name!=="이름없음"&&name!=="");let invoiceData=uniqueMembers.map(name=>{let info=window.currentMemberInfoMap&&window.currentMemberInfoMap[name]?window.currentMemberInfoMap[name]:{phone:'',batch:''};return{"등록 일시":"","발주 구분":"","수령 센터":"","생두사":"","상품명":`[${name}] 님 최종 청구 금액`,"주문 수량":"","결제 금액":`CALC_TOTAL:${name}`,"기수":info.batch,"성함":name,"연락처":info.phone};});let payload=[...window.currentSummaryData,{"등록 일시":"","발주 구분":"","수령 센터":"","생두사":"","상품명":"--- ▼ 멤버별 총 결제 금액 명세서 ▼ ---","주문 수량":"","결제 금액":"","기수":"","성함":"","연락처":""},...invoiceData];await fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});showToast("구글 시트에 명세서와 함께 전송되었습니다.");}catch(e){showToast("전송 오류");}finally{if(btn){btn.innerText='구글 시트 전송';btn.disabled=false;}}};
 
-window.cancelAction=function(table,id){const cancelStatus='관리자 취소';window.openCustomConfirm("일정 취소",null,`이 일정을 <b>관리자 취소</b> 처리하시겠습니까?<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">관리자 취소는 당일 취소 누적에 포함되지 않습니다.</div>`,async()=>{const{error}=await supabaseClient.from(table).update({status:cancelStatus}).eq('id',id);if(error)showToast("취소 처리 실패");else{showToast("관리자 취소 처리되었습니다.");window.fetchCenterData({force:true});}});};
+// ★ 수정: cancelAction → 관리자 취소 (사유 생략, 당일 취소 누적 미포함)
+window.cancelAction=function(table,id){
+    const cancelStatus='관리자 취소';
+    window.openCustomConfirm("일정 취소",null,
+        `이 일정을 <b>관리자 취소</b> 처리하시겠습니까?<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">관리자 취소는 당일 취소 누적에 포함되지 않습니다.</div>`,
+        async()=>{const{error}=await supabaseClient.from(table).update({status:cancelStatus}).eq('id',id);if(error)showToast("취소 처리 실패");else{showToast("관리자 취소 처리되었습니다.");window.fetchCenterData({force:true});}});
+};
 
 window.toggleAllDay=function(checkbox){let blkStart=$("blkStart");let blkEnd=$("blkEnd");if(checkbox.checked){if(blkStart){blkStart.value='00:00';blkStart.disabled=true;blkStart.style.opacity='0.4';}if(blkEnd){blkEnd.value='23:59';blkEnd.disabled=true;blkEnd.style.opacity='0.4';}}else{if(blkStart){blkStart.disabled=false;blkStart.style.opacity='1';if(blkStart.value==='00:00')blkStart.value='09:00';}if(blkEnd){blkEnd.disabled=false;blkEnd.style.opacity='1';if(blkEnd.value==='23:59')blkEnd.value='18:00';}}};
-window.setupBlockModalControls=function(isEdit){let blkStartEl=$("blkStart");let blkEndEl=$("blkEnd");if(blkStartEl&&!document.getElementById('blkAllDayWrap')){let wrap=document.createElement('div');wrap.id='blkAllDayWrap';wrap.innerHTML=`<input type="checkbox" id="blkAllDay" onchange="window.toggleAllDay(this)"><label for="blkAllDay">하루 종일</label>`;let timeContainer=blkStartEl.parentNode;while(timeContainer&&blkEndEl&&!timeContainer.contains(blkEndEl)){timeContainer=timeContainer.parentNode;}if(timeContainer&&timeContainer.parentNode){timeContainer.parentNode.insertBefore(wrap,timeContainer);}else{blkStartEl.parentNode.insertBefore(wrap,blkStartEl);}}let allDayCb=document.getElementById('blkAllDay');if(allDayCb){allDayCb.checked=false;if(blkStartEl){blkStartEl.disabled=false;blkStartEl.style.opacity='1';}if(blkEndEl){blkEndEl.disabled=false;blkEndEl.style.opacity='1';}}let repTypeEl=$("blkRepeatType");if(repTypeEl){let repSection=repTypeEl.parentElement?.parentElement;if(repSection)repSection.style.display=isEdit?'none':'flex';if(!isEdit){repTypeEl.value='none';let repCountEl=$("blkRepeatCount");if(repCountEl)repCountEl.value='';}}if(!document.getElementById('blkBatchWrap')){let blkCapacityEl=$("blkCapacity");if(blkCapacityEl){let batchWrap=document.createElement('div');batchWrap.id='blkBatchWrap';batchWrap.style.cssText='margin-bottom:12px;';batchWrap.innerHTML=`<label class="input-label">대상 기수 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary);">비워두면 전체 기수</span></label><input type="text" id="blkBatch" class="input-search" style="width:100%;box-sizing:border-box;" placeholder="예: 34기" onblur="let v=this.value.trim();if(v&&/^\\d+$/.test(v))this.value=v+'기';">`;let capParent=blkCapacityEl.parentElement;if(capParent&&capParent.parentNode)capParent.parentNode.insertBefore(batchWrap,capParent);}}};
+window.setupBlockModalControls=function(isEdit){
+  let blkStartEl=$("blkStart");let blkEndEl=$("blkEnd");
+  if(blkStartEl&&!document.getElementById('blkAllDayWrap')){let wrap=document.createElement('div');wrap.id='blkAllDayWrap';wrap.innerHTML=`<input type="checkbox" id="blkAllDay" onchange="window.toggleAllDay(this)"><label for="blkAllDay">하루 종일</label>`;let timeContainer=blkStartEl.parentNode;while(timeContainer&&blkEndEl&&!timeContainer.contains(blkEndEl)){timeContainer=timeContainer.parentNode;}if(timeContainer&&timeContainer.parentNode){timeContainer.parentNode.insertBefore(wrap,timeContainer);}else{blkStartEl.parentNode.insertBefore(wrap,blkStartEl);}}
+  let allDayCb=document.getElementById('blkAllDay');
+  if(allDayCb){allDayCb.checked=false;if(blkStartEl){blkStartEl.disabled=false;blkStartEl.style.opacity='1';}if(blkEndEl){blkEndEl.disabled=false;blkEndEl.style.opacity='1';}}
+  let repTypeEl=$("blkRepeatType");
+  if(repTypeEl){let repSection=repTypeEl.parentElement?.parentElement;if(repSection)repSection.style.display=isEdit?'none':'flex';if(!isEdit){repTypeEl.value='none';let repCountEl=$("blkRepeatCount");if(repCountEl)repCountEl.value='';}}
+  if(!document.getElementById('blkBatchWrap')){let blkCapacityEl=$("blkCapacity");if(blkCapacityEl){let batchWrap=document.createElement('div');batchWrap.id='blkBatchWrap';batchWrap.style.cssText='margin-bottom:12px;';batchWrap.innerHTML=`<label class="input-label">대상 기수 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary);">비워두면 전체 기수</span></label><input type="text" id="blkBatch" class="input-search" style="width:100%;box-sizing:border-box;" placeholder="예: 34기" onblur="let v=this.value.trim();if(v&&/^\\d+$/.test(v))this.value=v+'기';">`;let capParent=blkCapacityEl.parentElement;if(capParent&&capParent.parentNode)capParent.parentNode.insertBefore(batchWrap,capParent);}}
+};
 window.updateRepeatPreview=function(){let baseDateStr=$("blkDate")?$("blkDate").value:'';let repType=document.getElementById('blkRepeatType')?document.getElementById('blkRepeatType').value:'none';let repCount=parseInt(document.getElementById('blkRepeatCount')?document.getElementById('blkRepeatCount').value:'4')||4;let preview=document.getElementById('blkRepeatPreview');if(!preview||repType==='none'||!baseDateStr)return;let baseDate=new Date(baseDateStr+'T00:00:00');if(isNaN(baseDate.getTime()))return;let lastDate=new Date(baseDate);if(repType==='weekly')lastDate.setDate(lastDate.getDate()+(repCount-1)*7);else if(repType==='monthly')lastDate.setMonth(lastDate.getMonth()+(repCount-1));let dow=['일','월','화','수','목','금','토'][baseDate.getDay()];let lastStr=`${lastDate.getFullYear()}-${String(lastDate.getMonth()+1).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;preview.style.display='block';preview.innerHTML=`📅 ${baseDateStr}(${dow}) 부터 ${repCount}회 → 마지막: ${lastStr}`;};
 window.openBlockModal=function(dateStr,timeStr){if($("blockModal"))$("blockModal").classList.add('show');if($("blkId"))$("blkId").value='';if($("blkDate"))$("blkDate").value=window.formatBlockDate(dateStr||currentCalDate.toISOString().split('T')[0]);if($("blkStart"))$("blkStart").value=window.formatBlockTime(timeStr||'09:00');if($("blkEnd"))$("blkEnd").value=window.formatBlockTime(timeStr?String(parseInt(timeStr.split(':')[0])+2).padStart(2,'0')+':00':'18:00');if($("blkCategory"))$("blkCategory").value='기본 수업';if($("blkCenter"))$("blkCenter").value=currentGlobalCenter==='전체'?'마포 센터':currentGlobalCenter;if(window.updateSpaceOptions)window.updateSpaceOptions();if($("blkSpace")){$("blkSpace").value='';$("blkSpace").dataset.selectedValues='';}if($("blkReason"))$("blkReason").value='';if($("blkCapacity"))$("blkCapacity").value='';if($("blkBatch"))$("blkBatch").value='';if($("blockModalTitle"))$("blockModalTitle").innerText="신규 스케줄 등록";window.setupBlockModalControls(false);};
 window.editBlock=function(id){let b=gBlk.find(x=>String(x.id)===String(id));if(!b)return;if($("blockModal"))$("blockModal").classList.add('show');if($("blkId"))$("blkId").value=b.id;if($("blkDate"))$("blkDate").value=b.block_date;if($("blkStart"))$("blkStart").value=b.start_time;if($("blkEnd"))$("blkEnd").value=b.end_time;if($("blkCategory"))$("blkCategory").value=b.category;if($("blkCenter"))$("blkCenter").value=b.center||'마포 센터';if(window.updateSpaceOptions)window.updateSpaceOptions();if($("blkSpace")){$("blkSpace").value=b.space_equip||'';$("blkSpace").dataset.selectedValues=b.space_equip||'';}if($("blkReason"))$("blkReason").value=b.reason;if($("blkCapacity"))$("blkCapacity").value=b.capacity===null?'':b.capacity;if($("blkBatch"))$("blkBatch").value=b.target_batch||'';if($("blockModalTitle"))$("blockModalTitle").innerText="스케줄 수정";window.setupBlockModalControls(true);let allDayCb=document.getElementById('blkAllDay');if(allDayCb&&b.start_time==='00:00'&&b.end_time==='23:59'){allDayCb.checked=true;window.toggleAllDay(allDayCb);}};
 window.closeBlockModal=function(){if($("blockModal"))$("blockModal").classList.remove('show');};
 window.isSavingBlock=false;
 
-window.saveBlockData=async function(){if(window.isSavingBlock)return;window.isSavingBlock=true;let id=$("blockId")?$("blockId").value:($("blkId")?$("blkId").value:"");let capVal=$("blkCapacity")?$("blkCapacity").value.trim():"";let batchVal=$("blkBatch")?$("blkBatch").value.trim():"";if(batchVal&&/^\d+$/.test(batchVal))batchVal=batchVal+'기';let spaceVal=$("blkSpace")?$("blkSpace").value.trim():"전체";let baseDateStr=$("blkDate")?$("blkDate").value:"";let startTime=$("blkStart")?$("blkStart").value:"";let endTime=$("blkEnd")?$("blkEnd").value:"";let category=$("blkCategory")?$("blkCategory").value:"수업";let center=$("blkCenter")?$("blkCenter").value:"마포 센터";let reason=$("blkReason")?$("blkReason").value:"";let capacity=capVal===""?null:parseInt(capVal);if(!baseDateStr||!startTime||!endTime||!reason){window.isSavingBlock=false;return showToast("필수 항목을 모두 입력해주세요.");}let repeatType='none';let repeatCount=1;if(!id||id===""){let repTypeEl=document.getElementById('blkRepeatType');let repCountEl=document.getElementById('blkRepeatCount');if(repTypeEl)repeatType=repTypeEl.value||'none';if(repeatType!=='none'&&repCountEl){let parsed=parseInt(repCountEl.value);if(!isNaN(parsed)&&parsed>=1)repeatCount=parsed;}}let payloads=[];let baseDate=new Date(baseDateStr+'T00:00:00');for(let i=0;i<repeatCount;i++){let targetDate=new Date(baseDate);if(repeatType==='weekly')targetDate.setDate(baseDate.getDate()+i*7);else if(repeatType==='monthly')targetDate.setMonth(baseDate.getMonth()+i);let yyyy=targetDate.getFullYear();let mm=String(targetDate.getMonth()+1).padStart(2,'0');let dd=String(targetDate.getDate()).padStart(2,'0');payloads.push({block_date:`${yyyy}-${mm}-${dd}`,start_time:startTime,end_time:endTime,category:category,center:center,space_equip:spaceVal||"전체",reason:reason,capacity:capacity,target_batch:batchVal||null});}let error;let syncResult={updated:0,notified:0};if(id&&id!==""){const oldBlock=gBlk.find(b=>String(b.id)===String(id));const newPayload=payloads[0];const res=await supabaseClient.from('blocks').update(newPayload).eq('id',id);error=res.error;if(!error&&oldBlock){try{const oldContentKey=`[${oldBlock.category}] ${oldBlock.reason}`;const oldTimeRange=`${oldBlock.start_time}~${oldBlock.end_time}`;const newContentKey=`[${newPayload.category}] ${newPayload.reason}`;const newTimeRange=`${newPayload.start_time}~${newPayload.end_time}`;const affected=gTrn.filter(t=>{const cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length<5)return false;return cInfo[0]===oldBlock.block_date&&cInfo[2]===oldTimeRange&&cInfo[3]===oldBlock.center&&cInfo[4]===oldContentKey;});for(const t of affected){const cInfo=String(t.content||'').split('||').map(s=>s.trim());cInfo[0]=newPayload.block_date;cInfo[2]=newTimeRange;cInfo[3]=newPayload.center;cInfo[4]=newContentKey;const newContent=cInfo.join(' || ');await supabaseClient.from('trainings').update({content:newContent}).eq('id',t.id);}syncResult.updated=affected.length;const changes=[];if(oldBlock.block_date!==newPayload.block_date)changes.push(`날짜: ${oldBlock.block_date} → ${newPayload.block_date}`);if(oldTimeRange!==newTimeRange)changes.push(`시간: ${oldTimeRange} → ${newTimeRange}`);if(oldBlock.center!==newPayload.center)changes.push(`센터: ${oldBlock.center} → ${newPayload.center}`);if((oldBlock.space_equip||'전체')!==(newPayload.space_equip||'전체'))changes.push(`공간/장비: ${oldBlock.space_equip||'전체'} → ${newPayload.space_equip||'전체'}`);if(oldBlock.reason!==newPayload.reason)changes.push(`상세 내용: ${oldBlock.reason} → ${newPayload.reason}`);const activeAffected=affected.filter(t=>!String(t.status||'').includes('취소'));if(activeAffected.length>0&&changes.length>0){const changeText=changes.join('\n');const notifications=activeAffected.map(t=>({member_phone:t.phone,member_name:t.name,title:'신청하신 수업/훈련 정보가 변경되었습니다',message:`${t.name}님이 신청하신 [${oldBlock.reason}]의 정보가 다음과 같이 변경되었습니다.\n\n${changeText}\n\n일정 확인 후 참여가 어려울 경우 취소 요청드립니다.`,related_type:'training_change',related_id:String(id)}));const notifRes=await supabaseClient.from('member_notifications').insert(notifications);if(!notifRes.error)syncResult.notified=activeAffected.length;}}catch(syncErr){console.warn('Sync error:',syncErr);}}}else{const res=await supabaseClient.from('blocks').insert(payloads);error=res.error;}window.isSavingBlock=false;if(error){showToast("저장 실패");console.error(error);}else{let msg=payloads.length>1?`${payloads.length}개의 스케줄이 등록되었습니다.`:"저장되었습니다.";if(syncResult.updated>0){msg=`저장 완료. 신청자 ${syncResult.updated}명의 정보가 함께 업데이트되었습니다${syncResult.notified>0?` (${syncResult.notified}명에게 알림 발송)`:''}.`;}showToast(msg);window.closeBlockModal();window.fetchCenterData({force:true});}};
+window.saveBlockData=async function(){
+    if(window.isSavingBlock)return;window.isSavingBlock=true;
+    let id=$("blockId")?$("blockId").value:($("blkId")?$("blkId").value:"");
+    let capVal=$("blkCapacity")?$("blkCapacity").value.trim():"";
+    let batchVal=$("blkBatch")?$("blkBatch").value.trim():"";
+    if(batchVal&&/^\d+$/.test(batchVal))batchVal=batchVal+'기';
+    let spaceVal=$("blkSpace")?$("blkSpace").value.trim():"전체";
+    let baseDateStr=$("blkDate")?$("blkDate").value:"";
+    let startTime=$("blkStart")?$("blkStart").value:"";
+    let endTime=$("blkEnd")?$("blkEnd").value:"";
+    let category=$("blkCategory")?$("blkCategory").value:"수업";
+    let center=$("blkCenter")?$("blkCenter").value:"마포 센터";
+    let reason=$("blkReason")?$("blkReason").value:"";
+    let capacity=capVal===""?null:parseInt(capVal);
+    if(!baseDateStr||!startTime||!endTime||!reason){window.isSavingBlock=false;return showToast("필수 항목을 모두 입력해주세요.");}
+    let repeatType='none';let repeatCount=1;
+    if(!id||id===""){let repTypeEl=document.getElementById('blkRepeatType');let repCountEl=document.getElementById('blkRepeatCount');if(repTypeEl)repeatType=repTypeEl.value||'none';if(repeatType!=='none'&&repCountEl){let parsed=parseInt(repCountEl.value);if(!isNaN(parsed)&&parsed>=1)repeatCount=parsed;}}
+    let payloads=[];let baseDate=new Date(baseDateStr+'T00:00:00');
+    for(let i=0;i<repeatCount;i++){let targetDate=new Date(baseDate);if(repeatType==='weekly')targetDate.setDate(baseDate.getDate()+i*7);else if(repeatType==='monthly')targetDate.setMonth(baseDate.getMonth()+i);let yyyy=targetDate.getFullYear();let mm=String(targetDate.getMonth()+1).padStart(2,'0');let dd=String(targetDate.getDate()).padStart(2,'0');payloads.push({block_date:`${yyyy}-${mm}-${dd}`,start_time:startTime,end_time:endTime,category:category,center:center,space_equip:spaceVal||"전체",reason:reason,capacity:capacity,target_batch:batchVal||null});}
+    let error;let syncResult={updated:0,notified:0};
+    if(id&&id!==""){
+        const oldBlock=gBlk.find(b=>String(b.id)===String(id));const newPayload=payloads[0];const res=await supabaseClient.from('blocks').update(newPayload).eq('id',id);error=res.error;
+        if(!error&&oldBlock){try{const oldContentKey=`[${oldBlock.category}] ${oldBlock.reason}`;const oldTimeRange=`${oldBlock.start_time}~${oldBlock.end_time}`;const newContentKey=`[${newPayload.category}] ${newPayload.reason}`;const newTimeRange=`${newPayload.start_time}~${newPayload.end_time}`;const affected=gTrn.filter(t=>{const cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length<5)return false;return cInfo[0]===oldBlock.block_date&&cInfo[2]===oldTimeRange&&cInfo[3]===oldBlock.center&&cInfo[4]===oldContentKey;});for(const t of affected){const cInfo=String(t.content||'').split('||').map(s=>s.trim());cInfo[0]=newPayload.block_date;cInfo[2]=newTimeRange;cInfo[3]=newPayload.center;cInfo[4]=newContentKey;const newContent=cInfo.join(' || ');await supabaseClient.from('trainings').update({content:newContent}).eq('id',t.id);}syncResult.updated=affected.length;const changes=[];if(oldBlock.block_date!==newPayload.block_date)changes.push(`날짜: ${oldBlock.block_date} → ${newPayload.block_date}`);if(oldTimeRange!==newTimeRange)changes.push(`시간: ${oldTimeRange} → ${newTimeRange}`);if(oldBlock.center!==newPayload.center)changes.push(`센터: ${oldBlock.center} → ${newPayload.center}`);if((oldBlock.space_equip||'전체')!==(newPayload.space_equip||'전체'))changes.push(`공간/장비: ${oldBlock.space_equip||'전체'} → ${newPayload.space_equip||'전체'}`);if(oldBlock.reason!==newPayload.reason)changes.push(`상세 내용: ${oldBlock.reason} → ${newPayload.reason}`);const activeAffected=affected.filter(t=>!String(t.status||'').includes('취소'));if(activeAffected.length>0&&changes.length>0){const changeText=changes.join('\n');const notifications=activeAffected.map(t=>({member_phone:t.phone,member_name:t.name,title:'신청하신 수업/훈련 정보가 변경되었습니다',message:`${t.name}님이 신청하신 [${oldBlock.reason}]의 정보가 다음과 같이 변경되었습니다.\n\n${changeText}\n\n일정 확인 후 참여가 어려울 경우 취소 요청드립니다.`,related_type:'training_change',related_id:String(id)}));const notifRes=await supabaseClient.from('member_notifications').insert(notifications);if(!notifRes.error)syncResult.notified=activeAffected.length;}}catch(syncErr){console.warn('Sync error:',syncErr);}}
+    }else{const res=await supabaseClient.from('blocks').insert(payloads);error=res.error;}
+    window.isSavingBlock=false;
+    if(error){showToast("저장 실패");console.error(error);}
+    else{let msg=payloads.length>1?`${payloads.length}개의 스케줄이 등록되었습니다.`:"저장되었습니다.";if(syncResult.updated>0){msg=`저장 완료. 신청자 ${syncResult.updated}명의 정보가 함께 업데이트되었습니다${syncResult.notified>0?` (${syncResult.notified}명에게 알림 발송)`:''}.`;}showToast(msg);window.closeBlockModal();window.fetchCenterData({force:true});}
+};
 
 window.deleteBlock=function(id){window.openCustomConfirm("스케줄 삭제",null,"이 스케줄을 삭제하시겠습니까?",async()=>{const{error}=await supabaseClient.from('blocks').delete().eq('id',id);if(error)showToast("삭제 실패");else{showToast("삭제되었습니다.");window.fetchCenterData({force:true});}});};
 
@@ -1413,231 +1495,253 @@ window.deleteNotice=function(id){window.openCustomConfirm("공지사항 삭제",
 
 window.renderMCalCenter=function(selDate){$$$("#m-cal-strip-center .m-cal-date").forEach(el=>el.classList.remove('active'));let target=document.getElementById(`m-date-center-${selDate}`);if(target){target.classList.add('active');try{target.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}catch(e){}}let evts=window.centerCalEvts&&window.centerCalEvts[selDate]?window.centerCalEvts[selDate]:[];evts.sort((a,b)=>String(a.start||'').localeCompare(String(b.start||'')));let html='';if(evts.length===0){html=`<div class="empty-state" style="padding:40px 0;">예정된 스케줄이 없습니다.</div>`;}else{evts.forEach(e=>{let timeStr=e.time||'종일';html+=`<div class="m-cal-card" style="align-items:flex-start;text-align:left;width:100%;box-sizing:border-box;"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary);font-weight:800;font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px;color:var(--text-secondary);margin-top:0;width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;});}let listWrap=$("m-cal-list-center");if(listWrap)listWrap.innerHTML=html;};
 
-window.saveCrmStatus=async function(){if(!$("crmAppId"))return;const id=$("crmAppId").value;const newStatus=$("crmStatusSelect")?$("crmStatusSelect").value:'';if(!newStatus){showToast("상태를 선택해주세요.");return;}const app=globalApps.find(a=>String(a.id)===String(id));if(!app){showToast("신청 정보를 찾을 수 없습니다.");return;}const prevStatus=app.join_status||'';if(prevStatus===newStatus){showToast("동일한 상태입니다.");return;}await window.updateAppStatus(id,'join_status',newStatus,$("crmStatusSelect"));window.renderCrmInner(id,isCrmReadOnly);};
+// ★ 신규 함수 1: CRM 모달 하단 상태 변경 핸들러
+window.saveCrmStatus=async function(){
+    if(!$("crmAppId"))return;
+    const id=$("crmAppId").value;
+    const newStatus=$("crmStatusSelect")?$("crmStatusSelect").value:'';
+    if(!newStatus){showToast("상태를 선택해주세요.");return;}
+    const app=globalApps.find(a=>String(a.id)===String(id));
+    if(!app){showToast("신청 정보를 찾을 수 없습니다.");return;}
+    const prevStatus=app.join_status||'';
+    if(prevStatus===newStatus){showToast("동일한 상태입니다.");return;}
+    await window.updateAppStatus(id,'join_status',newStatus,$("crmStatusSelect"));
+    window.renderCrmInner(id,isCrmReadOnly);
+};
 
-window.showInvoiceModal=async function(){let modal=document.getElementById('invoiceModal');if(!modal){modal=document.createElement('div');modal.id='invoiceModal';modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:99990;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';modal.innerHTML=`<div style="background:#fff;border-radius:20px;width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.15);overflow:hidden;"><div style="padding:24px 28px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f0f0f0;"><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:20px;font-weight:900;color:#111;letter-spacing:-0.5px;">멤버별 청구 명세서</span><i class="info-tooltip long-text" data-tippy="멤버별 주문 건의 발주일, 수령 센터, 결제 금액, 입금 현황을 확인하고 관리합니다. 금액·상태 변경 시 담당 근무자가 자동 기록됩니다. 입금 확인·센터 도착·취소·품절 건은 자동 정리되며, 데이터는 서버에 보관됩니다. 주문 리스트에서 체크한 건이 있으면 해당 건만 표시됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">i</i></div><button onclick="window.closeInvoiceModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;line-height:1;padding:4px;">✕</button></div><div id="invoiceModalBody" style="flex:1;overflow-y:auto;padding:20px 28px;background:#fafafa;"></div><div id="invoiceModalFooter" style="padding:16px 28px 20px;background:#fff;border-top:1px solid #f0f0f0;"></div></div>`;document.body.appendChild(modal);}let body=document.getElementById('invoiceModalBody');let footer=document.getElementById('invoiceModalFooter');body.innerHTML='<div style="text-align:center;padding:60px 0;color:#aaa;font-weight:600;">불러오는 중...</div>';footer.innerHTML='';modal.style.display='flex';let checkedBoxes=document.querySelectorAll('.chk-ord:checked, input[type="checkbox"][class*="chk-ord-dyn-"]:checked');let checkedIds=Array.from(checkedBoxes).map(cb=>String(cb.value)).filter(val=>val!=="on");let activeOrders=gOrd.filter(o=>{let st=o.status||'';if(!['주문 접수','입금 대기','입금 확인 중'].includes(st))return false;if(checkedIds.length>0)return checkedIds.includes(String(o.id));return(currentGlobalCenter==='전체'||o.center===currentGlobalCenter);});if(activeOrders.length===0){body.innerHTML='<div style="text-align:center;padding:80px 0;color:#bbb;font-size:15px;font-weight:600;">표시할 주문 내역이 없습니다.</div>';footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;return;}let orderIds=activeOrders.map(o=>String(o.id));let allLogs={};try{const{data:logs}=await supabaseClient.from('invoice_logs').select('*').in('order_id',orderIds).eq('action','price_changed').order('created_at',{ascending:true});if(logs)logs.forEach(log=>{if(!allLogs[log.order_id])allLogs[log.order_id]=[];allLogs[log.order_id].push(log);});}catch(e){}let members={};activeOrders.forEach(o=>{let name=o.name||'이름없음';let deliveryLabel=window.formatDeliveryDateFull(o.delivery_date);let center=o.center||'미지정';let groupKey=`${deliveryLabel}__${center}`;if(!members[name])members[name]={batch:o.batch||'-',phone:o.phone||'-',groups:{}};if(!members[name].groups[groupKey])members[name].groups[groupKey]={deliveryLabel,center,items:[]};let cNm=o.item_name||'';let m=String(cNm).match(/(.+) \[(?:희望:\s*)?(\d+)[\/\.](\d+).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}let logs=allLogs[String(o.id)]||[];let latestLog=logs.length>0?logs[logs.length-1]:null;members[name].groups[groupKey].items.push({vendor:o.vendor||'',itemName:cNm,quantity:o.quantity||'',price:o.total_price||'',status:o.status||'주문 접수',enteredBy:latestLog?latestLog.performed_by:'',enteredAt:latestLog?formatDt(latestLog.created_at):'',logs:logs,hasEdits:logs.length>1,orderId:String(o.id)});});let html='';let firstNoLog=true;Object.entries(members).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([name,data])=>{let memberTotal=0,enteredCount=0,totalCount=0;let itemsHtml='';Object.values(data.groups).forEach(group=>{itemsHtml+=`<div style="padding:4px 0 8px;"><div style="font-size:11px;font-weight:700;color:#ff7900;background:#fff7f0;padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:6px;">${group.deliveryLabel} · ${group.center}</div>`;group.items.forEach(item=>{totalCount++;let amt=parseInt(String(item.price||'0').replace(/[^0-9]/g,''))||0;memberTotal+=amt;let hasValidPrice=amt>0;if(hasValidPrice)enteredCount++;let rawAmt=String(item.price||'').replace(/[^0-9]/g,'');let displayPrice=hasValidPrice?comma(rawAmt)+'원':'';let priceStr=`<input type="text" value="${displayPrice}" placeholder="금액 입력" style="width:100px;font-size:13px;font-weight:600;color:${hasValidPrice?'#111':'#aaa'};text-align:right;border:1px solid var(--border-strong);border-radius:6px;padding:6px 10px;outline:none;background:#fff;height:34px;box-sizing:border-box;" onfocus="this.style.borderColor='var(--primary)';this.select();" onblur="this.style.borderColor='var(--border-strong)';window.handleInvoicePriceInput('${item.orderId}',this.value,this)">`;let stOpts=['주문 접수','입금 대기','입금 확인 중','입금 확인'].map(s=>`<option value="${s}" ${item.status===s?'selected':''}>${s}</option>`).join('');let stClass=item.status==='입금 확인'?'st-confirmed':(item.status==='입금 대기'||item.status==='입금 확인 중')?'st-arranging':'st-wait';let metaHtml='';if(item.enteredBy){metaHtml=`<span style="color:#aaa;">${window.getAdminName(item.enteredBy)} · ${item.enteredAt}</span>`;}else if(hasValidPrice){metaHtml=`<span style="color:#ccc;">기록 없음${firstNoLog?(firstNoLog=false,' <i class="info-tooltip" data-tippy="시스템 업데이트 이전 입력분은 기록이 없습니다. 이후 변경 건부터 자동 기록됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()" style="font-size:10px;vertical-align:middle;">i</i>'):''}</span>`;}let editToggle='';if(item.hasEdits){let logId='lg-'+item.orderId;let logCards=item.logs.map(l=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;color:#888;border-bottom:1px solid #f5f5f5;"><span>${formatDt(l.created_at)}</span><span>${window.getAdminName(l.performed_by)}</span><span>${l.old_value||'—'} → ${l.new_value}</span></div>`).join('');editToggle=`<span style="color:#ff7900;cursor:pointer;font-weight:700;margin-left:6px;" onclick="let e=document.getElementById('${logId}');e.style.display=e.style.display==='none'?'block':'none';">이력${item.logs.length}</span><div id="${logId}" style="display:none;margin-top:4px;padding:8px 10px;background:#fafafa;border-radius:8px;border:1px solid #f0f0f0;">${logCards}</div>`;}itemsHtml+=`<div style="padding:10px 0;border-bottom:1px solid #f5f5f5;"><div style="font-size:13px;line-height:1.5;margin-bottom:6px;"><span style="color:#999;font-size:12px;">${window.escapeHtml(item.vendor)}</span> <span style="color:#bbb;margin:0 4px;">|</span> <span style="color:#111;font-weight:600;">${window.escapeHtml(item.itemName)}</span> <span style="color:#999;font-weight:500;margin-left:4px;">${item.quantity}</span></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">${priceStr}<select class="status-select ${stClass}" style="font-size:12px;padding:6px 24px 6px 10px;border-radius:6px;height:34px;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select></div><div style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;">${metaHtml}${editToggle}</div></div>`;});itemsHtml+=`</div>`;});let unenteredCount=totalCount-enteredCount;let statusBadge=unenteredCount>0?`<span style="font-size:11px;color:#ef4444;font-weight:700;">${totalCount}건 중 ${unenteredCount}건 미입력</span>`:`<span style="font-size:11px;color:#22c55e;font-weight:700;">전체 입력 완료</span>`;let totalStr=memberTotal>0?memberTotal.toLocaleString()+'원':'—';html+=`<div style="background:#fff;border-radius:16px;border:1px solid #eee;margin-bottom:12px;overflow:hidden;"><div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #f0f0f0;border-left:4px solid #ff7900;"><div><span style="font-weight:800;font-size:15px;color:#111;">${data.batch} ${window.escapeHtml(name)}</span> <span style="font-size:12px;color:#bbb;margin-left:4px;">${window.escapeHtml(data.phone)}</span></div><div style="text-align:right;"><div style="font-size:18px;font-weight:900;color:#111;">${totalStr}</div>${statusBadge}</div></div><div style="padding:8px 16px 12px;">${itemsHtml}</div></div>`;});body.innerHTML=html;window._invoiceMainHtml=html;footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;};
+
+
+// ── 명세서 (디자인 리뉴얼 — 밀집 레이아웃 + 카드형 이력) ──
+window.showInvoiceModal=async function(){
+    let modal=document.getElementById('invoiceModal');
+    if(!modal){
+        modal=document.createElement('div');modal.id='invoiceModal';
+        modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);z-index:99990;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+        modal.innerHTML=`<div style="background:#fff;border-radius:20px;width:100%;max-width:720px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.15);overflow:hidden;">
+            <div style="padding:24px 28px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f0f0f0;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span style="font-size:20px;font-weight:900;color:#111;letter-spacing:-0.5px;">멤버별 청구 명세서</span>
+                    <i class="info-tooltip long-text" data-tippy="멤버별 주문 건의 발주일, 수령 센터, 결제 금액, 입금 현황을 확인하고 관리합니다. 금액·상태 변경 시 담당 근무자가 자동 기록됩니다. 입금 확인·센터 도착·취소·품절 건은 자동 정리되며, 데이터는 서버에 보관됩니다. 주문 리스트에서 체크한 건이 있으면 해당 건만 표시됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">i</i>
+                </div>
+                <button onclick="window.closeInvoiceModal()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;line-height:1;padding:4px;">✕</button>
+            </div>
+            <div id="invoiceModalBody" style="flex:1;overflow-y:auto;padding:20px 28px;background:#fafafa;"></div>
+            <div id="invoiceModalFooter" style="padding:16px 28px 20px;background:#fff;border-top:1px solid #f0f0f0;"></div>
+        </div>`;
+        document.body.appendChild(modal);
+    }
+    let body=document.getElementById('invoiceModalBody');
+    let footer=document.getElementById('invoiceModalFooter');
+    body.innerHTML='<div style="text-align:center;padding:60px 0;color:#aaa;font-weight:600;">불러오는 중...</div>';
+    footer.innerHTML='';
+    modal.style.display='flex';
+
+    let checkedBoxes=document.querySelectorAll('.chk-ord:checked, input[type="checkbox"][class*="chk-ord-dyn-"]:checked');
+    let checkedIds=Array.from(checkedBoxes).map(cb=>String(cb.value)).filter(val=>val!=="on");
+    let activeOrders=gOrd.filter(o=>{
+        let st=o.status||'';
+        if(!['주문 접수','입금 대기','입금 확인 중'].includes(st))return false;
+        if(checkedIds.length>0)return checkedIds.includes(String(o.id));
+        return(currentGlobalCenter==='전체'||o.center===currentGlobalCenter);
+    });
+
+    if(activeOrders.length===0){body.innerHTML='<div style="text-align:center;padding:80px 0;color:#bbb;font-size:15px;font-weight:600;">표시할 주문 내역이 없습니다.</div>';footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;return;}
+
+    let orderIds=activeOrders.map(o=>String(o.id));
+    let allLogs={};
+    try{
+        const{data:logs}=await supabaseClient.from('invoice_logs').select('*').in('order_id',orderIds).eq('action','price_changed').order('created_at',{ascending:true});
+        if(logs)logs.forEach(log=>{if(!allLogs[log.order_id])allLogs[log.order_id]=[];allLogs[log.order_id].push(log);});
+    }catch(e){}
+
+    let members={};
+    activeOrders.forEach(o=>{
+        let name=o.name||'이름없음';
+        let deliveryLabel=window.formatDeliveryDateFull(o.delivery_date);
+        let center=o.center||'미지정';
+        let groupKey=`${deliveryLabel}__${center}`;
+        if(!members[name])members[name]={batch:o.batch||'-',phone:o.phone||'-',groups:{}};
+        if(!members[name].groups[groupKey])members[name].groups[groupKey]={deliveryLabel,center,items:[]};
+        let cNm=o.item_name||'';let m=String(cNm).match(/(.+) \[(?:희望:\s*)?(\d+)[\/\.](\d+).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}
+        let logs=allLogs[String(o.id)]||[];
+        let latestLog=logs.length>0?logs[logs.length-1]:null;
+        members[name].groups[groupKey].items.push({
+            vendor:o.vendor||'',itemName:cNm,quantity:o.quantity||'',price:o.total_price||'',status:o.status||'주문 접수',
+            enteredBy:latestLog?latestLog.performed_by:'',enteredAt:latestLog?formatDt(latestLog.created_at):'',
+            logs:logs,hasEdits:logs.length>1,orderId:String(o.id)
+        });
+    });
+
+    let html='';let firstNoLog=true;
+    Object.entries(members).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([name,data])=>{
+        let memberTotal=0,enteredCount=0,totalCount=0;
+        let itemsHtml='';
+
+        Object.values(data.groups).forEach(group=>{
+            itemsHtml+=`<div style="padding:4px 0 8px;"><div style="font-size:11px;font-weight:700;color:#ff7900;background:#fff7f0;padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:6px;">${group.deliveryLabel} · ${group.center}</div>`;
+            group.items.forEach(item=>{
+                totalCount++;
+                let amt=parseInt(String(item.price||'0').replace(/[^0-9]/g,''))||0;
+                memberTotal+=amt;
+                let hasValidPrice=amt>0;
+                if(hasValidPrice)enteredCount++;
+
+                let rawAmt=String(item.price||'').replace(/[^0-9]/g,'');
+                let displayPrice=hasValidPrice?comma(rawAmt)+'원':'';
+                let priceStr=`<input type="text" value="${displayPrice}" placeholder="금액 입력" style="width:100px;font-size:13px;font-weight:600;color:${hasValidPrice?'#111':'#aaa'};text-align:right;border:1px solid var(--border-strong);border-radius:6px;padding:6px 10px;outline:none;background:#fff;height:34px;box-sizing:border-box;" onfocus="this.style.borderColor='var(--primary)';this.select();" onblur="this.style.borderColor='var(--border-strong)';window.handleInvoicePriceInput('${item.orderId}',this.value,this)">`;
+                let stOpts=['주문 접수','입금 대기','입금 확인 중','입금 확인'].map(s=>`<option value="${s}" ${item.status===s?'selected':''}>${s}</option>`).join('');
+                let stClass=item.status==='입금 확인'?'st-confirmed':(item.status==='입금 대기'||item.status==='입금 확인 중')?'st-arranging':'st-wait';
+
+                let metaHtml='';
+                if(item.enteredBy){metaHtml=`<span style="color:#aaa;">${window.getAdminName(item.enteredBy)} · ${item.enteredAt}</span>`;}
+                else if(hasValidPrice){metaHtml=`<span style="color:#ccc;">기록 없음${firstNoLog?(firstNoLog=false,' <i class="info-tooltip" data-tippy="시스템 업데이트 이전 입력분은 기록이 없습니다. 이후 변경 건부터 자동 기록됩니다." onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()" style="font-size:10px;vertical-align:middle;">i</i>'):''}</span>`;}
+
+                let editToggle='';
+                if(item.hasEdits){
+                    let logId='lg-'+item.orderId;
+                    let logCards=item.logs.map(l=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;color:#888;border-bottom:1px solid #f5f5f5;"><span>${formatDt(l.created_at)}</span><span>${window.getAdminName(l.performed_by)}</span><span>${l.old_value||'—'} → ${l.new_value}</span></div>`).join('');
+                    editToggle=`<span style="color:#ff7900;cursor:pointer;font-weight:700;margin-left:6px;" onclick="let e=document.getElementById('${logId}');e.style.display=e.style.display==='none'?'block':'none';">이력${item.logs.length}</span><div id="${logId}" style="display:none;margin-top:4px;padding:8px 10px;background:#fafafa;border-radius:8px;border:1px solid #f0f0f0;">${logCards}</div>`;
+                }
+
+                itemsHtml+=`<div style="padding:10px 0;border-bottom:1px solid #f5f5f5;">
+                    <div style="font-size:13px;line-height:1.5;margin-bottom:6px;"><span style="color:#999;font-size:12px;">${window.escapeHtml(item.vendor)}</span> <span style="color:#bbb;margin:0 4px;">|</span> <span style="color:#111;font-weight:600;">${window.escapeHtml(item.itemName)}</span> <span style="color:#999;font-weight:500;margin-left:4px;">${item.quantity}</span></div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        ${priceStr}
+                        <select class="status-select ${stClass}" style="font-size:12px;padding:6px 24px 6px 10px;border-radius:6px;height:34px;" onchange="window.handleInvoiceStatusChange('${item.orderId}',this.value,this)">${stOpts}</select>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:4px;margin-top:3px;font-size:11px;">${metaHtml}${editToggle}</div>
+                </div>`;
+            });
+            itemsHtml+=`</div>`;
+        });
+
+        let unenteredCount=totalCount-enteredCount;
+        let statusBadge=unenteredCount>0
+            ?`<span style="font-size:11px;color:#ef4444;font-weight:700;">${totalCount}건 중 ${unenteredCount}건 미입력</span>`
+            :`<span style="font-size:11px;color:#22c55e;font-weight:700;">전체 입력 완료</span>`;
+        let totalStr=memberTotal>0?memberTotal.toLocaleString()+'원':'—';
+
+        html+=`<div style="background:#fff;border-radius:16px;border:1px solid #eee;margin-bottom:12px;overflow:hidden;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #f0f0f0;border-left:4px solid #ff7900;">
+                <div><span style="font-weight:800;font-size:15px;color:#111;">${data.batch} ${window.escapeHtml(name)}</span> <span style="font-size:12px;color:#bbb;margin-left:4px;">${window.escapeHtml(data.phone)}</span></div>
+                <div style="text-align:right;"><div style="font-size:18px;font-weight:900;color:#111;">${totalStr}</div>${statusBadge}</div>
+            </div>
+            <div style="padding:8px 16px 12px;">${itemsHtml}</div>
+        </div>`;
+    });
+
+    body.innerHTML=html;
+    window._invoiceMainHtml=html;
+    footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
+};
 
 window.closeInvoiceModal=function(){let modal=document.getElementById('invoiceModal');if(modal)modal.style.display='none';};
-window.handleInvoiceStatusChange=async function(orderId,newValue,selectEl){let order=gOrd.find(o=>String(o.id)===String(orderId));if(!order)return;let oldStatus=order.status||'주문 접수';if(oldStatus===newValue)return;const{error}=await supabaseClient.from('orders').update({status:newValue}).eq('id',orderId);if(error){showToast("변경 실패");selectEl.value=oldStatus;return;}try{await supabaseClient.from('invoice_logs').insert([{order_id:String(orderId),action:'status_changed',field_name:'status',old_value:oldStatus,new_value:newValue,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}order.status=newValue;showToast(`[${newValue}] 변경 완료`);if(newValue==='입금 확인'){showToast('입금 확인 — 명세서에서 제외됩니다.');setTimeout(()=>window.showInvoiceModal(),600);}window.fetchCenterData({force:true});};
-window.handleInvoicePriceInput=async function(orderId,val,inputEl){let numOnly=String(val).replace(/[^0-9]/g,'');let formatted=numOnly?comma(numOnly)+'원':'';let order=gOrd.find(o=>String(o.id)===String(orderId));if(!order)return;let oldPrice=order.total_price||'';if(oldPrice===formatted){inputEl.value=formatted;return;}let updates={total_price:formatted};let newStatus=order.status;if(numOnly&&order.status==='주문 접수'){updates.status='입금 대기';newStatus='입금 대기';}order.total_price=formatted;order.status=newStatus;inputEl.value=formatted;inputEl.style.color=formatted?'#111':'#ccc';inputEl.style.borderColor='#e5e5e5';inputEl.style.background=formatted?'#fff':'#fff5f5';await supabaseClient.from('orders').update(updates).eq('id',orderId);if(oldPrice!==formatted){try{await supabaseClient.from('invoice_logs').insert([{order_id:String(orderId),action:'price_changed',field_name:'total_price',old_value:oldPrice,new_value:formatted,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}}showToast('저장되었습니다.');window.fetchCenterData({force:true});};
-window.showInvoiceLogs=async function(){let body=document.getElementById('invoiceModalBody');let footer=document.getElementById('invoiceModalFooter');if(!body)return;body.innerHTML='<div style="text-align:center;padding:60px 0;color:#aaa;">이력을 불러오는 중...</div>';footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;try{const{data,error}=await supabaseClient.from('invoice_logs').select('*').in('action',['price_changed','status_changed']).order('created_at',{ascending:false}).limit(500);if(error||!data||data.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}let activeIds=new Set(gOrd.map(o=>String(o.id)));let filtered=data.filter(log=>activeIds.has(String(log.order_id)));if(filtered.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}let cards=filtered.map(log=>{let isPrice=log.action==='price_changed';let badgeColor=isPrice?'#ff7900':'#2563eb';let badgeBg=isPrice?'#fff7f0':'#eff6ff';let badgeText=isPrice?'금액':'결제';let order=gOrd.find(o=>String(o.id)===String(log.order_id));let vendor=order?order.vendor||'':'';let itemName=order?(order.item_name||'').replace(/\s*\[.*?\]\s*$/,''):'';let qty=order?order.quantity||'':'';return `<div style="padding:16px 20px;background:#fff;border:1px solid #eee;border-radius:14px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:3px 10px;border-radius:6px;">${badgeText}</span><span style="font-weight:800;font-size:16px;color:#111;">${window.escapeHtml(log.target_member||'-')}</span></div><span style="font-size:12px;color:#999;">${formatDt(log.created_at)}</span></div>${itemName?`<div style="font-size:14px;margin-bottom:10px;line-height:1.4;"><span style="color:#999;">${window.escapeHtml(vendor)}</span> <span style="color:#ccc;">|</span> <span style="color:#333;font-weight:600;">${window.escapeHtml(itemName)}</span>${qty?` <span style="color:#999;">${qty}</span>`:''}</div>`:''}<div style="background:#f9fafb;padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;"><div style="font-size:14px;"><span style="color:#aaa;">${window.escapeHtml(log.old_value||'—')}</span> <span style="color:#ccc;font-weight:600;">→</span> <span style="font-weight:800;color:#111;font-size:15px;">${window.escapeHtml(log.new_value||'—')}</span></div><span style="font-size:11px;color:#aaa;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</span></div></div>`;}).join('');body.innerHTML=`<div style="margin-bottom:16px;"><span style="font-size:18px;font-weight:900;color:#111;">전체 변경 이력</span></div>${cards}`;}catch(e){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#ef4444;">이력 조회 실패</div>';console.error(e);}};
-window.restoreInvoiceMain=function(){let body=document.getElementById('invoiceModalBody');let footer=document.getElementById('invoiceModalFooter');if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;if(footer)footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;};
-window.ensureInvoiceButton=function(){if(document.getElementById('invoiceBtn'))return;let btns=document.querySelectorAll('button,.btn');let summaryBtn=Array.from(btns).find(b=>b.textContent.includes('발주 요약'));if(summaryBtn&&summaryBtn.parentNode){let wrapper=document.createElement('div');wrapper.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';summaryBtn.parentNode.insertBefore(wrapper,summaryBtn);wrapper.appendChild(summaryBtn);let invoiceBtn=document.createElement('button');invoiceBtn.id='invoiceBtn';invoiceBtn.style.cssText='padding:10px 16px;font-size:14px;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;transition:0.15s;white-space:nowrap;height:38px;display:inline-flex;align-items:center;justify-content:center;';invoiceBtn.textContent='명세서';invoiceBtn.onmouseover=function(){this.style.opacity='0.9';};invoiceBtn.onmouseout=function(){this.style.opacity='1';};invoiceBtn.onclick=function(){window.showInvoiceModal();};wrapper.appendChild(invoiceBtn);}};
 
-
-window.renderStatistics = function(data) {
-    if (!$("statsContainer")) return;
-    const container = $("statsContainer");
-    container.innerHTML = '';
-    // ★ HTML 클래스 충돌 방지 (insight-grid-2 제거)
-    container.className = '';
-    container.style.cssText = 'margin-bottom:40px;';
-    if (data.length === 0) {
-        if ($("insightSummaryText")) $("insightSummaryText").innerHTML = "<div style='padding:16px;'>데이터가 부족합니다.</div>";
-        return;
-    }
-    if (!document.getElementById('wc-insight-anim')) {
-        const s = document.createElement('style');
-        s.id = 'wc-insight-anim';
-        s.textContent = `
-@keyframes wcFadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@keyframes wcScaleX{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-.wc-fade{animation:wcFadeUp 0.4s ease forwards;opacity:0;}
-.wc-bar{transform-origin:left;transform:scaleX(0);animation:wcScaleX 0.7s cubic-bezier(0.22,1,0.36,1) forwards;}
-.ins-num-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
-.ins-2col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
-.ins-4col{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
-.ins-card{background:#fff;border:1px solid var(--border-strong);border-radius:14px;padding:20px 22px;}
-.ins-label{font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:6px;}
-.ins-num{font-size:30px;font-weight:900;line-height:1;letter-spacing:-1px;color:var(--text-display);}
-.ins-bar-bg{background:#f2f4f6;height:8px;border-radius:4px;overflow:hidden;margin-top:6px;}
-.ins-bar-fill{height:100%;border-radius:4px;}
-.ins-row-item{margin-bottom:10px;}
-.ins-row-item:last-child{margin-bottom:0;}
-.ins-row-label{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:4px;}
-.ins-sub-item{padding-left:12px;margin-top:4px;}
-.ins-sub-label{display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:3px;}
-.ins-funnel-step{margin-bottom:16px;}
-.ins-funnel-step:last-child{margin-bottom:0;}
-.ins-funnel-label-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
-.ins-funnel-name{font-size:13px;font-weight:600;color:var(--text-secondary);}
-.ins-funnel-pct{font-size:12px;color:var(--text-tertiary);}
-.ins-funnel-num{font-size:22px;font-weight:900;color:var(--text-display);text-align:right;}
-.ins-dropout-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-.ins-dropout-cell{background:#f9fafb;border-radius:10px;padding:14px;}
-.ins-section-title{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px;}
-.ins-counselor-item{margin-bottom:14px;}
-.ins-counselor-item:last-child{margin-bottom:0;}
-@media(max-width:900px){
-  .ins-num-row{grid-template-columns:repeat(2,1fr);}
-  .ins-2col{grid-template-columns:1fr;}
-  .ins-4col{grid-template-columns:repeat(2,1fr);}
-}`;
-        document.head.appendChild(s);
-    }
-
-    // 데이터 계산
-    const total = data.length;
-    const ghostCount = data.filter(d => d.status === '연락 두절').length;
-    const contacted = total - ghostCount;
-    const counseled = data.filter(d => d.status === '상담 완료').length;
-    const joined = data.filter(d => d.join_status === '가입 완료').length;
-    const convRate = total > 0 ? Math.round((joined / total) * 100) : 0;
-    const stage1 = data.filter(d => d.join_status === '연락 후 미가입' || d.join_status === '미가입').length;
-    const stage2 = data.filter(d => d.join_status === '상담 후 미가입').length;
-    const preCounselRate = contacted > 0 ? Math.round((stage1 / contacted) * 100) : 0;
-    const postCounselRate = counseled > 0 ? Math.round((stage2 / counseled) * 100) : 0;
-
-    const counselorMap = {};
-    data.forEach(d => {
-        const cn = (d.counselor_name && d.counselor_name !== 'null' && d.counselor_name.trim()) ? d.counselor_name.trim() : '미지정';
-        if (!counselorMap[cn]) counselorMap[cn] = { total: 0, joined: 0, dropout: 0, pending: 0 };
-        counselorMap[cn].total++;
-        if (d.join_status === '가입 완료') counselorMap[cn].joined++;
-        else if (['연락 후 미가입', '상담 후 미가입', '미가입'].includes(d.join_status)) counselorMap[cn].dropout++;
-        else counselorMap[cn].pending++;
-    });
-    const counselorList = Object.entries(counselorMap).filter(([k]) => k !== '미지정').sort((a, b) => (b[1].joined / (b[1].total||1)) - (a[1].joined / (a[1].total||1)));
-
-    let channelMap = {};
-    let safeData = { instaFollow: 0, instaNonFollow: 0, adNow: 0, leadTime3M: 0 };
-    data.forEach(d => {
-        let raw = String(d.acquisition_channel || '기타');
-        let ch = raw.startsWith('기타') ? '기타' : raw;
-        let etc = '';
-        if (raw.startsWith('기타')) { let ci = raw.indexOf(':'); if (ci > -1) { ch = '기타'; etc = raw.substring(ci + 1).trim(); } }
-        if (!channelMap[ch]) channelMap[ch] = { total: 0, details: {} };
-        channelMap[ch].total++;
-        let det = '';
-        if (ch === '인스타그램') { if (d.is_follow === '네, 팔로우하고 있어요') safeData.instaFollow++; else if (d.is_follow) safeData.instaNonFollow++; det = d.follow_duration || d.is_follow || ''; }
-        else if (ch === '광고') { det = d.ad_duration || ''; if (det === '최근 일주일 이내' || det === '한 달 이내') safeData.adNow++; else if (det === '3개월 이내' || det === '1년 이내') safeData.leadTime3M++; }
-        else if (ch === '기타') det = etc;
-        if (det) channelMap[ch].details[det] = (channelMap[ch].details[det] || 0) + 1;
-    });
-
-    let interestAll = [];
-    data.forEach(d => { if (d.interest_area) String(d.interest_area).split(',').map(s => s.trim()).filter(Boolean).forEach(v => { if (v.startsWith('기타')) { let ci = v.indexOf(':'); interestAll.push(ci > -1 ? '기타' : v); } else interestAll.push(v); }); });
-    function getFrequency(arr) { return Object.entries(arr.reduce((acc, val) => { if (val) acc[val] = (acc[val] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1]); }
-    const interestData = getFrequency(interestAll);
-    const knownDurData = getFrequency(data.map(d => d.known_duration).filter(Boolean));
-    const instaCount = channelMap['인스타그램'] ? channelMap['인스타그램'].total : 0;
-    const adCount = channelMap['광고'] ? channelMap['광고'].total : 0;
-    const instaTotal = safeData.instaFollow + safeData.instaNonFollow;
-    const followPct = instaTotal > 0 ? Math.round((safeData.instaFollow / instaTotal) * 100) : 0;
-
-    // ──────────────────────────────────────
-    // 1행: 숫자 카드 4개
-    // ──────────────────────────────────────
-    const zoneNumbers = `<div class="ins-num-row wc-fade">
-<div class="ins-card"><div class="ins-label">총 신청 건수</div><div class="ins-num">${total}<span style="font-size:16px;color:var(--text-secondary);margin-left:3px;">건</span></div></div>
-<div class="ins-card"><div class="ins-label">최종 가입 전환율</div><div class="ins-num" style="color:var(--primary);">${convRate}<span style="font-size:16px;margin-left:2px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">가입 ${joined}명 / 상담 ${counseled}명</div></div>
-<div class="ins-card"><div class="ins-label">인스타그램 유입</div><div class="ins-num">${instaCount}<span style="font-size:16px;color:var(--text-secondary);margin-left:3px;">건</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">팔로워 ${safeData.instaFollow}명 · 비팔로워 ${safeData.instaNonFollow}명</div></div>
-<div class="ins-card"><div class="ins-label">광고 유입</div><div class="ins-num">${adCount}<span style="font-size:16px;color:var(--text-secondary);margin-left:3px;">건</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">단기 ${safeData.adNow}명 · 장기 ${safeData.leadTime3M}명</div></div>
-</div>`;
-
-    // ──────────────────────────────────────
-    // 2행: 고객 전환 퍼널 (full-width)
-    // ──────────────────────────────────────
-    const funnelSteps = [
-        { l: '신청 접수', n: total, pct: 100, color: '#333d4b' },
-        { l: '연락 성공', n: contacted, pct: total > 0 ? Math.round(contacted / total * 100) : 0, color: '#378ADD' },
-        { l: '상담 완료', n: counseled, pct: total > 0 ? Math.round(counseled / total * 100) : 0, color: '#7F77DD' },
-        { l: '가입 완료', n: joined, pct: total > 0 ? Math.round(joined / total * 100) : 0, color: '#1D9E75' }
-    ];
-    const zoneFunnel = `<div class="ins-card wc-fade" style="animation-delay:0.06s;">
-<div style="font-size:15px;font-weight:800;color:var(--text-display);text-align:center;margin-bottom:20px;">고객 전환 퍼널</div>
-${funnelSteps.map((st, i) => `<div class="ins-funnel-step">
-<div class="ins-funnel-label-row"><span class="ins-funnel-name">${st.l} <span style="color:var(--text-tertiary);font-size:12px;">${st.pct}% 도달</span></span><span class="ins-funnel-num" style="color:${st.color};">${st.n}명</span></div>
-<div style="height:20px;border-radius:6px;overflow:hidden;background:#f2f4f6;"><div class="wc-bar" style="height:100%;background:${st.color};width:${Math.max(st.pct, 3)}%;border-radius:6px;animation-delay:${0.15 + i * 0.1}s;"></div></div>
-</div>`).join('')}
-</div>`;
-
-    // ──────────────────────────────────────
-    // 3행: 이탈 분석 (3fr) + 상담자별 성과 (2fr)
-    // ──────────────────────────────────────
-    const preColor = preCounselRate >= 20 ? 'var(--error)' : (preCounselRate >= 10 ? '#f59e0b' : 'var(--text-display)');
-    const postColor = postCounselRate >= 30 ? 'var(--error)' : (postCounselRate >= 15 ? '#f59e0b' : 'var(--text-display)');
-    const zoneDropout = `<div class="ins-card wc-fade" style="animation-delay:0.1s;">
-<div class="ins-section-title">이탈 분석</div>
-<div class="ins-dropout-grid">
-<div class="ins-dropout-cell"><div class="ins-label">상담 전 이탈률</div><div style="font-size:32px;font-weight:900;color:${preColor};line-height:1;">${preCounselRate}<span style="font-size:16px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">연락 성공자 ${contacted}명 기준</div><div style="font-size:12px;color:var(--text-secondary);">연락 후 미가입 ${stage1}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${preCounselRate}%;background:${preColor};animation-delay:0.4s;"></div></div></div>
-<div class="ins-dropout-cell"><div class="ins-label">상담 후 이탈률</div><div style="font-size:32px;font-weight:900;color:${postColor};line-height:1;">${postCounselRate}<span style="font-size:16px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">상담 완료자 ${counseled}명 기준</div><div style="font-size:12px;color:var(--text-secondary);">상담 후 미가입 ${stage2}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${postCounselRate}%;background:${postColor};animation-delay:0.5s;"></div></div></div>
-<div class="ins-dropout-cell"><div class="ins-label">연락 두절</div><div style="font-size:32px;font-weight:900;color:var(--text-tertiary);line-height:1;">${ghostCount}<span style="font-size:16px;">명</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">이탈률에 미포함</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${total > 0 ? Math.round(ghostCount/total*100) : 0}%;background:#b4b2a9;animation-delay:0.6s;"></div></div></div>
-</div>
-</div></div>`;
-
-    const counselorHtml = counselorList.length > 0 ? counselorList.map(([name, stats], i) => {
-        const jp = stats.total > 0 ? Math.round((stats.joined / stats.total) * 100) : 0;
-        const dp = stats.total > 0 ? Math.round((stats.dropout / stats.total) * 100) : 0;
-        const pp = stats.total > 0 ? Math.round((stats.pending / stats.total) * 100) : 0;
-        return `<div class="ins-counselor-item wc-fade" style="animation-delay:${0.1+i*0.08}s;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-size:15px;font-weight:800;color:var(--text-display);">${window.escapeHtml(name)}</span><span style="font-size:13px;color:var(--text-secondary);">${stats.joined}/${stats.total}명 <span style="color:var(--primary);font-weight:800;font-size:15px;">(${jp}%)</span></span></div><div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:#f2f4f6;"><div class="wc-bar" style="width:${jp}%;background:#1D9E75;animation-delay:${0.3+i*0.1}s;"></div><div class="wc-bar" style="width:${dp}%;background:#E24B4A;animation-delay:${0.4+i*0.1}s;"></div><div class="wc-bar" style="width:${pp}%;background:#d1d5db;animation-delay:${0.5+i*0.1}s;"></div></div><div style="display:flex;gap:14px;margin-top:6px;font-size:12px;color:var(--text-tertiary);"><span><span style="display:inline-block;width:8px;height:8px;background:#1D9E75;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>가입 ${stats.joined}</span><span><span style="display:inline-block;width:8px;height:8px;background:#E24B4A;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>이탈 ${stats.dropout}</span><span><span style="display:inline-block;width:8px;height:8px;background:#d1d5db;border-radius:2px;margin-right:4px;vertical-align:middle;"></span>진행 중 ${stats.pending}</span></div></div>`;
-    }).join('') : `<div style="font-size:13px;color:var(--text-tertiary);padding:20px 0;text-align:center;">상담자 데이터 없음</div>`;
-
-    const zoneCounselor = `<div class="ins-card wc-fade" style="animation-delay:0.14s;">
-<div class="ins-section-title">상담자별 성과</div>
-${counselorHtml}
-</div>`;
-
-    // ──────────────────────────────────────
-    // 4행: 유입 경로 + 관심 분야 + 인지 기간 (3등분)
-    // ──────────────────────────────────────
-    const sortedCh = Object.entries(channelMap).sort((a, b) => b[1].total - a[1].total);
-    const channelHtml = sortedCh.map((item, i) => {
-        const ch = item[0], ct = item[1].total;
-        const pct = total > 0 ? Math.round((ct / total) * 100) : 0;
-        const opacity = i === 0 ? 1 : i === 1 ? 0.75 : 0.5;
-        const dets = Object.entries(item[1].details).sort((a, b) => b[1] - a[1]);
-        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">${ch}</span><span style="color:var(--text-secondary);">${ct}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:rgba(255,121,0,${opacity});animation-delay:${0.3+i*0.07}s;"></div></div>${dets.slice(0,4).map(det=>`<div class="ins-sub-item"><div class="ins-sub-label"><span>ㄴ ${window.escapeHtml(det[0])}</span><span>${det[1]}건</span></div></div>`).join('')}</div>`;
-    }).join('');
-
-    const interestHtml = interestData.slice(0, 6).map((item, i) => {
-        const pct = total > 0 ? Math.round((item[1] / total) * 100) : 0;
-        const opacity = i === 0 ? 1 : i === 1 ? 0.8 : i === 2 ? 0.6 : 0.4;
-        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">${window.escapeHtml(item[0])}</span><span style="color:var(--text-secondary);">${item[1]}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:rgba(127,119,221,${opacity});animation-delay:${0.3+i*0.07}s;"></div></div></div>`;
-    }).join('');
-
-    const knownHtml = knownDurData.slice(0, 6).map((item, i) => {
-        const pct = total > 0 ? Math.round((item[1] / total) * 100) : 0;
-        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">${window.escapeHtml(item[0])}</span><span style="color:var(--text-secondary);">${item[1]}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:#378ADD;animation-delay:${0.3+i*0.07}s;"></div></div></div>`;
-    }).join('');
-
-    const zoneChannels = `<div class="ins-card wc-fade" style="animation-delay:0.18s;">
-<div class="ins-section-title">유입 경로 분석</div>
-${channelHtml}
-</div>`;
-
-    const zoneInterest = `<div class="ins-card wc-fade" style="animation-delay:0.22s;">
-<div class="ins-section-title">관심 분야 (가입 목적)</div>
-${interestHtml}
-</div>`;
-
-    const zoneKnown = `<div class="ins-card wc-fade" style="animation-delay:0.26s;">
-<div class="ins-section-title">위커피 인지 기간</div>
-${knownHtml.length > 0 ? knownHtml : '<div style="font-size:13px;color:var(--text-tertiary);text-align:center;padding:20px 0;">데이터 없음</div>'}
-</div>`;
-
-    // ──────────────────────────────────────
-    // DOM 초기화 & 조립
-    // ──────────────────────────────────────
-    if ($("insightSummaryText")) $("insightSummaryText").innerHTML = '';
-    // ★ HTML에 남아있는 statsCards/statsFunnel 숨김 처리
-    if ($("statsCards")) { $("statsCards").innerHTML = ''; $("statsCards").className = ''; $("statsCards").style.display = 'none'; }
-    if ($("statsFunnel")) { $("statsFunnel").innerHTML = ''; $("statsFunnel").style.display = 'none'; }
-
-    container.innerHTML =
-        zoneNumbers +
-        `<div class="ins-2col">${zoneFunnel}${zoneDropout}</div>` +
-        `<div class="ins-4col">${zoneCounselor}${zoneChannels}${zoneInterest}${zoneKnown}</div>`;
-
-    window.currentInsightData = {
-        total, joined, dropoutCount: stage1 + stage2,
-        realDropoutRate: contacted > 0 ? Math.round(((stage1 + stage2) / contacted) * 100) : 0,
-        preCounselRate, postCounselRate, ghostCount,
-        instaCount, adCount,
-        instaFollow: safeData.instaFollow, instaNonFollow: safeData.instaNonFollow,
-        leadTime1M: safeData.adNow, leadTime3M: safeData.leadTime3M,
-        channelMap, counselorMap, knownDurData
-    };
+window.handleInvoiceStatusChange=async function(orderId,newValue,selectEl){
+    let order=gOrd.find(o=>String(o.id)===String(orderId));if(!order)return;
+    let oldStatus=order.status||'주문 접수';
+    if(oldStatus===newValue)return;
+    const{error}=await supabaseClient.from('orders').update({status:newValue}).eq('id',orderId);
+    if(error){showToast("변경 실패");selectEl.value=oldStatus;return;}
+    try{await supabaseClient.from('invoice_logs').insert([{order_id:String(orderId),action:'status_changed',field_name:'status',old_value:oldStatus,new_value:newValue,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}
+    order.status=newValue;
+    showToast(`[${newValue}] 변경 완료`);
+    if(newValue==='입금 확인'){showToast('입금 확인 — 명세서에서 제외됩니다.');setTimeout(()=>window.showInvoiceModal(),600);}
+    window.fetchCenterData({force:true});
 };
+
+// 명세서 내 금액 입력 (주문 리스트와 동기화)
+window.handleInvoicePriceInput=async function(orderId,val,inputEl){
+    let numOnly=String(val).replace(/[^0-9]/g,'');
+    let formatted=numOnly?comma(numOnly)+'원':'';
+    let order=gOrd.find(o=>String(o.id)===String(orderId));if(!order)return;
+    let oldPrice=order.total_price||'';
+    if(oldPrice===formatted){inputEl.value=formatted;return;}
+    let updates={total_price:formatted};
+    let newStatus=order.status;
+    if(numOnly&&order.status==='주문 접수'){updates.status='입금 대기';newStatus='입금 대기';}
+    order.total_price=formatted;order.status=newStatus;
+    inputEl.value=formatted;
+    inputEl.style.color=formatted?'#111':'#ccc';
+    inputEl.style.borderColor='#e5e5e5';
+    inputEl.style.background=formatted?'#fff':'#fff5f5';
+    await supabaseClient.from('orders').update(updates).eq('id',orderId);
+    if(oldPrice!==formatted){try{await supabaseClient.from('invoice_logs').insert([{order_id:String(orderId),action:'price_changed',field_name:'total_price',old_value:oldPrice,new_value:formatted,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}}
+    showToast('저장되었습니다.');
+    window.fetchCenterData({force:true});
+};
+
+// 전체 변경 이력 (카드형)
+window.showInvoiceLogs=async function(){
+    let body=document.getElementById('invoiceModalBody');
+    let footer=document.getElementById('invoiceModalFooter');
+    if(!body)return;
+    body.innerHTML='<div style="text-align:center;padding:60px 0;color:#aaa;">이력을 불러오는 중...</div>';
+    footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;
+    try{
+        const{data,error}=await supabaseClient.from('invoice_logs').select('*').in('action',['price_changed','status_changed']).order('created_at',{ascending:false}).limit(500);
+        if(error||!data||data.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}
+        let activeIds=new Set(gOrd.map(o=>String(o.id)));
+        let filtered=data.filter(log=>activeIds.has(String(log.order_id)));
+
+        if(filtered.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}
+
+        let cards=filtered.map(log=>{
+            let isPrice=log.action==='price_changed';
+            let badgeColor=isPrice?'#ff7900':'#2563eb';
+            let badgeBg=isPrice?'#fff7f0':'#eff6ff';
+            let badgeText=isPrice?'금액':'결제';
+            let order=gOrd.find(o=>String(o.id)===String(log.order_id));
+            let vendor=order?order.vendor||'':'';
+            let itemName=order?(order.item_name||'').replace(/\s*\[.*?\]\s*$/,''):'';
+            let qty=order?order.quantity||'':'';
+
+            return `<div style="padding:16px 20px;background:#fff;border:1px solid #eee;border-radius:14px;margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="font-size:12px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:3px 10px;border-radius:6px;">${badgeText}</span>
+                        <span style="font-weight:800;font-size:16px;color:#111;">${window.escapeHtml(log.target_member||'-')}</span>
+                    </div>
+                    <span style="font-size:12px;color:#999;">${formatDt(log.created_at)}</span>
+                </div>
+                ${itemName?`<div style="font-size:14px;margin-bottom:10px;line-height:1.4;"><span style="color:#999;">${window.escapeHtml(vendor)}</span> <span style="color:#ccc;">|</span> <span style="color:#333;font-weight:600;">${window.escapeHtml(itemName)}</span>${qty?` <span style="color:#999;">${qty}</span>`:''}</div>`:''}
+                <div style="background:#f9fafb;padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+                    <div style="font-size:14px;"><span style="color:#aaa;">${window.escapeHtml(log.old_value||'—')}</span> <span style="color:#ccc;font-weight:600;">→</span> <span style="font-weight:800;color:#111;font-size:15px;">${window.escapeHtml(log.new_value||'—')}</span></div>
+                    <span style="font-size:11px;color:#aaa;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        body.innerHTML=`<div style="margin-bottom:16px;"><span style="font-size:18px;font-weight:900;color:#111;">전체 변경 이력</span></div>${cards}`;
+    }catch(e){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#ef4444;">이력 조회 실패</div>';console.error(e);}
+};
+
+window.restoreInvoiceMain=function(){
+    let body=document.getElementById('invoiceModalBody');
+    let footer=document.getElementById('invoiceModalFooter');
+    if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;
+    if(footer)footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;
+};
+
+window.ensureInvoiceButton=function(){
+    if(document.getElementById('invoiceBtn'))return;
+    let btns=document.querySelectorAll('button,.btn');
+    let summaryBtn=Array.from(btns).find(b=>b.textContent.includes('발주 요약'));
+    if(summaryBtn&&summaryBtn.parentNode){
+        let wrapper=document.createElement('div');
+        wrapper.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
+        summaryBtn.parentNode.insertBefore(wrapper,summaryBtn);
+        wrapper.appendChild(summaryBtn);
+        let invoiceBtn=document.createElement('button');
+        invoiceBtn.id='invoiceBtn';
+        invoiceBtn.style.cssText='padding:10px 16px;font-size:14px;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;transition:0.15s;white-space:nowrap;height:38px;display:inline-flex;align-items:center;justify-content:center;';
+        invoiceBtn.textContent='명세서';
+        invoiceBtn.onmouseover=function(){this.style.opacity='0.9';};
+        invoiceBtn.onmouseout=function(){this.style.opacity='1';};
+        invoiceBtn.onclick=function(){window.showInvoiceModal();};
+        wrapper.appendChild(invoiceBtn);
+    }
+};
+// fetchCenterData 완료 후 자동 호출됨 (Part 1에서 호출)
 
 // ▼▼▼ 파트4 끝 (전체 코드 끝) ▼▼▼
