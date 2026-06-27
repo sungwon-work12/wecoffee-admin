@@ -873,7 +873,7 @@ window.fetchApplications=async function(){try{const{data,error}=await supabaseCl
 
 window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}if(typeof window.renderBatchInfoBadge==='function')window.renderBatchInfoBadge();}catch(e){console.error(e);}}
 const statusClassMap={'대기':'st-wait','상담 일정 조율 중':'st-arranging','상담 일정 확정':'st-confirmed','상담 완료':'st-completed','연락 두절':'st-ghosted','설문 완료':'st-confirmed','품절':'st-ghosted'};
-const joinClassMap={'':'jn-none','고민 중':'jn-thinking','연락 후 미가입':'jn-declined','상담 후 미가입':'jn-declined','가입 완료':'jn-joined','미가입':'jn-declined','다음 기수 희망':'jn-next'};
+const joinClassMap={'':'jn-none','고민 중':'jn-thinking','연락 후 미가입':'jn-declined','상담 후 미가입':'jn-declined','가입 완료':'jn-joined','다음 기수 희망':'jn-next','연락 두절':'jn-declined'};
 
 function parseAcquisitionChannel(rawText){if(!rawText)return '-';return String(rawText);}
 window.closeCrmModal=function(){if($("crmModal"))$("crmModal").classList.remove('show');};
@@ -903,7 +903,7 @@ window.renderCrmInner=function(id,isReadOnly=false){const app=globalApps.find(a=
             _timeValue=window.escapeHtml(_rawCallTime);
         }
     }
-    if($("crmTimeBadge"))$("crmTimeBadge").innerHTML=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-strong,#e5e8eb);"><div style="display:table;width:100%;padding:4px 0;"><span style="display:table-cell;color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;padding-right:12px;vertical-align:top;white-space:nowrap;">${_timeLabel}</span><span style="display:table-cell;vertical-align:top;font-weight:700;color:var(--text-display);font-size:14px;">${_timeValue}</span></div></div>`;const job=app.survey_job;const edu=app.survey_edu;const goal=app.survey_goal;const brand=app.survey_brand;const region=app.survey_region;const ageGroup=app.survey_age_group;const curious=app.survey_curious;const useTime=app.survey_use_time;const expectations=app.survey_expectations;if($("crmSurveyResult")){if(job||edu||region||ageGroup){$("crmSurveyResult").innerHTML=`<div class="crm-box"><div class="crm-label">1. 거주 지역</div><div class="crm-answer">${window.escapeHtml(region)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">2. 연령대</div><div class="crm-answer">${window.escapeHtml(ageGroup)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">3. 직업 상태</div><div class="crm-answer">${window.escapeHtml(job)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${window.escapeHtml(brand)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">5. 과거 교육 피드백</div><div class="crm-answer">${window.escapeHtml(edu)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">6. 커피 지식 궁금한 점</div><div class="crm-answer">${window.escapeHtml(curious)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">7. 달성 목표 (니즈)</div><div class="crm-answer">${window.escapeHtml(goal)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">8. 이용 희망 시간대</div><div class="crm-answer">${window.escapeHtml(useTime)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">9. 기대/바라는 점</div><div class="crm-answer">${window.escapeHtml(expectations)||'<span class="crm-empty">미작성</span>'}</div></div>`;}else{let _survUrl='https://www.wecoffee.co.kr/survey?uid='+app.id+'&name='+encodeURIComponent(app.name||'');$("crmSurveyResult").innerHTML=`<div style="text-align:center;padding:40px 20px;background:#fff;border-radius:12px;border:1px dashed var(--border-strong);"><div style="font-size:16px;font-weight:700;color:var(--text-secondary);margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div><button class="btn-outline" style="color:var(--primary);border-color:var(--primary);padding:12px 24px;font-size:15px;" onclick="window.copySurveyTemplate('${app.id}')">상담 안내 메시지 복사하기</button></div>`;}}let notesHtml='';if(app.admin_memo){let notes=app.admin_memo.split('|||');notes.forEach(note=>{let parts=note.split(':::');if(parts.length===2){notesHtml+=`<div class="crm-box"><div class="crm-label">${window.escapeHtml(parts[0])}</div><div class="crm-answer">${window.escapeHtml(parts[1]).replace(/\n/g,'<br>')}</div></div>`;}else if(note.trim()){notesHtml+=`<div class="crm-box"><div class="crm-answer">${window.escapeHtml(note.trim()).replace(/\n/g,'<br>')}</div></div>`;}});}if(!notesHtml)notesHtml=`<div style="font-size:13px;color:var(--text-tertiary);text-align:center;padding:10px;">등록된 상담 기록이 없습니다.</div>`;if($("crmAdminNotes"))$("crmAdminNotes").innerHTML=notesHtml;if($("crmNoteTitle")){$("crmNoteTitle").style.display='none';$("crmNoteTitle").value='';}if($("crmNoteInput")){$("crmNoteInput").value='';$("crmNoteInput").placeholder='상담 기록을 입력하세요';}let initialStatus=app.join_status||(app.status==='상담 완료'?'상담 완료':'');if(!initialStatus||initialStatus==='대기')initialStatus='상담 완료';if($("crmStatusSelect"))$("crmStatusSelect").value=initialStatus;if($("crmNoteInputWrap"))$("crmNoteInputWrap").style.display=isReadOnly?'none':'block';if($("crmStatusActionArea"))$("crmStatusActionArea").style.display=isReadOnly?'none':'flex';}
+    if($("crmTimeBadge"))$("crmTimeBadge").innerHTML=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-strong,#e5e8eb);"><div style="display:table;width:100%;padding:4px 0;"><span style="display:table-cell;color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;padding-right:12px;vertical-align:top;white-space:nowrap;">${_timeLabel}</span><span style="display:table-cell;vertical-align:top;font-weight:700;color:var(--text-display);font-size:14px;">${_timeValue}</span></div></div>`;const job=app.survey_job;const edu=app.survey_edu;const goal=app.survey_goal;const brand=app.survey_brand;const region=app.survey_region;const ageGroup=app.survey_age_group;const curious=app.survey_curious;const useTime=app.survey_use_time;const expectations=app.survey_expectations;if($("crmSurveyResult")){if(job||edu||region||ageGroup){$("crmSurveyResult").innerHTML=`<div class="crm-box"><div class="crm-label">1. 거주 지역</div><div class="crm-answer">${window.escapeHtml(region)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">2. 연령대</div><div class="crm-answer">${window.escapeHtml(ageGroup)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">3. 직업 상태</div><div class="crm-answer">${window.escapeHtml(job)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">4. 선호 브랜드</div><div class="crm-answer">${window.escapeHtml(brand)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">5. 과거 교육 피드백</div><div class="crm-answer">${window.escapeHtml(edu)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">6. 커피 지식 궁금한 점</div><div class="crm-answer">${window.escapeHtml(curious)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">7. 달성 목표 (니즈)</div><div class="crm-answer">${window.escapeHtml(goal)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">8. 이용 희망 시간대</div><div class="crm-answer">${window.escapeHtml(useTime)||'<span class="crm-empty">미작성</span>'}</div></div><div class="crm-box"><div class="crm-label">9. 기대/바라는 점</div><div class="crm-answer">${window.escapeHtml(expectations)||'<span class="crm-empty">미작성</span>'}</div></div>`;}else{let _survUrl='https://www.wecoffee.co.kr/survey?uid='+app.id+'&name='+encodeURIComponent(app.name||'');$("crmSurveyResult").innerHTML=`<div style="text-align:center;padding:40px 20px;background:#fff;border-radius:12px;border:1px dashed var(--border-strong);"><div style="font-size:16px;font-weight:700;color:var(--text-secondary);margin-bottom:16px;">아직 사전 설문을 작성하지 않은 고객입니다.</div><button class="btn-outline" style="color:var(--primary);border-color:var(--primary);padding:12px 24px;font-size:15px;" onclick="window.copySurveyTemplate('${app.id}')">상담 안내 메시지 복사하기</button></div>`;}}let notesHtml='';if(app.admin_memo){let notes=app.admin_memo.split('|||');notes.forEach(note=>{let parts=note.split(':::');if(parts.length===2){notesHtml+=`<div class="crm-box"><div class="crm-label">${window.escapeHtml(parts[0])}</div><div class="crm-answer">${window.escapeHtml(parts[1]).replace(/\n/g,'<br>')}</div></div>`;}else if(note.trim()){notesHtml+=`<div class="crm-box"><div class="crm-answer">${window.escapeHtml(note.trim()).replace(/\n/g,'<br>')}</div></div>`;}});}if(!notesHtml)notesHtml=`<div style="font-size:13px;color:var(--text-tertiary);text-align:center;padding:10px;">등록된 상담 기록이 없습니다.</div>`;if($("crmAdminNotes"))$("crmAdminNotes").innerHTML=notesHtml;if($("crmNoteTitle")){$("crmNoteTitle").style.display='none';$("crmNoteTitle").value='';}if($("crmNoteInput")){$("crmNoteInput").value='';$("crmNoteInput").placeholder='상담 기록을 입력하세요';}let initialStatus=app.join_status||'';if($("crmStatusSelect"))$("crmStatusSelect").value=initialStatus;if($("crmNoteInputWrap"))$("crmNoteInputWrap").style.display=isReadOnly?'none':'block';if($("crmStatusActionArea"))$("crmStatusActionArea").style.display=isReadOnly?'none':'flex';}
 
 // ★ 수정: updateAppStatus — batch_config 연동 자동 종료일 계산 + 기수 설정 팝업
 window.updateAppStatus = async function(id, field, value, selectEl) {
@@ -1202,14 +1202,14 @@ window.renderAppTable = function(data) {
 
     let ghostMap={};
     globalApps.forEach(a=>{
-        if(a.status==='연락 두절'&&a.phone){
+        if((a.status==='연락 두절'||a.join_status==='연락 두절')&&a.phone){
             let ph=String(a.phone).replace(/\D/g,'');
             if(!ghostMap[ph])ghostMap[ph]=[];
             ghostMap[ph].push({batch:a.desired_batch||'미정',id:a.id});
         }
     });
 
-    let statusOrder=['대기','상담 일정 조율 중','상담 일정 확정','설문 완료','상담 완료','연락 두절'];
+    let statusOrder=['대기','상담 일정 조율 중','상담 일정 확정','설문 완료','상담 완료'];
     let groups={};statusOrder.forEach(s=>groups[s]=[]);
     sorted.forEach(row=>{let st=row.status||'대기';if(!groups[st])groups[st]=[];groups[st].push(row);});
 
@@ -1220,7 +1220,6 @@ window.renderAppTable = function(data) {
         {key:'조율',label:'상담 일정 조율 중',color:'#3182f6',items:groups['상담 일정 조율 중']||[],defaultOpen:true},
         {key:'확정',label:'상담 일정 확정 / 설문 완료',color:'#32b06a',items:mergedConfirm,defaultOpen:true},
         {key:'완료',label:'상담 완료',color:'#7b1fa2',items:groups['상담 완료']||[],defaultOpen:false},
-        {key:'두절',label:'연락 두절',color:'#f04452',items:groups['연락 두절']||[],defaultOpen:false},
     ];
 
     // 아코디언 상태 저장/읽기 헬퍼
@@ -1274,8 +1273,8 @@ window.renderAppTable = function(data) {
                     ${timeBadgeHtml?`<div style="margin-top:2px;">${timeBadgeHtml}</div>`:''}
                 </div>
                 <div class="wc-card-selects" onclick="event.stopPropagation();">
-                    <select class="status-select ${cStat}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time||''}','${row.counselor_name||''}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>설문 완료</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option><option value="연락 두절" ${row.status==='연락 두절'?'selected':''}>연락 두절</option></select>
-                    <select class="status-select ${cJoin}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.updateAppStatus('${row.id}','join_status',this.value,this)"><option value="" ${!row.join_status?'selected':''}>미정</option><option value="고민 중" ${row.join_status==='고민 중'?'selected':''}>고민 중</option><option value="가입 완료" ${row.join_status==='가입 완료'?'selected':''}>가입 완료</option><option value="미가입" ${row.join_status==='미가입'?'selected':''}>미가입</option><option value="다음 기수 희망" ${row.join_status==='다음 기수 희망'?'selected':''}>다음 기수</option><option value="연락 후 미가입" ${row.join_status==='연락 후 미가입'?'selected':''}>연락후 미가입</option><option value="상담 후 미가입" ${row.join_status==='상담 후 미가입'?'selected':''}>상담후 미가입</option></select>
+                    <select class="status-select ${cStat}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time||''}','${row.counselor_name||''}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>설문 완료</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option></select>
+                    <select class="status-select ${cJoin}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.updateAppStatus('${row.id}','join_status',this.value,this)"><option value="" ${!row.join_status?'selected':''}>미정</option><option value="고민 중" ${row.join_status==='고민 중'?'selected':''}>고민 중</option><option value="가입 완료" ${row.join_status==='가입 완료'?'selected':''}>가입 완료</option><option value="다음 기수 희망" ${row.join_status==='다음 기수 희망'?'selected':''}>다음 기수</option><option value="연락 후 미가입" ${row.join_status==='연락 후 미가입'?'selected':''}>연락후 미가입</option><option value="상담 후 미가입" ${row.join_status==='상담 후 미가입'?'selected':''}>상담후 미가입</option><option value="연락 두절" ${row.join_status==='연락 두절'?'selected':''}>연락 두절</option></select>
                 </div>
             </div>
         </div>`;
@@ -1324,10 +1323,10 @@ window.renderAppTable = function(data) {
         } else if(cfg.key==='완료') {
             // ③ 상담 완료 소그룹
             let subGroups={};
-            let subOrder=['가입 완료','고민 중','상담 후 미가입','연락 후 미가입','미가입','다음 기수 희망',''];
+            let subOrder=['가입 완료','고민 중','다음 기수 희망','상담 후 미가입','연락 후 미가입','연락 두절',''];
             cfg.items.forEach(row=>{ let js=row.join_status||''; if(!subGroups[js]) subGroups[js]=[]; subGroups[js].push(row); });
-            let subColors={'가입 완료':'#1D9E75','고민 중':'#f59e0b','상담 후 미가입':'#E24B4A','연락 후 미가입':'#E24B4A','미가입':'#9ca3af','다음 기수 희망':'#3182f6','':'#9ca3af'};
-            let subLabels={'가입 완료':'가입 완료','고민 중':'고민 중','상담 후 미가입':'상담후 미가입','연락 후 미가입':'연락후 미가입','미가입':'미가입','다음 기수 희망':'다음 기수 희망','':'미정'};
+            let subColors={'가입 완료':'#1D9E75','고민 중':'#f59e0b','상담 후 미가입':'#E24B4A','연락 후 미가입':'#E24B4A','다음 기수 희망':'#3182f6','연락 두절':'#f04452','':'#9ca3af'};
+            let subLabels={'가입 완료':'가입 완료','고민 중':'고민 중','상담 후 미가입':'상담후 미가입','연락 후 미가입':'연락후 미가입','다음 기수 희망':'다음 기수 희망','연락 두절':'연락 두절','':'미정'};
             subOrder.forEach(js=>{
                 let items=subGroups[js];
                 if(!items||items.length===0) return;
@@ -1360,7 +1359,7 @@ window.renderAppTable = function(data) {
     accContainer.innerHTML=accHtml;
 }
 
-window.showGhostHistory=function(phoneDigits){let history=globalApps.filter(a=>a.status==='연락 두절'&&String(a.phone||'').replace(/\D/g,'')===phoneDigits);if(history.length===0)return showToast('연락 두절 이력이 없습니다.');let html=history.map(a=>`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="font-weight:700;font-size:14px;color:var(--text-display);margin-bottom:4px;">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>상담 메모: ${window.escapeHtml((a.admin_memo||'없음').split('|||').pop())}</div></div>`).join('');window.openCustomConfirm('연락 두절 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');}
+window.showGhostHistory=function(phoneDigits){let history=globalApps.filter(a=>(a.status==='연락 두절'||a.join_status==='연락 두절')&&String(a.phone||'').replace(/\D/g,'')===phoneDigits);if(history.length===0)return showToast('연락 두절 이력이 없습니다.');let html=history.map(a=>`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="font-weight:700;font-size:14px;color:var(--text-display);margin-bottom:4px;">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>상담 메모: ${window.escapeHtml((a.admin_memo||'없음').split('|||').pop())}</div></div>`).join('');window.openCustomConfirm('연락 두절 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');}
 
 // ▼▼▼ 파트3 끝 — 파트4에서 이어집니다 ▼▼▼
 
@@ -1534,12 +1533,12 @@ window.renderStatistics = function(data) {
 
     // 데이터 계산
     const total = data.length;
-    const ghostCount = data.filter(d => d.status === '연락 두절').length;
+    const ghostCount = data.filter(d => d.status === '연락 두절' || d.join_status === '연락 두절').length;
     const contacted = total - ghostCount;
     const counseled = data.filter(d => d.status === '상담 완료').length;
     const joined = data.filter(d => d.join_status === '가입 완료').length;
     const convRate = total > 0 ? Math.round((joined / total) * 100) : 0;
-    const stage1 = data.filter(d => d.join_status === '연락 후 미가입' || d.join_status === '미가입').length;
+    const stage1 = data.filter(d => d.join_status === '연락 후 미가입').length;
     const stage2 = data.filter(d => d.join_status === '상담 후 미가입').length;
     const preCounselRate = contacted > 0 ? Math.round((stage1 / contacted) * 100) : 0;
     const postCounselRate = counseled > 0 ? Math.round((stage2 / counseled) * 100) : 0;
@@ -1550,7 +1549,7 @@ window.renderStatistics = function(data) {
         if (!counselorMap[cn]) counselorMap[cn] = { total: 0, joined: 0, dropout: 0, pending: 0 };
         counselorMap[cn].total++;
         if (d.join_status === '가입 완료') counselorMap[cn].joined++;
-        else if (['연락 후 미가입', '상담 후 미가입', '미가입'].includes(d.join_status)) counselorMap[cn].dropout++;
+        else if (['연락 후 미가입', '상담 후 미가입', '연락 두절'].includes(d.join_status)) counselorMap[cn].dropout++;
         else counselorMap[cn].pending++;
     });
     const counselorList = Object.entries(counselorMap).filter(([k]) => k !== '미지정').sort((a, b) => (b[1].joined / (b[1].total||1)) - (a[1].joined / (a[1].total||1)));
