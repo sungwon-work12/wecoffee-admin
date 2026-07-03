@@ -869,10 +869,10 @@ window.toggleAppDashView=function(view){currentAppDashView=view;if(view==='month
 window.changeAppDashMonth=function(offset){appDashMonthOffset+=offset;window.renderAppDashboard();}
 window.resetAppDashMonth=function(){appDashMonthOffset=0;window.renderAppDashboard();}
 
-window.fetchApplications=async function(){try{const{data,error}=await supabaseClient.from('applications').select('*').order('created_at',{ascending:false}).limit(2000);if(error)throw error;globalApps=data||[];const batches=[...new Set(globalApps.map(d=>d.desired_batch).filter(Boolean))].sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0));let optionsHTML='<option value="all">전체 기수 보기</option>';batches.forEach(b=>optionsHTML+=`<option value="${b}">${b}</option>`);if($("batchFilterApp"))$("batchFilterApp").innerHTML=optionsHTML;window.applyFilterApp();if($("crmModal")&&$("crmModal").classList.contains('show')&&$("crmAppId").value){window.renderCrmInner($("crmAppId").value,isCrmReadOnly);}}catch(e){console.error(e);}}
+window.fetchApplications=async function(){try{const{data,error}=await supabaseClient.from('applications').select('*').order('created_at',{ascending:false}).limit(2000);if(error)throw error;globalApps=data||[];const batches=[...new Set(globalApps.map(d=>d.desired_batch).filter(Boolean))].sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0));let optionsHTML='<option value="all">전체 기수 보기</option>';batches.forEach(b=>optionsHTML+=`<option value="${b}">${b}</option>`);if($("batchFilterApp")){let _currentVal=$("batchFilterApp").value;$("batchFilterApp").innerHTML=optionsHTML;if(!window._batchAutoSelected){window._batchAutoSelected=true;try{const{data:bcList}=await supabaseClient.from('batch_config').select('batch').order('start_date',{ascending:false}).limit(1);if(bcList&&bcList[0]&&batches.includes(bcList[0].batch)){$("batchFilterApp").value=bcList[0].batch;}else if(batches.length>0){$("batchFilterApp").value=batches[batches.length-1];}}catch(e){if(batches.length>0)$("batchFilterApp").value=batches[batches.length-1];}}else if(_currentVal&&(_currentVal==='all'||batches.includes(_currentVal))){$("batchFilterApp").value=_currentVal;}}window.applyFilterApp();if($("crmModal")&&$("crmModal").classList.contains('show')&&$("crmAppId").value){window.renderCrmInner($("crmAppId").value,isCrmReadOnly);}}catch(e){console.error(e);}}
 
 window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}if(typeof window.renderBatchInfoBadge==='function')window.renderBatchInfoBadge();}catch(e){console.error(e);}}
-const statusClassMap={'대기':'st-wait','상담 일정 조율 중':'st-arranging','상담 일정 확정':'st-confirmed','상담 완료':'st-completed','연락 두절':'st-ghosted','설문 완료':'st-confirmed','품절':'st-ghosted'};
+const statusClassMap={'대기':'st-wait','상담 일정 조율 중':'st-arranging','상담 일정 확정':'st-confirmed','상담 완료':'st-completed','미가입':'st-ghosted','연락 두절':'st-ghosted','설문 완료':'st-confirmed','품절':'st-ghosted'};
 const joinClassMap={'':'jn-none','고민 중':'jn-thinking','연락 후 미가입':'jn-declined','상담 후 미가입':'jn-declined','가입 완료':'jn-joined','다음 기수 희망':'jn-next','연락 두절':'jn-declined'};
 
 function parseAcquisitionChannel(rawText){if(!rawText)return '-';return String(rawText);}
@@ -1209,7 +1209,7 @@ window.renderAppTable = function(data) {
         }
     });
 
-    let statusOrder=['대기','상담 일정 조율 중','상담 일정 확정','설문 완료','상담 완료'];
+    let statusOrder=['대기','상담 일정 조율 중','상담 일정 확정','설문 완료','상담 완료','미가입'];
     let groups={};statusOrder.forEach(s=>groups[s]=[]);
     sorted.forEach(row=>{let st=row.status||'대기';if(!groups[st])groups[st]=[];groups[st].push(row);});
 
@@ -1220,6 +1220,7 @@ window.renderAppTable = function(data) {
         {key:'조율',label:'상담 일정 조율 중',color:'#3182f6',items:groups['상담 일정 조율 중']||[],defaultOpen:true},
         {key:'확정',label:'상담 일정 확정 / 설문 완료',color:'#32b06a',items:mergedConfirm,defaultOpen:true},
         {key:'완료',label:'상담 완료',color:'#7b1fa2',items:groups['상담 완료']||[],defaultOpen:false},
+        {key:'미가입',label:'미가입',color:'#f04452',items:groups['미가입']||[],defaultOpen:false},
     ];
 
     // 아코디언 상태 저장/읽기 헬퍼
@@ -1231,6 +1232,24 @@ window.renderAppTable = function(data) {
         let cStat=statusClassMap[row.status]||'st-wait';
         let cJoin=joinClassMap[row.join_status||'']||'jn-none';
         let surveyBadge=(row.survey_job||row.survey_edu)?`<span class="status-badge badge-orange" style="font-size:11px;margin-left:6px;">설문완료</span>`:`<span class="status-badge badge-gray" style="font-size:11px;margin-left:6px;">미응답</span>`;
+        // ★ 이관 뱃지: admin_memo에서 [자동] ... 이관 파싱
+        let carriedBadge='';
+        if(row.admin_memo){
+            let carryMatches=row.admin_memo.split('|||').filter(m=>m.includes('[자동]')&&m.includes('이관'));
+            if(carryMatches.length>0){
+                let lastCarry=carryMatches[carryMatches.length-1];
+                let fromBatchMatch=lastCarry.match(/(\d+기)\s*→\s*(\d+기)/);
+                if(fromBatchMatch){
+                    let fromBatch=fromBatchMatch[1];
+                    let dateMatch=lastCarry.match(/(\d{4}-\d{2}-\d{2})/);
+                    let carryDate=dateMatch?dateMatch[1]:'';
+                    let reasonMatch=lastCarry.match(/\(([^)]+)\)/);
+                    let carryReason=reasonMatch?reasonMatch[1]:'';
+                    let tooltipText=`${carryDate?carryDate+' ':''}${fromBatchMatch[1]} → ${fromBatchMatch[2]} 이관${carryReason?'\\n사유: '+carryReason:''}`;
+                    carriedBadge=`<span style="background:#eff6ff;color:#3182f6;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;cursor:pointer;border:1px solid #dbeafe;" onclick="event.stopPropagation();window.openCrmModal('${row.id}',true)" data-tippy="${tooltipText}" onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">${fromBatch} 이관</span>`;
+                }
+            }
+        }
         let ghostBadge='';
         let ph=String(row.phone||'').replace(/\D/g,'');
         let ghostHistory=(ghostMap[ph]||[]).filter(g=>String(g.id)!==String(row.id));
@@ -1264,7 +1283,7 @@ window.renderAppTable = function(data) {
                 <div style="flex:1;min-width:0;">
                     <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
                         <span style="font-weight:800;font-size:15px;color:var(--text-display);">${row.desired_batch||'-'} ${window.escapeHtml(row.name)}</span>
-                        ${surveyBadge}${ghostBadge}
+                        ${surveyBadge}${carriedBadge}${ghostBadge}
                     </div>
                     <div class="wc-meta-row">
                         ${_metaParts.join('<span class="wc-meta-dot">·</span>')}
@@ -1273,7 +1292,7 @@ window.renderAppTable = function(data) {
                     ${timeBadgeHtml?`<div style="margin-top:2px;">${timeBadgeHtml}</div>`:''}
                 </div>
                 <div class="wc-card-selects" onclick="event.stopPropagation();">
-                    <select class="status-select ${cStat}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time||''}','${row.counselor_name||''}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>설문 완료</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option></select>
+                    <select class="status-select ${cStat}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.handleStatusChange('${row.id}',this.value,'${row.call_time||''}','${row.counselor_name||''}')"><option value="대기" ${row.status==='대기'?'selected':''}>대기</option><option value="상담 일정 조율 중" ${row.status==='상담 일정 조율 중'?'selected':''}>조율 중</option><option value="상담 일정 확정" ${row.status==='상담 일정 확정'?'selected':''}>일정 확정</option><option value="설문 완료" ${row.status==='설문 완료'?'selected':''}>설문 완료</option><option value="상담 완료" ${row.status==='상담 완료'?'selected':''}>상담 완료</option><option value="미가입" ${row.status==='미가입'?'selected':''}>미가입</option></select>
                     <select class="status-select ${cJoin}" style="font-size:11px;height:30px;padding:2px 22px 2px 8px;" onchange="window.updateAppStatus('${row.id}','join_status',this.value,this)"><option value="" ${!row.join_status?'selected':''}>미정</option><option value="고민 중" ${row.join_status==='고민 중'?'selected':''}>고민 중</option><option value="가입 완료" ${row.join_status==='가입 완료'?'selected':''}>가입 완료</option><option value="다음 기수 희망" ${row.join_status==='다음 기수 희망'?'selected':''}>다음 기수</option><option value="연락 후 미가입" ${row.join_status==='연락 후 미가입'?'selected':''}>연락후 미가입</option><option value="상담 후 미가입" ${row.join_status==='상담 후 미가입'?'selected':''}>상담후 미가입</option><option value="연락 두절" ${row.join_status==='연락 두절'?'selected':''}>연락 두절</option></select>
                 </div>
             </div>
@@ -1321,18 +1340,45 @@ window.renderAppTable = function(data) {
         if(cfg.items.length===0){
             accHtml+=`<div style="text-align:center;padding:20px;color:var(--text-tertiary);font-size:13px;">해당 상태의 신청자가 없습니다.</div>`;
         } else if(cfg.key==='완료') {
-            // ③ 상담 완료 소그룹
+            // 상담 완료 소그룹 (긍정)
             let subGroups={};
-            let subOrder=['가입 완료','고민 중','다음 기수 희망','상담 후 미가입','연락 후 미가입','연락 두절',''];
+            let subOrder=['고민 중','가입 완료',''];
             cfg.items.forEach(row=>{ let js=row.join_status||''; if(!subGroups[js]) subGroups[js]=[]; subGroups[js].push(row); });
-            let subColors={'가입 완료':'#1D9E75','고민 중':'#f59e0b','상담 후 미가입':'#E24B4A','연락 후 미가입':'#E24B4A','다음 기수 희망':'#3182f6','연락 두절':'#f04452','':'#9ca3af'};
-            let subLabels={'가입 완료':'가입 완료','고민 중':'고민 중','상담 후 미가입':'상담후 미가입','연락 후 미가입':'연락후 미가입','다음 기수 희망':'다음 기수 희망','연락 두절':'연락 두절','':'미정'};
+            let subColors={'가입 완료':'#1D9E75','고민 중':'#f59e0b','':'#9ca3af'};
+            let subLabels={'가입 완료':'가입 완료','고민 중':'고민 중','':'미정'};
             subOrder.forEach(js=>{
                 let items=subGroups[js];
                 if(!items||items.length===0) return;
                 let subKey='완료_'+( js||'미정');
                 let subSaved=_accState(subKey);
-                let subOpen=subSaved!==null?subSaved:(js==='가입 완료'||js==='고민 중'||js==='');
+                let subOpen=subSaved!==null?subSaved:true;
+                let subColor=subColors[js]||'#9ca3af';
+                let subLabel=subLabels[js]||js||'미정';
+                accHtml+=`<div style="margin:4px 0 8px 0;">
+                <div onclick="${_accToggleJS(subKey)}" style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:#fff;border:1px solid var(--border-strong);border-left:3px solid ${subColor};border-radius:8px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='#fff'">
+                    <span style="font-size:13px;font-weight:700;color:var(--text-display);">${subLabel}</span>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:13px;font-weight:700;color:var(--text-secondary);">${items.length}명</span>
+                        <span class="acc-arrow" style="font-size:10px;color:var(--text-tertiary);">${subOpen?'▲':'▼'}</span>
+                    </div>
+                </div>
+                <div style="display:${subOpen?'block':'none'};padding:4px 0;">`;
+                items.forEach(row=>{ accHtml+=_renderCard(row,cfg,ghostMap); });
+                accHtml+=`</div></div>`;
+            });
+        } else if(cfg.key==='미가입') {
+            // 미가입 소그룹 (부정)
+            let subGroups={};
+            let subOrder=['연락 두절','연락 후 미가입','상담 후 미가입','다음 기수 희망',''];
+            cfg.items.forEach(row=>{ let js=row.join_status||''; if(!subGroups[js]) subGroups[js]=[]; subGroups[js].push(row); });
+            let subColors={'연락 두절':'#f04452','연락 후 미가입':'#E24B4A','상담 후 미가입':'#E24B4A','다음 기수 희망':'#3182f6','':'#9ca3af'};
+            let subLabels={'연락 두절':'연락 두절','연락 후 미가입':'연락후 미가입','상담 후 미가입':'상담후 미가입','다음 기수 희망':'다음 기수 희망','':'미정'};
+            subOrder.forEach(js=>{
+                let items=subGroups[js];
+                if(!items||items.length===0) return;
+                let subKey='미가입_'+(js||'미정');
+                let subSaved=_accState(subKey);
+                let subOpen=subSaved!==null?subSaved:true;
                 let subColor=subColors[js]||'#9ca3af';
                 let subLabel=subLabels[js]||js||'미정';
                 accHtml+=`<div style="margin:4px 0 8px 0;">
