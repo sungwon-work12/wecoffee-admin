@@ -945,6 +945,12 @@ window.updateAppStatus = async function(id, field, value, selectEl) {
         return;
     }
     const updates = {}; updates[field] = value;
+    // ★ 우측(join_status) 부정 값 선택 시 → 좌측(status) 자동 '미가입' 연동
+    const negativeJoinStatuses = ['연락 두절', '연락 후 미가입', '상담 후 미가입'];
+    if (field === 'join_status' && negativeJoinStatuses.includes(value)) {
+        updates.status = '미가입';
+        if (app) app.status = '미가입';
+    }
     const { error } = await supabaseClient.from('applications').update(updates).eq('id', id);
     if (error) { showToast("변경 실패"); return; }
     if (app) app[field] = value;
