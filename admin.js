@@ -353,7 +353,7 @@ window.openCustomConfirm=function(title,statusHtml,actionHtml,callbackOrText,btn
 window.closeConfirmModal=function(){if($("confirmModal"))$("confirmModal").classList.remove('show');};
 window.closeOnBackdrop=function(event,modalId){ return; };
 window.showCancelReason=function(reason){window.openCustomConfirm("당일 취소 사유",null,`<div style="padding:16px;background:#f9fafb;border-radius:8px;text-align:left;font-size:14px;line-height:1.5;color:var(--text-display);border:1px solid var(--border-strong);white-space:pre-wrap;">${window.escapeHtml(reason||'사유가 기재되지 않았습니다.')}</div>`,()=>{},"확인");};
-window.isOrderExpired=function(order,now){let baseDate=order.delivery_date?window.parseDeliveryDate(order.delivery_date):window.safeKST(order.created_at);let cancelBaseDate=order.updated_at?window.safeKST(order.updated_at):baseDate;let status=order.status||'주문 접수';if(['주문 접수','입금 대기','입금 확인 중','입금 확인','대기'].includes(status))return false;if(status==='주문 취소'||status==='품절')return(now.getTime()-cancelBaseDate.getTime())>48*60*60*1000;if(status==='센터 도착')return(now.getTime()-baseDate.getTime())>7*24*60*60*1000;return false;};
+window.isOrderExpired=function(order,now){let baseDate=order.delivery_date?window.parseDeliveryDate(order.delivery_date):window.safeKST(order.created_at);let cancelBaseDate=order.updated_at?window.safeKST(order.updated_at):baseDate;let status=order.status||'주문 접수';if(['주문 접수','입금 대기','입금 확인 중','입금 확인','대기'].includes(status))return false;if(status==='주문 취소'||status==='품절')return(now.getTime()-cancelBaseDate.getTime())>48*60*60*1000;if(status==='센터 도착')return(now.getTime()-cancelBaseDate.getTime())>7*24*60*60*1000;return false;};
 
 let isFetchingCenter = false;
 let lastCenterFetchAt = 0;
@@ -1587,7 +1587,7 @@ window.renderStatistics = function(data) {
     const total = data.length;
     const ghostCount = data.filter(d => d.status === '연락 두절' || d.join_status === '연락 두절').length;
     const contacted = total - ghostCount;
-    const counseled = data.filter(d => d.status === '상담 완료').length;
+    const counseled = data.filter(d => d.status === '상담 완료' || (d.status === '미가입' && d.join_status === '상담 후 미가입')).length;
     const joined = data.filter(d => d.join_status === '가입 완료').length;
     const convRate = total > 0 ? Math.round((joined / total) * 100) : 0;
     const stage1 = data.filter(d => d.join_status === '연락 후 미가입').length;
