@@ -1284,6 +1284,13 @@ window.renderAppTable = function(data) {
         if(_scheduledTime)_metaParts.push(`${_lbl}상담 예정일</span><span class="wc-meta-val" style="color:var(--success);font-weight:700;">${window.escapeHtml(_scheduledTime)}${_counselor?` <span style="color:var(--text-tertiary);">${window.escapeHtml(_counselor)}</span>`:''}</span>`);
         else if(_preferredTime)_metaParts.push(`${_lbl}통화 선호 시간</span><span class="wc-meta-val">${window.escapeHtml(_preferredTime)}</span>`);
 
+        let _mSumParts=[];
+        if(_scheduledTime)_mSumParts.push(_scheduledTime);
+        else if(_preferredTime)_mSumParts.push('선호: '+_preferredTime);
+        if(row.desired_center)_mSumParts.push(row.desired_center);
+        if(_counselor)_mSumParts.push(_counselor);
+        let _mobileSummaryHtml=_mSumParts.length>0?`<div class="wc-mobile-summary">${_mSumParts.map(p=>window.escapeHtml(p)).join(' · ')}</div>`:'';
+
         return `<div class="wc-app-card" style="background:#fff;border:1px solid var(--border-strong);border-left:3px solid ${cfg.color};border-radius:10px;padding:14px 18px;margin-bottom:6px;cursor:pointer;transition:all 0.12s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.05)'" onmouseout="this.style.boxShadow='none'" onclick="window.openCrmModal('${row.id}')">
             <div class="wc-card-inner" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
                 <div style="flex:1;min-width:0;">
@@ -1291,10 +1298,11 @@ window.renderAppTable = function(data) {
                         <span style="font-weight:800;font-size:15px;color:var(--text-display);">${row.desired_batch||'-'} ${window.escapeHtml(row.name)}</span>
                         ${surveyBadge}${carriedBadge}${ghostBadge}
                     </div>
+                    ${_mobileSummaryHtml}
                     <div class="wc-meta-row">
                         ${_metaParts.join('<span class="wc-meta-dot">·</span>')}
                     </div>
-                    ${_interestHtml?`<div style="margin-top:2px;line-height:1.4;">${_interestHtml}</div>`:''}
+                    ${_interestHtml?`<div class="wc-card-interest" style="margin-top:2px;line-height:1.4;">${_interestHtml}</div>`:''}
                     ${timeBadgeHtml?`<div style="margin-top:2px;">${timeBadgeHtml}</div>`:''}
                 </div>
                 <div class="wc-card-selects" onclick="event.stopPropagation();">
@@ -1315,11 +1323,13 @@ window.renderAppTable = function(data) {
 .wc-meta-val{font-weight:600;color:var(--text-secondary);}
 .wc-meta-dot{color:var(--border-strong);margin:0 4px;}
 .wc-card-selects{display:flex;gap:4px;flex-shrink:0;}
+.wc-mobile-summary{display:none;}
 @media(max-width:768px){
   .wc-card-inner{flex-direction:column !important;align-items:stretch !important;}
-  .wc-meta-row{flex-direction:column !important;align-items:flex-start !important;gap:2px !important;}
-  .wc-meta-row .wc-meta-dot{display:none !important;}
-  .wc-meta-row .wc-meta-label{min-width:70px;display:inline-block;}
+  .wc-meta-row{display:none !important;}
+  .wc-card-interest{display:none !important;}
+  .edit-schedule-link{display:none !important;}
+  .wc-mobile-summary{display:block;font-size:14px;font-weight:700;color:var(--text-display);margin-top:2px;line-height:1.5;}
   .wc-card-selects{width:100%;margin-top:8px;}
   .wc-card-selects select{flex:1;width:0;}
 }`;
@@ -1579,6 +1589,11 @@ window.renderStatistics = function(data) {
   .ins-num-row{grid-template-columns:repeat(2,1fr);}
   .ins-2col{grid-template-columns:1fr;}
   .ins-4col{grid-template-columns:repeat(2,1fr);}
+}
+@media(max-width:768px){
+  .ins-4col{grid-template-columns:1fr;}
+  .ins-dropout-grid{grid-template-columns:1fr;}
+  .ins-card{padding:16px 18px;}
 }`;
         document.head.appendChild(s);
     }
