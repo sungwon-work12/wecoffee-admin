@@ -1237,7 +1237,9 @@ window.renderAppTable = function(data) {
     function _renderCard(row, cfg, ghostMap) {
         let cStat=statusClassMap[row.status]||'st-wait';
         let cJoin=joinClassMap[row.join_status||'']||'jn-none';
-        let surveyBadge=(row.survey_job||row.survey_edu)?`<span class="status-badge badge-orange" style="font-size:11px;margin-left:6px;">설문완료</span>`:`<span class="status-badge badge-gray" style="font-size:11px;margin-left:6px;">미응답</span>`;
+        let surveyBadge;
+        if(row.join_status==='가입 완료'){surveyBadge=`<span class="status-badge badge-green" style="font-size:11px;margin-left:6px;">가입 완료</span>`;}
+        else{surveyBadge=(row.survey_job||row.survey_edu)?`<span class="status-badge badge-orange" style="font-size:11px;margin-left:6px;">설문완료</span>`:`<span class="status-badge badge-gray" style="font-size:11px;margin-left:6px;">미응답</span>`;}
         // ★ 이관 뱃지: admin_memo에서 [자동] ... 이관 파싱
         let carriedBadge='';
         if(row.admin_memo){
