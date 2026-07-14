@@ -677,7 +677,6 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')window.close
 
 // ▼▼▼ 파트2 끝 — 파트3에서 이어집니다 ▼▼▼
 
-
 // ▼▼▼ 파트3 시작 (renderResTablePage 부터) ▼▼▼
 
 window.renderResTablePage = function() {
@@ -918,7 +917,10 @@ window.updateAppStatus = async function(id, field, value, selectEl) {
             : `<strong style="color:var(--primary);">${window.escapeHtml(app.name)}</strong> 님의 가입 여부를 변경하시겠습니까?<br><span style="color:var(--text-secondary);font-size:13px;">연결된 멤버 정보가 없습니다.</span>`;
         window.openCustomConfirm("가입 여부 변경", null, `<div style="font-size:15px;color:var(--text-display);line-height:1.6;">${dialogContent}</div>`,
             async () => {
-                await supabaseClient.from('applications').update({ [field]: value }).eq('id', id);
+                const negJoin = ['연락 두절', '연락 후 미가입', '상담 후 미가입'];
+                const updates = { [field]: value };
+                if (negJoin.includes(value)) { updates.status = '미가입'; if (app) app.status = '미가입'; }
+                await supabaseClient.from('applications').update(updates).eq('id', id);
                 if (app) app[field] = value;
                 if (target) {
                     await supabaseClient.from('members').delete().eq('id', target.id);
