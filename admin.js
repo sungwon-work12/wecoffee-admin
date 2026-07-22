@@ -869,9 +869,9 @@ window.toggleAppDashView=function(view){currentAppDashView=view;if(view==='month
 window.changeAppDashMonth=function(offset){appDashMonthOffset+=offset;window.renderAppDashboard();}
 window.resetAppDashMonth=function(){appDashMonthOffset=0;window.renderAppDashboard();}
 
-window.fetchApplications=async function(){try{const{data,error}=await supabaseClient.from('applications').select('*').order('created_at',{ascending:false}).limit(2000);if(error)throw error;globalApps=data||[];const batches=[...new Set(globalApps.map(d=>d.desired_batch).filter(Boolean))].sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0));let optionsHTML='<option value="all">전체 기수 보기</option>';batches.forEach(b=>optionsHTML+=`<option value="${b}">${b}</option>`);if($("batchFilterApp")){let _currentVal=$("batchFilterApp").value;$("batchFilterApp").innerHTML=optionsHTML;if(!window._batchAutoSelected){window._batchAutoSelected=true;try{const{data:bcList}=await supabaseClient.from('batch_config').select('batch').order('start_date',{ascending:false}).limit(1);if(bcList&&bcList[0]&&batches.includes(bcList[0].batch)){$("batchFilterApp").value=bcList[0].batch;}else if(batches.length>0){$("batchFilterApp").value=batches[batches.length-1];}}catch(e){if(batches.length>0)$("batchFilterApp").value=batches[batches.length-1];}}else if(_currentVal&&(_currentVal==='all'||batches.includes(_currentVal))){$("batchFilterApp").value=_currentVal;}}window.applyFilterApp();if($("crmModal")&&$("crmModal").classList.contains('show')&&$("crmAppId").value){window.renderCrmInner($("crmAppId").value,isCrmReadOnly);}}catch(e){console.error(e);}}
+window.fetchApplications=async function(){try{const{data,error}=await supabaseClient.from('applications').select('*').order('created_at',{ascending:false}).limit(2000);if(error)throw error;globalApps=data||[];const batches=[...new Set(globalApps.map(d=>d.desired_batch).filter(Boolean))].sort((a,b)=>parseInt(String(a).replace(/[^0-9]/g,'')||0)-parseInt(String(b).replace(/[^0-9]/g,'')||0));let optionsHTML='<option value="all">전체 기수 보기</option>';batches.forEach(b=>optionsHTML+=`<option value="${b}">${b}</option>`);if($("batchFilterApp")){let _currentVal=$("batchFilterApp").value;$("batchFilterApp").innerHTML=optionsHTML;if(!window._batchAutoSelected){window._batchAutoSelected=true;try{const{data:bcList}=await supabaseClient.from('batch_config').select('batch').order('start_date',{ascending:false}).limit(1);if(bcList&&bcList[0]&&batches.includes(bcList[0].batch)){$("batchFilterApp").value=bcList[0].batch;}else if(batches.length>0){$("batchFilterApp").value=batches[batches.length-1];}}catch(e){if(batches.length>0)$("batchFilterApp").value=batches[batches.length-1];}}else if(_currentVal&&(_currentVal==='all'||batches.includes(_currentVal))){$("batchFilterApp").value=_currentVal;}}if(!document.getElementById('appSearchInput')){let fp=$("batchFilterApp")?.closest('.filter-wrap')||$("batchFilterApp")?.parentNode;if(fp)fp.insertAdjacentHTML('beforeend','<div style="position:relative;display:inline-block;margin-left:8px;vertical-align:middle;"><input id="appSearchInput" type="text" placeholder="이름 또는 연락처 통합 검색" style="width:220px;padding:8px 12px 8px 32px;border:1px solid var(--border-strong);border-radius:8px;font-size:13px;font-weight:600;outline:none;background:#fff;color:var(--text-display);height:38px;box-sizing:border-box;" oninput="window.applyFilterApp()"><svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b95a1" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>');}window.applyFilterApp();if($("crmModal")&&$("crmModal").classList.contains('show')&&$("crmAppId").value){window.renderCrmInner($("crmAppId").value,isCrmReadOnly);}}catch(e){console.error(e);}}
 
-window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}if(typeof window.renderBatchInfoBadge==='function')window.renderBatchInfoBadge();}catch(e){console.error(e);}}
+window.applyFilterApp=function(){try{const selected=$("batchFilterApp").value;const sq=($("appSearchInput")?.value||"").trim().toLowerCase();let filtered;if(sq){let sqD=sq.replace(/\D/g,'');filtered=globalApps.filter(d=>(d.name&&d.name.toLowerCase().includes(sq))||(sqD&&d.phone&&d.phone.replace(/\D/g,'').includes(sqD)));}else{filtered=selected==='all'?globalApps:globalApps.filter(d=>d.desired_batch===selected);}window.currentFilteredApps=filtered;if(isInsightView){window.renderStatistics(filtered);}else{window.renderAppTable(filtered);window.renderAppDailyBanner(filtered);window.renderAppDashboard();}if(typeof window.renderBatchInfoBadge==='function')window.renderBatchInfoBadge();}catch(e){console.error(e);}}
 const statusClassMap={'대기':'st-wait','상담 일정 조율 중':'st-arranging','상담 일정 확정':'st-confirmed','상담 완료':'st-completed','미가입':'st-ghosted','연락 두절':'st-ghosted','설문 완료':'st-confirmed','품절':'st-ghosted'};
 const joinClassMap={'':'jn-none','고민 중':'jn-thinking','연락 후 미가입':'jn-declined','상담 후 미가입':'jn-declined','가입 완료':'jn-joined','다음 기수 희망':'jn-next','연락 두절':'jn-declined'};
 
@@ -1225,6 +1225,14 @@ window.renderAppTable = function(data) {
         }
     });
 
+    let prevAppMap={};
+    globalApps.forEach(a=>{
+        let ph=String(a.phone||'').replace(/\D/g,'');
+        if(!ph||!a.desired_batch) return;
+        if(!prevAppMap[ph]) prevAppMap[ph]=new Set();
+        prevAppMap[ph].add(a.desired_batch);
+    });
+
     let statusOrder=['대기','상담 일정 조율 중','상담 일정 확정','설문 완료','상담 완료','미가입'];
     let groups={};statusOrder.forEach(s=>groups[s]=[]);
     sorted.forEach(row=>{let st=row.status||'대기';if(!groups[st])groups[st]=[];groups[st].push(row);});
@@ -1275,6 +1283,13 @@ window.renderAppTable = function(data) {
             let ghostBatches=ghostHistory.map(g=>g.batch).join(', ');
             ghostBadge=`<span style="background:#fff0f0;color:#f04452;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;cursor:pointer;" onclick="event.stopPropagation();window.showGhostHistory('${ph}')" data-tippy="${ghostBatches} 연락두절 이력" onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">${ghostBatches} 연락두절</span>`;
         }
+        let prevBadge='';
+        if(!carriedBadge){
+            let otherBatches=prevAppMap[ph]?[...prevAppMap[ph]].filter(b=>b!==row.desired_batch).sort((a,b)=>parseInt(a)-parseInt(b)):[];
+            if(otherBatches.length>0){
+                prevBadge=`<span style="background:#f0f9ff;color:#0369a1;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;cursor:pointer;border:1px solid #bae6fd;" onclick="event.stopPropagation();window.showPrevAppHistory('${ph}')" data-tippy="${otherBatches.join(', ')} 신청 이력" onmouseenter="window.showGlobalTooltip(event,this)" onmouseleave="window.hideGlobalTooltip()">${otherBatches.join(', ')} 이력</span>`;
+            }
+        }
         let _rawTime=row.call_time&&row.call_time!=='null'?row.call_time:'';
         let _isScheduled=/^\d{4}-\d{2}-\d{2}/.test(_rawTime);
         let timeDisplay='';
@@ -1308,7 +1323,7 @@ window.renderAppTable = function(data) {
                 <div style="flex:1;min-width:0;">
                     <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
                         <span style="font-weight:800;font-size:15px;color:var(--text-display);">${row.desired_batch||'-'} ${window.escapeHtml(row.name)}</span>
-                        ${surveyBadge}${carriedBadge}${ghostBadge}
+                        ${surveyBadge}${carriedBadge}${ghostBadge}${prevBadge}
                     </div>
                     ${_mobileSummaryHtml}
                     <div class="wc-meta-row">
@@ -1372,8 +1387,9 @@ window.renderAppTable = function(data) {
             let subGroups={};
             let subOrder=['고민 중','가입 완료',''];
             cfg.items.forEach(row=>{ let js=row.join_status||''; if(!subGroups[js]) subGroups[js]=[]; subGroups[js].push(row); });
-            let subColors={'가입 완료':'#1D9E75','고민 중':'#f59e0b','':'#9ca3af'};
-            let subLabels={'가입 완료':'가입 완료','고민 중':'고민 중','':'미정'};
+            Object.keys(subGroups).forEach(js=>{ if(!subOrder.includes(js)) subOrder.push(js); });
+            let subColors={'가입 완료':'#1D9E75','고민 중':'#f59e0b','':'#9ca3af','다음 기수 희망':'#3182f6'};
+            let subLabels={'가입 완료':'가입 완료','고민 중':'고민 중','':'미정','다음 기수 희망':'다음 기수 희망'};
             subOrder.forEach(js=>{
                 let items=subGroups[js];
                 if(!items||items.length===0) return;
@@ -1434,6 +1450,8 @@ window.renderAppTable = function(data) {
 }
 
 window.showGhostHistory=function(phoneDigits){let history=globalApps.filter(a=>(a.status==='연락 두절'||a.join_status==='연락 두절')&&String(a.phone||'').replace(/\D/g,'')===phoneDigits);if(history.length===0)return showToast('연락 두절 이력이 없습니다.');let html=history.map(a=>`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="font-weight:700;font-size:14px;color:var(--text-display);margin-bottom:4px;">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>상담 메모: ${window.escapeHtml((a.admin_memo||'없음').split('|||').pop())}</div></div>`).join('');window.openCustomConfirm('연락 두절 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');}
+
+window.showPrevAppHistory=function(phoneDigits){let history=globalApps.filter(a=>String(a.phone||'').replace(/\D/g,'')===phoneDigits).sort((a,b)=>{let aN=parseInt(String(a.desired_batch||'').replace(/[^0-9]/g,''))||0;let bN=parseInt(String(b.desired_batch||'').replace(/[^0-9]/g,''))||0;return aN-bN;});if(history.length===0)return showToast('신청 이력이 없습니다.');let html=history.map(a=>{let stBadge='';if(a.join_status==='가입 완료')stBadge='<span class="status-badge badge-green" style="font-size:11px;">가입 완료</span>';else if(a.join_status==='연락 두절')stBadge='<span class="status-badge badge-red" style="font-size:11px;">연락 두절</span>';else if(a.join_status)stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.join_status)}</span>`;else stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.status||'대기')}</span>`;return`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span style="font-weight:700;font-size:14px;color:var(--text-display);">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</span>${stBadge}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>희망센터: ${window.escapeHtml(a.desired_center||'-')}</div></div>`;}).join('');window.openCustomConfirm('전체 신청 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');};
 
 // ▼▼▼ 파트3 끝 — 파트4에서 이어집니다 ▼▼▼
 
