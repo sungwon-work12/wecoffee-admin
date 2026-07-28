@@ -1415,6 +1415,7 @@ window.renderAppTable = function(data) {
             let subGroups={};
             let subOrder=['연락 두절','연락 후 미가입','상담 후 미가입','다음 기수 희망',''];
             cfg.items.forEach(row=>{ let js=row.join_status||''; if(!subGroups[js]) subGroups[js]=[]; subGroups[js].push(row); });
+            Object.keys(subGroups).forEach(js=>{ if(!subOrder.includes(js)) subOrder.push(js); });
             let subColors={'연락 두절':'#f04452','연락 후 미가입':'#E24B4A','상담 후 미가입':'#E24B4A','다음 기수 희망':'#3182f6','':'#9ca3af'};
             let subLabels={'연락 두절':'연락 두절','연락 후 미가입':'연락후 미가입','상담 후 미가입':'상담후 미가입','다음 기수 희망':'다음 기수 희망','':'미정'};
             subOrder.forEach(js=>{
