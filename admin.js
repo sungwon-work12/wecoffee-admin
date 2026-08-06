@@ -444,7 +444,7 @@ window.fetchCenterData = async function(opts) {
 
 // ▼▼▼ 파트1 끝 — 파트2에서 이어집니다 ▼▼▼
 
-// ▼▼▼ 파트2 시작 ▼▼▼
+// ▼▼▼ 파트 2 시작 ▼▼▼
 
 window.toggleDashView=function(view){currentDashView=view;if(view==='month'){if($("dashMonthNav"))$("dashMonthNav").style.display='flex';}else{if($("dashMonthNav"))$("dashMonthNav").style.display='none';currentDashMonthOffset=0;}window.renderDashboard();};
 window.changeDashMonth=function(offset){currentDashMonthOffset+=offset;window.renderDashboard();};
@@ -676,9 +676,9 @@ window.openTimelineFullscreen=function(){
 window.closeTimelineFullscreen=function(){const overlay=document.getElementById('timelineFullscreenOverlay');if(overlay)overlay.classList.remove('active');document.body.style.overflow='';};
 document.addEventListener('keydown',function(e){if(e.key==='Escape')window.closeTimelineFullscreen();});
 
-// ▼▼▼ 파트2 끝 — 파트3에서 이어집니다 ▼▼▼
+// ▼▼▼ 파트 2 끝 ▼▼▼
 
-// ▼▼▼ 파트3 시작 ▼▼▼
+// ▼▼▼ 파트 3 시작 ▼▼▼
 
 window.renderResTablePage = function() {
     let data = window.currentFilteredRes || [];
@@ -778,7 +778,6 @@ const joinClassMap={'':'jn-none','고민 중':'jn-thinking','연락 후 미가�
 window.closeCrmModal=function(){if($("crmModal"))$("crmModal").classList.remove('show');};
 window.openCrmModal=function(id,isReadOnly=false){isCrmReadOnly=isReadOnly;if($("crmAppId"))$("crmAppId").value=id;window.renderCrmInner(id,isReadOnly);if($("crmModal"))$("crmModal").classList.add('show');};
 
-// ★ 신규 항목/구 항목 유연 대응을 위한 CRM 모달 파싱 로직 업데이트
 window.renderCrmInner=function(id,isReadOnly=false){
     const app=globalApps.find(a=>String(a.id)===String(id));if(!app)return;
     let cCount=0;let now=new Date();let monthPrefix=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
@@ -786,17 +785,15 @@ window.renderCrmInner=function(id,isReadOnly=false){
     let warnHtml=cCount>=4?`<span style="background:var(--error);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:700;vertical-align:middle;">경고</span>`:'';
     if($("crmName"))$("crmName").innerHTML=`<span style="font-weight:800;color:var(--text-display);margin-right:4px;">${app.desired_batch||'미정'}</span> ${window.escapeHtml(app.name||'이름 없음')} ${warnHtml}`;
     
-    // ★ 신규 폼 데이터 (survey_brand에 매핑된 경로/기간) 파싱
-    let isNewSurvey = app.survey_brand && app.survey_brand.startsWith('경로:');
-    let parsedChannel = isNewSurvey ? app.survey_brand.split('/')[0].replace('경로:', '').trim() : (app.acquisition_channel || '');
-    let parsedDuration = isNewSurvey && app.survey_brand.includes('기간:') ? app.survey_brand.split('기간:')[1].trim() : (app.known_duration || '');
+    // ★ 파싱 걷어내고 신/구 컬럼 호환 매핑
+    let parsedChannel = app.survey_channel || app.acquisition_channel || '';
+    let parsedDuration = app.survey_duration || app.known_duration || '';
 
     let _row = (label, value, valueStyle) => `<div style="display:table;width:100%;padding:4px 0;"><span style="display:table-cell;color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;padding-right:12px;vertical-align:top;white-space:nowrap;">${label}</span><span style="display:table-cell;vertical-align:top;${valueStyle||'font-weight:700;color:var(--text-display);font-size:14px;'}">${value}</span></div>`;
     let _profileHtml = '';
     _profileHtml += _row('연락처', window.escapeHtml(window.normalizePhone(app.phone)||app.phone||'-'));
     if(app.interest_area) _profileHtml += _row('관심 분야', window.escapeHtml(app.interest_area), 'font-weight:700;color:var(--text-display);font-size:14px;line-height:1.5;');
     
-    // 파싱된 신규 혹은 구 데이터 렌더링
     if(parsedChannel) _profileHtml += _row('유입 경로', window.escapeHtml(parsedChannel));
     if(parsedDuration) _profileHtml += _row('인지 기간', window.escapeHtml(parsedDuration));
     
@@ -821,33 +818,31 @@ window.renderCrmInner=function(id,isReadOnly=false){
     }
     if($("crmTimeBadge"))$("crmTimeBadge").innerHTML=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-strong,#e5e8eb);"><div style="display:table;width:100%;padding:4px 0;"><span style="display:table-cell;color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;padding-right:12px;vertical-align:top;white-space:nowrap;">${_timeLabel}</span><span style="display:table-cell;vertical-align:top;font-weight:700;color:var(--text-display);font-size:14px;">${_timeValue}</span></div></div>`;
 
-    const job=app.survey_job; const edu=app.survey_edu; const goal=app.survey_goal; 
-    const brand=app.survey_brand; const region=app.survey_region; const ageGroup=app.survey_age_group; 
-    const curious=app.survey_curious; const useTime=app.survey_use_time; const expectations=app.survey_expectations;
+    const job=app.survey_job; const edu=app.survey_edu; const eduFeedback=app.survey_edu_feedback; 
+    const goal=app.survey_goal; const brand=app.survey_brand; const region=app.survey_region; 
+    const ageGroup=app.survey_age_group; const curious=app.survey_curious; 
+    const useTime=app.survey_use_time; const expectations=app.survey_expectations;
     
     if($("crmSurveyResult")){
         if(job||edu||region||ageGroup){
-            // ★ 신/구 설문 폼 호환 렌더링
             let surveyHtml = '';
             surveyHtml += `<div class="crm-box"><div class="crm-label">1. 거주 지역</div><div class="crm-answer">${window.escapeHtml(region)||'<span class="crm-empty">미작성</span>'}</div></div>`;
             surveyHtml += `<div class="crm-box"><div class="crm-label">2. 연령대</div><div class="crm-answer">${window.escapeHtml(ageGroup)||'<span class="crm-empty">미작성</span>'}</div></div>`;
             surveyHtml += `<div class="crm-box"><div class="crm-label">3. 직업 및 연차</div><div class="crm-answer">${window.escapeHtml(job)||'<span class="crm-empty">미작성</span>'}</div></div>`;
             
-            // 기존 폼에서만 노출 (신규 폼은 경로 데이터로 사용되어 숨김)
-            if (!isNewSurvey && brand) {
-                surveyHtml += `<div class="crm-box"><div class="crm-label">4. 선호 브랜드 및 이유 (구버전)</div><div class="crm-answer">${window.escapeHtml(brand)}</div></div>`;
-            }
+            // 기존 폼에서만 작성된 경우
+            if (brand) surveyHtml += `<div class="crm-box"><div class="crm-label">4. 선호 브랜드 및 이유 (구버전)</div><div class="crm-answer">${window.escapeHtml(brand)}</div></div>`;
             
-            surveyHtml += `<div class="crm-box"><div class="crm-label">${isNewSurvey?'4':'5'}. 수료하신 커피 교육 / 아쉬운 점</div><div class="crm-answer">${window.escapeHtml(edu)||'<span class="crm-empty">미작성</span>'}</div></div>`;
-            surveyHtml += `<div class="crm-box"><div class="crm-label">${isNewSurvey?'5':'6'}. 커피 지식 궁금한 점</div><div class="crm-answer">${window.escapeHtml(curious)||'<span class="crm-empty">미작성</span>'}</div></div>`;
-            surveyHtml += `<div class="crm-box"><div class="crm-label">${isNewSurvey?'6':'7'}. 달성 목표 (니즈)</div><div class="crm-answer">${window.escapeHtml(goal)||'<span class="crm-empty">미작성</span>'}</div></div>`;
+            surveyHtml += `<div class="crm-box"><div class="crm-label">5. 수료하신 커피 교육</div><div class="crm-answer">${window.escapeHtml(edu)||'<span class="crm-empty">미작성</span>'}</div></div>`;
+            // 신규 교육 피드백 컬럼 적용
+            if (eduFeedback) surveyHtml += `<div class="crm-box"><div class="crm-label">6. 이전 교육 아쉬운 점</div><div class="crm-answer">${window.escapeHtml(eduFeedback)||'<span class="crm-empty">미작성</span>'}</div></div>`;
+
+            surveyHtml += `<div class="crm-box"><div class="crm-label">7. 커피 지식 궁금한 점</div><div class="crm-answer">${window.escapeHtml(curious)||'<span class="crm-empty">미작성</span>'}</div></div>`;
+            surveyHtml += `<div class="crm-box"><div class="crm-label">8. 달성 목표 (니즈)</div><div class="crm-answer">${window.escapeHtml(goal)||'<span class="crm-empty">미작성</span>'}</div></div>`;
             
-            // 기존 폼에서만 노출
-            if (useTime) {
-                surveyHtml += `<div class="crm-box"><div class="crm-label">이용 희망 시간대 (구버전)</div><div class="crm-answer">${window.escapeHtml(useTime)}</div></div>`;
-            }
+            if (useTime) surveyHtml += `<div class="crm-box"><div class="crm-label">이용 희망 시간대 (구버전)</div><div class="crm-answer">${window.escapeHtml(useTime)}</div></div>`;
             
-            surveyHtml += `<div class="crm-box"><div class="crm-label">${isNewSurvey?'7':'9'}. 기대/바라는 점</div><div class="crm-answer">${window.escapeHtml(expectations)||'<span class="crm-empty">미작성</span>'}</div></div>`;
+            surveyHtml += `<div class="crm-box"><div class="crm-label">9. 기대/바라는 점</div><div class="crm-answer">${window.escapeHtml(expectations)||'<span class="crm-empty">미작성</span>'}</div></div>`;
 
             $("crmSurveyResult").innerHTML = surveyHtml;
         }else{
@@ -1079,9 +1074,7 @@ window.renderAppTable = function(data) {
         let _interestHtml=_interestTags.length>0?`<span style="color:var(--text-tertiary);font-size:12px;font-weight:600;">관심 분야</span> <span style="font-size:11px;font-weight:600;color:var(--text-secondary);">${_interestTags.map(t=>window.escapeHtml(t)).join(', ')}</span>`:'';
         let _counselor=(row.counselor_name&&row.counselor_name!=='null')?row.counselor_name:'';
         
-        // ★ 신규 항목 파싱 로직 적용
-        let isNewSurveyData = row.survey_brand && row.survey_brand.startsWith('경로:');
-        let parsedChannelForCard = isNewSurveyData ? row.survey_brand.split('/')[0].replace('경로:', '').trim() : (row.acquisition_channel || '');
+        let parsedChannelForCard = row.survey_channel || row.acquisition_channel || '';
 
         let _lbl='<span class="wc-meta-label">';
         let _metaParts=[];
@@ -1232,9 +1225,9 @@ window.showGhostHistory=function(phoneDigits){let history=globalApps.filter(a=>(
 
 window.showPrevAppHistory=function(phoneDigits){let history=globalApps.filter(a=>String(a.phone||'').replace(/\D/g,'')===phoneDigits).sort((a,b)=>{let aN=parseInt(String(a.desired_batch||'').replace(/[^0-9]/g,''))||0;let bN=parseInt(String(b.desired_batch||'').replace(/[^0-9]/g,''))||0;return aN-bN;});if(history.length===0)return showToast('신청 이력이 없습니다.');let html=history.map(a=>{let stBadge='';if(a.join_status==='가입 완료')stBadge='<span class="status-badge badge-green" style="font-size:11px;">가입 완료</span>';else if(a.join_status==='연락 두절')stBadge='<span class="status-badge badge-red" style="font-size:11px;">연락 두절</span>';else if(a.join_status)stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.join_status)}</span>`;else stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.status||'대기')}</span>`;return`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span style="font-weight:700;font-size:14px;color:var(--text-display);">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</span>${stBadge}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>희망센터: ${window.escapeHtml(a.desired_center||'-')}</div></div>`;}).join('');window.openCustomConfirm('전체 신청 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');};
 
-// ▼▼▼ 파트3 끝 — 파트4에서 이어집니다 ▼▼▼
+// ▼▼▼ 파트 3 끝 ▼▼▼
 
-// ▼▼▼ 파트4 시작 ▼▼▼
+// ▼▼▼ 파트 4 시작 ▼▼▼
 
 window.changeMemberPerPage=function(val){memberItemsPerPage=val==='all'?999999:parseInt(val);currentMemberPage=1;renderMemberTablePage();};
 window.changeMemberPage=function(page){currentMemberPage=page;renderMemberTablePage();};
@@ -1307,9 +1300,8 @@ window.downloadExcel = function(type) {
             let row=[];const phoneOut=window.normalizePhone(d.phone)||d.phone||'';
             if(type==='applications'){
                 // ★ 엑셀 다운로드에서도 신규 폼 데이터 추출
-                let isNewSurvey = d.survey_brand && String(d.survey_brand).startsWith('경로:');
-                let parsedChannel = isNewSurvey ? d.survey_brand.split('/ 기간:')[0].replace('경로:', '').trim() : (d.acquisition_channel || '');
-                let parsedDuration = isNewSurvey && d.survey_brand.includes('기간:') ? d.survey_brand.split('기간:')[1].trim() : (d.known_duration || '');
+                let parsedChannel = d.survey_channel || d.acquisition_channel || '';
+                let parsedDuration = d.survey_duration || d.known_duration || '';
                 let parsedInterest = d.survey_goal || d.interest_area || '';
                 
                 row=[formatDt(d.created_at),d.desired_batch,d.name,phoneOut,parsedInterest,window.mapInterestLevel(d.interest_level),parsedChannel,parsedDuration,d.status,d.join_status,d.call_time,d.counselor_name];
@@ -1362,9 +1354,10 @@ window.showInvoiceModal=async function(){let modal=document.getElementById('invo
 window.handleInvoiceStatusChange=async function(orderId,newValue,selectEl){let order=gOrd.find(o=>String(o.id)===String(orderId));if(!order)return;let oldStatus=order.status||'주문 접수';if(oldStatus===newValue)return;const{error}=await supabaseClient.from('orders').update({status:newValue,updated_at:new Date().toISOString()}).eq('id',orderId);if(error){showToast("변경 실패");selectEl.value=oldStatus;return;}try{await supabaseClient.from('invoice_logs').insert([{order_id:String(orderId),action:'status_changed',field_name:'status',old_value:oldStatus,new_value:newValue,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}order.status=newValue;showToast(`[${newValue}] 변경 완료`);if(newValue==='입금 확인'){showToast('입금 확인 — 명세서에서 제외됩니다.');setTimeout(()=>window.showInvoiceModal(),600);}window.fetchCenterData({force:true});};
 window.handleInvoicePriceInput=async function(orderId,val,inputEl){let numOnly=String(val).replace(/[^0-9]/g,'');let formatted=numOnly?comma(numOnly)+'원':'';let order=gOrd.find(o=>String(o.id)===String(orderId));if(!order)return;let oldPrice=order.total_price||'';if(oldPrice===formatted){inputEl.value=formatted;return;}let updates={total_price:formatted,updated_at:new Date().toISOString()};let newStatus=order.status;if(numOnly&&order.status==='주문 접수'){updates.status='입금 대기';newStatus='입금 대기';}order.total_price=formatted;order.status=newStatus;inputEl.value=formatted;inputEl.style.color=formatted?'#111':'#ccc';inputEl.style.borderColor='#e5e5e5';inputEl.style.background=formatted?'#fff':'#fff5f5';await supabaseClient.from('orders').update(updates).eq('id',orderId);if(oldPrice!==formatted){try{await supabaseClient.from('invoice_logs').insert([{order_id:String(orderId),action:'price_changed',field_name:'total_price',old_value:oldPrice,new_value:formatted,performed_by:currentAdminEmail||'unknown',target_member:order?.name||''}]);}catch(e){}}showToast('저장되었습니다.');window.fetchCenterData({force:true});};
 window.showInvoiceLogs=async function(){let body=document.getElementById('invoiceModalBody');let footer=document.getElementById('invoiceModalFooter');if(!body)return;body.innerHTML='<div style="text-align:center;padding:60px 0;color:#aaa;">이력을 불러오는 중...</div>';footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;try{const{data,error}=await supabaseClient.from('invoice_logs').select('*').in('action',['price_changed','status_changed']).order('created_at',{ascending:false}).limit(500);if(error||!data||data.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}let activeIds=new Set(gOrd.map(o=>String(o.id)));let filtered=data.filter(log=>activeIds.has(String(log.order_id)));if(filtered.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}let cards=filtered.map(log=>{let isPrice=log.action==='price_changed';let badgeColor=isPrice?'#ff7900':'#2563eb';let badgeBg=isPrice?'#fff7f0':'#eff6ff';let badgeText=isPrice?'금액':'결제';let order=gOrd.find(o=>String(o.id)===String(log.order_id));let vendor=order?order.vendor||'':'';let itemName=order?(order.item_name||'').replace(/\s*\[.*?\]\s*$/,''):'';let qty=order?order.quantity||'':'';return `<div style="padding:16px 20px;background:#fff;border:1px solid #eee;border-radius:14px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:3px 10px;border-radius:6px;">${badgeText}</span><span style="font-weight:800;font-size:16px;color:#111;">${window.escapeHtml(log.target_member||'-')}</span></div><span style="font-size:12px;color:#999;">${formatDt(log.created_at)}</span></div>${itemName?`<div style="font-size:14px;margin-bottom:10px;line-height:1.4;"><span style="color:#999;">${window.escapeHtml(vendor)}</span> <span style="color:#ccc;">|</span> <span style="color:#333;font-weight:600;">${window.escapeHtml(itemName)}</span>${qty?` <span style="color:#999;">${qty}</span>`:''}</div>`:''}<div style="background:#f9fafb;padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;"><div style="font-size:14px;"><span style="color:#aaa;">${window.escapeHtml(log.old_value||'—')}</span> <span style="color:#ccc;font-weight:600;">→</span> <span style="font-weight:800;color:#111;font-size:15px;">${window.escapeHtml(log.new_value||'—')}</span></div><span style="font-size:11px;color:#aaa;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</span></div></div>`;}).join('');body.innerHTML=`<div style="margin-bottom:16px;"><span style="font-size:18px;font-weight:900;color:#111;">전체 변경 이력</span></div>${cards}`;}catch(e){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#ef4444;">이력 조회 실패</div>';console.error(e);}};
+window.restoreInvoiceMain=function(){let body=document.getElementById('invoiceModalBody');let footer=document.getElementById('invoiceModalFooter');if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;if(footer)footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;};
 window.ensureInvoiceButton=function(){if(document.getElementById('invoiceBtn'))return;let btns=document.querySelectorAll('button,.btn');let summaryBtn=Array.from(btns).find(b=>b.textContent.includes('발주 요약'));if(summaryBtn&&summaryBtn.parentNode){let wrapper=document.createElement('div');wrapper.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';summaryBtn.parentNode.insertBefore(wrapper,summaryBtn);wrapper.appendChild(summaryBtn);let invoiceBtn=document.createElement('button');invoiceBtn.id='invoiceBtn';invoiceBtn.style.cssText='padding:10px 16px;font-size:14px;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;transition:0.15s;white-space:nowrap;height:38px;display:inline-flex;align-items:center;justify-content:center;';invoiceBtn.textContent='명세서';invoiceBtn.onmouseover=function(){this.style.opacity='0.9';};invoiceBtn.onmouseout=function(){this.style.opacity='1';};invoiceBtn.onclick=function(){window.showInvoiceModal();};wrapper.appendChild(invoiceBtn);}};
 
-// ★ 신규 설문 데이터 + 기존 데이터 호환 인사이트 분석 개편
+// ★ 신/구 데이터 통합 인사이트 로직 (문자열 파싱 없이 컬럼 직접 추출)
 window.renderStatistics = function(data) {
     if (!$("statsContainer")) return;
     const container = $("statsContainer");
@@ -1446,10 +1439,9 @@ window.renderStatistics = function(data) {
     let safeData = { instaFollow: 0, instaNonFollow: 0, adNow: 0, leadTime3M: 0 };
     
     data.forEach(d => {
-        // ★ 신/구 데이터 호환 파싱 (경로 및 기간)
-        let isNewSurvey = d.survey_brand && String(d.survey_brand).startsWith('경로:');
-        let rawChannel = isNewSurvey ? d.survey_brand.split('/ 기간:')[0].replace('경로:', '').trim() : String(d.acquisition_channel || '기타');
-        let rawDuration = isNewSurvey && d.survey_brand.includes('기간:') ? d.survey_brand.split('기간:')[1].trim() : (d.known_duration || '');
+        // ★ 신규 컬럼에서 읽고, 없으면 구 컬럼에서 읽기
+        let rawChannel = String(d.survey_channel || d.acquisition_channel || '기타');
+        let rawDuration = String(d.survey_duration || d.known_duration || '');
 
         let ch = rawChannel.startsWith('기타') ? '기타' : rawChannel;
         let etc = '';
@@ -1463,15 +1455,15 @@ window.renderStatistics = function(data) {
 
         let det = '';
         if (ch === '인스타그램') {
-            if (!isNewSurvey) {
+            if (d.survey_channel) { // 신규 폼
+                det = rawDuration;
+            } else { // 구버전 폼
                 if (d.is_follow === '네, 팔로우하고 있어요') safeData.instaFollow++; 
                 else if (d.is_follow) safeData.instaNonFollow++;
                 det = d.follow_duration || d.is_follow || '';
-            } else {
-                det = rawDuration;
             }
         } else if (ch === '광고') {
-            det = !isNewSurvey ? (d.ad_duration || '') : rawDuration;
+            det = rawDuration || d.ad_duration || '';
             if (det === '최근 일주일 이내' || det === '한 달 이내' || det === '1개월 이내') safeData.adNow++;
             else if (det === '3개월 이내' || det === '6개월 이내' || det === '1년 이내' || det === '1년 이상') safeData.leadTime3M++;
         } else if (ch === '기타') {
@@ -1485,7 +1477,6 @@ window.renderStatistics = function(data) {
 
     let interestAll = [];
     data.forEach(d => {
-        // ★ 신/구 데이터 통합 (survey_goal & interest_area)
         let rawInterest = d.survey_goal || d.interest_area || '';
         if (rawInterest) {
             String(rawInterest).split(',').map(s => s.trim()).filter(Boolean).forEach(v => {
@@ -1501,11 +1492,8 @@ window.renderStatistics = function(data) {
     function getFrequency(arr) { return Object.entries(arr.reduce((acc, val) => { if (val) acc[val] = (acc[val] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1]); }
     const interestData = getFrequency(interestAll);
 
-    // 인지 기간 통합 추출
-    const knownDurData = getFrequency(data.map(d => {
-        let isNewSurvey = d.survey_brand && String(d.survey_brand).startsWith('경로:');
-        return isNewSurvey && d.survey_brand.includes('기간:') ? d.survey_brand.split('기간:')[1].trim() : (d.known_duration || '');
-    }).filter(Boolean));
+    // ★ 인지 기간 통합 추출
+    const knownDurData = getFrequency(data.map(d => d.survey_duration || d.known_duration || '').filter(Boolean));
 
     const instaCount = channelMap['인스타그램'] ? channelMap['인스타그램'].total : 0;
     const adCount = channelMap['광고'] ? channelMap['광고'].total : 0;
@@ -1610,4 +1598,48 @@ ${knownHtml.length > 0 ? knownHtml : '<div style="font-size:13px;color:var(--tex
         channelMap, counselorMap, knownDurData
     };
 };
-// ▼▼▼ 파트4 끝 ▼▼▼
+
+// ★ 신규 폼 데이터 추출 로직을 반영한 엑셀 다운로드
+window.downloadExcel = function(type) {
+    try {
+        if(type === 'applications' && typeof isInsightView !== 'undefined' && isInsightView) {
+            const d = window.currentInsightData || {};
+            let csv = "\uFEFF카테고리,세부 항목,수치,비고\n";
+            csv += `전체 요약,총 신청 건수,${d.total||0}건,-\n`;csv += `전체 요약,최종 가입 완료,${d.joined||0}건,(전환율 ${d.total>0?Math.round(d.joined/d.total*100):0}%)\n`;csv += `전체 요약,실질 이탈률,${d.realDropoutRate||0}%,(이탈자 ${d.dropoutCount||0}명)\n`;csv += `유입 채널,인스타그램 총 유입,${d.instaCount||0}건,-\n`;csv += `인스타 상세,팔로워 유입,${d.instaFollow||0}건,-\n`;csv += `인스타 상세,비팔로워 유입,${d.instaNonFollow||0}건,-\n`;csv += `유입 채널,모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`;csv += `광고 리드타임,단기 유입 (1개월 이내),${d.leadTime1M||0}건,-\n`;csv += `광고 리드타임,장기 유입 (3개월 이상),${d.leadTime3M||0}건,-\n`;
+            if(d.knownDurData&&d.knownDurData.length>0){csv+=`\n인지 기간 분포,기간,건수,비고\n`;d.knownDurData.forEach(k=>{csv+=`인지 기간,${k[0]},${k[1]}건,-\n`;});}
+            if(d.counselorMap){csv+=`\n상담자별 가입/이탈,상담자,건수,비고\n`;for(let cn in d.counselorMap){let cd=d.counselorMap[cn];if(cn==='미지정')continue;let rate=cd.total>0?Math.round(cd.joined/cd.total*100):0;csv+=`[${cn}],담당 총 ${cd.total}명,${cd.joined}명 가입 / ${cd.dropout}명 이탈,(가입률 ${rate}%)\n`;}}
+            if(d.channelMap){csv+=`\n상세 채널별 트래킹,상세 내역,건수,비고\n`;for(let ch in d.channelMap){let chData=d.channelMap[ch];csv+=`[${ch}],(총 ${chData.total}건),-,-\n`;for(let det in chData.details){let detSafe=String(det).replace(/"/g,'""');csv+=`ㄴ,${detSafe},${chData.details[det]}건,-\n`;}}}
+            const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`;link.click();return;
+        }
+        let data=[],headers=[],filename="";
+        if(type==='applications'){
+            if(Array.isArray(window.currentFilteredApps)){data=window.currentFilteredApps;}else{const selected=$("batchFilterApp")?$("batchFilterApp").value:'all';data=(selected==='all')?globalApps:globalApps.filter(d=>d.desired_batch===selected);}
+            filename="가입신청";
+            headers=['신청일','기수','성함','연락처','관심분야(니즈)','관심도','유입경로','인지 기간','진행상황','가입여부','상담일시','담당자'];
+        }
+        else if(type==='members'){const filterEmpty=(!$("memberSearch")||!$("memberSearch").value.trim())&&(!$("memberStatusFilter")||$("memberStatusFilter").value==='all')&&(!$("memberBatchFilter")||$("memberBatchFilter").value==='all');if(filterEmpty){data=globalMembers;}else{data=(Array.isArray(window.currentFilteredMembers)?window.currentFilteredMembers:currentFilteredMembers)||[];}data.forEach(m=>m.batch=m.batch||'미정');filename="멤버리스트";headers=['등록일','상태','기수','성함','연락처','활동종료일'];}
+        else if(type==='reservations'){data=Array.isArray(window.currentFilteredRes)?window.currentFilteredRes:gRes;filename="예약현황";headers=['접수일','기수','성함','연락처','예약날짜','예약시간','센터','장비','상태','취소사유'];}
+        else if(type==='trainings'){data=Array.isArray(window.currentFilteredTrn)?window.currentFilteredTrn:gTrn;filename="수업훈련";headers=['신청일','기수','성함','연락처','콘텐츠','상태','취소사유'];}
+        else if(type==='orders'){const now=new Date();const qOrd=($("searchOrd")?.value||"").toLowerCase();const vOrd=$("ordVendorFilter")?.value||"전체";const isOrdFilter=$("filterPendingOrd")?.checked;data=gOrd.filter(o=>{const matchCenter=(currentGlobalCenter==='전체'||o.center===currentGlobalCenter);const matchQ=`${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);const matchV=(vOrd==='전체')?true:o.vendor===vOrd;const matchS=isOrdFilter?(o.status==='주문 접수'):true;const notExpired=isOrdFilter?true:(typeof window.isOrderExpired==='function'?!window.isOrderExpired(o,now):true);return matchCenter&&matchQ&&matchV&&matchS&&notExpired;});filename="생두주문";headers=['주문일','주문번호','기수','성함','연락처','생두사','상품명','수량','총금액','상태'];}
+        if(!data||data.length===0){if(typeof showToast==='function')showToast('다운로드할 데이터가 없습니다.');return;}
+        let csvContent='\uFEFF'+headers.join(',')+'\n';
+        data.forEach(d=>{
+            let row=[];const phoneOut=window.normalizePhone(d.phone)||d.phone||'';
+            if(type==='applications'){
+                let parsedChannel = d.survey_channel || d.acquisition_channel || '';
+                let parsedDuration = d.survey_duration || d.known_duration || '';
+                let parsedInterest = d.survey_goal || d.interest_area || '';
+                
+                row=[formatDt(d.created_at),d.desired_batch,d.name,phoneOut,parsedInterest,window.mapInterestLevel(d.interest_level),parsedChannel,parsedDuration,d.status,d.join_status,d.call_time,d.counselor_name];
+            }
+            else if(type==='members')row=[formatDt(d.created_at),d.status,d.batch,d.name,phoneOut,d.end_date];
+            else if(type==='reservations')row=[formatDt(d.created_at),d.batch,d.name,phoneOut,d.res_date,d.res_time,d.center,d.space_equip,d.status,d.cancel_reason];
+            else if(type==='trainings')row=[formatDt(d.created_at),d.batch,d.name,phoneOut,d.content,d.status,d.cancel_reason];
+            else if(type==='orders')row=[formatDt(d.created_at),d.id,d.batch,d.name,phoneOut,d.vendor,d.item_name,d.quantity,d.total_price,d.status];
+            csvContent+=row.map(item=>{let text=String(item==null?'':item);text=text.replace(/"/g,'""');text=text.replace(/\n/g,' ');return `"${text}"`;}).join(',')+'\n';
+        });
+        const blob=new Blob([csvContent],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`${filename}_${new Date().toISOString().slice(0,10)}.csv`;document.body.appendChild(link);link.click();document.body.removeChild(link);
+    }catch(err){console.error("Excel Download Error: ",err);if(typeof showToast==='function')showToast('엑셀 다운로드 중 오류가 발생했습니다.');}
+};
+
+// ▼▼▼ 파트 4 끝 ▼▼▼
