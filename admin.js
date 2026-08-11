@@ -1833,3 +1833,479 @@ window.downloadExcel = function(type) {
 };
 
 // ▼▼▼ 파트 4 끝 ▼▼▼
+
+/* ═══════════════════════════════════════════════════════════
+   커핑 관리 모듈 — 파트 1 (세션 + 라인업)
+   admin.js 맨 하단에 파트1 → 파트2 → 파트3 순서로 붙이기
+   삭제 시: 세 파트 전체 제거
+   ═══════════════════════════════════════════════════════════ */
+
+let gCuppingBeans = {};
+
+/* ── saveBlockData 래핑: 커핑 카테고리 저장 시 세션 자동 생성 ── */
+(function() {
+  const _origSaveBlockData = window.saveBlockData;
+  window.saveBlockData = async function() {
+    const category = $("blkCategory") ? $("blkCategory").value : "";
+    const isCupping = category.includes("커핑");
+    const editId = $("blkId") ? $("blkId").value : "";
+
+    await _origSaveBlockData();
+
+    if (isCupping && !editId) {
+      // 방금 만든 커핑 블록 찾기
+      const { data: latest } = await supabaseClient
+        .from("blocks")
+        .select("id, block_date, start_time, end_time, center, reason")
+        .eq("category", category)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (latest && latest.length) {
+        const blk = latest[0];
+        const { data: exist } = await supabaseClient
+          .from("cupping_sessions").select("id").eq("block_id", blk.id).maybeSingle();
+
+        if (!exist) {
+          await supabaseClient.from("cupping_sessions").insert([
+            buildSessionPayload(blk)
+          ]);
+        }
+      }
+    }
+  };
+})();
+
+function buildSessionPayload(blk) {
+  const slug = `${blk.block_date}-cupping-${Math.random().toString(36).slice(2, 6)}`;
+  const centerCode = (blk.center || "").includes("광진") ? "gwangjin" : "mapo";
+  const scheduledAt = `${blk.block_date}T${blk.start_time || "14:00"}:00`;
+  let duration = 90;
+  if (blk.start_time && blk.end_time) {
+    const [sh, sm] = blk.start_time.split(":").map(Number);
+    const [eh, em] = blk.end_time.split(":").map(Number);
+    const d = (eh * 60 + em) - (sh * 60 + sm);
+    if (d > 0) duration = d;
+  }
+  return {
+    block_id: blk.id, slug, title: blk.reason || "커핑 세션",
+    type: "sensory_training", center: centerCode,
+    scheduled_at: scheduledAt, duration_min: duration, status: "upcoming"
+  };
+}
+
+/* ── renderCenterData 래핑: 커핑 블록 행에 "커핑 설정" 버튼 주입 ── */
+(function() {
+  const _origRender = window.renderCenterData;
+  window.renderCenterData = function() {
+    _origRender();
+    injectCuppingButtons();
+  };
+})();
+
+function injectCuppingButtons() {
+  const body = $("blkTableBody");
+  if (!body) return;
+  body.querySelectorAll("tr").forEach(function(tr) {
+    const catCell = tr.querySelector('td[data-label="구분"]');
+    if (!catCell || !(catCell.textContent || "").includes("커핑")) return;
+    if (tr.querySelector(".cupping-setup-btn")) return;
+
+    const wrap = tr.querySelector('td[data-label="관리"] .action-wrap-flex');
+    if (!wrap) return;
+    const editBtn = wrap.querySelector('button[onclick*="editBlock"]');
+    if (!editBtn) return;
+    const m = editBtn.getAttribute("onclick").match(/editBlock\('([^']+)'\)/);
+    if (!m) return;
+    const blockId = m[1];
+
+    const btn = document.createElement("button");
+    btn.className = "btn-outline btn-sm cupping-setup-btn";
+    btn.style.cssText = "color:var(--primary);border-color:var(--primary);font-weight:700;";
+    btn.textContent = "커핑 설정";
+    btn.onclick = function(e) { e.stopPropagation(); window.openCuppingSetup(blockId); };
+    wrap.insertBefore(btn, wrap.firstChild);
+  });
+}
+
+/* ── 커핑 설정 열기: 블록 → 세션 조회(없으면 생성) → 라인업 모달 ── */
+window.openCuppingSetup = async function(blockId) {
+  let { data: session } = await supabaseClient
+    .from("cupping_sessions").select("*").eq("block_id", blockId).maybeSingle();
+
+  if (!session) {
+    const blk = gBlk.find(function(b) { return String(b.id) === String(blockId); });
+    if (!blk) return showToast("블록 정보를 찾을 수 없습니다.");
+    const { data: created, error } = await supabaseClient
+      .from("cupping_sessions").insert([buildSessionPayload(blk)]).select().single();
+    if (error) { showToast("커핑 세션 생성 실패"); console.error(error); return; }
+    session = created;
+  }
+  window.openCuppingLineup(session);
+};
+
+/* ── 라인업 모달 ── */
+window.openCuppingLineup = async function(session) {
+  window._cuppingSession = session;
+  $("lineupSessionId").value = session.id;
+  $("lineupModalTitle").textContent = session.title + " — 커핑 설정";
+  $("sessionUrlText").textContent = "https://www.wecoffee.co.kr/cupping/" + session.slug;
+
+  ["beanName","beanOrigin","beanFarm","beanProcess","beanAltitude","beanVariety","beanRoast"]
+    .forEach(function(id) { if ($(id)) $(id).value = ""; });
+
+  await window.fetchCuppingBeans(session.id);
+  $("cuppingLineupModal").classList.add("show");
+};
+
+window.closeCuppingLineupModal = function() {
+  $("cuppingLineupModal").classList.remove("show");
+};
+
+window.copyCuppingUrl = function() {
+  window.copyTxt($("sessionUrlText").textContent, "커핑 세션 URL이 복사되었습니다.");
+};
+
+/* ── 원두 CRUD ── */
+window.fetchCuppingBeans = async function(sessionId) {
+  const { data, error } = await supabaseClient
+    .from("cupping_beans").select("*").eq("session_id", sessionId)
+    .order("sort_order", { ascending: true });
+  if (error) { console.error(error); return; }
+  gCuppingBeans[sessionId] = data || [];
+  window.renderCuppingBeans(sessionId);
+};
+
+window.renderCuppingBeans = function(sessionId) {
+  const beans = gCuppingBeans[sessionId] || [];
+  const area = $("beanListArea");
+  if ($("beanCount")) $("beanCount").textContent = beans.length;
+  if (!area) return;
+
+  if (!beans.length) {
+    area.innerHTML = '<div class="empty-state" style="padding:30px 0;">등록된 원두가 없습니다.</div>';
+    return;
+  }
+
+  area.innerHTML = beans.map(function(b, idx) {
+    const specs = [b.origin, b.process, b.altitude, b.variety, b.roast_level].filter(Boolean);
+    const upBtn = idx > 0
+      ? '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.moveCuppingBean(\'' + sessionId + '\',\'' + b.id + '\',\'up\')">↑</button>' : '';
+    const downBtn = idx < beans.length - 1
+      ? '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.moveCuppingBean(\'' + sessionId + '\',\'' + b.id + '\',\'down\')">↓</button>' : '';
+    return '<div style="background:#fff;border:1px solid var(--border-strong);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">' +
+      '<div style="flex:1;min-width:0;">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+      '<span style="width:24px;height:24px;border-radius:7px;background:#f2f4f6;color:#4e5968;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">' + (idx + 1) + '</span>' +
+      '<span style="font-size:15px;font-weight:700;color:var(--text-display);">' + escapeHtml(b.name) + '</span></div>' +
+      (specs.length ? '<div style="font-size:12px;color:var(--text-secondary);margin-left:32px;">' + specs.map(escapeHtml).join(" · ") + '</div>' : '') +
+      (b.farm ? '<div style="font-size:12px;color:var(--text-tertiary);margin-left:32px;">농장: ' + escapeHtml(b.farm) + '</div>' : '') +
+      '</div><div style="display:flex;gap:4px;flex-shrink:0;">' + upBtn + downBtn +
+      '<button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--error);padding:4px 8px;" onclick="window.deleteCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">삭제</button>' +
+      '</div></div>';
+  }).join("");
+};
+
+window.addCuppingBean = async function() {
+  const sessionId = $("lineupSessionId").value;
+  const name = $("beanName").value.trim();
+  if (!name) return showToast("원두명을 입력해주세요.");
+  const beans = gCuppingBeans[sessionId] || [];
+
+  const { error } = await supabaseClient.from("cupping_beans").insert([{
+    session_id: sessionId, sort_order: beans.length, name: name,
+    origin: $("beanOrigin").value.trim() || null,
+    farm: $("beanFarm").value.trim() || null,
+    process: $("beanProcess").value.trim() || null,
+    altitude: $("beanAltitude").value.trim() || null,
+    variety: $("beanVariety").value.trim() || null,
+    roast_level: $("beanRoast").value.trim() || null
+  }]);
+  if (error) { showToast("원두 추가 실패"); console.error(error); return; }
+
+  ["beanName","beanOrigin","beanFarm","beanProcess","beanAltitude","beanVariety","beanRoast"]
+    .forEach(function(id) { if ($(id)) $(id).value = ""; });
+  if ($("beanName")) $("beanName").focus();
+  showToast("원두가 추가되었습니다.");
+  await window.fetchCuppingBeans(sessionId);
+};
+
+window.deleteCuppingBean = function(sessionId, beanId) {
+  window.openCustomConfirm("원두 삭제", null, "이 원두를 라인업에서 삭제하시겠습니까?", async function() {
+    const { error } = await supabaseClient.from("cupping_beans").delete().eq("id", beanId);
+    if (error) { showToast("삭제 실패"); return; }
+    showToast("삭제되었습니다.");
+    await window.fetchCuppingBeans(sessionId);
+  });
+};
+
+window.moveCuppingBean = async function(sessionId, beanId, dir) {
+  const beans = gCuppingBeans[sessionId] || [];
+  const idx = beans.findIndex(function(b) { return String(b.id) === String(beanId); });
+  if (idx < 0) return;
+  const swap = dir === "up" ? idx - 1 : idx + 1;
+  if (swap < 0 || swap >= beans.length) return;
+  const a = beans[idx], b = beans[swap];
+  await Promise.all([
+    supabaseClient.from("cupping_beans").update({ sort_order: b.sort_order }).eq("id", a.id),
+    supabaseClient.from("cupping_beans").update({ sort_order: a.sort_order }).eq("id", b.id)
+  ]);
+  await window.fetchCuppingBeans(sessionId);
+};
+
+/* ═══ 커핑 관리 모듈 파트 1 끝 ═══ */
+
+/* ═══════════════════════════════════════════════════════════
+   커핑 관리 모듈 — 파트 2 (참가자)
+   파트1 바로 아래에 붙이기
+   ═══════════════════════════════════════════════════════════ */
+
+let gCuppingParts = {};
+
+window.togglePreRegForm = function() {
+  const f = $("preRegForm");
+  if (f) f.style.display = f.style.display === "none" ? "block" : "none";
+};
+
+window.fetchCuppingParticipants = async function(sessionId) {
+  const { data, error } = await supabaseClient
+    .from("cupping_participants")
+    .select("*, members(name, batch, phone)")
+    .eq("session_id", sessionId)
+    .order("joined_at", { ascending: true });
+  if (error) { console.error(error); return; }
+  gCuppingParts[sessionId] = data || [];
+  window.renderCuppingParticipants(sessionId);
+};
+
+window.renderCuppingParticipants = function(sessionId) {
+  const parts = gCuppingParts[sessionId] || [];
+  const area = $("partListArea");
+  if ($("partCount")) $("partCount").textContent = parts.length;
+  if (!area) return;
+
+  if (!parts.length) {
+    area.innerHTML = '<div class="empty-state" style="padding:20px 0;font-size:13px;">참가자가 없습니다.</div>';
+    return;
+  }
+
+  area.innerHTML = parts.map(function(p) {
+    const isMember = !!p.member_id;
+    const name = isMember ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트");
+    const sub = isMember ? ((p.members && p.members.batch) || "") : (p.guest_phone || "");
+    const joinLabel = { member: "멤버", pre_registered: "사전등록", walk_in: "현장참여" }[p.join_type] || p.join_type;
+    const approved = p.approved;
+    const dotColor = approved ? "#00b386" : "#e24b4a";
+    const approveBtn = !approved
+      ? '<button class="btn-outline btn-sm" style="color:var(--primary);border-color:var(--primary);padding:4px 10px;" onclick="window.approveParticipant(\'' + sessionId + '\',\'' + p.id + '\')">승인</button>' : '';
+
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#fff;border:1px solid var(--border-strong);border-radius:10px;gap:8px;">' +
+      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;"></span>' +
+      '<div style="min-width:0;">' +
+      '<div style="font-size:14px;font-weight:700;color:var(--text-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(name) + '</div>' +
+      '<div style="font-size:11px;color:var(--text-secondary);">' + escapeHtml(sub) + ' · ' + joinLabel + (!approved ? ' · 대기 중' : '') + '</div>' +
+      '</div></div>' +
+      '<div style="display:flex;gap:4px;flex-shrink:0;">' + approveBtn +
+      '<button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--error);padding:4px 8px;" onclick="window.removeParticipant(\'' + sessionId + '\',\'' + p.id + '\')">삭제</button>' +
+      '</div></div>';
+  }).join("");
+};
+
+window.approveParticipant = async function(sessionId, partId) {
+  const { error } = await supabaseClient
+    .from("cupping_participants").update({ approved: true }).eq("id", partId);
+  if (error) { showToast("승인 실패"); return; }
+  showToast("승인되었습니다.");
+  await window.fetchCuppingParticipants(sessionId);
+};
+
+window.removeParticipant = function(sessionId, partId) {
+  window.openCustomConfirm("참가자 삭제", null, "이 참가자를 삭제하시겠습니까?", async function() {
+    const { error } = await supabaseClient.from("cupping_participants").delete().eq("id", partId);
+    if (error) { showToast("삭제 실패"); return; }
+    showToast("삭제되었습니다.");
+    await window.fetchCuppingParticipants(sessionId);
+  });
+};
+
+window.preRegParticipant = async function() {
+  const sessionId = $("lineupSessionId").value;
+  const name = $("preRegName").value.trim();
+  const phone = $("preRegPhone").value.trim();
+  const type = $("preRegType").value;
+  if (!name) return showToast("성함을 입력해주세요.");
+
+  if (type === "member") {
+    const { data: member } = await supabaseClient
+      .from("members").select("id").eq("name", name).maybeSingle();
+    if (!member) return showToast("해당 이름의 멤버를 찾을 수 없습니다.");
+    const { data: dup } = await supabaseClient
+      .from("cupping_participants").select("id")
+      .eq("session_id", sessionId).eq("member_id", member.id).maybeSingle();
+    if (dup) return showToast("이미 등록된 멤버입니다.");
+    const { error } = await supabaseClient.from("cupping_participants").insert([{
+      session_id: sessionId, member_id: member.id,
+      role: "participant", join_type: "pre_registered", approved: true
+    }]);
+    if (error) return showToast("등록 실패");
+  } else {
+    if (!phone) return showToast("연락처를 입력해주세요.");
+    const { error } = await supabaseClient.from("cupping_participants").insert([{
+      session_id: sessionId, guest_name: name, guest_phone: phone,
+      role: "participant", join_type: "pre_registered", approved: true
+    }]);
+    if (error) return showToast("등록 실패");
+  }
+
+  $("preRegName").value = "";
+  $("preRegPhone").value = "";
+  showToast("참가자가 등록되었습니다.");
+  await window.fetchCuppingParticipants(sessionId);
+};
+
+/* openCuppingLineup 확장: 참가자도 함께 로드 */
+(function() {
+  const _orig = window.openCuppingLineup;
+  window.openCuppingLineup = async function(session) {
+    await _orig(session);
+    await window.fetchCuppingParticipants(session.id);
+  };
+})();
+
+/* ═══ 커핑 관리 모듈 파트 2 끝 ═══ */
+
+/* ═══════════════════════════════════════════════════════════
+   커핑 관리 모듈 — 파트 3 (호스트 레퍼런스 + 캘리브레이션 공개)
+   파트2 바로 아래에 붙이기
+   ═══════════════════════════════════════════════════════════ */
+
+const CUPPING_REF_KEYS = ["ref_fragrance","ref_aroma","ref_flavor","ref_aftertaste","ref_acidity","ref_sweetness","ref_mouthfeel","ref_overall"];
+const CUPPING_SCORE_LABELS = ["프래그런스","아로마","플레이버","애프터테이스트","산미","단맛","마우스필","전체적 인상"];
+
+/* openCuppingLineup 재확장: 레퍼런스 섹션 세팅 */
+(function() {
+  const _orig = window.openCuppingLineup;
+  window.openCuppingLineup = async function(session) {
+    await _orig(session);
+    setupRefSection(session);
+  };
+})();
+
+function setupRefSection(session) {
+  const beans = gCuppingBeans[session.id] || [];
+
+  // 원두 셀렉트 채우기
+  const sel = $("refBeanSelect");
+  if (sel) {
+    sel.innerHTML = beans.map(function(b, i) {
+      return '<option value="' + b.id + '">' + (i + 1) + ". " + escapeHtml(b.name) + '</option>';
+    }).join("");
+  }
+
+  // 점수 입력 필드 생성
+  const scoreArea = $("refScoreInputs");
+  if (scoreArea) {
+    scoreArea.innerHTML = CUPPING_SCORE_LABELS.map(function(s, i) {
+      return '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<span style="font-size:11px;font-weight:600;color:var(--text-secondary);width:74px;flex-shrink:0;">' + s + '</span>' +
+        '<input type="number" id="' + CUPPING_REF_KEYS[i] + '" class="input-search" style="flex:1;box-sizing:border-box;height:32px;font-size:13px;padding:0 8px;" min="0" max="10" step="0.25" value="0">' +
+        '</div>';
+    }).join("");
+  }
+
+  updateRevealButtons(session.status);
+  window.loadRefForBean();
+}
+
+function updateRevealButtons(status) {
+  const revBtn = $("refRevealBtn"), hideBtn = $("refHideBtn"), statusEl = $("refStatus");
+  if (!revBtn || !hideBtn) return;
+  const isRevealed = status === "calibrating" || status === "completed";
+  revBtn.style.display = isRevealed ? "none" : "";
+  hideBtn.style.display = isRevealed ? "" : "none";
+  if (statusEl) statusEl.textContent = isRevealed ? "✓ 캘리브레이션이 공개된 상태입니다." : "";
+}
+
+window.loadRefForBean = async function() {
+  const beanId = $("refBeanSelect") ? $("refBeanSelect").value : null;
+  if (!beanId) return;
+  const { data } = await supabaseClient
+    .from("cupping_references").select("*").eq("bean_id", beanId).maybeSingle();
+
+  if (data) {
+    if ($("refNotes")) $("refNotes").value = (data.ref_notes || []).join(", ");
+    CUPPING_REF_KEYS.forEach(function(k) { if ($(k)) $(k).value = data[k] || 0; });
+  } else {
+    if ($("refNotes")) $("refNotes").value = "";
+    CUPPING_REF_KEYS.forEach(function(k) { if ($(k)) $(k).value = 0; });
+  }
+};
+
+window.saveRef = async function() {
+  const sessionId = $("lineupSessionId").value;
+  const beanId = $("refBeanSelect") ? $("refBeanSelect").value : null;
+  if (!beanId) return;
+
+  const notes = $("refNotes").value.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+  const scores = {};
+  CUPPING_REF_KEYS.forEach(function(k) { scores[k] = parseFloat($(k) ? $(k).value : 0) || 0; });
+
+  // 호스트 참가자 확보 (없으면 첫 참가자, 그것도 없으면 관리자용 임시 생성)
+  let hostId = null;
+  const { data: hostPart } = await supabaseClient
+    .from("cupping_participants").select("id")
+    .eq("session_id", sessionId).eq("role", "host").maybeSingle();
+  hostId = hostPart ? hostPart.id : null;
+
+  if (!hostId) {
+    const { data: firstPart } = await supabaseClient
+      .from("cupping_participants").select("id")
+      .eq("session_id", sessionId).limit(1).maybeSingle();
+    if (firstPart) {
+      hostId = firstPart.id;
+    } else {
+      // 참가자 전무 → 호스트 레코드 생성
+      const { data: newHost, error: hErr } = await supabaseClient
+        .from("cupping_participants").insert([{
+          session_id: sessionId, guest_name: "호스트", guest_phone: "host",
+          role: "host", join_type: "pre_registered", approved: true
+        }]).select().single();
+      if (hErr) { showToast("호스트 생성 실패"); return; }
+      hostId = newHost.id;
+    }
+  }
+
+  const payload = Object.assign({ bean_id: beanId, host_id: hostId, ref_notes: notes }, scores);
+  const { error } = await supabaseClient
+    .from("cupping_references").upsert(payload, { onConflict: "bean_id" });
+  if (error) { showToast("레퍼런스 저장 실패"); console.error(error); return; }
+  showToast("레퍼런스가 저장되었습니다.");
+};
+
+window.revealCalibration = async function() {
+  const sessionId = $("lineupSessionId").value;
+  const beans = gCuppingBeans[sessionId] || [];
+  const now = new Date().toISOString();
+  for (const bean of beans) {
+    await supabaseClient.from("cupping_references").update({ revealed_at: now }).eq("bean_id", bean.id);
+  }
+  await supabaseClient.from("cupping_sessions").update({ status: "calibrating", updated_at: now }).eq("id", sessionId);
+  if (window._cuppingSession) window._cuppingSession.status = "calibrating";
+  showToast("캘리브레이션이 공개되었습니다.");
+  updateRevealButtons("calibrating");
+};
+
+window.hideCalibration = async function() {
+  const sessionId = $("lineupSessionId").value;
+  const beans = gCuppingBeans[sessionId] || [];
+  for (const bean of beans) {
+    await supabaseClient.from("cupping_references").update({ revealed_at: null }).eq("bean_id", bean.id);
+  }
+  await supabaseClient.from("cupping_sessions").update({ status: "scoring_open", updated_at: new Date().toISOString() }).eq("id", sessionId);
+  if (window._cuppingSession) window._cuppingSession.status = "scoring_open";
+  showToast("캘리브레이션 공개가 취소되었습니다.");
+  updateRevealButtons("scoring_open");
+};
+
+/* ═══ 커핑 관리 모듈 파트 3 끝 ═══ */
