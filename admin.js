@@ -1847,7 +1847,8 @@ let gCuppingBeans = {};
   const _origSaveBlockData = window.saveBlockData;
   window.saveBlockData = async function() {
     const category = $("blkCategory") ? $("blkCategory").value : "";
-    const isCupping = category.includes("커핑");
+    const reason = $("blkReason") ? $("blkReason").value : "";
+    const isCupping = (category + " " + reason).includes("커핑");
     const editId = $("blkId") ? $("blkId").value : "";
 
     await _origSaveBlockData();
@@ -1907,8 +1908,6 @@ function injectCuppingButtons() {
   const body = $("blkTableBody");
   if (!body) return;
   body.querySelectorAll("tr").forEach(function(tr) {
-    const catCell = tr.querySelector('td[data-label="구분"]');
-    if (!catCell || !(catCell.textContent || "").includes("커핑")) return;
     if (tr.querySelector(".cupping-setup-btn")) return;
 
     const wrap = tr.querySelector('td[data-label="관리"] .action-wrap-flex');
@@ -1918,6 +1917,11 @@ function injectCuppingButtons() {
     const m = editBtn.getAttribute("onclick").match(/editBlock\('([^']+)'\)/);
     if (!m) return;
     const blockId = m[1];
+
+    // 구분(카테고리)뿐 아니라 상세내용(수업명)에도 "커핑" 있으면 버튼 노출
+    const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){ return String(b.id) === String(blockId); });
+    const hay = blk ? ((blk.category || "") + " " + (blk.reason || "")) : (tr.textContent || "");
+    if (!hay.includes("커핑")) return;
 
     const btn = document.createElement("button");
     btn.className = "btn-outline btn-sm cupping-setup-btn";
