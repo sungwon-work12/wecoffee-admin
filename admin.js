@@ -1518,7 +1518,7 @@ window.sendToGoogleSheet=async function(){if(!window.currentSummaryData||window.
 window.cancelAction=function(table,id){const cancelStatus='관리자 취소';window.openCustomConfirm("일정 취소",null,`이 일정을 <b>관리자 취소</b> 처리하시겠습니까?<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">관리자 취소는 당일 취소 누적에 포함되지 않습니다.</div>`,async()=>{const{error}=await supabaseClient.from(table).update({status:cancelStatus}).eq('id',id);if(error)showToast("취소 처리 실패");else{showToast("관리자 취소 처리되었습니다.");window.fetchCenterData({force:true});}});};
 
 window.toggleAllDay=function(checkbox){let blkStart=$("blkStart");let blkEnd=$("blkEnd");if(checkbox.checked){if(blkStart){blkStart.value='00:00';blkStart.disabled=true;blkStart.style.opacity='0.4';}if(blkEnd){blkEnd.value='23:59';blkEnd.disabled=true;blkEnd.style.opacity='0.4';}}else{if(blkStart){blkStart.disabled=false;blkStart.style.opacity='1';if(blkStart.value==='00:00')blkStart.value='09:00';}if(blkEnd){blkEnd.disabled=false;blkEnd.style.opacity='1';if(blkEnd.value==='23:59')blkEnd.value='18:00';}}};
-window.setupBlockModalControls=function(isEdit){let blkStartEl=$("blkStart");let blkEndEl=$("blkEnd");if(blkStartEl&&!document.getElementById('blkAllDayWrap')){let wrap=document.createElement('div');wrap.id='blkAllDayWrap';wrap.innerHTML=`<input type="checkbox" id="blkAllDay" onchange="window.toggleAllDay(this)"><label for="blkAllDay">하루 종일</label>`;let timeContainer=blkStartEl.parentNode;while(timeContainer&&blkEndEl&&!timeContainer.contains(blkEndEl)){timeContainer=timeContainer.parentNode;}if(timeContainer&&timeContainer.parentNode){timeContainer.parentNode.insertBefore(wrap,timeContainer);}else{blkStartEl.parentNode.insertBefore(wrap,blkStartEl);}}let allDayCb=document.getElementById('blkAllDay');if(allDayCb){allDayCb.checked=false;if(blkStartEl){blkStartEl.disabled=false;blkStartEl.style.opacity='1';}if(blkEndEl){blkEndEl.disabled=false;blkEndEl.style.opacity='1';}}let repTypeEl=$("blkRepeatType");if(repTypeEl){let repSection=repTypeEl.parentElement?.parentElement;if(repSection)repSection.style.display=isEdit?'none':'flex';if(!isEdit){repTypeEl.value='none';let repCountEl=$("blkRepeatCount");if(repCountEl)repCountEl.value='';}}if(!document.getElementById('blkBatchWrap')){let blkCapacityEl=$("blkCapacity");if(blkCapacityEl){let batchWrap=document.createElement('div');batchWrap.id='blkBatchWrap';batchWrap.style.cssText='margin-bottom:12px;';batchWrap.innerHTML=`<label class="input-label">대상 기수 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary);">비워두면 전체 기수</span></label><input type="text" id="blkBatch" class="input-search" style="width:100%;box-sizing:border-box;" placeholder="예: 34기" onblur="let v=this.value.trim();if(v&&/^\\d+$/.test(v))this.value=v+'기';">`;let capParent=blkCapacityEl.parentElement;if(capParent&&capParent.parentNode)capParent.parentNode.insertBefore(batchWrap,capParent);}}if(!document.getElementById('blkIsCuppingWrap')){let capEl2=$("blkCapacity");if(capEl2){let cupWrap=document.createElement('div');cupWrap.id='blkIsCuppingWrap';cupWrap.style.cssText='margin-bottom:12px;display:flex;align-items:center;gap:8px;padding:12px 14px;background:#fff7f0;border:1px solid #ffd9b3;border-radius:10px;';cupWrap.innerHTML='<input type="checkbox" id="blkIsCupping" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer;flex-shrink:0;margin:0;"><label for="blkIsCupping" style="font-size:13px;font-weight:700;color:var(--text-display);cursor:pointer;line-height:1.4;">커핑 세션으로 운영 <span style="font-weight:500;color:var(--text-tertiary);">(체크 시 이 스케줄에 커핑 설정이 열립니다)</span></label>';let refWrap=document.getElementById('blkBatchWrap')||capEl2.parentElement;if(refWrap&&refWrap.parentNode)refWrap.parentNode.insertBefore(cupWrap,refWrap);}}};
+window.setupBlockModalControls=function(isEdit){let blkStartEl=$("blkStart");let blkEndEl=$("blkEnd");if(blkStartEl&&!document.getElementById('blkAllDayWrap')){let wrap=document.createElement('div');wrap.id='blkAllDayWrap';wrap.innerHTML=`<input type="checkbox" id="blkAllDay" onchange="window.toggleAllDay(this)"><label for="blkAllDay">하루 종일</label>`;let timeContainer=blkStartEl.parentNode;while(timeContainer&&blkEndEl&&!timeContainer.contains(blkEndEl)){timeContainer=timeContainer.parentNode;}if(timeContainer&&timeContainer.parentNode){timeContainer.parentNode.insertBefore(wrap,timeContainer);}else{blkStartEl.parentNode.insertBefore(wrap,blkStartEl);}}let allDayCb=document.getElementById('blkAllDay');if(allDayCb){allDayCb.checked=false;if(blkStartEl){blkStartEl.disabled=false;blkStartEl.style.opacity='1';}if(blkEndEl){blkEndEl.disabled=false;blkEndEl.style.opacity='1';}}let repTypeEl=$("blkRepeatType");if(repTypeEl){let repSection=repTypeEl.parentElement?.parentElement;if(repSection)repSection.style.display=isEdit?'none':'flex';if(!isEdit){repTypeEl.value='none';let repCountEl=$("blkRepeatCount");if(repCountEl)repCountEl.value='';}}if(!document.getElementById('blkBatchWrap')){let blkCapacityEl=$("blkCapacity");if(blkCapacityEl){let batchWrap=document.createElement('div');batchWrap.id='blkBatchWrap';batchWrap.style.cssText='margin-bottom:12px;';batchWrap.innerHTML=`<label class="input-label">대상 기수 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary);">비워두면 전체 기수</span></label><input type="text" id="blkBatch" class="input-search" style="width:100%;box-sizing:border-box;" placeholder="예: 34기" onblur="let v=this.value.trim();if(v&&/^\\d+$/.test(v))this.value=v+'기';">`;let capParent=blkCapacityEl.parentElement;if(capParent&&capParent.parentNode)capParent.parentNode.insertBefore(batchWrap,capParent);}}if(!document.getElementById('blkIsCuppingWrap')){let capEl2=$("blkCapacity");if(capEl2){let cupWrap=document.createElement('div');cupWrap.id='blkIsCuppingWrap';cupWrap.style.cssText='margin-bottom:12px;display:flex;align-items:flex-start;gap:10px;padding:14px;background:#fff7f0;border:1px solid #ffd9b3;border-radius:12px;';cupWrap.innerHTML='<input type="checkbox" id="blkIsCupping" style="width:20px;height:20px;accent-color:var(--primary);cursor:pointer;flex-shrink:0;margin:1px 0 0 0;"><label for="blkIsCupping" style="cursor:pointer;word-break:keep-all;flex:1;"><div style="font-size:14px;font-weight:700;color:var(--text-display);line-height:1.4;">이 스케줄을 커핑 세션으로 운영</div><div style="font-size:12px;font-weight:500;color:var(--text-tertiary);margin-top:3px;line-height:1.4;">체크하면 라인업·참가자·레퍼런스 설정이 열려요</div></label>';let refWrap=document.getElementById('blkBatchWrap')||capEl2.parentElement;if(refWrap&&refWrap.parentNode)refWrap.parentNode.insertBefore(cupWrap,refWrap);}}};
 window.updateRepeatPreview=function(){let baseDateStr=$("blkDate")?$("blkDate").value:'';let repType=document.getElementById('blkRepeatType')?document.getElementById('blkRepeatType').value:'none';let repCount=parseInt(document.getElementById('blkRepeatCount')?document.getElementById('blkRepeatCount').value:'4')||4;let preview=document.getElementById('blkRepeatPreview');if(!preview||repType==='none'||!baseDateStr)return;let baseDate=new Date(baseDateStr+'T00:00:00');if(isNaN(baseDate.getTime()))return;let lastDate=new Date(baseDate);if(repType==='weekly')lastDate.setDate(lastDate.getDate()+(repCount-1)*7);else if(repType==='monthly')lastDate.setMonth(lastDate.getMonth()+(repCount-1));let dow=['일','월','화','수','목','금','토'][baseDate.getDay()];let lastStr=`${lastDate.getFullYear()}-${String(lastDate.getMonth()+1).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;preview.style.display='block';preview.innerHTML=`?? ${baseDateStr}(${dow}) 부터 ${repCount}회 → 마지막: ${lastStr}`;};
 window.openBlockModal=function(dateStr,timeStr){if($("blockModal"))$("blockModal").classList.add('show');if($("blkId"))$("blkId").value='';if($("blkDate"))$("blkDate").value=window.formatBlockDate(dateStr||currentCalDate.toISOString().split('T')[0]);if($("blkStart"))$("blkStart").value=window.formatBlockTime(timeStr||'09:00');if($("blkEnd"))$("blkEnd").value=window.formatBlockTime(timeStr?String(parseInt(timeStr.split(':')[0])+2).padStart(2,'0')+':00':'18:00');if($("blkCategory"))$("blkCategory").value='기본 수업';if($("blkCenter"))$("blkCenter").value=currentGlobalCenter==='전체'?'마포 센터':currentGlobalCenter;if(window.updateSpaceOptions)window.updateSpaceOptions();if($("blkSpace")){$("blkSpace").value='';$("blkSpace").dataset.selectedValues='';}if($("blkReason"))$("blkReason").value='';if($("blkCapacity"))$("blkCapacity").value='';if($("blkBatch"))$("blkBatch").value='';if($("blockModalTitle"))$("blockModalTitle").innerText="신규 스케줄 등록";window.setupBlockModalControls(false);if($("blkIsCupping"))$("blkIsCupping").checked=false;};
 window.editBlock=function(id){let b=gBlk.find(x=>String(x.id)===String(id));if(!b)return;if($("blockModal"))$("blockModal").classList.add('show');if($("blkId"))$("blkId").value=b.id;if($("blkDate"))$("blkDate").value=b.block_date;if($("blkStart"))$("blkStart").value=b.start_time;if($("blkEnd"))$("blkEnd").value=b.end_time;if($("blkCategory"))$("blkCategory").value=b.category;if($("blkCenter"))$("blkCenter").value=b.center||'마포 센터';if(window.updateSpaceOptions)window.updateSpaceOptions();if($("blkSpace")){$("blkSpace").value=b.space_equip||'';$("blkSpace").dataset.selectedValues=b.space_equip||'';}if($("blkReason"))$("blkReason").value=b.reason;if($("blkCapacity"))$("blkCapacity").value=b.capacity===null?'':b.capacity;if($("blkBatch"))$("blkBatch").value=b.target_batch||'';if($("blockModalTitle"))$("blockModalTitle").innerText="스케줄 수정";window.setupBlockModalControls(true);if($("blkIsCupping"))$("blkIsCupping").checked=!!b.is_cupping;let allDayCb=document.getElementById('blkAllDay');if(allDayCb&&b.start_time==='00:00'&&b.end_time==='23:59'){allDayCb.checked=true;window.toggleAllDay(allDayCb);}};
@@ -2036,7 +2036,7 @@ window.addCuppingBean = async function() {
 };
 
 window.deleteCuppingBean = function(sessionId, beanId) {
-  var _cm = document.getElementById("confirmModal"); if (_cm) _cm.style.zIndex = "2147483000";
+  var _cm = document.getElementById("confirmModal"); if (_cm) { document.body.appendChild(_cm); _cm.style.zIndex = "2147483000"; }
   window.openCustomConfirm("원두 삭제", null, "이 원두를 라인업에서 삭제하시겠습니까?", async function() {
     const { error } = await supabaseClient.from("cupping_beans").delete().eq("id", beanId);
     if (error) { showToast("삭제 실패"); return; }
@@ -2127,12 +2127,80 @@ window.approveParticipant = async function(sessionId, partId) {
 };
 
 window.removeParticipant = function(sessionId, partId) {
-  window.openCustomConfirm("참가자 삭제", null, "이 참가자를 삭제하시겠습니까?", async function() {
+  var _cm = document.getElementById("confirmModal"); if (_cm) { document.body.appendChild(_cm); _cm.style.zIndex = "2147483000"; }
+  const part = (gCuppingParts[sessionId] || []).find(function(p){ return String(p.id) === String(partId); });
+  window.openCustomConfirm("참가자 삭제", null, "이 참가자를 삭제하시겠습니까?<div style='font-size:12px;color:var(--text-tertiary);margin-top:8px;'>연결된 수업 신청도 함께 취소됩니다.</div>", async function() {
     const { error } = await supabaseClient.from("cupping_participants").delete().eq("id", partId);
     if (error) { showToast("삭제 실패"); return; }
+    // 매칭되는 수업신청(trainings) 취소
+    try { await window.cancelTrainingsForCuppingPart(part); } catch (e) { console.warn("[cupping] trainings 연동취소 실패", e); }
     showToast("삭제되었습니다.");
     await window.fetchCuppingParticipants(sessionId);
+    if (window.fetchCenterData) window.fetchCenterData({ force: true });
   });
+};
+
+/* ── 커핑 참가자 ↔ 수업신청(trainings) 연동 취소 헬퍼 ── */
+window.cancelTrainingsForCuppingPart = async function(part) {
+  if (!part) return;
+  const sess = window._cuppingSession;
+  if (!sess || !sess.block_id) return;
+  const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){ return String(b.id) === String(sess.block_id); });
+  if (!blk) return;
+  const phone = part.member_id ? (part.members && part.members.phone) : part.guest_phone;
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return;
+  const contentKey = "[" + (blk.category || "") + "] " + (blk.reason || "");
+  const timeRange = (blk.start_time || "") + "~" + (blk.end_time || "");
+  const { data } = await supabaseClient.from("trainings").select("*").like("content", blk.block_date + " ||%");
+  const list = (data || []).filter(function(t){
+    if (String(t.status || "").includes("취소")) return false;
+    if (String(t.phone || "").replace(/\D/g, "") !== digits) return false;
+    const ci = String(t.content || "").split("||").map(function(s){ return s.trim(); });
+    return ci.length >= 5 && ci[0] === blk.block_date && ci[2] === timeRange && ci[3] === blk.center && ci[4] === contentKey;
+  });
+  for (const t of list) {
+    await supabaseClient.from("trainings").update({ status: "관리자 취소", cancel_reason: "커핑 참가자 삭제 연동" }).eq("id", t.id);
+  }
+};
+
+/* ── 수업신청 "취소"(cancelAction) 확장: 커핑 세션이면 cupping_participants도 제거 ── */
+(function() {
+  const _origCancelAction = window.cancelAction;
+  window.cancelAction = function(table, id) {
+    if (table !== "trainings") { return _origCancelAction(table, id); }
+    const t = (typeof gTrn !== "undefined" ? gTrn : []).find(function(x){ return String(x.id) === String(id); });
+    window.openCustomConfirm("일정 취소", null,
+      "이 일정을 <b>관리자 취소</b> 처리하시겠습니까?<div style='font-size:12px;color:var(--text-tertiary);margin-top:8px;'>커핑 세션이면 참가자 명단에서도 함께 제거됩니다.<br>관리자 취소는 당일 취소 누적에 포함되지 않습니다.</div>",
+      async function() {
+        const { error } = await supabaseClient.from("trainings").update({ status: "관리자 취소" }).eq("id", id);
+        if (error) { showToast("취소 처리 실패"); return; }
+        if (t) { try { await window.removeCuppingPartByTraining(t); } catch (e) { console.warn("[cupping] 참가자 연동제거 실패", e); } }
+        showToast("관리자 취소 처리되었습니다.");
+        if (window.fetchCenterData) window.fetchCenterData({ force: true });
+      }, "관리자 취소");
+  };
+})();
+
+/* ── trainings 1건 → 매칭 커핑 참가자 제거 ── */
+window.removeCuppingPartByTraining = async function(t) {
+  const ci = String(t.content || "").split("||").map(function(s){ return s.trim(); });
+  if (ci.length < 5) return;
+  const blockDate = ci[0], timeRange = ci[2], centerFull = ci[3], contentKey = ci[4];
+  const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){
+    return b.block_date === blockDate && (b.start_time + "~" + b.end_time) === timeRange && b.center === centerFull && ("[" + b.category + "] " + b.reason) === contentKey;
+  });
+  if (!blk) return;
+  const { data: sess } = await supabaseClient.from("cupping_sessions").select("id").eq("block_id", blk.id).maybeSingle();
+  if (!sess) return;
+  const digits = String(t.phone || "").replace(/\D/g, "");
+  const { data: parts } = await supabaseClient.from("cupping_participants").select("*, members(phone)").eq("session_id", sess.id);
+  for (const p of (parts || [])) {
+    const pphone = p.member_id ? (p.members && p.members.phone) : p.guest_phone;
+    if (String(pphone || "").replace(/\D/g, "") === digits) {
+      await supabaseClient.from("cupping_participants").delete().eq("id", p.id);
+    }
+  }
 };
 
 window.preRegParticipant = async function() {
