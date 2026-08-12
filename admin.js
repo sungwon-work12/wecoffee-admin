@@ -2351,3 +2351,244 @@ window.hideCalibration = async function() {
   updateRevealButtons(false);
 };
 /* ═══ 커핑 관리 모듈 파트 3 끝 ═══ */
+
+/* ═══════════════════════════════════════════════════════════
+   커핑 관리 모듈 — 파트 4 (라이브 제어 · 실시간 동기화)
+   · 호스트가 프로토콜 타이머를 라이브로 제어 → 참가자 화면 실시간 동기화
+   · cupping_sessions.timer_state(jsonb)에 상태 기록 → postgres_changes로 전파
+   · SCA 표준 프리셋(호스트 조정 가능) · 자동+수동 단계 전환
+   · 참가자 결과(기록) 공개 토글(records_revealed)
+   설치: admin.js 뒤(파트3 다음)에 이 블록을 붙여넣기. Webflow HTML 수정 불필요(패널은 JS가 주입).
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+
+  // ── SCA 표준 프리셋 (물 93°C · 침지 정확히 4분 후 브레이크 · 온도별 시음) ──
+  const CUP_LIVE_DEFAULT = [
+    { name: "분쇄 & 건향(프래그런스) 평가", secs: 180 },
+    { name: "물 붓기 & 침지 (93°C, 무교반)", secs: 240 },
+    { name: "크러스트 브레이크 & 습향(아로마)", secs: 120 },
+    { name: "스키밍 & 냉각 대기", secs: 120 },
+    { name: "시음 평가 (70→55→38°C)", secs: 840 }
+  ];
+
+  let liveTS = null;          // 현재 세션의 timer_state 미러
+  let liveLoop = null;        // 자동전환/표시 인터벌
+  let liveWriting = false;    // 쓰기 중복 방지
+
+  function _$(id) { return document.getElementById(id); }
+  function _toast(m) { try { showToast(m); } catch (e) { console.log(m); } }
+  function _esc(s) { try { return escapeHtml(s); } catch (e) { return String(s == null ? "" : s); } }
+  function fmt(sec) { sec = Math.max(0, sec | 0); const m = Math.floor(sec / 60), s = sec % 60; return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s; }
+  function parseTS(v) { if (!v) return null; if (typeof v === "string") { try { v = JSON.parse(v); } catch (e) { return null; } } return (v && typeof v === "object") ? v : null; }
+  function defaultTS() { return { v: 1, phases: CUP_LIVE_DEFAULT.map(function (p) { return { name: p.name, secs: p.secs }; }), idx: -1, running: false, endsAt: null, remain: null, updatedAt: Date.now() }; }
+
+  /* ── openCuppingLineup 확장: 라이브 패널 주입/갱신 ── */
+  const _origOpen = window.openCuppingLineup;
+  window.openCuppingLineup = async function (session) {
+    if (_origOpen) await _origOpen(session);
+    setupLivePanel(session);
+  };
+  const _origClose = window.closeCuppingLineupModal;
+  window.closeCuppingLineupModal = function () {
+    if (liveLoop) { clearInterval(liveLoop); liveLoop = null; }   // 모달 닫으면 자동전환 정지(재오픈 시 DB 상태로 복귀)
+    if (_origClose) _origClose(); else { const m = _$("cuppingLineupModal"); if (m) m.classList.remove("show"); }
+  };
+
+  function ensurePanel() {
+    let host = _$("cupLivePanel");
+    if (host) return host;
+    host = document.createElement("div");
+    host.id = "cupLivePanel";
+    host.style.cssText = "margin-top:18px;padding:18px;border:1px solid var(--border-strong,#e5e8eb);border-radius:14px;background:#fbfcfd;";
+    // 레퍼런스 섹션 뒤(또는 모달 본문 끝)에 삽입
+    const anchor = _$("refStatus") || _$("beanListArea");
+    const modal = _$("cuppingLineupModal");
+    if (anchor && anchor.parentNode) {
+      let block = anchor;
+      // 레퍼런스 카드 컨테이너까지 올라가서 그 뒤에 배치
+      for (let i = 0; i < 4 && block.parentNode && block.parentNode !== (modal || document.body); i++) block = block.parentNode;
+      block.parentNode.insertBefore(host, block.nextSibling);
+    } else if (modal) {
+      (modal.querySelector(".modal-content, .modal-body, .modal-inner") || modal).appendChild(host);
+    } else {
+      document.body.appendChild(host);
+    }
+    return host;
+  }
+
+  function setupLivePanel(session) {
+    const host = ensurePanel();
+    liveTS = parseTS(session && session.timer_state) || defaultTS();
+    if (!liveTS.phases || !liveTS.phases.length) liveTS.phases = defaultTS().phases;
+
+    const recRevealed = !!(session && session.records_revealed === true);
+    const phaseRows = liveTS.phases.map(function (p, i) {
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+        '<span class="cupLivePhName" data-i="' + i + '" style="flex:1;font-size:13px;font-weight:600;color:var(--text-secondary,#4e5968);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (i + 1) + '. ' + _esc(p.name) + '</span>' +
+        '<input type="number" class="input-search cupLivePhMin" data-i="' + i + '" value="' + (Math.round(p.secs / 6) / 10) + '" min="0.5" step="0.5" style="width:70px;box-sizing:border-box;height:30px;font-size:13px;padding:0 8px;text-align:right;"><span style="font-size:12px;color:var(--text-tertiary,#8b95a1);">분</span>' +
+        '</div>';
+    }).join("");
+
+    host.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">' +
+        '<div style="font-size:14px;font-weight:800;color:var(--text-display,#191f28);">라이브 제어 · 프로토콜 타이머</div>' +
+        '<span style="font-size:11px;font-weight:600;color:var(--text-tertiary,#8b95a1);">참가자 화면 실시간 동기화</span>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--text-tertiary,#8b95a1);margin-bottom:12px;line-height:1.5;">호스트가 시작하면 아래 순서대로 참가자 전원 화면에 현재 단계와 남은 시간이 표시됩니다. 시간이 끝나면 자동으로 다음 단계로 넘어가고, 언제든 수동 제어할 수 있어요.</div>' +
+      // 현재 상태 readout
+      '<div style="background:linear-gradient(135deg,#191f28,#20242a);border-radius:12px;padding:14px 16px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">' +
+        '<div style="min-width:0;"><div id="cupLiveStepName" style="font-size:15px;font-weight:800;line-height:1.3;">대기 중</div>' +
+        '<div id="cupLiveStepSub" style="font-size:11px;color:#b0b8c1;margin-top:2px;">시작 전</div></div>' +
+        '<div id="cupLiveClock" style="font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;">--:--</div>' +
+      '</div>' +
+      // 컨트롤
+      '<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">' +
+        '<button class="btn-primary" id="cupLiveStartBtn" onclick="window.cupLiveToggle()" style="flex:1;min-width:110px;height:40px;">▶ 시작</button>' +
+        '<button class="btn-outline" onclick="window.cupLivePrev()" style="height:40px;padding:0 14px;">◀ 이전</button>' +
+        '<button class="btn-outline" onclick="window.cupLiveNext()" style="height:40px;padding:0 14px;">다음 ▶</button>' +
+        '<button class="btn-outline" onclick="window.cupLiveReset()" style="height:40px;padding:0 14px;color:var(--error,#f5474b);border-color:var(--error,#f5474b);">리셋</button>' +
+      '</div>' +
+      // 단계 시간 편집
+      '<div style="font-size:12px;font-weight:700;color:var(--text-secondary,#4e5968);margin-bottom:8px;">단계 시간 (SCA 프리셋 · 조정 가능)</div>' +
+      phaseRows +
+      '<button class="btn-outline btn-sm" onclick="window.cupLiveSavePhases()" style="margin-top:6px;height:32px;padding:0 12px;font-size:12px;">단계 시간 저장</button>' +
+      // 결과 공개
+      '<div style="border-top:1px solid var(--border,#e5e8eb);margin-top:16px;padding-top:14px;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
+          '<div style="min-width:0;"><div style="font-size:13px;font-weight:700;color:var(--text-display,#191f28);">참가자 결과 공개</div>' +
+          '<div id="cupRecStatus" style="font-size:11px;color:var(--text-tertiary,#8b95a1);margin-top:2px;">' + (recRevealed ? "✓ 공개됨 — 참가자가 결과 화면을 볼 수 있어요" : "공개 전 — 세션 종료 후 공개하세요") + '</div></div>' +
+          '<button id="cupRecBtn" class="' + (recRevealed ? "btn-outline" : "btn-primary") + '" onclick="window.cupToggleRecords()" style="height:36px;padding:0 14px;flex-shrink:0;">' + (recRevealed ? "공개 취소" : "결과 공개") + '</button>' +
+        '</div>' +
+      '</div>';
+
+    startLoop();
+    renderStatus();
+  }
+
+  function renderStatus() {
+    const nameEl = _$("cupLiveStepName"), subEl = _$("cupLiveStepSub"), clockEl = _$("cupLiveClock"), btn = _$("cupLiveStartBtn");
+    if (!nameEl) return;
+    if (!liveTS || liveTS.idx == null || liveTS.idx < 0) {
+      nameEl.textContent = "대기 중"; subEl.textContent = "시작 전"; clockEl.textContent = fmt(liveTS && liveTS.phases[0] ? liveTS.phases[0].secs : 0);
+      if (btn) btn.innerHTML = "▶ 시작";
+      return;
+    }
+    if (liveTS.idx >= liveTS.phases.length) {
+      nameEl.textContent = "커핑 완료"; subEl.textContent = "모든 단계 종료"; clockEl.textContent = "00:00";
+      if (btn) btn.innerHTML = "▶ 다시 시작";
+      return;
+    }
+    const ph = liveTS.phases[liveTS.idx];
+    const remain = liveTS.running ? Math.max(0, Math.round(((liveTS.endsAt || 0) - Date.now()) / 1000)) : (liveTS.remain != null ? liveTS.remain : ph.secs);
+    nameEl.textContent = (liveTS.idx + 1) + "/" + liveTS.phases.length + " · " + ph.name;
+    subEl.textContent = liveTS.running ? "진행 중" : "일시정지";
+    clockEl.textContent = fmt(remain);
+    if (btn) btn.innerHTML = liveTS.running ? "⏸ 일시정지" : "▶ 시작";
+  }
+
+  function startLoop() {
+    if (liveLoop) return;
+    liveLoop = setInterval(function () {
+      if (!liveTS || !liveTS.running) { renderStatus(); return; }
+      let changed = false;
+      // 자동 전환 (여러 단계 밀렸으면 절대 스케줄 기준으로 따라잡기)
+      while (liveTS.running && liveTS.endsAt && Date.now() >= liveTS.endsAt) {
+        const ni = liveTS.idx + 1;
+        if (ni >= liveTS.phases.length) { liveTS.idx = liveTS.phases.length; liveTS.running = false; liveTS.remain = null; liveTS.endsAt = null; changed = true; break; }
+        liveTS.idx = ni; liveTS.endsAt = liveTS.endsAt + liveTS.phases[ni].secs * 1000; changed = true;
+      }
+      if (changed) writeTS(); else renderStatus();
+    }, 500);
+  }
+
+  async function writeTS() {
+    renderStatus();
+    if (liveWriting) return;
+    liveWriting = true;
+    try {
+      liveTS.v = 1; liveTS.updatedAt = Date.now();
+      const sessionId = _$("lineupSessionId").value;
+      const { error } = await supabaseClient.from("cupping_sessions")
+        .update({ timer_state: liveTS, updated_at: new Date().toISOString() }).eq("id", sessionId);
+      if (error) { console.error("[cupping] timer_state 저장 실패", error); _toast("타이머 동기화 실패: " + (error.message || "")); }
+      else if (window._cuppingSession) window._cuppingSession.timer_state = liveTS;
+    } finally { liveWriting = false; }
+  }
+
+  function curRemain() {
+    const ph = liveTS.phases[liveTS.idx];
+    if (!ph) return 0;
+    return liveTS.running ? Math.max(0, Math.round(((liveTS.endsAt || 0) - Date.now()) / 1000)) : (liveTS.remain != null ? liveTS.remain : ph.secs);
+  }
+
+  window.cupLiveToggle = function () {
+    if (!liveTS) liveTS = defaultTS();
+    if (liveTS.idx == null || liveTS.idx < 0 || liveTS.idx >= liveTS.phases.length) { liveTS.idx = 0; liveTS.remain = null; }
+    if (liveTS.running) {
+      // 일시정지
+      liveTS.remain = curRemain(); liveTS.running = false; liveTS.endsAt = null;
+    } else {
+      // 시작/재개
+      const base = (liveTS.remain != null ? liveTS.remain : liveTS.phases[liveTS.idx].secs);
+      liveTS.running = true; liveTS.endsAt = Date.now() + base * 1000; liveTS.remain = null;
+    }
+    writeTS();
+  };
+
+  window.cupLiveNext = function () {
+    if (!liveTS) return;
+    if (liveTS.idx < 0) liveTS.idx = 0;
+    else liveTS.idx = Math.min(liveTS.phases.length, liveTS.idx + 1);
+    if (liveTS.idx >= liveTS.phases.length) { liveTS.running = false; liveTS.remain = null; liveTS.endsAt = null; }
+    else if (liveTS.running) { liveTS.endsAt = Date.now() + liveTS.phases[liveTS.idx].secs * 1000; liveTS.remain = null; }
+    else { liveTS.remain = liveTS.phases[liveTS.idx].secs; }
+    writeTS();
+  };
+
+  window.cupLivePrev = function () {
+    if (!liveTS) return;
+    if (liveTS.idx >= liveTS.phases.length) liveTS.idx = liveTS.phases.length - 1;
+    else liveTS.idx = Math.max(0, liveTS.idx - 1);
+    if (liveTS.running) { liveTS.endsAt = Date.now() + liveTS.phases[liveTS.idx].secs * 1000; liveTS.remain = null; }
+    else { liveTS.remain = liveTS.phases[liveTS.idx].secs; }
+    writeTS();
+  };
+
+  window.cupLiveReset = function () {
+    if (!liveTS) liveTS = defaultTS();
+    liveTS.idx = -1; liveTS.running = false; liveTS.endsAt = null; liveTS.remain = null;
+    writeTS();
+  };
+
+  window.cupLiveSavePhases = function () {
+    if (!liveTS) liveTS = defaultTS();
+    const inputs = document.querySelectorAll(".cupLivePhMin");
+    inputs.forEach(function (inp) {
+      const i = parseInt(inp.getAttribute("data-i"), 10);
+      let mins = parseFloat(inp.value);
+      if (isNaN(mins) || mins < 0) mins = 0;
+      if (liveTS.phases[i]) liveTS.phases[i].secs = Math.round(mins * 60);
+    });
+    // 정지 상태에서 현재 단계 남은시간 갱신
+    if (!liveTS.running && liveTS.idx >= 0 && liveTS.idx < liveTS.phases.length) liveTS.remain = liveTS.phases[liveTS.idx].secs;
+    writeTS();
+    _toast("단계 시간을 저장했어요.");
+  };
+
+  /* ── 참가자 결과(기록) 공개 토글 ── */
+  window.cupToggleRecords = async function () {
+    const sessionId = _$("lineupSessionId").value;
+    const now = !!(window._cuppingSession && window._cuppingSession.records_revealed === true);
+    const next = !now;
+    const { error } = await supabaseClient.from("cupping_sessions")
+      .update({ records_revealed: next, updated_at: new Date().toISOString() }).eq("id", sessionId);
+    if (error) { _toast("결과 공개 변경 실패: " + (error.message || "")); return; }
+    if (window._cuppingSession) window._cuppingSession.records_revealed = next;
+    const st = _$("cupRecStatus"), btn = _$("cupRecBtn");
+    if (st) st.textContent = next ? "✓ 공개됨 — 참가자가 결과 화면을 볼 수 있어요" : "공개 전 — 세션 종료 후 공개하세요";
+    if (btn) { btn.textContent = next ? "공개 취소" : "결과 공개"; btn.className = next ? "btn-outline" : "btn-primary"; }
+    _toast(next ? "참가자 결과가 공개되었습니다." : "결과 공개가 취소되었습니다.");
+  };
+})();
+/* ═══ 커핑 관리 모듈 파트 4 끝 ═══ */
