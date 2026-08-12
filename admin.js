@@ -2250,12 +2250,12 @@ window.preRegParticipant = async function() {
 /* ═══ 커핑 관리 모듈 파트 2 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 3 (호스트 레퍼런스 + 캘리브레이션 공개)
-   파트2 바로 아래에 붙이기
+   커핑 관리 모듈 — 파트 3 (CVA 호스트 레퍼런스 + 공개)
+   기존 파트3 전체를 이 블록으로 교체
+   · 강도 0~15 · int_* 컬럼 · session.reference_revealed 로 공개 제어
    ═══════════════════════════════════════════════════════════ */
-
-const CUPPING_REF_KEYS = ["ref_fragrance","ref_aroma","ref_flavor","ref_aftertaste","ref_acidity","ref_sweetness","ref_mouthfeel","ref_overall"];
-const CUPPING_SCORE_LABELS = ["프래그런스","아로마","플레이버","애프터테이스트","산미","단맛","마우스필","전체적 인상"];
+const CUPPING_REF_KEYS   = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
+const CUPPING_REF_LABELS = ["프래그런스","아로마","향미","뒷맛","산미","단맛","마우스필"];
 
 /* openCuppingLineup 재확장: 레퍼런스 섹션 세팅 */
 (function() {
@@ -2268,37 +2268,35 @@ const CUPPING_SCORE_LABELS = ["프래그런스","아로마","플레이버","애�
 
 function setupRefSection(session) {
   const beans = gCuppingBeans[session.id] || [];
-
-  // 원두 셀렉트 채우기
+  // 원두 셀렉트
   const sel = $("refBeanSelect");
   if (sel) {
     sel.innerHTML = beans.map(function(b, i) {
       return '<option value="' + b.id + '">' + (i + 1) + ". " + escapeHtml(b.name) + '</option>';
     }).join("");
   }
-
-  // 점수 입력 필드 생성
+  // 기준 강도 입력 (0~15)
   const scoreArea = $("refScoreInputs");
   if (scoreArea) {
-    scoreArea.innerHTML = CUPPING_SCORE_LABELS.map(function(s, i) {
+    scoreArea.innerHTML = CUPPING_REF_LABELS.map(function(s, i) {
       return '<div style="display:flex;align-items:center;gap:6px;">' +
-        '<span style="font-size:11px;font-weight:600;color:var(--text-secondary);width:74px;flex-shrink:0;">' + s + '</span>' +
-        '<input type="number" id="' + CUPPING_REF_KEYS[i] + '" class="input-search" style="flex:1;box-sizing:border-box;height:32px;font-size:13px;padding:0 8px;" min="0" max="10" step="0.25" value="0">' +
+        '<span style="font-size:11px;font-weight:600;color:var(--text-secondary);width:64px;flex-shrink:0;">' + s + '</span>' +
+        '<input type="number" id="' + CUPPING_REF_KEYS[i] + '" class="input-search" style="flex:1;box-sizing:border-box;height:32px;font-size:13px;padding:0 8px;" min="0" max="15" step="0.5" placeholder="0~15">' +
         '</div>';
     }).join("");
   }
-
-  updateRevealButtons(session.status);
+  updateRevealButtons(session.reference_revealed === true);
   window.loadRefForBean();
 }
 
-function updateRevealButtons(status) {
+function updateRevealButtons(isRevealed) {
   const revBtn = $("refRevealBtn"), hideBtn = $("refHideBtn"), statusEl = $("refStatus");
   if (!revBtn || !hideBtn) return;
-  const isRevealed = status === "calibrating" || status === "completed";
-  revBtn.style.display = isRevealed ? "none" : "";
+  revBtn.style.display  = isRevealed ? "none" : "";
   hideBtn.style.display = isRevealed ? "" : "none";
-  if (statusEl) statusEl.textContent = isRevealed ? "✓ 캘리브레이션이 공개된 상태입니다." : "";
+  if (statusEl) statusEl.textContent = isRevealed
+    ? "✓ 레퍼런스 공개됨 — 참가자 결과 화면에서 열람 가능"
+    : "공개 전 — 참가자는 레퍼런스를 볼 수 없어요 (오픈북 방지)";
 }
 
 window.loadRefForBean = async function() {
@@ -2306,80 +2304,50 @@ window.loadRefForBean = async function() {
   if (!beanId) return;
   const { data } = await supabaseClient
     .from("cupping_references").select("*").eq("bean_id", beanId).maybeSingle();
-
   if (data) {
     if ($("refNotes")) $("refNotes").value = (data.ref_notes || []).join(", ");
-    CUPPING_REF_KEYS.forEach(function(k) { if ($(k)) $(k).value = data[k] || 0; });
+    CUPPING_REF_KEYS.forEach(function(k) { if ($(k)) $(k).value = (data[k] != null ? data[k] : ""); });
   } else {
     if ($("refNotes")) $("refNotes").value = "";
-    CUPPING_REF_KEYS.forEach(function(k) { if ($(k)) $(k).value = 0; });
+    CUPPING_REF_KEYS.forEach(function(k) { if ($(k)) $(k).value = ""; });
   }
 };
 
 window.saveRef = async function() {
   const sessionId = $("lineupSessionId").value;
   const beanId = $("refBeanSelect") ? $("refBeanSelect").value : null;
-  if (!beanId) return;
-
-  const notes = $("refNotes").value.split(",").map(function(s) { return s.trim(); }).filter(Boolean);
+  if (!beanId) return showToast("원두를 먼저 선택해주세요.");
+  const notes = ($("refNotes").value || "").split(",").map(function(s) { return s.trim(); }).filter(Boolean);
   const scores = {};
-  CUPPING_REF_KEYS.forEach(function(k) { scores[k] = parseFloat($(k) ? $(k).value : 0) || 0; });
-
-  // 호스트 참가자 확보 (없으면 첫 참가자, 그것도 없으면 관리자용 임시 생성)
-  let hostId = null;
-  const { data: hostPart } = await supabaseClient
-    .from("cupping_participants").select("id")
-    .eq("session_id", sessionId).eq("role", "host").maybeSingle();
-  hostId = hostPart ? hostPart.id : null;
-
-  if (!hostId) {
-    const { data: firstPart } = await supabaseClient
-      .from("cupping_participants").select("id")
-      .eq("session_id", sessionId).limit(1).maybeSingle();
-    if (firstPart) {
-      hostId = firstPart.id;
-    } else {
-      // 참가자 전무 → 호스트 레코드 생성
-      const { data: newHost, error: hErr } = await supabaseClient
-        .from("cupping_participants").insert([{
-          session_id: sessionId, guest_name: "호스트", guest_phone: "host",
-          role: "host", join_type: "pre_registered", approved: true
-        }]).select().single();
-      if (hErr) { showToast("호스트 생성 실패"); return; }
-      hostId = newHost.id;
-    }
-  }
-
-  const payload = Object.assign({ bean_id: beanId, host_id: hostId, ref_notes: notes }, scores);
+  CUPPING_REF_KEYS.forEach(function(k) {
+    const v = $(k) ? $(k).value : "";
+    scores[k] = (v === "" ? null : parseFloat(v));   // 부분 입력 허용
+  });
+  const payload = Object.assign({ session_id: sessionId, bean_id: beanId, ref_notes: notes }, scores);
   const { error } = await supabaseClient
     .from("cupping_references").upsert(payload, { onConflict: "bean_id" });
-  if (error) { showToast("레퍼런스 저장 실패"); console.error(error); return; }
+  if (error) { showToast("레퍼런스 저장 실패: " + (error.message || "")); console.error(error); return; }
   showToast("레퍼런스가 저장되었습니다.");
 };
 
+/* ── 공개 제어: cupping_sessions.reference_revealed 토글 ── */
 window.revealCalibration = async function() {
   const sessionId = $("lineupSessionId").value;
-  const beans = gCuppingBeans[sessionId] || [];
-  const now = new Date().toISOString();
-  for (const bean of beans) {
-    await supabaseClient.from("cupping_references").update({ revealed_at: now }).eq("bean_id", bean.id);
-  }
-  await supabaseClient.from("cupping_sessions").update({ status: "calibrating", updated_at: now }).eq("id", sessionId);
-  if (window._cuppingSession) window._cuppingSession.status = "calibrating";
-  showToast("캘리브레이션이 공개되었습니다.");
-  updateRevealButtons("calibrating");
+  const { error } = await supabaseClient.from("cupping_sessions")
+    .update({ reference_revealed: true, updated_at: new Date().toISOString() }).eq("id", sessionId);
+  if (error) { showToast("공개 실패: " + (error.message || "")); return; }
+  if (window._cuppingSession) window._cuppingSession.reference_revealed = true;
+  showToast("레퍼런스가 공개되었습니다.");
+  updateRevealButtons(true);
 };
 
 window.hideCalibration = async function() {
   const sessionId = $("lineupSessionId").value;
-  const beans = gCuppingBeans[sessionId] || [];
-  for (const bean of beans) {
-    await supabaseClient.from("cupping_references").update({ revealed_at: null }).eq("bean_id", bean.id);
-  }
-  await supabaseClient.from("cupping_sessions").update({ status: "scoring_open", updated_at: new Date().toISOString() }).eq("id", sessionId);
-  if (window._cuppingSession) window._cuppingSession.status = "scoring_open";
-  showToast("캘리브레이션 공개가 취소되었습니다.");
-  updateRevealButtons("scoring_open");
+  const { error } = await supabaseClient.from("cupping_sessions")
+    .update({ reference_revealed: false, updated_at: new Date().toISOString() }).eq("id", sessionId);
+  if (error) { showToast("공개 취소 실패: " + (error.message || "")); return; }
+  if (window._cuppingSession) window._cuppingSession.reference_revealed = false;
+  showToast("레퍼런스 공개가 취소되었습니다.");
+  updateRevealButtons(false);
 };
-
 /* ═══ 커핑 관리 모듈 파트 3 끝 ═══ */
