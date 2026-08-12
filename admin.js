@@ -1953,7 +1953,7 @@ window.openCuppingLineup = async function(session) {
   window._cuppingSession = session;
   $("lineupSessionId").value = session.id;
   $("lineupModalTitle").textContent = session.title + " — 커핑 설정";
-  $("sessionUrlText").textContent = "https://www.wecoffee.co.kr/cupping/" + session.slug;
+  $("sessionUrlText").textContent = "https://www.wecoffee.co.kr/cupping?slug=" + session.slug;
 
   ["beanName","beanOrigin","beanFarm","beanProcess","beanAltitude","beanVariety","beanRoast"]
     .forEach(function(id) { if ($(id)) $(id).value = ""; });
