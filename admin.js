@@ -2980,3 +2980,170 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 관리 모듈 파트 7 끝 ═══ */
+
+/* ═══════════════════════════════════════════════════════════
+   커핑 관리 모듈 — 파트 8 (멤버리스트 '내역' 모달 확장)
+   · 기존 멤버 '내역' 모달(openHistoryModal)에 아래를 추가:
+     - 센터 총 누적 이용 횟수(예약+수업, 당일취소 제외)
+     - 커핑 세션 참가 목록 → '평가 보기'로 그 멤버의 세션 평가 재조회(원두별)
+   · 관리자(authenticated) 읽기 RLS 필요: cupping-host-read.sql 먼저 실행.
+   설치: admin.js 뒤(파트7 다음)에 붙여넣기. Webflow HTML 수정 불필요.
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  var RV_KEYS = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
+  var RV_LABS = ["프래그런스","아로마","향미","뒷맛","산미","단맛","마우스필"];
+  function esc(t){ return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function num(v){ return (v==null||v==="")?null:Number(v); }
+  function fx(v){ return v==null?"—":Number(v).toFixed(1); }
+  function dstr(s){ if(!s)return ""; var d=new Date(s); if(isNaN(d))return ""; var w=["일","월","화","수","목","금","토"][d.getDay()]; return d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0")+" ("+w+")"; }
+  function same(a,b){ return (typeof window.samePhone==="function") ? window.samePhone(a,b) : (String(a).replace(/\D/g,"")===String(b).replace(/\D/g,"")); }
+
+  /* openHistoryModal 확장: 기존 렌더 후 커핑/이용 섹션 추가 */
+  var _orig = window.openHistoryModal;
+  window.openHistoryModal = async function (phone, name) {
+    if (_orig) await _orig(phone, name);
+    try { await appendExtras(phone, name); } catch (e) { console.error("[cupping] 멤버 내역 확장 오류", e); }
+  };
+
+  async function appendExtras(phone, name) {
+    var body = document.getElementById("historyModalBody"); if (!body || typeof supabaseClient === "undefined") return;
+    var old = document.getElementById("memCupExtras"); if (old) old.remove();
+    var host = document.createElement("div");
+    host.id = "memCupExtras";
+    host.style.cssText = "margin-top:8px;";
+    host.innerHTML = '<div style="padding:16px 0 8px;color:var(--text-tertiary,#8b95a1);font-size:13px;">이용 · 커핑 평가 불러오는 중…</div>';
+    body.appendChild(host);
+
+    var m = (window.globalMembers || []).find(function (x) { return same(x.phone, phone); });
+    var memberId = m ? m.id : null;
+    var last4 = String(phone).replace(/\D/g, "").slice(-4);
+
+    // ── 총 누적 이용(예약+수업, 당일취소 제외) ──
+    var resCnt = 0, trnCnt = 0;
+    try {
+      if (last4.length >= 3) {
+        var rq = await supabaseClient.from("reservations").select("phone,status").ilike("phone", "%" + last4);
+        var tq = await supabaseClient.from("trainings").select("phone,status").ilike("phone", "%" + last4);
+        resCnt = (rq.data || []).filter(function (r) { return same(r.phone, phone) && r.status !== "당일 취소"; }).length;
+        trnCnt = (tq.data || []).filter(function (r) { return same(r.phone, phone) && r.status !== "당일 취소"; }).length;
+      }
+    } catch (e) { console.warn("[cupping] 이용 집계 실패", e); }
+
+    // ── 커핑 참가 세션 ──
+    var parts = [];
+    if (memberId) {
+      try {
+        var pq = await supabaseClient.from("cupping_participants")
+          .select("id,session_id,cupping_sessions(title,scheduled_at)")
+          .eq("member_id", memberId);
+        parts = pq.data || [];
+      } catch (e) { console.warn("[cupping] 참가 세션 조회 실패", e); }
+    }
+    parts.sort(function (a, b) {
+      var da = a.cupping_sessions && a.cupping_sessions.scheduled_at, db = b.cupping_sessions && b.cupping_sessions.scheduled_at;
+      return (db ? new Date(db) : 0) - (da ? new Date(da) : 0);
+    });
+
+    var cupCnt = parts.length;
+    var eduCnt = trnCnt + cupCnt;   // 콘텐츠 참여(수업·훈련 스케줄, 커핑 세션 포함)
+    var h = '<div style="border-top:1px solid var(--border-strong,#e5e8eb);margin-top:8px;padding-top:18px;">';
+    // 이용 요약 카드: 총 누적 이용 = 센터 예약 + 수업·훈련(커핑 포함)
+    h += '<div style="display:flex;gap:8px;margin-bottom:8px;">' +
+      stat("총 이용", (resCnt + eduCnt) + "회") + stat("센터 예약", resCnt + "회") + stat("콘텐츠 참여", eduCnt + "회") +
+      '</div>';
+    h += '<div style="font-size:11px;color:var(--text-tertiary,#8b95a1);margin:0 0 16px;">콘텐츠 참여 ' + eduCnt + '회 중 커핑 세션 ' + cupCnt + '회 — 아래에서 평가 재조회</div>';
+    // 커핑 세션 평가(수업·훈련 중 커핑)
+    h += '<div style="font-size:13px;font-weight:800;color:var(--text-display,#191f28);margin:4px 0 10px;">커핑 세션 평가 <span style="font-size:11px;font-weight:600;color:var(--text-tertiary,#8b95a1);">· 콘텐츠 참여 중</span></div>';
+    if (!parts.length) {
+      h += '<div style="padding:14px;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;background:#f9fafb;border-radius:10px;">커핑 세션 참가 이력이 없습니다.</div>';
+    } else {
+      parts.forEach(function (p) {
+        var s = p.cupping_sessions || {};
+        h += '<div style="border:1px solid var(--border-strong,#e5e8eb);border-radius:12px;padding:12px 14px;margin-bottom:8px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
+            '<div style="min-width:0;"><div style="font-size:14px;font-weight:700;color:var(--text-display,#191f28);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.title || "커핑 세션") + '</div>' +
+            '<div style="font-size:12px;color:var(--text-tertiary,#8b95a1);margin-top:2px;">' + esc(dstr(s.scheduled_at)) + '</div></div>' +
+            '<button type="button" class="btn-outline btn-sm" style="flex-shrink:0;height:32px;padding:0 12px;color:var(--primary,#ff7900);border-color:var(--primary,#ff7900);" onclick="window.memCupView(\'' + p.id + '\',\'' + p.session_id + '\',this)">평가 보기</button>' +
+          '</div>' +
+          '<div class="memCupEval" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #f2f4f6;"></div>' +
+        '</div>';
+      });
+    }
+    h += '</div>';
+    host.innerHTML = h;
+  }
+
+  window.memCupView = async function (pid, sid, btn) {
+    var card = btn.closest("div").parentElement, area = card.querySelector(".memCupEval");
+    if (!area) return;
+    if (area.style.display !== "none") { area.style.display = "none"; btn.textContent = "평가 보기"; return; }
+    area.style.display = "block"; btn.textContent = "닫기";
+    area.innerHTML = '<div style="color:#8b95a1;font-size:13px;">불러오는 중…</div>';
+    try {
+      var recRes = await supabaseClient.from("cupping_records").select("*").eq("session_id", sid).eq("participant_id", pid);
+      if (recRes.error) throw recRes.error;
+      var recs = recRes.data || [];
+      if (!recs.length) { area.innerHTML = '<div style="color:#8b95a1;font-size:13px;">이 세션에 입력된 평가가 없습니다.</div>'; return; }
+      var beanRes = await supabaseClient.from("cupping_beans").select("id,name,sort_order").eq("session_id", sid).order("sort_order", { ascending: true });
+      var beans = beanRes.data || [];
+      var beanName = {}; beans.forEach(function (b) { beanName[b.id] = b.name; });
+      var beanIds = recs.map(function (r) { return r.bean_id; });
+      var refMap = {};
+      try {
+        var refRes = await supabaseClient.from("cupping_references").select("*").in("bean_id", beanIds);
+        (refRes.data || []).forEach(function (rf) { refMap[rf.bean_id] = rf; });
+      } catch (e) {}
+      // 원두 순서대로 정렬
+      var order = {}; beans.forEach(function (b, i) { order[b.id] = i; });
+      recs.sort(function (a, b) { return (order[a.bean_id] == null ? 99 : order[a.bean_id]) - (order[b.bean_id] == null ? 99 : order[b.bean_id]); });
+      area.innerHTML = recs.map(function (r) { return beanCard(r, beanName[r.bean_id] || "원두", refMap[r.bean_id]); }).join("");
+    } catch (e) {
+      area.innerHTML = '<div style="color:#e5484d;font-size:13px;line-height:1.6;">조회 실패: ' + esc(e.message || "") + '<br><span style="color:#8b95a1;">cupping-host-read.sql 적용 여부를 확인하세요.</span></div>';
+    }
+  };
+
+  function beanCard(r, bnName, ref) {
+    var isBasic = r.form_type === "basic";
+    var badge = '<span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;' +
+      (isBasic ? 'background:#eaf2fe;color:#3182f6;' : 'background:#fff2e6;color:#ea6f00;') + '">' + (isBasic ? "베이직" : "CVA") + '</span>';
+    var maxLbl = isBasic ? " / 120" : " / 100";
+    var cells = RV_LABS.map(function (lab, i) {
+      var mv = num(r[RV_KEYS[i]]), rv = ref ? num(ref[RV_KEYS[i]]) : null, dev = (mv != null && rv != null) ? (mv - rv) : null;
+      var dc = dev == null ? "" : (Math.abs(dev) <= 1 ? "#00b386" : (Math.abs(dev) <= 2.5 ? "#e08600" : "#e5484d"));
+      return '<div style="flex:1 1 0;min-width:0;text-align:center;">' +
+        '<div style="font-size:9px;color:#8b95a1;white-space:nowrap;">' + lab + '</div>' +
+        '<div style="font-size:12px;font-weight:700;color:#191f28;">' + fx(mv) + '</div>' +
+        (dev == null ? "" : '<div style="font-size:9px;font-weight:700;color:' + dc + ';">' + (dev > 0 ? "+" : "") + dev.toFixed(1) + '</div>') +
+        '</div>';
+    });
+    if (isBasic && r.basic_overall != null) {
+      cells.push('<div style="flex:1 1 0;min-width:0;text-align:center;"><div style="font-size:9px;color:#ea6f00;white-space:nowrap;">전체적</div><div style="font-size:12px;font-weight:800;color:#ea6f00;">' + fx(num(r.basic_overall)) + '</div></div>');
+    }
+    var notes = [];
+    if (isBasic) { if (r.extrinsic) notes.push(r.extrinsic); }
+    else {
+      var an = [].concat(r.notes_fragrance || [], r.notes_aroma || [], r.notes_tasting || [], r.notes_custom || []);
+      if (an.length) notes.push("향미: " + an.join(", "));
+      var qn = r.q_notes || {};
+      ["aroma","flavor","acidity","sweetness","mouthfeel","overall"].forEach(function (k) { if (qn[k]) notes.push(qn[k]); });
+      if (r.extrinsic) notes.push("외재: " + r.extrinsic);
+    }
+    return '<div style="border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fbfcfd;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">' +
+        '<div style="display:flex;align-items:center;gap:6px;min-width:0;"><span style="font-size:13px;font-weight:800;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(bnName) + '</span>' + badge + '</div>' +
+        '<div style="font-size:15px;font-weight:800;color:#ea6f00;flex-shrink:0;">' + fx(num(r.cva_score)) + '<span style="font-size:10px;color:#8b95a1;font-weight:700;">' + maxLbl + '</span></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:4px;">' + cells.join("") + '</div>' +
+      (ref ? '<div style="font-size:10px;color:#8b95a1;margin-top:4px;">숫자 아래는 레퍼런스 대비 편차</div>' : "") +
+      (notes.length ? '<div style="margin-top:8px;font-size:12px;color:#4e5968;line-height:1.6;word-break:break-word;">' + esc(notes.join(" · ")) + '</div>' : "") +
+      '</div>';
+  }
+
+  function stat(l, v) {
+    return '<div style="flex:1;min-width:0;background:#f9fafb;border:1px solid #eef0f3;border-radius:10px;padding:9px 6px;text-align:center;">' +
+      '<div style="font-size:10.5px;color:#8b95a1;font-weight:600;margin-bottom:2px;">' + l + '</div>' +
+      '<div style="font-size:16px;font-weight:800;color:#191f28;">' + v + '</div></div>';
+  }
+})();
+/* ═══ 커핑 관리 모듈 파트 8 끝 ═══ */
