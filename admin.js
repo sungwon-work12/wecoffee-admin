@@ -2785,10 +2785,11 @@ window.hideCalibration = async function() {
 /* ═══ 커핑 관리 모듈 파트 6 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 7 (호스트: 참가자 평가 조회)
+   커핑 관리 모듈 — 파트 7 (호스트: 참가자 평가 조회 + 원두 셀렉트 동기화)
    · 원두별 참가자 평가를 집계(항목 평균·레퍼런스 대비) + 개인별 상세로 조회
-   · CVA/베이직 폼 혼재 지원(공통 강도축 int_* 기준). '결과 공개' 전에도 열람.
+   · CVA/베이직 폼 혼재 지원(공통 강도축 int_*). '결과 공개' 전에도 열람.
    · 관리자(authenticated) 전용 읽기 RLS 필요: cupping-host-read.sql 먼저 실행.
+   · 원두 추가/삭제 시 레퍼런스 셀렉트 실시간 동기화(나갔다 들어올 필요 없음).
    설치: admin.js 뒤(파트6 다음)에 이 블록을 붙여넣기. Webflow HTML 수정 불필요.
    ═══════════════════════════════════════════════════════════ */
 (function () {
@@ -2799,76 +2800,101 @@ window.hideCalibration = async function() {
   function esc(t){ return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
   function num(v){ return (v==null||v==="")?null:Number(v); }
   function fx(v,d){ return v==null?"—":Number(v).toFixed(d==null?1:d); }
+  function curSession(){ var el=_$("lineupSessionId"); return el?el.value:null; }
 
-  /* openCuppingLineup 확장: 조회 패널 주입 + 로드 */
-  var _orig = window.openCuppingLineup;
-  window.openCuppingLineup = async function (session) {
-    if (_orig) await _orig(session);
-    try { setupReviewPanel(session); } catch (e) { console.error("[cupping] 평가 조회 패널 오류", e); }
+  /* ── 원두 셀렉트 동기화: 원두 추가/삭제 후 renderCuppingBeans 호출 시 함께 갱신 ── */
+  var _rcb = window.renderCuppingBeans;
+  window.renderCuppingBeans = function (sessionId) {
+    if (_rcb) _rcb(sessionId);
+    try {
+      syncBeanSelect("refBeanSelect", sessionId, window.loadRefForBean);   // 레퍼런스 탭
+      var ov = _$("cupRvOverlay");
+      if (ov && ov.style.display !== "none") syncBeanSelect("cupRvBean", sessionId, window.cupRvLoad);
+    } catch (e) { console.error("[cupping] 원두 셀렉트 동기화 오류", e); }
   };
-
-  function setupReviewPanel(session) {
-    var host = _$("cupRvHost");
-    if (!host) {
-      host = document.createElement("div");
-      host.id = "cupRvHost";
-      host.style.cssText = "margin-top:18px;padding:16px;border:1px solid var(--border-strong,#e5e8eb);border-radius:14px;background:var(--surface,#fff);";
-      host.innerHTML =
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;">' +
-          '<div style="font-size:14px;font-weight:800;color:var(--text-display,#191f28);">참가자 평가 조회</div>' +
-          '<div style="display:flex;align-items:center;gap:8px;">' +
-            '<select id="cupRvBean" class="input-search" style="height:34px;font-size:13px;min-width:150px;" onchange="window.cupRvLoad()"></select>' +
-            '<button class="btn-outline btn-sm" style="height:34px;padding:0 12px;" onclick="window.cupRvLoad()">새로고침</button>' +
-          '</div>' +
-        '</div>' +
-        '<div id="cupRvBody"><div style="padding:18px 0;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;">원두를 선택하면 참가자 평가가 표시됩니다.</div></div>';
-      // 앵커: 레퍼런스 섹션(refBeanSelect) 근처, 없으면 모달 끝에 추가
-      var anchor = _$("refBeanSelect");
-      var node = anchor;
-      while (node && node.parentElement && node.parentElement.id !== "cuppingLineupModal" && !/modal|content|body/i.test(node.parentElement.className || "")) node = node.parentElement;
-      if (node && node.parentNode) node.parentNode.insertBefore(host, node.nextSibling);
-      else { var m = _$("cuppingLineupModal"); if (m) m.appendChild(host); }
-    }
-    // 원두 셀렉트 채우기
-    var beans = (window.gCuppingBeans && window.gCuppingBeans[session.id]) || [];
-    var sel = _$("cupRvBean");
-    if (sel) {
-      sel.innerHTML = beans.map(function (b, i) { return '<option value="' + b.id + '">' + (i + 1) + ". " + esc(b.name) + '</option>'; }).join("");
-    }
-    if (beans.length) window.cupRvLoad();
-    else if (_$("cupRvBody")) _$("cupRvBody").innerHTML = '<div style="padding:18px 0;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;">원두를 먼저 추가하세요.</div>';
+  function syncBeanSelect(id, sessionId, cb) {
+    var sel = _$(id); if (!sel) return;
+    var beans = (window.gCuppingBeans && window.gCuppingBeans[sessionId]) || [];
+    var cur = sel.value;
+    sel.innerHTML = beans.map(function (b, i) { return '<option value="' + b.id + '">' + (i + 1) + ". " + esc(b.name) + '</option>'; }).join("");
+    if (cur && beans.some(function (b) { return b.id === cur; })) sel.value = cur;
+    if (cb) { try { cb(); } catch (e) {} }
   }
+
+  /* ── 조회 트리거 버튼 주입: 세션 URL 영역 근처(파트6 QR과 동일 앵커, 안정적) ── */
+  var _origOpen = window.openCuppingLineup;
+  window.openCuppingLineup = async function (session) {
+    if (_origOpen) await _origOpen(session);
+    try { injectTrigger(); } catch (e) { console.error("[cupping] 조회 버튼 주입 오류", e); }
+  };
+  function injectTrigger() {
+    if (_$("cupRvTrigger")) return;
+    var urlEl = _$("sessionUrlText"); if (!urlEl) return;
+    var wrap = document.createElement("div");
+    wrap.id = "cupRvTrigger";
+    wrap.style.cssText = "margin-top:12px;";
+    wrap.innerHTML = '<button class="btn-primary" style="width:100%;height:44px;font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;" onclick="window.cupRvOpen()"><i class="ti ti-clipboard-list"></i> 참가자 평가 조회</button>';
+    var host = _$("cupQrHost");   // QR 호스트가 있으면 그 아래, 없으면 URL 박스 아래
+    if (host && host.parentNode) host.parentNode.insertBefore(wrap, host.nextSibling);
+    else { var box = urlEl.closest("div") || urlEl.parentNode; if (box && box.parentNode) box.parentNode.insertBefore(wrap, box.nextSibling); }
+  }
+
+  /* ── 조회 오버레이 열기 ── */
+  window.cupRvOpen = function () {
+    var sessionId = curSession(); if (!sessionId) return;
+    var ov = _$("cupRvOverlay");
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "cupRvOverlay";
+      ov.style.cssText = "position:fixed;inset:0;z-index:2147483300;background:rgba(15,20,28,.55);display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch;";
+      ov.onclick = function (e) { if (e.target === ov) window.cupRvClose(); };
+      ov.innerHTML =
+        '<div style="width:100%;max-width:680px;background:#fff;border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden;font-family:Pretendard,-apple-system,sans-serif;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid #eef0f3;flex-wrap:wrap;">' +
+            '<div style="font-size:16px;font-weight:800;color:#191f28;">참가자 평가 조회</div>' +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<select id="cupRvBean" style="height:36px;font-size:13px;min-width:160px;border:1px solid #e5e8eb;border-radius:9px;padding:0 10px;background:#fff;" onchange="window.cupRvLoad()"></select>' +
+              '<button onclick="window.cupRvLoad()" title="새로고침" style="height:36px;width:36px;border:1px solid #e5e8eb;border-radius:9px;background:#fff;cursor:pointer;color:#4e5968;"><i class="ti ti-refresh"></i></button>' +
+              '<button onclick="window.cupRvClose()" style="height:36px;width:36px;border:none;border-radius:9px;background:#f2f4f6;cursor:pointer;color:#4e5968;font-size:18px;">&times;</button>' +
+            '</div>' +
+          '</div>' +
+          '<div id="cupRvBody" style="padding:18px 20px 24px;max-height:calc(100vh - 160px);overflow-y:auto;"></div>' +
+        '</div>';
+      document.body.appendChild(ov);
+    }
+    ov.style.display = "flex";
+    syncBeanSelect("cupRvBean", sessionId, null);
+    var beans = (window.gCuppingBeans && window.gCuppingBeans[sessionId]) || [];
+    if (beans.length) window.cupRvLoad();
+    else _$("cupRvBody").innerHTML = emptyMsg("원두를 먼저 추가하세요.");
+  };
+  window.cupRvClose = function () { var ov = _$("cupRvOverlay"); if (ov) ov.style.display = "none"; };
+
+  function emptyMsg(t) { return '<div style="padding:30px 0;text-align:center;color:#8b95a1;font-size:13px;">' + t + '</div>'; }
 
   function partNameMap(sessionId) {
     var parts = (window.gCuppingParts && window.gCuppingParts[sessionId]) || [];
     var map = {};
-    parts.forEach(function (p) {
-      map[p.id] = p.member_id ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트");
-    });
+    parts.forEach(function (p) { map[p.id] = p.member_id ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트"); });
     return map;
   }
 
   window.cupRvLoad = async function () {
-    var sessionId = _$("lineupSessionId") ? _$("lineupSessionId").value : null;
+    var sessionId = curSession();
     var beanId = _$("cupRvBean") ? _$("cupRvBean").value : null;
     var body = _$("cupRvBody");
     if (!sessionId || !beanId || !body || typeof supabaseClient === "undefined") return;
-    body.innerHTML = '<div style="padding:18px 0;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;">불러오는 중…</div>';
+    body.innerHTML = emptyMsg("불러오는 중…");
     var recsRes = await supabaseClient.from("cupping_records").select("*").eq("session_id", sessionId).eq("bean_id", beanId);
-    if (recsRes.error) { body.innerHTML = '<div style="padding:16px 0;color:var(--error,#e5484d);font-size:13px;">조회 실패: ' + esc(recsRes.error.message || "") + ' (호스트 읽기 RLS 정책이 적용됐는지 확인하세요)</div>'; return; }
+    if (recsRes.error) { body.innerHTML = '<div style="padding:20px 0;color:#e5484d;font-size:13px;line-height:1.6;">조회 실패: ' + esc(recsRes.error.message || "") + '<br><span style="color:#8b95a1;">cupping-host-read.sql(호스트 읽기 RLS)이 적용됐는지 확인하세요.</span></div>'; return; }
     var refRes = await supabaseClient.from("cupping_references").select("*").eq("bean_id", beanId).maybeSingle();
-    var recs = recsRes.data || [];
-    var ref = refRes.data || null;
-    var names = partNameMap(sessionId);
-    body.innerHTML = renderReview(recs, ref, names);
+    body.innerHTML = renderReview(recsRes.data || [], refRes.data || null, partNameMap(sessionId));
   };
 
   function renderReview(recs, ref, names) {
-    // 제출/입력된 것만(항목이 하나라도 있는 레코드)
     var rows = recs.filter(function (r) { return RV_KEYS.some(function (k) { return r[k] != null; }) || r.cva_score != null; });
-    if (!rows.length) return '<div style="padding:18px 0;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;">아직 이 원두에 입력된 평가가 없습니다.</div>';
+    if (!rows.length) return emptyMsg("아직 이 원두에 입력된 평가가 없습니다.");
 
-    // ── 집계 ──
     var n = rows.length;
     var scores = rows.map(function (r) { return num(r.cva_score); }).filter(function (v) { return v != null; });
     var avgScore = scores.length ? scores.reduce(function (a, b) { return a + b; }, 0) / scores.length : null;
@@ -2878,44 +2904,36 @@ window.hideCalibration = async function() {
     });
 
     var h = '';
-    h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">' +
-      statCard("참가자", n + "명") +
-      statCard("평균 점수", avgScore == null ? "—" : avgScore.toFixed(1)) +
-      (ref ? statCard("레퍼런스", "입력됨") : statCard("레퍼런스", "미입력")) +
-      '</div>';
+    h += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">' +
+      statCard("참가자", n + "명") + statCard("평균 점수", avgScore == null ? "—" : avgScore.toFixed(1)) +
+      statCard("레퍼런스", ref ? "입력됨" : "미입력") + '</div>';
 
-    // 항목별 평균/레퍼런스/편차 표
-    h += '<div style="overflow-x:auto;margin-bottom:16px;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
-      '<thead><tr>' + th("항목", "left") + th("평균") + (ref ? th("레퍼런스") + th("편차") : "") + '</tr></thead><tbody>';
+    h += '<div style="overflow-x:auto;margin-bottom:18px;border:1px solid #eef0f3;border-radius:12px;"><table style="width:100%;border-collapse:collapse;font-size:12.5px;">' +
+      '<thead><tr style="background:#f9fafb;">' + th("항목", "left") + th("평균") + (ref ? th("레퍼런스") + th("편차") : "") + '</tr></thead><tbody>';
     RV_KEYS.forEach(function (k, i) {
-      var av = attrAvg[i], rv = ref ? num(ref[k]) : null;
-      var dev = (av != null && rv != null) ? (av - rv) : null;
-      h += '<tr>' + td(RV_LABS[i], "left", "600") + td(fx(av)) +
-        (ref ? td(fx(rv)) + tdDev(dev) : "") + '</tr>';
+      var av = attrAvg[i], rv = ref ? num(ref[k]) : null, dev = (av != null && rv != null) ? (av - rv) : null;
+      h += '<tr>' + td(RV_LABS[i], "left", "700") + td(fx(av)) + (ref ? td(fx(rv)) + tdDev(dev) : "") + '</tr>';
     });
     h += '</tbody></table></div>';
 
-    // ── 참가자별 상세 ──
-    h += '<div style="font-size:12px;font-weight:800;color:var(--text-secondary,#4e5968);margin:6px 0 8px;">참가자별 상세</div>';
+    h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:6px 0 10px;">참가자별 상세 (' + n + '명)</div>';
     rows.sort(function (a, b) { return (num(b.cva_score) || 0) - (num(a.cva_score) || 0); });
     rows.forEach(function (r) {
       var isBasic = r.form_type === "basic";
       var nm = names[r.participant_id] || "참가자";
       var badge = '<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;' +
-        (isBasic ? 'background:#eaf2fe;color:#3182f6;' : 'background:#fff2e6;color:#ff7900;') + '">' + (isBasic ? "베이직" : "CVA") + '</span>';
-      var maxLbl = isBasic ? " / 120" : " / 100";
-      // 강도 값 (미니 그리드)
+        (isBasic ? 'background:#eaf2fe;color:#3182f6;' : 'background:#fff2e6;color:#ea6f00;') + '">' + (isBasic ? "베이직" : "CVA") + '</span>';
+      var status = r.submitted_at ? '<i class="ti ti-circle-check-filled" style="color:#00b386;font-size:13px;"></i>'
+        : '<span style="font-size:10px;color:#e5484d;font-weight:700;">임시저장</span>';
       var mini = RV_KEYS.map(function (k, i) {
-        return '<div style="display:flex;flex-direction:column;align-items:center;gap:1px;min-width:44px;">' +
-          '<span style="font-size:9px;color:var(--text-tertiary,#8b95a1);">' + RV_LABS[i] + '</span>' +
-          '<span style="font-size:12px;font-weight:700;color:var(--text-display,#191f28);">' + fx(num(r[k])) + '</span></div>';
+        return '<div style="display:flex;flex-direction:column;align-items:center;gap:1px;min-width:46px;">' +
+          '<span style="font-size:9px;color:#8b95a1;">' + RV_LABS[i] + '</span>' +
+          '<span style="font-size:12.5px;font-weight:700;color:#191f28;">' + fx(num(r[k])) + '</span></div>';
       }).join("");
       if (isBasic && r.basic_overall != null) {
         mini += '<div style="display:flex;flex-direction:column;align-items:center;gap:1px;min-width:52px;">' +
-          '<span style="font-size:9px;color:#ff7900;">전체적</span>' +
-          '<span style="font-size:12px;font-weight:800;color:#ff7900;">' + fx(num(r.basic_overall)) + '</span></div>';
+          '<span style="font-size:9px;color:#ea6f00;">전체적</span><span style="font-size:12.5px;font-weight:800;color:#ea6f00;">' + fx(num(r.basic_overall)) + '</span></div>';
       }
-      // 노트 취합
       var notes = [];
       if (isBasic) { if (r.extrinsic) notes.push(r.extrinsic); }
       else {
@@ -2926,33 +2944,33 @@ window.hideCalibration = async function() {
         if (r.extrinsic) notes.push("외재: " + r.extrinsic);
       }
       var cups = ((r.nonuniform_cups || 0) + (r.defective_cups || 0)) > 0
-        ? '<span style="font-size:11px;color:var(--text-tertiary,#8b95a1);">균일X ' + (r.nonuniform_cups || 0) + ' · 결점 ' + (r.defective_cups || 0) + '</span>' : "";
-      var submitted = r.submitted_at ? '<i class="ti ti-circle-check-filled" style="color:#00b386;font-size:13px;"></i>' : '<span style="font-size:10px;color:#e5484d;font-weight:700;">임시저장</span>';
+        ? '<span style="font-size:11px;color:#8b95a1;">균일X ' + (r.nonuniform_cups || 0) + ' · 결점 ' + (r.defective_cups || 0) + '</span>' : "";
+      var maxLbl = isBasic ? " / 120" : " / 100";
 
-      h += '<div style="border:1px solid var(--border-strong,#e5e8eb);border-radius:12px;padding:12px 14px;margin-bottom:8px;background:#fff;">' +
+      h += '<div style="border:1px solid #e9ebee;border-radius:13px;padding:13px 15px;margin-bottom:9px;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">' +
-          '<div style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="font-size:14px;font-weight:800;color:var(--text-display,#191f28);">' + esc(nm) + '</span>' + badge + submitted + '</div>' +
-          '<div style="font-size:16px;font-weight:800;color:var(--primary,#ff7900);flex-shrink:0;">' + fx(num(r.cva_score)) + '<span style="font-size:11px;color:var(--text-tertiary,#8b95a1);font-weight:700;">' + maxLbl + '</span></div>' +
+          '<div style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="font-size:14.5px;font-weight:800;color:#191f28;">' + esc(nm) + '</span>' + badge + status + '</div>' +
+          '<div style="font-size:17px;font-weight:800;color:#ea6f00;flex-shrink:0;">' + fx(num(r.cva_score)) + '<span style="font-size:11px;color:#8b95a1;font-weight:700;">' + maxLbl + '</span></div>' +
         '</div>' +
-        '<div style="display:flex;flex-wrap:wrap;gap:8px 6px;padding:8px 0;border-top:1px solid var(--border,#f2f4f6);">' + mini + '</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:9px 6px;padding:9px 0;border-top:1px solid #f2f4f6;">' + mini + '</div>' +
         (cups ? '<div style="margin-top:6px;">' + cups + '</div>' : "") +
-        (notes.length ? '<div style="margin-top:8px;font-size:12.5px;color:var(--text-secondary,#4e5968);line-height:1.6;word-break:keep-all;">' + esc(notes.join(" · ")) + '</div>' : "") +
+        (notes.length ? '<div style="margin-top:8px;font-size:12.5px;color:#4e5968;line-height:1.6;word-break:keep-all;">' + esc(notes.join(" · ")) + '</div>' : "") +
         '</div>';
     });
     return h;
   }
 
   function statCard(l, v) {
-    return '<div style="flex:1;min-width:90px;background:var(--surface-2,#f9fafb);border:1px solid var(--border,#f2f4f6);border-radius:10px;padding:10px 12px;">' +
-      '<div style="font-size:11px;color:var(--text-tertiary,#8b95a1);font-weight:600;margin-bottom:3px;">' + l + '</div>' +
-      '<div style="font-size:18px;font-weight:800;color:var(--text-display,#191f28);">' + v + '</div></div>';
+    return '<div style="flex:1;min-width:96px;background:#f9fafb;border:1px solid #eef0f3;border-radius:11px;padding:11px 13px;">' +
+      '<div style="font-size:11px;color:#8b95a1;font-weight:600;margin-bottom:3px;">' + l + '</div>' +
+      '<div style="font-size:19px;font-weight:800;color:#191f28;">' + v + '</div></div>';
   }
-  function th(t, align) { return '<th style="text-align:' + (align || "center") + ';padding:7px 8px;border-bottom:1px solid var(--border-strong,#e5e8eb);font-size:11px;color:var(--text-tertiary,#8b95a1);font-weight:700;white-space:nowrap;">' + t + '</th>'; }
-  function td(t, align, weight) { return '<td style="text-align:' + (align || "center") + ';padding:7px 8px;border-bottom:1px solid var(--border,#f2f4f6);font-weight:' + (weight || "700") + ';color:var(--text-display,#191f28);white-space:nowrap;">' + t + '</td>'; }
+  function th(t, align) { return '<th style="text-align:' + (align || "center") + ';padding:9px 10px;font-size:11px;color:#8b95a1;font-weight:700;white-space:nowrap;">' + t + '</th>'; }
+  function td(t, align, weight) { return '<td style="text-align:' + (align || "center") + ';padding:8px 10px;border-top:1px solid #f2f4f6;font-weight:' + (weight || "700") + ';color:#191f28;white-space:nowrap;">' + t + '</td>'; }
   function tdDev(dev) {
-    if (dev == null) return '<td style="text-align:center;padding:7px 8px;border-bottom:1px solid var(--border,#f2f4f6);">—</td>';
-    var ad = Math.abs(dev), c = ad <= 1 ? "#00b386" : (ad <= 2.5 ? "#f59e0b" : "#e5484d");
-    return '<td style="text-align:center;padding:7px 8px;border-bottom:1px solid var(--border,#f2f4f6);font-weight:800;color:' + c + ';white-space:nowrap;">' + (dev > 0 ? "+" : "") + dev.toFixed(1) + '</td>';
+    if (dev == null) return '<td style="text-align:center;padding:8px 10px;border-top:1px solid #f2f4f6;color:#b0b8c1;">—</td>';
+    var ad = Math.abs(dev), c = ad <= 1 ? "#00b386" : (ad <= 2.5 ? "#e08600" : "#e5484d");
+    return '<td style="text-align:center;padding:8px 10px;border-top:1px solid #f2f4f6;font-weight:800;color:' + c + ';white-space:nowrap;">' + (dev > 0 ? "+" : "") + dev.toFixed(1) + '</td>';
   }
 })();
 /* ═══ 커핑 관리 모듈 파트 7 끝 ═══ */
