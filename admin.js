@@ -2832,7 +2832,7 @@ window.hideCalibration = async function() {
     var wrap = document.createElement("div");
     wrap.id = "cupRvTrigger";
     wrap.style.cssText = "margin-top:10px;";
-    wrap.innerHTML = '<button class="btn-outline" style="width:100%;height:40px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--primary,#ff7900);border-color:var(--primary,#ff7900);" onclick="window.cupRvOpen()"><i class="ti ti-clipboard-list"></i> 참가자 평가 조회</button>';
+    wrap.innerHTML = '<button type="button" class="btn-outline" style="width:100%;height:40px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--primary,#ff7900);border-color:var(--primary,#ff7900);" onclick="window.cupRvOpen()"><i class="ti ti-clipboard-list"></i> 참가자 평가 조회</button>';
     var recBtn = _$("cupRecBtn"), panel = _$("cupLivePanel");
     if (recBtn) {
       // '결과 공개' 행(버튼의 상위 컨테이너) 바로 아래
@@ -2860,8 +2860,8 @@ window.hideCalibration = async function() {
             '<div style="font-size:16px;font-weight:800;color:#191f28;">참가자 평가 조회</div>' +
             '<div style="display:flex;align-items:center;gap:8px;">' +
               '<select id="cupRvBean" style="height:36px;font-size:13px;min-width:160px;border:1px solid #e5e8eb;border-radius:9px;padding:0 10px;background:#fff;" onchange="window.cupRvLoad()"></select>' +
-              '<button onclick="window.cupRvLoad()" title="새로고침" style="height:36px;width:36px;border:1px solid #e5e8eb;border-radius:9px;background:#fff;cursor:pointer;color:#4e5968;"><i class="ti ti-refresh"></i></button>' +
-              '<button onclick="window.cupRvClose()" style="height:36px;width:36px;border:none;border-radius:9px;background:#f2f4f6;cursor:pointer;color:#4e5968;font-size:18px;">&times;</button>' +
+              '<button type="button" onclick="window.cupRvLoad()" title="새로고침" style="height:36px;width:36px;border:1px solid #e5e8eb;border-radius:9px;background:#fff;cursor:pointer;color:#4e5968;"><i class="ti ti-refresh"></i></button>' +
+              '<button type="button" onclick="window.cupRvClose()" style="height:36px;width:36px;border:none;border-radius:9px;background:#f2f4f6;cursor:pointer;color:#4e5968;font-size:18px;">&times;</button>' +
             '</div>' +
           '</div>' +
           '<div id="cupRvBody" style="padding:18px 20px 24px;max-height:calc(100vh - 160px);overflow-y:auto;"></div>' +
