@@ -2821,7 +2821,7 @@ window.hideCalibration = async function() {
     if (cb) { try { cb(); } catch (e) {} }
   }
 
-  /* ── 조회 트리거 버튼 주입: 세션 URL 영역 근처(파트6 QR과 동일 앵커, 안정적) ── */
+  /* ── 조회 트리거 버튼 주입: 라이브 제어 패널의 '결과 공개' 아래(호스트 라이브 액션과 그룹화) ── */
   var _origOpen = window.openCuppingLineup;
   window.openCuppingLineup = async function (session) {
     if (_origOpen) await _origOpen(session);
@@ -2829,14 +2829,20 @@ window.hideCalibration = async function() {
   };
   function injectTrigger() {
     if (_$("cupRvTrigger")) return;
-    var urlEl = _$("sessionUrlText"); if (!urlEl) return;
     var wrap = document.createElement("div");
     wrap.id = "cupRvTrigger";
-    wrap.style.cssText = "margin-top:12px;";
-    wrap.innerHTML = '<button class="btn-primary" style="width:100%;height:44px;font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;" onclick="window.cupRvOpen()"><i class="ti ti-clipboard-list"></i> 참가자 평가 조회</button>';
-    var host = _$("cupQrHost");   // QR 호스트가 있으면 그 아래, 없으면 URL 박스 아래
-    if (host && host.parentNode) host.parentNode.insertBefore(wrap, host.nextSibling);
-    else { var box = urlEl.closest("div") || urlEl.parentNode; if (box && box.parentNode) box.parentNode.insertBefore(wrap, box.nextSibling); }
+    wrap.style.cssText = "margin-top:10px;";
+    wrap.innerHTML = '<button class="btn-outline" style="width:100%;height:40px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--primary,#ff7900);border-color:var(--primary,#ff7900);" onclick="window.cupRvOpen()"><i class="ti ti-clipboard-list"></i> 참가자 평가 조회</button>';
+    var recBtn = _$("cupRecBtn"), panel = _$("cupLivePanel");
+    if (recBtn) {
+      // '결과 공개' 행(버튼의 상위 컨테이너) 바로 아래
+      var row = recBtn.parentElement;
+      if (row && row.parentNode) { row.parentNode.insertBefore(wrap, row.nextSibling); return; }
+    }
+    if (panel) { panel.appendChild(wrap); return; }
+    // 폴백: 라이브 패널이 없으면 세션 URL 아래
+    var urlEl = _$("sessionUrlText");
+    if (urlEl) { var box = urlEl.closest("div") || urlEl.parentNode; if (box && box.parentNode) box.parentNode.insertBefore(wrap, box.nextSibling); }
   }
 
   /* ── 조회 오버레이 열기 ── */
