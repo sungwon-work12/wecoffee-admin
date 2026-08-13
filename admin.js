@@ -2814,7 +2814,7 @@ window.hideCalibration = async function() {
   };
   function syncBeanSelect(id, sessionId, cb) {
     var sel = _$(id); if (!sel) return;
-    var beans = (window.gCuppingBeans && window.gCuppingBeans[sessionId]) || [];
+    var beans = (gCuppingBeans && gCuppingBeans[sessionId]) || [];
     var cur = sel.value;
     sel.innerHTML = beans.map(function (b, i) { return '<option value="' + b.id + '">' + (i + 1) + ". " + esc(b.name) + '</option>'; }).join("");
     if (cur && beans.some(function (b) { return b.id === cur; })) sel.value = cur;
@@ -2870,7 +2870,7 @@ window.hideCalibration = async function() {
     }
     ov.style.display = "flex";
     syncBeanSelect("cupRvBean", sessionId, null);
-    var beans = (window.gCuppingBeans && window.gCuppingBeans[sessionId]) || [];
+    var beans = (gCuppingBeans && gCuppingBeans[sessionId]) || [];
     if (beans.length) window.cupRvLoad();
     else _$("cupRvBody").innerHTML = emptyMsg("원두를 먼저 추가하세요.");
   };
@@ -2879,7 +2879,7 @@ window.hideCalibration = async function() {
   function emptyMsg(t) { return '<div style="padding:30px 0;text-align:center;color:#8b95a1;font-size:13px;">' + t + '</div>'; }
 
   function partNameMap(sessionId) {
-    var parts = (window.gCuppingParts && window.gCuppingParts[sessionId]) || [];
+    var parts = (gCuppingParts && gCuppingParts[sessionId]) || [];
     var map = {};
     parts.forEach(function (p) { map[p.id] = p.member_id ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트"); });
     return map;
