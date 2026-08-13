@@ -2689,3 +2689,97 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 관리 모듈 파트 5 끝 ═══ */
+
+/* ═══════════════════════════════════════════════════════════
+   커핑 관리 모듈 — 파트 6 (세션 URL QR 코드 + 크게 보기)
+   · 커핑 설정 모달의 세션 URL 옆에 QR 생성(참가자 모바일 접속용)
+   · "QR 크게 보기"로 전체화면 확대(분쇄 중 스캔 유도)
+   · QR 은 브라우저에서 직접 생성(URL 외부 전송 없음). CDN 라이브러리 사용.
+   설치: admin.js 뒤(파트5 다음)에 이 블록을 붙여넣기. Webflow HTML 수정 불필요.
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  var QR_SRC = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+  function _$(id) { return document.getElementById(id); }
+
+  function loadQR(cb) {
+    if (window.QRCode) { cb(); return; }
+    var existing = _$("cupQrLib");
+    if (existing) {
+      var t = setInterval(function () { if (window.QRCode) { clearInterval(t); cb(); } }, 100);
+      setTimeout(function () { clearInterval(t); }, 8000);
+      return;
+    }
+    var s = document.createElement("script");
+    s.id = "cupQrLib"; s.src = QR_SRC;
+    s.onload = function () { cb(); };
+    s.onerror = function () { console.warn("[cupping] QR 라이브러리 로드 실패"); var b = _$("cupQrBox"); if (b) b.innerHTML = '<span style="font-size:10px;color:#8b95a1;text-align:center;">QR 로드 실패</span>'; };
+    document.head.appendChild(s);
+  }
+  function makeQR(el, url, size) {
+    if (!el) return;
+    loadQR(function () {
+      el.innerHTML = "";
+      try { new window.QRCode(el, { text: url, width: size, height: size, correctLevel: window.QRCode.CorrectLevel.M }); }
+      catch (e) { console.error("[cupping] QR 생성 실패", e); }
+    });
+  }
+  function curUrl() { var el = _$("sessionUrlText"); return el ? (el.textContent || "").trim() : ""; }
+
+  /* openCuppingLineup 확장: URL 옆 QR 주입 */
+  var _origOpen = window.openCuppingLineup;
+  window.openCuppingLineup = async function (session) {
+    if (_origOpen) await _origOpen(session);
+    setupQR(session);
+  };
+
+  function setupQR() {
+    var urlEl = _$("sessionUrlText");
+    if (!urlEl) return;
+    var host = _$("cupQrHost");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "cupQrHost";
+      host.style.cssText = "display:flex;align-items:center;gap:14px;margin-top:14px;padding:14px;border:1px solid var(--border,#e5e8eb);border-radius:12px;background:#fff;";
+      host.innerHTML =
+        '<div id="cupQrBox" style="width:100px;height:100px;flex-shrink:0;border:1px solid var(--border,#e5e8eb);border-radius:10px;padding:6px;box-sizing:border-box;background:#fff;display:flex;align-items:center;justify-content:center;"></div>' +
+        '<div style="min-width:0;">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--text-display,#191f28);">참가자 접속용 QR</div>' +
+        '<div style="font-size:12px;color:var(--text-tertiary,#8b95a1);font-weight:500;margin:2px 0 10px;line-height:1.4;">분쇄하는 동안 참가자에게 스캔하도록 안내하세요.</div>' +
+        '<button type="button" class="btn-primary" onclick="window.cupQrZoom()" style="height:36px;padding:0 16px;">QR 크게 보기</button>' +
+        '</div>';
+      var box = urlEl.closest("div") || urlEl.parentNode;
+      if (box && box.parentNode) box.parentNode.insertBefore(host, box.nextSibling);
+      else document.body.appendChild(host);
+    }
+    var url = curUrl();
+    if (url) makeQR(_$("cupQrBox"), url, 84);
+  }
+
+  window.cupQrZoom = function () {
+    var url = curUrl();
+    if (!url) return;
+    var ov = _$("cupQrOverlay");
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "cupQrOverlay";
+      ov.style.cssText = "position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:20px;";
+      ov.onclick = function (e) { if (e.target === ov) window.cupQrClose(); };
+      ov.innerHTML =
+        '<div style="background:#fff;border-radius:24px;padding:32px 32px 26px;display:flex;flex-direction:column;align-items:center;gap:18px;max-width:92vw;">' +
+        '<div style="font-size:18px;font-weight:800;color:#191f28;">참가자 접속 QR</div>' +
+        '<div id="cupQrBig" style="display:flex;align-items:center;justify-content:center;"></div>' +
+        '<div id="cupQrBigUrl" style="font-size:12px;color:#8b95a1;font-weight:600;max-width:340px;text-align:center;word-break:break-all;"></div>' +
+        '<button type="button" class="btn-primary" onclick="window.cupQrClose()" style="height:44px;padding:0 28px;font-size:15px;">닫기</button>' +
+        '</div>';
+      document.body.appendChild(ov);
+    }
+    ov.style.display = "flex";
+    var urlBox = _$("cupQrBigUrl"); if (urlBox) urlBox.textContent = url;
+    var big = _$("cupQrBig");
+    var size = Math.min(320, (window.innerWidth || 360) - 120);
+    makeQR(big, url, size);
+  };
+  window.cupQrClose = function () { var ov = _$("cupQrOverlay"); if (ov) ov.style.display = "none"; };
+})();
+/* ═══ 커핑 관리 모듈 파트 6 끝 ═══ */
