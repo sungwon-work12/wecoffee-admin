@@ -2984,10 +2984,10 @@ window.hideCalibration = async function() {
 /* ═══════════════════════════════════════════════════════════
    커핑 관리 모듈 — 파트 8 (멤버 활동·성장 조회: '내역' 모달 확장)
    · 기존 멤버 '내역' 모달(openHistoryModal)에 아래를 추가:
-     - 활동 요약(센터 예약 · 콘텐츠 참여 · 커핑 세션 누적 횟수)
-     - 콘텐츠 참여 이력(수업·훈련 스케줄, 날짜순)
-     - 커핑 성장: 세션별 점수 + 레퍼런스 정확도(평균 편차, 낮을수록 정확) + 추이,
-       세션 펼치면 원두별 상세(점수·노트·편차)
+     - 활동 요약(센터 예약 · 콘텐츠 참여 · 커핑 세션)
+     - 센터 이용 비율 / 공간(존) 이용 통계
+     - 센서리 성장: 세션별 점수 + 레퍼런스 정확도(평균 편차) + 추이, 원두별 상세
+     - 콘텐츠 참여 이력 / 센터 예약 이력 (더보기)
    · 관리자(authenticated) 읽기 RLS 필요: cupping-host-read.sql 먼저 실행.
    설치: admin.js 뒤(파트7 다음)에 붙여넣기. Webflow HTML 수정 불필요.
    ═══════════════════════════════════════════════════════════ */
@@ -2995,13 +2995,23 @@ window.hideCalibration = async function() {
   "use strict";
   var RV_KEYS = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
   var RV_LABS = ["프래그런스","아로마","향미","뒷맛","산미","단맛","마우스필"];
+  var ZONES = ["에스프레소존","로스팅존","브루잉존","커핑존","스터디존"];
   function esc(t){ return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
   function num(v){ return (v==null||v==="")?null:Number(v); }
   function fx(v){ return v==null?"—":Number(v).toFixed(1); }
   function dstr(s){ if(!s)return ""; var d=new Date(s); if(isNaN(d))return ""; var w=["일","월","화","수","목","금","토"][d.getDay()]; return d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0")+" ("+w+")"; }
   function same(a,b){ return (typeof window.samePhone==="function") ? window.samePhone(a,b) : (String(a).replace(/\D/g,"")===String(b).replace(/\D/g,"")); }
+  function zoneOf(s){
+    s = String(s||"");
+    if(/에스프레소|아스토리아|시네소|페마|산레모|이글원|EK|말코닉/.test(s)) return "에스프레소존";
+    if(/로스팅|이지스터|스트롱홀드|프로밧|스토커/.test(s)) return "로스팅존";
+    if(/브루잉|브루/.test(s)) return "브루잉존";
+    if(/커핑/.test(s)) return "커핑존";
+    if(/스터디/.test(s)) return "스터디존";
+    return "기타";
+  }
 
-  var CACHE = {};   // pid -> {recs, session, beans, refs} for 상세 펼침
+  var CACHE = {};
   var _orig = window.openHistoryModal;
   window.openHistoryModal = async function (phone, name) {
     if (_orig) await _orig(phone, name);
@@ -3019,20 +3029,25 @@ window.hideCalibration = async function() {
     var memberId = m ? m.id : null;
     var last4 = String(phone).replace(/\D/g, "").slice(-4);
 
-    // ── 예약 · 콘텐츠 참여(수업·훈련) 이력 ──
-    var resCnt = 0, ress = [], trns = [];
+    // ── 예약 · 콘텐츠 참여 이력 ──
+    var ress = [], trns = [];
     try {
       if (last4.length >= 3) {
         var rq = await supabaseClient.from("reservations").select("phone,status,res_date,res_time,space_equip,center").ilike("phone", "%" + last4);
         ress = (rq.data || []).filter(function (r) { return same(r.phone, phone) && !String(r.status||"").includes("취소"); });
-        resCnt = ress.length;
         var tq = await supabaseClient.from("trainings").select("phone,status,content,created_at,name").ilike("phone", "%" + last4);
         trns = (tq.data || []).filter(function (r) { return same(r.phone, phone) && !String(r.status||"").includes("취소"); });
       }
     } catch (e) { console.warn("[cupping] 이용 이력 조회 실패", e); }
 
-    // ── 커핑: 참가 → 기록 → 세션 → 레퍼런스 (조인 없이 단계별) ──
-    var sessions = [];   // {pid, sid, title, date, recs[], score, accuracy}
+    // ── 센터/공간 집계 ──
+    var centerCnt = {}, zoneCnt = {};
+    function bump(o, k) { k = (k || "").trim(); if (!k) return; o[k] = (o[k] || 0) + 1; }
+    ress.forEach(function (r) { bump(centerCnt, r.center); bump(zoneCnt, zoneOf(r.space_equip)); });
+    trns.forEach(function (t) { var c = String(t.content || "").split(" || "); bump(centerCnt, c[3]); bump(zoneCnt, zoneOf(c[4])); });
+
+    // ── 커핑(센서리) 성장 ──
+    var sessions = [];
     if (memberId) {
       try {
         var pq = await supabaseClient.from("cupping_participants").select("id,session_id").eq("member_id", memberId);
@@ -3040,67 +3055,66 @@ window.hideCalibration = async function() {
         var pids = parts.map(function (p) { return p.id; });
         var sids = parts.map(function (p) { return p.session_id; }).filter(Boolean);
         var recsAll = [], sessMap = {}, refMap = {};
-        if (pids.length) {
-          var rr = await supabaseClient.from("cupping_records").select("*").in("participant_id", pids);
-          recsAll = rr.data || [];
-        }
-        if (sids.length) {
-          var ss = await supabaseClient.from("cupping_sessions").select("id,title,scheduled_at").in("id", sids);
-          (ss.data || []).forEach(function (s) { sessMap[s.id] = s; });
-        }
+        if (pids.length) { var rr = await supabaseClient.from("cupping_records").select("*").in("participant_id", pids); recsAll = rr.data || []; }
+        if (sids.length) { var ssq = await supabaseClient.from("cupping_sessions").select("id,title,scheduled_at").in("id", sids); (ssq.data || []).forEach(function (s) { sessMap[s.id] = s; }); }
         var beanIds = recsAll.map(function (r) { return r.bean_id; }).filter(Boolean);
-        if (beanIds.length) {
-          var rf = await supabaseClient.from("cupping_references").select("*").in("bean_id", beanIds);
-          (rf.data || []).forEach(function (x) { refMap[x.bean_id] = x; });
-        }
-        // 세션별 그룹
+        if (beanIds.length) { var rf = await supabaseClient.from("cupping_references").select("*").in("bean_id", beanIds); (rf.data || []).forEach(function (x) { refMap[x.bean_id] = x; }); }
         parts.forEach(function (p) {
-          var recs = recsAll.filter(function (r) { return r.participant_id === p.id; });
-          if (!recs.length) return;
+          var recs = recsAll.filter(function (r) { return r.participant_id === p.id; }); if (!recs.length) return;
           var s = sessMap[p.session_id] || {};
           var scores = recs.map(function (r) { return num(r.cva_score); }).filter(function (v) { return v != null; });
           var avgScore = scores.length ? scores.reduce(function (a, b) { return a + b; }, 0) / scores.length : null;
-          // 정확도: 레퍼런스 대비 평균 |편차| (전 원두·전 항목)
           var devs = [];
-          recs.forEach(function (r) {
-            var ref = refMap[r.bean_id]; if (!ref) return;
-            RV_KEYS.forEach(function (k) { var mv = num(r[k]), rv = num(ref[k]); if (mv != null && rv != null) devs.push(Math.abs(mv - rv)); });
-          });
+          recs.forEach(function (r) { var ref = refMap[r.bean_id]; if (!ref) return; RV_KEYS.forEach(function (k) { var mv = num(r[k]), rv = num(ref[k]); if (mv != null && rv != null) devs.push(Math.abs(mv - rv)); }); });
           var acc = devs.length ? devs.reduce(function (a, b) { return a + b; }, 0) / devs.length : null;
           CACHE[p.id] = { recs: recs, refMap: refMap, session: s };
-          sessions.push({ pid: p.id, title: s.title || "커핑 세션", date: s.scheduled_at, score: avgScore, acc: acc, hasRef: devs.length > 0 });
+          sessions.push({ pid: p.id, title: s.title || "커핑 세션", date: s.scheduled_at, score: avgScore, acc: acc });
         });
-        sessions.sort(function (a, b) { return (a.date ? new Date(a.date) : 0) - (b.date ? new Date(b.date) : 0); });   // 오래된→최근(추이)
-      } catch (e) { console.warn("[cupping] 커핑 성장 조회 실패", e); }
+        sessions.sort(function (a, b) { return (a.date ? new Date(a.date) : 0) - (b.date ? new Date(b.date) : 0); });
+      } catch (e) { console.warn("[cupping] 센서리 성장 조회 실패", e); }
     }
 
-    var trnCnt = trns.length, cupCnt = sessions.length;
-    var eduCnt = trnCnt;   // 콘텐츠 참여 = 수업·훈련(커핑 세션이 trainings에 포함되면 여기 반영됨)
-
+    var resCnt = ress.length, trnCnt = trns.length, cupCnt = sessions.length;
     var h = '<div style="border-top:1px solid var(--border-strong,#e5e8eb);margin-top:8px;padding-top:18px;">';
-    // 요약
-    h += '<div style="display:flex;gap:8px;margin-bottom:18px;">' +
-      stat("센터 예약", resCnt + "회") + stat("콘텐츠 참여", eduCnt + "회") + stat("커핑 세션", cupCnt + "회") + '</div>';
 
-    // ── 커핑 성장 ──
-    h += '<div style="font-size:13px;font-weight:800;color:var(--text-display,#191f28);margin:2px 0 10px;">커핑 성장 <span style="font-size:11px;font-weight:600;color:var(--text-tertiary,#8b95a1);">· 세션별 점수 · 레퍼런스 정확도</span></div>';
-    if (!cupCnt) {
-      h += '<div style="padding:14px;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;background:#f9fafb;border-radius:10px;margin-bottom:18px;">커핑 평가 데이터가 없습니다.</div>';
-    } else {
-      // 추이 요약(정확도 = 평균 편차, 낮을수록 정확)
+    // 요약
+    h += '<div style="display:flex;gap:8px;margin-bottom:20px;">' +
+      stat("센터 예약", resCnt + "회") + stat("콘텐츠 참여", trnCnt + "회") + stat("커핑 세션", cupCnt + "회") + '</div>';
+
+    // ── 센터 이용 비율 ──
+    var cKeys = Object.keys(centerCnt), cTot = cKeys.reduce(function (a, k) { return a + centerCnt[k]; }, 0);
+    h += sectionTitle("센터 이용 비율");
+    if (!cTot) h += emptyBox("이용 데이터가 없습니다.");
+    else {
+      cKeys.sort(function (a, b) { return centerCnt[b] - centerCnt[a]; }).forEach(function (k) {
+        h += barRow(k, Math.round(centerCnt[k] / cTot * 100), 100, true, false);
+      });
+    }
+
+    // ── 공간 이용 통계 ──
+    var zMax = Math.max.apply(null, ZONES.map(function (z) { return zoneCnt[z] || 0; }).concat([1]));
+    h += sectionTitle("공간 이용 통계", "18px");
+    ZONES.slice().sort(function (a, b) { return (zoneCnt[b] || 0) - (zoneCnt[a] || 0); }).forEach(function (z) {
+      var c = zoneCnt[z] || 0; h += barRow(z, c, zMax, false, c === 0);
+    });
+
+    // ── 센서리 성장 ──
+    h += sectionTitle("센서리 성장", "20px", "커핑 세션 점수 · 레퍼런스 정확도");
+    if (!cupCnt) h += emptyBox("커핑 평가 데이터가 없습니다.");
+    else {
       var withAcc = sessions.filter(function (s) { return s.acc != null; });
       if (withAcc.length >= 2) {
         var first = withAcc[0].acc, last = withAcc[withAcc.length - 1].acc, diff = last - first;
-        var trendC = diff < -0.2 ? "#00b386" : (diff > 0.2 ? "#e5484d" : "#8b95a1");
-        var trendT = diff < -0.2 ? "정확도 개선 ↑" : (diff > 0.2 ? "편차 확대 ↓" : "유지");
+        var tc = diff < -0.2 ? "#00b386" : (diff > 0.2 ? "#e5484d" : "#8b95a1");
+        var tt = diff < -0.2 ? "정확도 개선 ↑" : (diff > 0.2 ? "편차 확대 ↓" : "유지");
         h += '<div style="display:flex;align-items:center;gap:8px;background:#f9fafb;border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12.5px;">' +
           '<span style="color:#4e5968;">레퍼런스 평균 편차</span><span style="font-weight:800;color:#191f28;">' + first.toFixed(1) + ' → ' + last.toFixed(1) + '</span>' +
-          '<span style="font-weight:800;color:' + trendC + ';">' + trendT + '</span></div>';
+          '<span style="font-weight:800;color:' + tc + ';">' + tt + '</span></div>';
       }
-      sessions.slice().reverse().forEach(function (s) {   // 표시는 최신순
+      sessions.slice().reverse().forEach(function (s) {
         var accBadge = s.acc == null ? '<span style="font-size:11px;color:#b0b8c1;">레퍼런스 없음</span>'
           : '<span style="font-size:11px;font-weight:700;color:' + (s.acc <= 1 ? "#00b386" : (s.acc <= 2.5 ? "#e08600" : "#e5484d")) + ';">정확도 편차 ' + s.acc.toFixed(1) + '</span>';
-        h += '<div style="border:1px solid var(--border-strong,#e5e8eb);border-radius:12px;padding:12px 14px;margin-bottom:8px;">' +
+        h += '<div class="memCupCard" style="border:1px solid var(--border-strong,#e5e8eb);border-radius:12px;padding:12px 14px;margin-bottom:8px;">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
             '<div style="min-width:0;"><div style="font-size:14px;font-weight:700;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.title) + '</div>' +
             '<div style="font-size:12px;color:#8b95a1;margin-top:2px;">' + esc(dstr(s.date)) + ' · ' + accBadge + '</div></div>' +
@@ -3110,63 +3124,73 @@ window.hideCalibration = async function() {
       });
     }
 
-    // ── 콘텐츠 참여 이력 ──
-    h += '<div style="font-size:13px;font-weight:800;color:var(--text-display,#191f28);margin:16px 0 10px;">콘텐츠 참여 이력 <span style="font-size:11px;font-weight:600;color:var(--text-tertiary,#8b95a1);">· 수업·훈련 스케줄</span></div>';
-    if (!trns.length) {
-      h += '<div style="padding:14px;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;background:#f9fafb;border-radius:10px;">콘텐츠 참여 이력이 없습니다.</div>';
-    } else {
-      trns.sort(function (a, b) { return new Date(trnDate(b)) - new Date(trnDate(a)); });
-      trns.slice(0, 30).forEach(function (t) {
-        h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #eef0f3;border-radius:10px;margin-bottom:6px;">' +
-          '<div style="min-width:0;font-size:13px;font-weight:600;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(trnTitle(t)) + '</div>' +
-          '<div style="font-size:12px;color:#8b95a1;flex-shrink:0;">' + esc(dstr(trnDate(t))) + '</div></div>';
-      });
-      if (trns.length > 30) h += '<div style="font-size:11px;color:#8b95a1;text-align:center;padding:4px;">외 ' + (trns.length - 30) + '건</div>';
-    }
+    // ── 콘텐츠 참여 이력 (더보기) ──
+    h += sectionTitle("콘텐츠 참여 이력", "18px", "수업·훈련 스케줄");
+    if (!trns.length) h += emptyBox("콘텐츠 참여 이력이 없습니다.");
+    else { trns.sort(function (a, b) { return new Date(trnDate(b)) - new Date(trnDate(a)); });
+      h += moreList("memTrnMore", trns, 5, function (t) { return listItem(trnTitle(t), dstr(trnDate(t))); }); }
 
-    // ── 센터 예약 이력 ──
-    h += '<div style="font-size:13px;font-weight:800;color:var(--text-display,#191f28);margin:16px 0 10px;">센터 예약 이력 <span style="font-size:11px;font-weight:600;color:var(--text-tertiary,#8b95a1);">· 장비·공간</span></div>';
-    if (!ress.length) {
-      h += '<div style="padding:14px;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;background:#f9fafb;border-radius:10px;">센터 예약 이력이 없습니다.</div>';
-    } else {
-      ress.sort(function (a, b) { return new Date(b.res_date || 0) - new Date(a.res_date || 0); });
-      ress.slice(0, 30).forEach(function (r) {
-        var title = [r.center, r.space_equip].filter(Boolean).join(" · ") || "센터 예약";
-        if (r.res_time) title += " · " + r.res_time;
-        h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #eef0f3;border-radius:10px;margin-bottom:6px;">' +
-          '<div style="min-width:0;font-size:13px;font-weight:600;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(title) + '</div>' +
-          '<div style="font-size:12px;color:#8b95a1;flex-shrink:0;">' + esc(dstr(r.res_date)) + '</div></div>';
-      });
-      if (ress.length > 30) h += '<div style="font-size:11px;color:#8b95a1;text-align:center;padding:4px;">외 ' + (ress.length - 30) + '건</div>';
-    }
+    // ── 센터 예약 이력 (더보기) ──
+    h += sectionTitle("센터 예약 이력", "18px", "장비·공간");
+    if (!ress.length) h += emptyBox("센터 예약 이력이 없습니다.");
+    else { ress.sort(function (a, b) { return new Date(b.res_date || 0) - new Date(a.res_date || 0); });
+      h += moreList("memResMore", ress, 5, function (r) {
+        var t = [r.center, r.space_equip].filter(Boolean).join(" · ") || "센터 예약"; if (r.res_time) t += " · " + r.res_time;
+        return listItem(t, dstr(r.res_date)); }); }
+
     h += '</div>';
     host.innerHTML = h;
   }
 
+  /* ── 렌더 헬퍼 ── */
+  function sectionTitle(t, mt, sub) {
+    return '<div style="font-size:13px;font-weight:800;color:var(--text-display,#191f28);margin:' + (mt || "2px") + ' 0 12px;">' + t +
+      (sub ? ' <span style="font-size:11px;font-weight:600;color:var(--text-tertiary,#8b95a1);">· ' + sub + '</span>' : "") + '</div>';
+  }
+  function emptyBox(t) { return '<div style="padding:14px;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;background:#f9fafb;border-radius:10px;margin-bottom:6px;">' + t + '</div>'; }
+  function barRow(label, val, max, isPct, dim) {
+    var pct = isPct ? val : (max ? Math.round(val / max * 100) : 0);
+    var right = isPct ? val + "%" : val + "회";
+    return '<div style="margin-bottom:12px;' + (dim ? 'opacity:.45;' : '') + '">' +
+      '<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:#191f28;margin-bottom:6px;"><span>' + esc(label) + '</span><span>' + right + '</span></div>' +
+      '<div style="height:9px;background:#eef0f3;border-radius:5px;overflow:hidden;"><div style="height:100%;width:' + pct + '%;background:#ff7900;border-radius:5px;"></div></div></div>';
+  }
+  function listItem(title, date) {
+    return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #eef0f3;border-radius:10px;margin-bottom:6px;">' +
+      '<div style="min-width:0;font-size:13px;font-weight:600;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(title) + '</div>' +
+      '<div style="font-size:12px;color:#8b95a1;flex-shrink:0;">' + esc(date) + '</div></div>';
+  }
+  function moreList(id, items, initial, renderItem) {
+    var head = items.slice(0, initial).map(renderItem).join("");
+    var restItems = items.slice(initial);
+    if (!restItems.length) return head;
+    return head + '<div id="' + id + '" style="display:none;">' + restItems.map(renderItem).join("") + '</div>' +
+      '<button type="button" class="btn-outline btn-sm" id="' + id + 'Btn" style="width:100%;height:34px;margin:2px 0 6px;" onclick="window.memToggleMore(\'' + id + '\')">더보기 (' + restItems.length + '건)</button>';
+  }
+  window.memToggleMore = function (id) {
+    var el = document.getElementById(id), btn = document.getElementById(id + "Btn"); if (!el || !btn) return;
+    var open = el.style.display === "none"; el.style.display = open ? "block" : "none";
+    btn.textContent = open ? "접기" : "더보기 (" + el.children.length + "건)";
+  };
+
   function trnDate(t) { var c = String(t.content || "").split(" || "); return (c[0] && /\d{4}-\d{2}-\d{2}/.test(c[0])) ? c[0].trim() : (t.created_at || ""); }
   function trnTitle(t) {
     var c = String(t.content || "").split(" || ");
-    // content에 제목이 없으면 정제된 형태로: 시간·센터·공간
     if (c.length >= 5) return (c[3] ? c[3].trim() + " · " : "") + (c[4] ? c[4].trim() : "수업·훈련") + (c[2] ? " · " + c[2].trim() : "");
     return String(t.content || "수업·훈련 참여");
   }
 
   window.memCupDetail = async function (pid, btn) {
-    var card = btn.closest("div").parentElement, area = card.querySelector(".memCupEval");
-    if (!area) return;
+    var card = btn.closest(".memCupCard"), area = card ? card.querySelector(".memCupEval") : null; if (!area) return;
     if (area.style.display !== "none") { area.style.display = "none"; btn.textContent = "상세"; return; }
     area.style.display = "block"; btn.textContent = "닫기";
-    var c = CACHE[pid];
-    if (!c || !c.recs) { area.innerHTML = '<div style="color:#8b95a1;font-size:13px;">상세 데이터가 없습니다.</div>'; return; }
-    var recs = c.recs.slice();
-    // 원두 이름
-    var beanName = {};
+    var c = CACHE[pid]; if (!c || !c.recs) { area.innerHTML = '<div style="color:#8b95a1;font-size:13px;">상세 데이터가 없습니다.</div>'; return; }
+    var recs = c.recs.slice(), beanName = {};
     try {
       var sid = c.session && c.session.id;
       if (sid) { var bq = await supabaseClient.from("cupping_beans").select("id,name,sort_order").eq("session_id", sid).order("sort_order", { ascending: true });
         var order = {}; (bq.data || []).forEach(function (b, i) { beanName[b.id] = b.name; order[b.id] = i; });
-        recs.sort(function (a, b) { return (order[a.bean_id] == null ? 99 : order[a.bean_id]) - (order[b.bean_id] == null ? 99 : order[b.bean_id]); });
-      }
+        recs.sort(function (a, b) { return (order[a.bean_id] == null ? 99 : order[a.bean_id]) - (order[b.bean_id] == null ? 99 : order[b.bean_id]); }); }
     } catch (e) {}
     area.innerHTML = recs.map(function (r) { return beanCard(r, beanName[r.bean_id] || "원두", c.refMap[r.bean_id]); }).join("");
   };
@@ -3183,22 +3207,41 @@ window.hideCalibration = async function() {
         (dev == null ? "" : '<div style="font-size:9px;font-weight:700;color:' + dc + ';">' + (dev > 0 ? "+" : "") + dev.toFixed(1) + '</div>') + '</div>';
     });
     if (isBasic && r.basic_overall != null) cells.push('<div style="flex:1 1 0;min-width:0;text-align:center;"><div style="font-size:9px;color:#ea6f00;white-space:nowrap;">전체적</div><div style="font-size:12px;font-weight:800;color:#ea6f00;">' + fx(num(r.basic_overall)) + '</div></div>');
-    var notes = [];
-    if (isBasic) { if (r.extrinsic) notes.push(r.extrinsic); }
-    else {
-      var an = [].concat(r.notes_fragrance || [], r.notes_aroma || [], r.notes_tasting || [], r.notes_custom || []);
-      if (an.length) notes.push("향미: " + an.join(", "));
-      var qn = r.q_notes || {};
-      ["aroma","flavor","acidity","sweetness","mouthfeel","overall"].forEach(function (k) { if (qn[k]) notes.push(qn[k]); });
-      if (r.extrinsic) notes.push("외재: " + r.extrinsic);
-    }
     return '<div style="border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fbfcfd;">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">' +
         '<div style="display:flex;align-items:center;gap:6px;min-width:0;"><span style="font-size:13px;font-weight:800;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(bnName) + '</span>' + badge + '</div>' +
         '<div style="font-size:15px;font-weight:800;color:#ea6f00;flex-shrink:0;">' + fx(num(r.cva_score)) + '<span style="font-size:10px;color:#8b95a1;font-weight:700;">' + maxLbl + '</span></div></div>' +
       '<div style="display:flex;gap:4px;">' + cells.join("") + '</div>' +
       (ref ? '<div style="font-size:10px;color:#8b95a1;margin-top:4px;">숫자 아래는 레퍼런스 대비 편차</div>' : "") +
-      (notes.length ? '<div style="margin-top:8px;font-size:12px;color:#4e5968;line-height:1.6;word-break:break-word;">' + esc(notes.join(" · ")) + '</div>' : "") + '</div>';
+      notesBlock(r, isBasic) + '</div>';
+  }
+  var QN_ORDER = ["fragrance","aroma","flavor","aftertaste","acidity","sweetness","mouthfeel","overall"];
+  var QN_LABELS = { fragrance:"프래그런스", aroma:"아로마", flavor:"향미", aftertaste:"뒷맛", acidity:"산미", sweetness:"단맛", mouthfeel:"마우스필", overall:"종합" };
+  function uniq(arr){ var seen={}, out=[]; (arr||[]).forEach(function(v){ var k=String(v==null?"":v).trim(); if(k && !seen[k]){ seen[k]=1; out.push(k); } }); return out; }
+  function qnRow(lab, txt, col){
+    return '<div style="display:flex;gap:8px;font-size:12px;line-height:1.55;">' +
+      '<span style="flex-shrink:0;font-weight:700;color:' + col + ';min-width:42px;">' + esc(lab) + '</span>' +
+      '<span style="color:#4e5968;word-break:break-word;">' + esc(txt) + '</span></div>';
+  }
+  function notesBlock(r, isBasic){
+    var h = "";
+    if (isBasic) {
+      if (r.extrinsic && String(r.extrinsic).trim()) h += qnRow("외재", r.extrinsic, "#8b95a1");
+      return h ? '<div style="margin-top:8px;border-top:1px solid #f2f4f6;padding-top:8px;">' + h + '</div>' : "";
+    }
+    var tags = uniq([].concat(r.notes_fragrance || [], r.notes_aroma || [], r.notes_tasting || [], r.notes_custom || []));
+    if (tags.length) {
+      h += '<div style="margin-top:8px;"><div style="font-size:10px;font-weight:700;color:#8b95a1;margin-bottom:6px;">향미 노트</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:5px;">' +
+        tags.map(function (t) { return '<span style="font-size:11px;font-weight:600;color:#5a6572;background:#f2f4f6;border-radius:6px;padding:3px 9px;white-space:nowrap;">' + esc(t) + '</span>'; }).join("") +
+        '</div></div>';
+    }
+    var qn = r.q_notes || {}, qlines = "";
+    QN_ORDER.forEach(function (k) { if (qn[k] && String(qn[k]).trim()) qlines += qnRow(QN_LABELS[k] || k, qn[k], "#ea6f00"); });
+    Object.keys(qn).forEach(function (k) { if (QN_ORDER.indexOf(k) < 0 && qn[k] && String(qn[k]).trim()) qlines += qnRow(k, qn[k], "#ea6f00"); });
+    if (qlines) h += '<div style="margin-top:10px;display:flex;flex-direction:column;gap:7px;">' + qlines + '</div>';
+    if (r.extrinsic && String(r.extrinsic).trim()) h += '<div style="margin-top:10px;">' + qnRow("외재", r.extrinsic, "#8b95a1") + '</div>';
+    return h ? '<div style="margin-top:8px;border-top:1px solid #f2f4f6;padding-top:8px;">' + h + '</div>' : "";
   }
 
   function stat(l, v) {
