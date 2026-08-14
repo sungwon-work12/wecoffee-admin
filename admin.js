@@ -1849,8 +1849,7 @@ let gCuppingBeans = {};
     const category = $("blkCategory") ? $("blkCategory").value : "";
     const reason = $("blkReason") ? $("blkReason").value : "";
     const isCuppingToggle = $("blkIsCupping") ? $("blkIsCupping").checked : false;
-    // 커핑 세션 운영 여부는 오직 체크박스가 결정(이름의 "커핑" 텍스트로 자동 생성하지 않음)
-    const isCupping = isCuppingToggle;
+    const isCupping = (category + " " + reason).includes("커핑") || isCuppingToggle;
     const editId = $("blkId") ? $("blkId").value : "";
 
     await _origSaveBlockData();
@@ -1920,13 +1919,10 @@ function injectCuppingButtons() {
     if (!m) return;
     const blockId = m[1];
 
-    // '커핑 세션으로 운영' 체크박스(is_cupping)가 노출 기준.
-    // is_cupping 이 명시적으로 false 면 이름에 "커핑"이 있어도 숨김(운영 해제 반영).
-    // is_cupping 이 아직 설정된 적 없는(null) 레거시 블록만 이름 텍스트로 판단.
+    // 구분(카테고리)뿐 아니라 상세내용(수업명)에도 "커핑" 있으면 버튼 노출
     const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){ return String(b.id) === String(blockId); });
     const hay = blk ? ((blk.category || "") + " " + (blk.reason || "")) : (tr.textContent || "");
-    const cupOn = blk ? (blk.is_cupping === true || (blk.is_cupping == null && hay.includes("커핑"))) : hay.includes("커핑");
-    if (!cupOn) return;
+    if (!hay.includes("커핑") && !(blk && blk.is_cupping)) return;
 
     const btn = document.createElement("button");
     btn.className = "btn-outline btn-sm cupping-setup-btn";
