@@ -3259,9 +3259,13 @@ window.hideCalibration = async function() {
 
   function trnDate(t) { var c = String(t.content || "").split(" || "); return (c[0] && /\d{4}-\d{2}-\d{2}/.test(c[0])) ? c[0].trim() : (t.created_at || ""); }
   function trnTitle(t) {
+    // 콘텐츠 명만 표기: "[구분] 로스팅 디펙트" → "로스팅 디펙트" (센터·시간·구분 대괄호 제거)
     var c = String(t.content || "").split(" || ");
-    if (c.length >= 5) return (c[3] ? c[3].trim() + " · " : "") + (c[4] ? c[4].trim() : "수업·훈련") + (c[2] ? " · " + c[2].trim() : "");
-    return String(t.content || "수업·훈련 참여");
+    var raw = (c.length >= 5 ? c[4] : (t.content || "")) || "";
+    var m = raw.match(/^\[(.*?)\]\s*(.*)$/);
+    var title = m ? (m[2] || raw) : raw;
+    title = String(title).trim();
+    return title || "수업·훈련 참여";
   }
 
   window.memCupDetail = async function (pid, btn) {
