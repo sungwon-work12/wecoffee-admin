@@ -2007,18 +2007,38 @@ window.fetchCuppingBeans = async function(sessionId) {
   window.renderCuppingBeans(sessionId);
 };
 
+/* ── 라인업 복사/붙여넣기 클립보드(회차 간 재사용, localStorage) ── */
+function _wcClipGet() { try { return JSON.parse(localStorage.getItem("wc_cupping_bean_clip") || "[]") || []; } catch (e) { return []; } }
+function _wcClipSet(arr) { try { localStorage.setItem("wc_cupping_bean_clip", JSON.stringify(arr || [])); } catch (e) {} }
+function _wcBeanPick(b) { return { name: b.name, origin: b.origin, farm: b.farm, process: b.process, altitude: b.altitude, variety: b.variety, roast_level: b.roast_level }; }
+function _wcClipToolbar(sessionId, beanCount) {
+  var clipN = _wcClipGet().length;
+  function btn(label, enabled, onclick, primary) {
+    var st = "padding:6px 12px;" + (primary ? "color:var(--primary);border-color:var(--primary);" : "") + (enabled ? "" : "opacity:.4;cursor:not-allowed;");
+    return '<button type="button" class="btn-outline btn-sm" style="' + st + '"' + (enabled ? '' : ' disabled') + ' onclick="' + (enabled ? onclick : '') + '">' + label + '</button>';
+  }
+  return '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">' +
+    btn("라인업 전체 복사" + (beanCount ? " (" + beanCount + ")" : ""), beanCount > 0, "window.copyCuppingLineup('" + sessionId + "')", false) +
+    btn("붙여넣기" + (clipN ? " (" + clipN + ")" : ""), clipN > 0, "window.pasteCuppingLineup('" + sessionId + "')", true) +
+    '</div>';
+}
+
 window.renderCuppingBeans = function(sessionId) {
   const beans = gCuppingBeans[sessionId] || [];
   const area = $("beanListArea");
   if ($("beanCount")) $("beanCount").textContent = beans.length;
   if (!area) return;
 
+  const toolbar = _wcClipToolbar(sessionId, beans.length);
+
   if (!beans.length) {
-    area.innerHTML = '<div class="empty-state" style="padding:30px 0;">등록된 원두가 없습니다.</div>';
+    var clipN = _wcClipGet().length;
+    area.innerHTML = toolbar + '<div class="empty-state" style="padding:30px 0;">등록된 원두가 없습니다.' +
+      (clipN ? '<br><span style="font-size:12px;color:var(--text-tertiary);">복사한 라인업 ' + clipN + '개를 붙여넣을 수 있어요.</span>' : '') + '</div>';
     return;
   }
 
-  area.innerHTML = beans.map(function(b, idx) {
+  area.innerHTML = toolbar + beans.map(function(b, idx) {
     const specs = [b.origin, b.process, b.altitude, b.variety, b.roast_level].filter(Boolean);
     const upBtn = idx > 0
       ? '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.moveCuppingBean(\'' + sessionId + '\',\'' + b.id + '\',\'up\')">↑</button>' : '';
@@ -2032,9 +2052,47 @@ window.renderCuppingBeans = function(sessionId) {
       (specs.length ? '<div style="font-size:12px;color:var(--text-secondary);margin-left:32px;">' + specs.map(escapeHtml).join(" · ") + '</div>' : '') +
       (b.farm ? '<div style="font-size:12px;color:var(--text-tertiary);margin-left:32px;">농장: ' + escapeHtml(b.farm) + '</div>' : '') +
       '</div><div style="display:flex;gap:4px;flex-shrink:0;">' + upBtn + downBtn +
+      '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.copyCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">복사</button>' +
       '<button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--error);padding:4px 8px;" onclick="window.deleteCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">삭제</button>' +
       '</div></div>';
   }).join("");
+};
+
+/* ── 원두 복사 / 라인업 전체 복사 / 붙여넣기 ── */
+window.copyCuppingBean = function(sessionId, beanId) {
+  const beans = gCuppingBeans[sessionId] || [];
+  const b = beans.find(function(x) { return String(x.id) === String(beanId); });
+  if (!b) return;
+  _wcClipSet([_wcBeanPick(b)]);
+  showToast("원두 1개를 복사했어요. 다른 세션에서 '붙여넣기' 하세요.");
+  window.renderCuppingBeans(sessionId);
+};
+
+window.copyCuppingLineup = function(sessionId) {
+  const beans = gCuppingBeans[sessionId] || [];
+  if (!beans.length) return showToast("복사할 원두가 없습니다.");
+  _wcClipSet(beans.map(_wcBeanPick));
+  showToast("라인업 " + beans.length + "개를 복사했어요.");
+  window.renderCuppingBeans(sessionId);
+};
+
+window.pasteCuppingLineup = async function(sessionId) {
+  const clip = _wcClipGet();
+  if (!clip.length) return showToast("붙여넣을 원두가 없습니다. 먼저 복사하세요.");
+  const beans = gCuppingBeans[sessionId] || [];
+  const base = beans.length;
+  const rows = clip.map(function(b, i) {
+    return {
+      session_id: sessionId, sort_order: base + i,
+      name: b.name || "원두", origin: b.origin || null, farm: b.farm || null,
+      process: b.process || null, altitude: b.altitude || null,
+      variety: b.variety || null, roast_level: b.roast_level || null
+    };
+  });
+  const { error } = await supabaseClient.from("cupping_beans").insert(rows);
+  if (error) { showToast("붙여넣기 실패"); console.error(error); return; }
+  showToast(clip.length + "개 원두를 라인업에 붙여넣었어요.");
+  await window.fetchCuppingBeans(sessionId);
 };
 
 window.addCuppingBean = async function() {
