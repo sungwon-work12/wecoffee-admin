@@ -2939,17 +2939,19 @@ window.hideCalibration = async function() {
     if (!ov) {
       ov = document.createElement("div");
       ov.id = "cupQrOverlay";
-      // 흰 배경 전체 · QR만 정중앙 크게(URL·타이틀 없음). 아무 곳이나 탭하면 닫힘.
-      ov.style.cssText = "position:fixed;inset:0;z-index:2147483000;background:#fff;display:flex;align-items:center;justify-content:center;padding:24px;cursor:pointer;";
-      ov.onclick = function () { window.cupQrClose(); };
-      ov.innerHTML = '<div id="cupQrBig" style="display:flex;align-items:center;justify-content:center;"></div>';
+      // 흰 배경 전체 · QR 정중앙 크게(URL 없음) + 안내 문구 + 닫기 버튼
+      ov.style.cssText = "position:fixed;inset:0;z-index:2147483000;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;";
+      ov.innerHTML =
+        '<div id="cupQrBig" style="display:flex;align-items:center;justify-content:center;"></div>' +
+        '<div style="margin-top:24px;font-size:17px;font-weight:800;color:#191f28;text-align:center;letter-spacing:-0.3px;line-height:1.5;">커핑 시작 전까지 QR로 접속해 주세요</div>' +
+        '<button type="button" onclick="window.cupQrClose()" class="btn-primary" style="margin-top:26px;height:48px;padding:0 40px;font-size:16px;font-weight:800;">닫기</button>';
       document.body.appendChild(ov);
     }
     ov.style.display = "flex";
     var big = _$("cupQrBig");
-    // 화면 짧은 변에 맞춰 최대한 크게(여백 48px 확보, 상한 640px)
+    // 화면 짧은 변에 맞춰 크게(문구·버튼 공간 확보 위해 세로는 넉넉히 뺌, 상한 560px)
     var vw = window.innerWidth || 360, vh = window.innerHeight || 640;
-    var size = Math.max(220, Math.min(640, Math.min(vw, vh) - 48));
+    var size = Math.max(200, Math.min(560, Math.min(vw - 48, vh - 260)));
     makeQR(big, url, size);
   };
   window.cupQrClose = function () { var ov = _$("cupQrOverlay"); if (ov) ov.style.display = "none"; };
