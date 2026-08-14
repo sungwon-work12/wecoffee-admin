@@ -1842,39 +1842,45 @@ window.downloadExcel = function(type) {
 
 let gCuppingBeans = {};
 
-/* ── saveBlockData 래핑: 커핑 카테고리 저장 시 세션 자동 생성 ── */
+/* ── saveBlockData 래핑: '커핑 세션으로 운영' 체크박스(is_cupping)를 저장 후 확실히 반영 ──
+   · 체크박스 상태를 저장한 블록에 직접 기록(원본 저장 경로가 누락/오작동해도 보정)
+   · 체크 ON  → 세션 없으면 생성
+   · 체크 OFF → 세션은 삭제하지 않음(비활성화·데이터 보존). is_cupping=false 로 버튼/노출만 꺼짐
+*/
 (function() {
   const _origSaveBlockData = window.saveBlockData;
+  const BLK_COLS = "id, block_date, start_time, end_time, center, reason, category";
   window.saveBlockData = async function() {
-    const category = $("blkCategory") ? $("blkCategory").value : "";
-    const reason = $("blkReason") ? $("blkReason").value : "";
     const isCuppingToggle = $("blkIsCupping") ? $("blkIsCupping").checked : false;
-    const isCupping = (category + " " + reason).includes("커핑") || isCuppingToggle;
     const editId = $("blkId") ? $("blkId").value : "";
 
     await _origSaveBlockData();
 
-    if (isCupping && !editId) {
-      // 방금 만든 커핑 블록 찾기
-      const { data: latest } = await supabaseClient
-        .from("blocks")
-        .select("id, block_date, start_time, end_time, center, reason")
-        .eq("category", category)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      if (latest && latest.length) {
-        const blk = latest[0];
-        const { data: exist } = await supabaseClient
-          .from("cupping_sessions").select("id").eq("block_id", blk.id).maybeSingle();
-
-        if (!exist) {
-          await supabaseClient.from("cupping_sessions").insert([
-            buildSessionPayload(blk)
-          ]);
-        }
+    try {
+      // 저장 대상 블록 확정: 편집이면 그 id, 신규면 방금 만들어진 최신 블록
+      let blk = null;
+      if (editId) {
+        const { data } = await supabaseClient.from("blocks").select(BLK_COLS).eq("id", editId).maybeSingle();
+        blk = data || null;
+      } else {
+        const { data } = await supabaseClient.from("blocks").select(BLK_COLS).order("created_at", { ascending: false }).limit(1);
+        if (data && data.length) blk = data[0];
       }
-    }
+      if (!blk) return;
+
+      // ★ 핵심: 체크박스 상태를 해당 블록에 직접 기록(체크 해제가 확실히 반영됨)
+      const { error: upErr } = await supabaseClient.from("blocks").update({ is_cupping: isCuppingToggle }).eq("id", blk.id);
+      if (upErr) { console.warn("[cupping] is_cupping 저장 실패", upErr); showToast("커핑 운영 설정 저장 실패: " + (upErr.message || "")); }
+
+      // 세션 동기화(체크 ON일 때만 생성, OFF면 데이터 보존 위해 그대로 둠)
+      const { data: exist } = await supabaseClient.from("cupping_sessions").select("id").eq("block_id", blk.id).maybeSingle();
+      if (isCuppingToggle && !exist) {
+        await supabaseClient.from("cupping_sessions").insert([buildSessionPayload(blk)]);
+      }
+
+      // gBlk 갱신 → 버튼 노출 즉시 반영
+      if (typeof window.fetchCenterData === "function") await window.fetchCenterData({ force: true });
+    } catch (e) { console.warn("[cupping] 커핑 운영 동기화 오류", e); }
   };
 })();
 
