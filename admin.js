@@ -3195,19 +3195,43 @@ window.hideCalibration = async function() {
   "use strict";
   var RV_KEYS = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
   var RV_LABS = ["프래그런스","아로마","향미","뒷맛","산미","단맛","마우스필"];
-  var ZONES = ["에스프레소존","로스팅존","브루잉존","커핑존","스터디존"];
+  // 센터별 공간·장비 구성(스케줄 등록과 동일 출처). admin.js 의 mapoSpaces/gwangjinSpaces 와 1:1.
+  var WC_CENTER_SPACES = window.WC_CENTER_SPACES || {
+    "마포 센터": [
+      { zone:"에스프레소존", equips:["아스토리아 스톰 1번 그룹 (좌)","아스토리아 스톰 2번 그룹 (우)"] },
+      { zone:"로스팅존", equips:["이지스터 800 1번 (좌)","이지스터 800 2번 (우)","이지스터 1.8","스트롱홀드 S7X"] },
+      { zone:"브루잉존", equips:[] },
+      { zone:"커핑존", equips:[] },
+      { zone:"스터디존", equips:[] }
+    ],
+    "광진 센터": [
+      { zone:"에스프레소존", equips:["시네소 MVP 하이드라 1번 그룹 (좌)","시네소 MVP 하이드라 2번 그룹 (우)","페마 페미나 1그룹","산레모 You 1그룹","이글원 프리마 프로 1그룹","이글원 프리마 EXP 1그룹"] },
+      { zone:"로스팅존", equips:["이지스터 800 1번 (좌)","이지스터 800 2번 (우)","이지스터 1.8 1번 (좌)","스트롱홀드 S7X"] },
+      { zone:"브루잉존", equips:[] },
+      { zone:"커핑존", equips:[] },
+      { zone:"스터디룸", equips:[] }
+    ]
+  };
+  window.WC_CENTER_SPACES = WC_CENTER_SPACES;
   function esc(t){ return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
   function num(v){ return (v==null||v==="")?null:Number(v); }
   function fx(v){ return v==null?"—":Number(v).toFixed(1); }
   function dstr(s){ if(!s)return ""; var d=new Date(s); if(isNaN(d))return ""; var w=["일","월","화","수","목","금","토"][d.getDay()]; return d.getFullYear()+"."+String(d.getMonth()+1).padStart(2,"0")+"."+String(d.getDate()).padStart(2,"0")+" ("+w+")"; }
   function same(a,b){ return (typeof window.samePhone==="function") ? window.samePhone(a,b) : (String(a).replace(/\D/g,"")===String(b).replace(/\D/g,"")); }
-  function zoneOf(s){
-    s = String(s||"");
+  function centerKey(c){ c = String(c||""); if(c.indexOf("광진")>=0) return "광진 센터"; if(c.indexOf("마포")>=0) return "마포 센터"; return null; }
+  // 센터 구성에 맞춰 공간/장비 문자열 → 존. 센터를 알면 그 센터의 실제 존만 사용.
+  function resolveZone(center, s){
+    s = String(s||"").trim(); if(!s) return null;
+    var key = centerKey(center), cfg = key ? WC_CENTER_SPACES[key] : null, list = cfg || [];
+    var i, j;
+    for(i=0;i<list.length;i++){ if(s.indexOf(list[i].zone)>=0) return list[i].zone; }        // 존 이름 직접 매칭
+    for(i=0;i<list.length;i++){ for(j=0;j<list[i].equips.length;j++){ if(list[i].equips[j] && s.indexOf(list[i].equips[j])>=0) return list[i].zone; } } // 장비 매칭
+    if(/전체/.test(s)) return "전체";
     if(/에스프레소|아스토리아|시네소|페마|산레모|이글원|EK|말코닉/.test(s)) return "에스프레소존";
     if(/로스팅|이지스터|스트롱홀드|프로밧|스토커/.test(s)) return "로스팅존";
     if(/브루잉|브루/.test(s)) return "브루잉존";
     if(/커핑/.test(s)) return "커핑존";
-    if(/스터디/.test(s)) return "스터디존";
+    if(/스터디/.test(s)) return key==="광진 센터" ? "스터디룸" : "스터디존";
     return "기타";
   }
 
@@ -3240,11 +3264,14 @@ window.hideCalibration = async function() {
       }
     } catch (e) { console.warn("[cupping] 이용 이력 조회 실패", e); }
 
-    // ── 센터/공간 집계 ──
-    var centerCnt = {}, zoneCnt = {};
+    // ── 센터/공간 집계 (공간은 센터별로 분리) ──
+    var centerCnt = {}, zoneByCenter = {};
     function bump(o, k) { k = (k || "").trim(); if (!k) return; o[k] = (o[k] || 0) + 1; }
-    ress.forEach(function (r) { bump(centerCnt, r.center); bump(zoneCnt, zoneOf(r.space_equip)); });
-    trns.forEach(function (t) { var c = String(t.content || "").split(" || "); bump(centerCnt, c[3]); bump(zoneCnt, zoneOf(c[4])); });
+    function bumpZone(center, z) { if (!z) return; var key = centerKey(center) || String(center || "기타").trim() || "기타"; (zoneByCenter[key] = zoneByCenter[key] || {})[z] = (zoneByCenter[key][z] || 0) + 1; }
+    // 훈련 content 는 c[1]=공간, c[4]=제목. 공간(c[1]) 우선, 존 판별 실패 시 제목(c[4])으로 보조.
+    function trnZone(center, c) { var z = resolveZone(center, c[1]); if (!z || z === "기타") { var z2 = resolveZone(center, c[4]); if (z2 && z2 !== "기타") z = z2; } return z; }
+    ress.forEach(function (r) { bump(centerCnt, r.center); bumpZone(r.center, resolveZone(r.center, r.space_equip)); });
+    trns.forEach(function (t) { var c = String(t.content || "").split(" || "); bump(centerCnt, c[3]); bumpZone(c[3], trnZone(c[3], c)); });
 
     // ── 커핑(센서리) 성장 ── (member_id + 전화번호(게스트 참여)까지 매칭)
     var sessions = [];
@@ -3299,12 +3326,24 @@ window.hideCalibration = async function() {
       });
     }
 
-    // ── 공간 이용 통계 ──
-    var zMax = Math.max.apply(null, ZONES.map(function (z) { return zoneCnt[z] || 0; }).concat([1]));
-    h += sectionTitle("공간 이용 통계", "18px");
-    ZONES.slice().sort(function (a, b) { return (zoneCnt[b] || 0) - (zoneCnt[a] || 0); }).forEach(function (z) {
-      var c = zoneCnt[z] || 0; h += barRow(z, c, zMax, false, c === 0);
-    });
+    // ── 공간 이용 통계 (센터별) ──
+    h += sectionTitle("공간 이용 통계", "18px", "센터별 공간·장비");
+    var usedCenters = Object.keys(zoneByCenter);
+    if (!usedCenters.length) h += emptyBox("공간 이용 데이터가 없습니다.");
+    else {
+      usedCenters.sort(function (a, b) { return (centerCnt[b] || 0) - (centerCnt[a] || 0); }).forEach(function (ck) {
+        var counts = zoneByCenter[ck];
+        var cfg = WC_CENTER_SPACES[ck];
+        var zoneOrder = cfg ? cfg.map(function (z) { return z.zone; }) : [];
+        // 설정에 없는 존(전체·기타 등)도 뒤에 추가
+        Object.keys(counts).forEach(function (z) { if (zoneOrder.indexOf(z) < 0) zoneOrder.push(z); });
+        var zMax = Math.max.apply(null, zoneOrder.map(function (z) { return counts[z] || 0; }).concat([1]));
+        h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:6px 0 8px;">' + esc(ck) + '</div>';
+        zoneOrder.sort(function (a, b) { return (counts[b] || 0) - (counts[a] || 0); }).forEach(function (z) {
+          var c = counts[z] || 0; h += barRow(z, c, zMax, false, c === 0);
+        });
+      });
+    }
 
     // ── 센서리 성장 ──
     h += sectionTitle("센서리 성장", "20px", "커핑 세션 점수 · 레퍼런스 정확도");
@@ -3315,9 +3354,17 @@ window.hideCalibration = async function() {
         var first = withAcc[0].acc, last = withAcc[withAcc.length - 1].acc, diff = last - first;
         var tc = diff < -0.2 ? "#00b386" : (diff > 0.2 ? "#e5484d" : "#8b95a1");
         var tt = diff < -0.2 ? "정확도 개선 ↑" : (diff > 0.2 ? "편차 확대 ↓" : "유지");
-        h += '<div style="display:flex;align-items:center;gap:8px;background:#f9fafb;border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12.5px;">' +
-          '<span style="color:#4e5968;">레퍼런스 평균 편차</span><span style="font-weight:800;color:#191f28;">' + first.toFixed(1) + ' → ' + last.toFixed(1) + '</span>' +
-          '<span style="font-weight:800;color:' + tc + ';">' + tt + '</span></div>';
+        h += '<div style="background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:12px 14px;margin-bottom:10px;">' +
+          '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">' +
+            '<span style="font-size:12px;font-weight:800;color:#191f28;">정확도 추이</span>' +
+            '<span style="font-size:10.5px;color:#8b95a1;">위로 갈수록 레퍼런스에 근접</span></div>' +
+          sparkSVG(withAcc.map(function (s) { return s.acc; }), 280, 56, true) +
+          '<div style="display:flex;justify-content:space-between;font-size:10px;color:#b0b8c1;margin-top:4px;">' +
+            '<span>' + esc(dstr(withAcc[0].date)) + '</span><span>' + esc(dstr(withAcc[withAcc.length - 1].date)) + '</span></div>' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #f2f4f6;font-size:12.5px;">' +
+            '<span style="color:#4e5968;">평균 편차</span><span style="font-weight:800;color:#191f28;">' + first.toFixed(1) + ' → ' + last.toFixed(1) + '</span>' +
+            '<span style="font-weight:800;color:' + tc + ';">' + tt + '</span></div>' +
+        '</div>';
       }
       sessions.slice().reverse().forEach(function (s) {
         var accBadge = s.acc == null ? '<span style="font-size:11px;color:#b0b8c1;">레퍼런스 없음</span>'
@@ -3356,6 +3403,20 @@ window.hideCalibration = async function() {
       (sub ? ' <span style="font-size:11px;font-weight:600;color:var(--text-tertiary,#8b95a1);">· ' + sub + '</span>' : "") + '</div>';
   }
   function emptyBox(t) { return '<div style="padding:14px;text-align:center;color:var(--text-tertiary,#8b95a1);font-size:13px;background:#f9fafb;border-radius:10px;margin-bottom:6px;">' + t + '</div>'; }
+  // 미니 꺾은선(스파크라인). vals=시간순 수치. invertGood=true 면 값이 작을수록 위로(정확도용).
+  function sparkSVG(vals, w, hgt, invertGood) {
+    var n = vals.length; if (n < 2) return "";
+    var pad = 8, iw = w - pad * 2, ih = hgt - pad * 2;
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals), rng = (max - min) || 1;
+    function x(i) { return pad + i / (n - 1) * iw; }
+    function y(v) { var t = (v - min) / rng; if (invertGood) t = 1 - t; return pad + (1 - t) * ih; }
+    var pts = vals.map(function (v, i) { return x(i).toFixed(1) + "," + y(v).toFixed(1); }).join(" ");
+    var area = "M" + x(0).toFixed(1) + "," + (hgt - pad).toFixed(1) + " L" + vals.map(function (v, i) { return x(i).toFixed(1) + "," + y(v).toFixed(1); }).join(" L") + " L" + x(n - 1).toFixed(1) + "," + (hgt - pad).toFixed(1) + " Z";
+    var dots = vals.map(function (v, i) { var last = i === n - 1; return '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="' + (last ? 3.5 : 2.3) + '" fill="' + (last ? "#ff7900" : "#fff") + '" stroke="#ff7900" stroke-width="2"/>'; }).join("");
+    return '<svg width="' + w + '" height="' + hgt + '" viewBox="0 0 ' + w + ' ' + hgt + '" style="max-width:100%;height:auto;display:block;">' +
+      '<path d="' + area + '" fill="rgba(255,121,0,0.08)"/>' +
+      '<polyline points="' + pts + '" fill="none" stroke="#ff7900" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' + dots + '</svg>';
+  }
   function barRow(label, val, max, isPct, dim) {
     var pct = isPct ? val : (max ? Math.round(val / max * 100) : 0);
     var right = isPct ? val + "%" : val + "회";
