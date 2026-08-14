@@ -1925,10 +1925,12 @@ function injectCuppingButtons() {
     if (!m) return;
     const blockId = m[1];
 
-    // 노출 기준은 오직 '커핑 세션으로 운영' 체크박스(is_cupping === true).
-    // (백필 SQL 실행 후에는 기존 커핑 블록도 모두 true 라 사라지지 않습니다.)
+    // 노출 기준: '커핑 세션으로 운영' 체크박스(is_cupping).
+    // ★ DB가 is_cupping 을 문자열('true'/'false')로 저장하는 경우가 있어(문자열 'false'는
+    //   JS에서 truthy라 오판됨) boolean true 와 문자열 'true' 를 모두 '켜짐'으로 처리한다.
     const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){ return String(b.id) === String(blockId); });
-    if (!(blk && blk.is_cupping === true)) return;
+    const cupOn = blk && (blk.is_cupping === true || blk.is_cupping === "true" || blk.is_cupping === 1 || blk.is_cupping === "1");
+    if (!cupOn) return;
 
     const btn = document.createElement("button");
     btn.className = "btn-outline btn-sm cupping-setup-btn";
