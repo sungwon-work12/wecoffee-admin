@@ -1925,10 +1925,10 @@ function injectCuppingButtons() {
     if (!m) return;
     const blockId = m[1];
 
-    // 구분(카테고리)뿐 아니라 상세내용(수업명)에도 "커핑" 있으면 버튼 노출
+    // 노출 기준은 오직 '커핑 세션으로 운영' 체크박스(is_cupping === true).
+    // (백필 SQL 실행 후에는 기존 커핑 블록도 모두 true 라 사라지지 않습니다.)
     const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){ return String(b.id) === String(blockId); });
-    const hay = blk ? ((blk.category || "") + " " + (blk.reason || "")) : (tr.textContent || "");
-    if (!hay.includes("커핑") && !(blk && blk.is_cupping)) return;
+    if (!(blk && blk.is_cupping === true)) return;
 
     const btn = document.createElement("button");
     btn.className = "btn-outline btn-sm cupping-setup-btn";
