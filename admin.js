@@ -2866,6 +2866,94 @@ window.hideCalibration = async function() {
   };
   window.cupQrClose = function () { var ov = _$("cupQrOverlay"); if (ov) ov.style.display = "none"; };
 })();
+/* ═══════════════════════════════════════════════════════════
+   커핑 관리 모듈 — 파트 6 (세션 URL QR 코드 + 크게 보기)
+   · 커핑 설정 모달의 세션 URL 옆에 QR 생성(참가자 모바일 접속용)
+   · "QR 크게 보기"로 전체화면 확대(분쇄 중 스캔 유도)
+   · QR 은 브라우저에서 직접 생성(URL 외부 전송 없음). CDN 라이브러리 사용.
+   설치: admin.js 뒤(파트5 다음)에 이 블록을 붙여넣기. Webflow HTML 수정 불필요.
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  var QR_SRC = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
+  function _$(id) { return document.getElementById(id); }
+
+  function loadQR(cb) {
+    if (window.QRCode) { cb(); return; }
+    var existing = _$("cupQrLib");
+    if (existing) {
+      var t = setInterval(function () { if (window.QRCode) { clearInterval(t); cb(); } }, 100);
+      setTimeout(function () { clearInterval(t); }, 8000);
+      return;
+    }
+    var s = document.createElement("script");
+    s.id = "cupQrLib"; s.src = QR_SRC;
+    s.onload = function () { cb(); };
+    s.onerror = function () { console.warn("[cupping] QR 라이브러리 로드 실패"); var b = _$("cupQrBox"); if (b) b.innerHTML = '<span style="font-size:10px;color:#8b95a1;text-align:center;">QR 로드 실패</span>'; };
+    document.head.appendChild(s);
+  }
+  function makeQR(el, url, size) {
+    if (!el) return;
+    loadQR(function () {
+      el.innerHTML = "";
+      try { new window.QRCode(el, { text: url, width: size, height: size, correctLevel: window.QRCode.CorrectLevel.M }); }
+      catch (e) { console.error("[cupping] QR 생성 실패", e); }
+    });
+  }
+  function curUrl() { var el = _$("sessionUrlText"); return el ? (el.textContent || "").trim() : ""; }
+
+  /* openCuppingLineup 확장: URL 옆 QR 주입 */
+  var _origOpen = window.openCuppingLineup;
+  window.openCuppingLineup = async function (session) {
+    if (_origOpen) await _origOpen(session);
+    setupQR(session);
+  };
+
+  function setupQR() {
+    var urlEl = _$("sessionUrlText");
+    if (!urlEl) return;
+    var host = _$("cupQrHost");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "cupQrHost";
+      host.style.cssText = "display:flex;align-items:center;gap:14px;margin-top:14px;padding:14px;border:1px solid var(--border,#e5e8eb);border-radius:12px;background:#fff;";
+      host.innerHTML =
+        '<div id="cupQrBox" style="width:100px;height:100px;flex-shrink:0;border:1px solid var(--border,#e5e8eb);border-radius:10px;padding:6px;box-sizing:border-box;background:#fff;display:flex;align-items:center;justify-content:center;"></div>' +
+        '<div style="min-width:0;">' +
+        '<div style="font-size:13px;font-weight:700;color:var(--text-display,#191f28);">참가자 접속용 QR</div>' +
+        '<div style="font-size:12px;color:var(--text-tertiary,#8b95a1);font-weight:500;margin:2px 0 10px;line-height:1.4;">분쇄하는 동안 참가자에게 스캔하도록 안내하세요.</div>' +
+        '<button type="button" class="btn-primary" onclick="window.cupQrZoom()" style="height:36px;padding:0 16px;">QR 크게 보기</button>' +
+        '</div>';
+      var box = urlEl.closest("div") || urlEl.parentNode;
+      if (box && box.parentNode) box.parentNode.insertBefore(host, box.nextSibling);
+      else document.body.appendChild(host);
+    }
+    var url = curUrl();
+    if (url) makeQR(_$("cupQrBox"), url, 84);
+  }
+
+  window.cupQrZoom = function () {
+    var url = curUrl();
+    if (!url) return;
+    var ov = _$("cupQrOverlay");
+    if (!ov) {
+      ov = document.createElement("div");
+      ov.id = "cupQrOverlay";
+      // 흰 배경 전체 · QR만 정중앙 크게(URL·타이틀 없음). 아무 곳이나 탭하면 닫힘.
+      ov.style.cssText = "position:fixed;inset:0;z-index:2147483000;background:#fff;display:flex;align-items:center;justify-content:center;padding:24px;cursor:pointer;";
+      ov.onclick = function () { window.cupQrClose(); };
+      ov.innerHTML = '<div id="cupQrBig" style="display:flex;align-items:center;justify-content:center;"></div>';
+      document.body.appendChild(ov);
+    }
+    ov.style.display = "flex";
+    var big = _$("cupQrBig");
+    // 화면 짧은 변에 맞춰 최대한 크게(여백 48px 확보, 상한 640px)
+    var vw = window.innerWidth || 360, vh = window.innerHeight || 640;
+    var size = Math.max(220, Math.min(640, Math.min(vw, vh) - 48));
+    makeQR(big, url, size);
+  };
+  window.cupQrClose = function () { var ov = _$("cupQrOverlay"); if (ov) ov.style.display = "none"; };
+})();
 /* ═══ 커핑 관리 모듈 파트 6 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
@@ -2881,10 +2969,135 @@ window.hideCalibration = async function() {
   "use strict";
   var RV_KEYS = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
   var RV_LABS = ["프래그런스","아로마","향미","뒷맛","산미","단맛","마우스필"];
+  var SVG_LIST = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h9M9 12h9M9 19h9"/><circle cx="4.5" cy="5" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="19" r="1"/></svg>';
+  var SVG_REFRESH = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+  var SVG_CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
   function _$(id){ return document.getElementById(id); }
   function esc(t){ return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
   function num(v){ return (v==null||v==="")?null:Number(v); }
   function fx(v,d){ return v==null?"—":Number(v).toFixed(d==null?1:d); }
+  function uniq(arr){ var seen={}, out=[]; (arr||[]).forEach(function(v){ var k=String(v==null?"":v).trim(); if(k && !seen[k]){ seen[k]=1; out.push(k); } }); return out; }
+  function ymd(s){ var d=new Date(s); if(isNaN(d)) return ""; return d.getFullYear()+". "+String(d.getMonth()+1).padStart(2,"0")+". "+String(d.getDate()).padStart(2,"0"); }
+
+  /* ═══ 내장 렌더러 (레이더 + CVA 공식 폼) — 멤버 결과보기와 동일 ═══ */
+  function radarSVGLocal(me, ref, extra, AX){
+    AX = AX || []; var MAX=15, cx=170, cy=150, R=105, N=AX.length || 1;
+    function pt(i,val){ var ang=-Math.PI/2 + i*(2*Math.PI/N); var r=((val==null?0:val)/MAX)*R; return [cx+r*Math.cos(ang), cy+r*Math.sin(ang)]; }
+    function poly(vals){ return vals.map(function(v,i){ return pt(i,v).join(","); }).join(" "); }
+    var h="";
+    [5,10,15].forEach(function(rv){ var p=AX.map(function(_,i){ return pt(i,rv).join(","); }).join(" "); h+='<polygon points="'+p+'" fill="none" stroke="#e5e8eb" stroke-width="1"/>'; });
+    AX.forEach(function(lab,i){ var e=pt(i,15), lp=pt(i,17.8); h+='<line x1="'+cx+'" y1="'+cy+'" x2="'+e[0]+'" y2="'+e[1]+'" stroke="#eceef1" stroke-width="1"/>'; var anc=Math.abs(lp[0]-cx)<6?"middle":(lp[0]<cx?"end":"start"); h+='<text x="'+lp[0]+'" y="'+(lp[1]+4)+'" font-size="11" font-weight="700" fill="#8b95a1" text-anchor="'+anc+'">'+lab+'</text>'; });
+    if(ref){ h+='<polygon points="'+poly(ref)+'" fill="rgba(49,130,246,0.14)" stroke="#3182f6" stroke-width="2"/>'; ref.forEach(function(v,i){ if(v==null)return; var p=pt(i,v); h+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3" fill="#3182f6"/>'; }); }
+    h+='<polygon points="'+poly(me)+'" fill="rgba(255,121,0,0.16)" stroke="#ff7900" stroke-width="2"/>';
+    me.forEach(function(v,i){ if(v==null)return; var p=pt(i,v); h+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3.5" fill="#fff" stroke="#ff7900" stroke-width="2"/>'; });
+    return '<svg width="340" height="300" viewBox="0 0 340 300" style="max-width:100%;height:auto;">'+h+'</svg>';
+  }
+  var CVA_IMG = "https://cdn.prod.website-files.com/6a5efbccd4af087f960c9251/6a7c4c16d6c38f154d0a41ee_ee6a26608ebbf6f6e492819da672abbb_CVA%20%E1%84%80%E1%85%A7%E1%86%AF%E1%84%92%E1%85%A1%E1%86%B8%E1%84%91%E1%85%A7%E1%86%BC%E1%84%80%E1%85%A1.png";
+  var CVA_SCALE_Y={fragrance:19.58,aroma:21.77,flavor:35.14,aftertaste:37.33,acidity:57.40,sweetness:65.40,mouthfeel:73.41};
+  var CVA_AFF_Y={fragrance:19.58,aroma:21.77,flavor:35.14,aftertaste:37.33,acidity:57.40,sweetness:65.40,mouthfeel:73.41,overall:83.84};
+  var CVA_AROMA={"꽃":24.05,"과일":25.05,"신·발효":26.15,"녹색채소·식물성":27.30,"기타":28.40,"구운":29.45,"견과류·코코아":30.50,"향신료":31.60,"달콤한":32.60};
+  var CVA_FLAVOR={"꽃":39.60,"과일":40.60,"신·발효":41.70,"녹색채소·식물성":42.60,"기타":43.70,"나무같은":44.70,"구운":45.80,"견과류·코코아":46.85,"향신료":47.80,"달콤한":48.70};
+  var CVA_MAIN={"짠맛":51.10,"신맛":52.10,"단맛":53.10,"쓴맛":54.10,"감칠맛":55.20};
+  var CVA_MF={"부드러운":77.80,"거친":75.60,"기름진":76.70,"입안마름":78.90,"금속성":79.90};
+  var CVA_DEFECT={"곰팡이":[84.06,93.90],"페놀":[89.34,93.90],"감자":[84.06,95.00]};
+  function buildCvaFormLocal(D, forceW){
+    D = D || {}; var I = D.intens||{}, Q = D.qual||{};
+    var WPX = forceW ? forceW : Math.min(680, (window.innerWidth||800)-72); if(WPX<300) WPX=300;
+    var HPX = WPX*3509/2482, U = WPX/100;
+    var wrap = document.createElement("div"); wrap.className="wc-sheet";
+    wrap.style.cssText="position:relative;width:"+WPX+"px;height:"+HPX+"px;background:#fff;margin:0 auto;";
+    var img = document.createElement("img"); img.setAttribute("crossorigin","anonymous");
+    img.onerror=function(){ if(img.getAttribute("crossorigin")){ img.removeAttribute("crossorigin"); img.src=CVA_IMG; } };
+    img.src=CVA_IMG;
+    img.style.cssText="position:absolute;left:0;top:0;width:"+WPX+"px;height:"+HPX+"px;display:block;";
+    img.addEventListener("load", function(){ if(img.naturalWidth>0 && img.naturalHeight>0){ var HP = WPX * img.naturalHeight / img.naturalWidth; wrap.style.height = HP+"px"; img.style.height = HP+"px"; } });
+    wrap.appendChild(img);
+    function add(html,xp,yp,tf){ var e=document.createElement("div"); e.style.cssText="position:absolute;left:"+xp+"%;top:"+yp+"%;line-height:1;"+(tf?"transform:"+tf+";":""); e.innerHTML=html; wrap.appendChild(e); return e; }
+    function sx(v){ return 16.52+(v/15)*45.65; }
+    function ccx(n){ return 67.18+(n-1)*2.459; }
+    var FINX = 91.8;
+    function txt(xp,yp,t){ if(t==null||t==="")return; add('<div style="font-size:'+(1.55*U)+'px;font-weight:700;color:#191f28;white-space:nowrap;">'+esc(t)+'</div>',xp,yp,"translateY(-100%)"); }
+    function chk(xp,yp){ add('<div style="width:'+(1.9*U)+'px;height:'+(1.9*U)+'px;border-radius:3px;background:#ff7900;display:flex;align-items:center;justify-content:center;"><svg width="'+(1.3*U)+'" height="'+(1.3*U)+'" viewBox="0 0 10 10"><path d="M1.5 5 L4 7.5 L8.5 2" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>',xp,yp,"translate(-50%,-50%)"); }
+    function note(xp,yp,t){ if(!t)return; add('<div style="font-size:'+(1.4*U)+'px;font-weight:600;color:#191f28;line-height:1.5;width:'+(22*U)+'px;word-break:keep-all;overflow-wrap:break-word;">'+esc(t)+'</div>',xp,yp); }
+    txt(13.5,11.3,D.name); txt(51.5,11.3,D.date); txt(13.5,13.4,D.purpose||"센서리 훈련");
+    add('<div style="font-size:'+(1.0*U)+'px;font-weight:700;color:#191f28;line-height:1.12;width:'+(10.3*U)+'px;word-break:keep-all;overflow-wrap:break-word;">'+esc(D.sample||"")+'</div>',51.5,13.55,"translateY(-100%)");
+    Object.keys(CVA_SCALE_Y).forEach(function(k){ var v=I[k]; if(v==null)return; add('<div style="background:#ff7900;color:#fff;font-size:'+(1.5*U)+'px;font-weight:800;line-height:1;padding:'+(0.5*U)+'px '+(0.75*U)+'px;border-radius:'+(0.9*U)+'px;white-space:nowrap;box-shadow:0 0 0 '+(0.28*U)+'px #fff;">'+Number(v).toFixed(1)+'</div>', sx(v), CVA_SCALE_Y[k], "translate(-50%,-50%)"); });
+    Object.keys(CVA_AFF_Y).forEach(function(k){ var q=Q[k]; if(q==null)return; add('<div style="width:'+(2.7*U)+'px;height:'+(2.7*U)+'px;border-radius:50%;background:#ff7900;color:#fff;font-size:'+(1.7*U)+'px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+q+'</div>', ccx(q), CVA_AFF_Y[k], "translate(-50%,-50%)"); add('<span style="font-size:'+(1.85*U)+'px;font-weight:800;color:#ff7900;">'+q+'</span>', FINX, CVA_AFF_Y[k], "translate(-50%,-50%)"); });
+    (D.descAroma||[]).forEach(function(c){ if(CVA_AROMA[c]!=null)chk(6.81,CVA_AROMA[c]); });
+    (D.descFlavor||[]).forEach(function(c){ if(CVA_FLAVOR[c]!=null)chk(6.81,CVA_FLAVOR[c]); });
+    (D.mainTastes||[]).forEach(function(c){ if(CVA_MAIN[c]!=null)chk(6.81,CVA_MAIN[c]); });
+    (D.mouthfeelDesc||[]).forEach(function(c){ if(CVA_MF[c]!=null)chk(6.81,CVA_MF[c]); });
+    note(38.5,25.5, D.aromaNotes); note(38.5,41.2, D.flavorNotes);
+    var QN = D.qnotes||{};
+    function rnote(yp,t){ if(!t)return; add('<div style="font-size:'+(1.35*U)+'px;font-weight:600;color:#191f28;line-height:1.5;width:'+(27*U)+'px;word-break:keep-all;overflow-wrap:break-word;">'+esc(t)+'</div>',66.3,yp); }
+    rnote(24.8, QN.aroma); rnote(40.3, QN.flavor); rnote(60.2, QN.acidity);
+    rnote(68.2, QN.sweetness); rnote(76.2, QN.mouthfeel); rnote(86.7, QN.overall);
+    var CX0=76.1, CST=1.29;
+    for(var i=0;i<(D.nonuniform||0)&&i<5;i++) chk(CX0+i*CST,92.09);
+    for(var j=0;j<(D.defective||0)&&j<5;j++) chk(CX0+j*CST,93.18);
+    (D.defectTypes||[]).forEach(function(c){ if(CVA_DEFECT[c])chk(CVA_DEFECT[c][0],CVA_DEFECT[c][1]); });
+    var giHtml="";
+    if(D.cva!=null) giHtml += '<div style="font-size:'+(2.0*U)+'px;font-weight:800;color:#ff7900;margin-bottom:'+(0.7*U)+'px;">CVA 커핑 점수 '+Number(D.cva).toFixed(1)+' <span style="font-size:'+(1.3*U)+'px;color:#8b95a1;font-weight:700;">/ 100</span></div>';
+    if(D.extrinsic) giHtml += '<div style="font-size:'+(1.4*U)+'px;font-weight:600;color:#191f28;line-height:1.55;word-break:keep-all;overflow-wrap:break-word;">'+esc(D.extrinsic)+'</div>';
+    if(giHtml) add('<div style="width:'+(50*U)+'px;">'+giHtml+'</div>', 8, 84.4);
+    return wrap;
+  }
+  function recToPayload(r, beanName, nm){
+    return {
+      name: nm||"참가자", date: ymd(r.submitted_at || r.created_at || r.updated_at), purpose: "센서리 훈련", sample: beanName||"",
+      intens: { fragrance:num(r.int_fragrance), aroma:num(r.int_aroma), flavor:num(r.int_flavor), aftertaste:num(r.int_aftertaste), acidity:num(r.int_acidity), sweetness:num(r.int_sweetness), mouthfeel:num(r.int_mouthfeel) },
+      qual: { fragrance:num(r.q_fragrance), aroma:num(r.q_aroma), flavor:num(r.q_flavor), aftertaste:num(r.q_aftertaste), acidity:num(r.q_acidity), sweetness:num(r.q_sweetness), mouthfeel:num(r.q_mouthfeel), overall:num(r.q_overall) },
+      descAroma: r.desc_aroma||[], descFlavor: r.desc_flavor||[],
+      aromaNotes: uniq([].concat(r.notes_fragrance||[], r.notes_aroma||[])).join(", "),
+      flavorNotes: [].concat(r.notes_tasting||[], r.notes_custom||[]).join(", "),
+      mainTastes: r.main_tastes||[], mouthfeelDesc: r.mouthfeel_desc||[],
+      nonuniform: r.nonuniform_cups||0, defective: r.defective_cups||0, defectTypes: r.defect_types||[],
+      extrinsic: r.extrinsic||"", qnotes: r.q_notes||{}, cva: num(r.cva_score)
+    };
+  }
+
+  /* 참가자별 상세(레이더·CVA폼) 상태 · 렌더 */
+  var _rvRows = [], _rvRef = null, _rvNames = {}, _rvView = {}, _rvBeanName = "";
+  window.cupRvDetail = function (i) {
+    var box = _$("cupRvDetail" + i); if (!box) return;
+    if (box.getAttribute("data-open") === "1") { box.style.display = "none"; box.setAttribute("data-open", "0"); box.innerHTML = ""; var b0=_$("cupRvDBtn"+i); if(b0) b0.textContent="상세 보기 (레이더·CVA폼)"; return; }
+    box.style.display = "block"; box.setAttribute("data-open", "1");
+    var b1=_$("cupRvDBtn"+i); if(b1) b1.textContent="상세 닫기";
+    if (_rvView[i] == null) { var rr=_rvRows[i]; _rvView[i] = (rr && rr.form_type==="basic") ? "radar" : "form"; }
+    renderDetail(i);
+  };
+  window.cupRvDetailView = function (i, v) { _rvView[i] = v; renderDetail(i); };
+  function renderDetail(i){
+    var box = _$("cupRvDetail" + i); if (!box) return;
+    var r = _rvRows[i]; if (!r) return;
+    var isBasic = r.form_type === "basic";
+    var ref = _rvRef;
+    var me = RV_KEYS.map(function(k){ return num(r[k]); });
+    var refVals = ref ? RV_KEYS.map(function(k){ return num(ref[k]); }) : null;
+    var radar = radarSVGLocal(me, refVals, null, RV_LABS);
+    var seg = isBasic ? "" :
+      '<div style="display:inline-flex;background:#f2f4f6;border-radius:10px;padding:4px;margin:0 0 12px;">' +
+        '<button type="button" onclick="window.cupRvDetailView(' + i + ',\'radar\')" style="border:none;background:' + (_rvView[i]==="radar"?"#fff":"transparent") + ';color:' + (_rvView[i]==="radar"?"#191f28":"#8b95a1") + ';padding:7px 16px;font-size:12.5px;font-weight:800;border-radius:7px;cursor:pointer;' + (_rvView[i]==="radar"?"box-shadow:0 2px 8px rgba(0,0,0,.06);":"") + '">레이더</button>' +
+        '<button type="button" onclick="window.cupRvDetailView(' + i + ',\'form\')" style="border:none;background:' + (_rvView[i]==="form"?"#fff":"transparent") + ';color:' + (_rvView[i]==="form"?"#191f28":"#8b95a1") + ';padding:7px 16px;font-size:12.5px;font-weight:800;border-radius:7px;cursor:pointer;' + (_rvView[i]==="form"?"box-shadow:0 2px 8px rgba(0,0,0,.06);":"") + '">CVA 폼</button>' +
+      '</div>';
+    box.innerHTML = seg;
+    if (!isBasic && _rvView[i] === "form") {
+      var host = document.createElement("div");
+      host.style.cssText = "background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:10px;overflow-x:auto;";
+      host.appendChild(buildCvaFormLocal(recToPayload(r, _rvBeanName, _rvNames[r.participant_id] || "참가자")));
+      box.appendChild(host);
+    } else {
+      var rad = document.createElement("div");
+      rad.style.cssText = "display:flex;flex-direction:column;align-items:center;padding:4px 0;";
+      rad.innerHTML = radar +
+        '<div style="display:flex;gap:16px;justify-content:center;margin-top:6px;font-size:12px;font-weight:700;color:#4e5968;">' +
+          '<span style="display:inline-flex;align-items:center;gap:5px;"><i style="width:10px;height:10px;border-radius:3px;background:#ff7900;display:inline-block;"></i>참가자</span>' +
+          (refVals ? '<span style="display:inline-flex;align-items:center;gap:5px;"><i style="width:10px;height:10px;border-radius:3px;background:#3182f6;display:inline-block;"></i>레퍼런스</span>' : '') +
+        '</div>' +
+        (refVals ? '' : '<div style="margin-top:8px;font-size:12px;color:#8b95a1;">레퍼런스 미입력 — 비교선 없음</div>');
+      box.appendChild(rad);
+    }
+  }
   function curSession(){ var el=_$("lineupSessionId"); return el?el.value:null; }
   function beansOf(sid){ return (typeof gCuppingBeans!=="undefined" && gCuppingBeans[sid]) || []; }
   function partsOf(sid){ return (typeof gCuppingParts!=="undefined" && gCuppingParts[sid]) || []; }
@@ -2918,13 +3131,13 @@ window.hideCalibration = async function() {
     wrap.id = "cupRvTrigger";
     wrap.style.cssText = "margin-top:12px;";
     wrap.innerHTML =
-      '<button type="button" id="cupRvBtn" class="btn-outline" style="width:100%;height:40px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--primary,#ff7900);border-color:var(--primary,#ff7900);" onclick="window.cupRvToggle()"><i class="ti ti-clipboard-list"></i> 참가자 평가 조회</button>' +
+      '<button type="button" id="cupRvBtn" class="btn-outline" style="width:100%;height:40px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--primary,#ff7900);border-color:var(--primary,#ff7900);" onclick="window.cupRvToggle()">' + SVG_LIST + ' 참가자 평가 조회</button>' +
       '<div id="cupRvInline" style="display:none;margin-top:12px;border:1px solid var(--border-strong,#e5e8eb);border-radius:14px;background:#fff;overflow:hidden;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid #eef0f3;flex-wrap:wrap;">' +
           '<span style="font-size:13px;font-weight:800;color:#191f28;">원두별 평가</span>' +
           '<div style="display:flex;align-items:center;gap:6px;">' +
             '<select id="cupRvBean" style="height:32px;font-size:12.5px;min-width:150px;max-width:60vw;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;" onchange="window.cupRvLoad()"></select>' +
-            '<button type="button" onclick="window.cupRvLoad()" title="새로고침" style="height:32px;width:32px;border:1px solid #e5e8eb;border-radius:8px;background:#fff;cursor:pointer;color:#4e5968;"><i class="ti ti-refresh"></i></button>' +
+            '<button type="button" onclick="window.cupRvLoad()" title="최신 평가 다시 불러오기" aria-label="새로고침" style="height:32px;width:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e5e8eb;border-radius:8px;background:#fff;cursor:pointer;color:#4e5968;flex-shrink:0;">' + SVG_REFRESH + '</button>' +
           '</div>' +
         '</div>' +
         '<div id="cupRvBody" style="padding:14px;"></div>' +
@@ -2964,11 +3177,13 @@ window.hideCalibration = async function() {
     var recsRes = await supabaseClient.from("cupping_records").select("*").eq("session_id", sessionId).eq("bean_id", beanId);
     if (recsRes.error) { body.innerHTML = '<div style="padding:16px 0;color:#e5484d;font-size:13px;line-height:1.6;">조회 실패: ' + esc(recsRes.error.message || "") + '<br><span style="color:#8b95a1;">cupping-host-read.sql(호스트 읽기 RLS) 적용 여부를 확인하세요.</span></div>'; return; }
     var refRes = await supabaseClient.from("cupping_references").select("*").eq("bean_id", beanId).maybeSingle();
-    body.innerHTML = window.wcRenderReview(recsRes.data || [], refRes.data || null, partNameMap(sessionId));
+    var beanName = _$("cupRvBean") ? (_$("cupRvBean").options[_$("cupRvBean").selectedIndex] || {}).text : "";
+    beanName = String(beanName || "").replace(/^\d+\.\s*/, "");
+    body.innerHTML = window.wcRenderReview(recsRes.data || [], refRes.data || null, partNameMap(sessionId), beanName);
   };
 
   /* ── 렌더(좌우 스크롤 없음). 멤버리스트(파트8)에서도 재사용 ── */
-  window.wcRenderReview = function (recs, ref, names) {
+  window.wcRenderReview = function (recs, ref, names, beanName) {
     names = names || {};
     var rows = recs.filter(function (r) { return RV_KEYS.some(function (k) { return r[k] != null; }) || r.cva_score != null; });
     if (!rows.length) return emptyMsg("아직 입력된 평가가 없습니다.");
@@ -2997,12 +3212,14 @@ window.hideCalibration = async function() {
 
     h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:4px 0 8px;">참가자별 상세 (' + n + '명)</div>';
     rows.sort(function (a, b) { return (num(b.cva_score) || 0) - (num(a.cva_score) || 0); });
-    rows.forEach(function (r) {
+    // 상세(레이더·CVA폼) 토글용 상태 저장
+    _rvRows = rows; _rvRef = ref || null; _rvNames = names; _rvView = {}; _rvBeanName = beanName || "";
+    rows.forEach(function (r, ri) {
       var isBasic = r.form_type === "basic";
       var nm = names[r.participant_id] || "참가자";
       var badge = '<span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;' +
         (isBasic ? 'background:#eaf2fe;color:#3182f6;' : 'background:#fff2e6;color:#ea6f00;') + '">' + (isBasic ? "베이직" : "CVA") + '</span>';
-      var status = r.submitted_at ? '<i class="ti ti-circle-check-filled" style="color:#00b386;font-size:13px;"></i>' : '<span style="font-size:10px;color:#e5484d;font-weight:700;">임시저장</span>';
+      var status = r.submitted_at ? '<span style="display:inline-flex;align-items:center;color:#00b386;">' + SVG_CHECK + '</span>' : '<span style="font-size:10px;color:#e5484d;font-weight:700;">임시저장</span>';
       var cells = RV_LABS.map(function (lab, i) {
         return '<div style="flex:1 1 0;min-width:0;text-align:center;">' +
           '<div style="font-size:9px;color:#8b95a1;white-space:nowrap;">' + lab + '</div>' +
@@ -3032,6 +3249,8 @@ window.hideCalibration = async function() {
         '<div style="display:flex;gap:4px;padding:8px 0;border-top:1px solid #f2f4f6;">' + cells.join("") + '</div>' +
         (cups ? '<div style="margin-top:6px;">' + cups + '</div>' : "") +
         (notes.length ? '<div style="margin-top:8px;font-size:12.5px;color:#4e5968;line-height:1.6;word-break:break-word;">' + esc(notes.join(" · ")) + '</div>' : "") +
+        '<button type="button" id="cupRvDBtn' + ri + '" onclick="window.cupRvDetail(' + ri + ')" style="width:100%;margin-top:10px;padding:9px;border:1px solid #e5e8eb;border-radius:9px;background:#fafbfc;color:#4e5968;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;">' + (isBasic ? "상세 보기 (레이더)" : "상세 보기 (레이더·CVA폼)") + '</button>' +
+        '<div id="cupRvDetail' + ri + '" data-open="0" style="display:none;margin-top:10px;"></div>' +
         '</div>';
     });
     return h;
