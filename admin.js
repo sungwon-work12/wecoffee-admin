@@ -1884,6 +1884,24 @@ let gCuppingBeans = {};
   };
 })();
 
+/* ── editBlock 래핑: 모달 열 때 '커핑 세션으로 운영' 체크 상태를 정확히 복원 ──
+   원본은 checked = !!b.is_cupping 인데, is_cupping 이 문자열 'false'면 !! 결과가 true 라
+   항상 체크된 채로 열림. is_cupping 을 boolean/문자열 모두 올바르게 해석해 보정한다. */
+(function() {
+  function cupTruthy(v){ return v === true || v === "true" || v === 1 || v === "1"; }
+  const _origEditBlock = window.editBlock;
+  if (typeof _origEditBlock === "function") {
+    window.editBlock = function(id) {
+      _origEditBlock(id);
+      try {
+        const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){ return String(b.id) === String(id); });
+        const cb = $("blkIsCupping");
+        if (cb) cb.checked = !!(blk && cupTruthy(blk.is_cupping));
+      } catch (e) { console.warn("[cupping] editBlock 체크 복원 오류", e); }
+    };
+  }
+})();
+
 function buildSessionPayload(blk) {
   const slug = `${blk.block_date}-cupping-${Math.random().toString(36).slice(2, 6)}`;
   const centerCode = (blk.center || "").includes("광진") ? "gwangjin" : "mapo";
