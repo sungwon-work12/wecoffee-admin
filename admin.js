@@ -2882,6 +2882,8 @@ window.hideCalibration = async function() {
   var SVG_LIST = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h9M9 12h9M9 19h9"/><circle cx="4.5" cy="5" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="19" r="1"/></svg>';
   var SVG_REFRESH = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
   var SVG_CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  var SVG_CLOSE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+  var SVG_DOWNLOAD = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>';
   function _$(id){ return document.getElementById(id); }
   function esc(t){ return String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
   function num(v){ return (v==null||v==="")?null:Number(v); }
@@ -3043,12 +3045,17 @@ window.hideCalibration = async function() {
     wrap.innerHTML =
       '<button type="button" id="cupRvBtn" class="btn-outline" style="width:100%;height:40px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px;color:var(--primary,#ff7900);border-color:var(--primary,#ff7900);" onclick="window.cupRvToggle()">' + SVG_LIST + ' 참가자 평가 조회</button>' +
       '<div id="cupRvInline" style="display:none;margin-top:12px;border:1px solid var(--border-strong,#e5e8eb);border-radius:14px;background:#fff;overflow:hidden;">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid #eef0f3;flex-wrap:wrap;">' +
-          '<span style="font-size:13px;font-weight:800;color:#191f28;">원두별 평가</span>' +
-          '<div style="display:flex;align-items:center;gap:6px;">' +
-            '<select id="cupRvBean" style="height:32px;font-size:12.5px;min-width:150px;max-width:60vw;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;" onchange="window.cupRvLoad()"></select>' +
-            '<button type="button" onclick="window.cupRvLoad()" title="최신 평가 다시 불러오기" aria-label="새로고침" style="height:32px;width:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e5e8eb;border-radius:8px;background:#fff;cursor:pointer;color:#4e5968;flex-shrink:0;">' + SVG_REFRESH + '</button>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px 10px;border-bottom:1px solid #eef0f3;flex-wrap:wrap;">' +
+          '<div style="display:inline-flex;background:#f2f4f6;border-radius:9px;padding:3px;">' +
+            '<button type="button" id="cupRvTabBean" onclick="window.cupRvMode(\'bean\')" style="border:none;background:#fff;color:#191f28;padding:6px 14px;font-size:12.5px;font-weight:800;border-radius:6px;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.06);">원두별</button>' +
+            '<button type="button" id="cupRvTabBoard" onclick="window.cupRvMode(\'board\')" style="border:none;background:transparent;color:#8b95a1;padding:6px 14px;font-size:12.5px;font-weight:800;border-radius:6px;cursor:pointer;">정확도</button>' +
           '</div>' +
+          '<button type="button" onclick="window.cupRvExportCsv()" title="세션 요약 CSV 내보내기" style="height:32px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;border:1px solid #e5e8eb;border-radius:8px;background:#fff;cursor:pointer;color:#4e5968;font-size:12px;font-weight:700;">' + SVG_DOWNLOAD + ' 요약 CSV</button>' +
+        '</div>' +
+        '<div id="cupRvBeanRow" style="display:flex;align-items:center;gap:6px;padding:10px 14px 0;">' +
+          '<span style="font-size:12px;font-weight:700;color:#8b95a1;flex-shrink:0;">원두</span>' +
+          '<select id="cupRvBean" style="flex:1;height:32px;font-size:12.5px;min-width:0;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;" onchange="window.cupRvLoad()"></select>' +
+          '<button type="button" onclick="window.cupRvLoad()" title="최신 평가 다시 불러오기" aria-label="새로고침" style="height:32px;width:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e5e8eb;border-radius:8px;background:#fff;cursor:pointer;color:#4e5968;flex-shrink:0;">' + SVG_REFRESH + '</button>' +
         '</div>' +
         '<div id="cupRvBody" style="padding:14px;"></div>' +
       '</div>';
@@ -3059,17 +3066,28 @@ window.hideCalibration = async function() {
     if (urlEl) { var box = urlEl.closest("div") || urlEl.parentNode; if (box && box.parentNode) box.parentNode.insertBefore(wrap, box.nextSibling); }
   }
 
+  var _rvMode = "bean";
   window.cupRvToggle = function () {
     var inl = _$("cupRvInline"), btn = _$("cupRvBtn"); if (!inl) return;
     var open = inl.style.display === "none";
     inl.style.display = open ? "block" : "none";
-    if (btn) btn.innerHTML = open ? '<i class="ti ti-x"></i> 조회 닫기' : '<i class="ti ti-clipboard-list"></i> 참가자 평가 조회';
-    if (open) {
-      var sid = curSession();
+    if (btn) btn.innerHTML = open ? (SVG_CLOSE + ' 조회 닫기') : (SVG_LIST + ' 참가자 평가 조회');
+    if (open) { _rvMode = "bean"; syncTabs(); window.cupRvMode("bean"); }
+  };
+  function syncTabs() {
+    var tb = _$("cupRvTabBean"), tr = _$("cupRvTabBoard"), row = _$("cupRvBeanRow");
+    if (tb) { tb.style.background = _rvMode === "bean" ? "#fff" : "transparent"; tb.style.color = _rvMode === "bean" ? "#191f28" : "#8b95a1"; tb.style.boxShadow = _rvMode === "bean" ? "0 1px 4px rgba(0,0,0,.06)" : "none"; }
+    if (tr) { tr.style.background = _rvMode === "board" ? "#fff" : "transparent"; tr.style.color = _rvMode === "board" ? "#191f28" : "#8b95a1"; tr.style.boxShadow = _rvMode === "board" ? "0 1px 4px rgba(0,0,0,.06)" : "none"; }
+    if (row) row.style.display = _rvMode === "bean" ? "flex" : "none";
+  }
+  window.cupRvMode = function (mode) {
+    _rvMode = mode; syncTabs();
+    var sid = curSession(), body = _$("cupRvBody"); if (!body) return;
+    if (mode === "bean") {
       syncBeanSelect("cupRvBean", sid, null);
       if (beansOf(sid).length) window.cupRvLoad();
-      else _$("cupRvBody").innerHTML = emptyMsg("원두를 먼저 추가하세요.");
-    }
+      else body.innerHTML = emptyMsg("원두를 먼저 추가하세요.");
+    } else { window.cupRvLeaderboard(); }
   };
 
   function emptyMsg(t) { return '<div style="padding:26px 0;text-align:center;color:#8b95a1;font-size:13px;">' + t + '</div>'; }
@@ -3090,6 +3108,135 @@ window.hideCalibration = async function() {
     var beanName = _$("cupRvBean") ? (_$("cupRvBean").options[_$("cupRvBean").selectedIndex] || {}).text : "";
     beanName = String(beanName || "").replace(/^\d+\.\s*/, "");
     body.innerHTML = window.wcRenderReview(recsRes.data || [], refRes.data || null, partNameMap(sessionId), beanName);
+  };
+
+  /* ── 세션 데이터 로드(리더보드·CSV 공용): 전체 기록 + 레퍼런스 ── */
+  async function loadSessionData(sessionId) {
+    var recsRes = await supabaseClient.from("cupping_records").select("*").eq("session_id", sessionId);
+    if (recsRes.error) throw recsRes.error;
+    var recs = recsRes.data || [];
+    var beans = beansOf(sessionId), beanName = {}, order = {};
+    beans.forEach(function (b, i) { beanName[b.id] = b.name; order[b.id] = i; });
+    var beanIds = recs.map(function (r) { return r.bean_id; }).filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+    var refMap = {};
+    if (beanIds.length) { var rf = await supabaseClient.from("cupping_references").select("*").in("bean_id", beanIds); (rf.data || []).forEach(function (x) { refMap[x.bean_id] = x; }); }
+    return { recs: recs, beanName: beanName, order: order, refMap: refMap, names: partNameMap(sessionId) };
+  }
+  // 기록의 레퍼런스 대비 평균 편차(입력 항목만)
+  function recDev(r, ref) {
+    if (!ref) return null; var s = 0, n = 0;
+    RV_KEYS.forEach(function (k) { var mv = num(r[k]), rv = num(ref[k]); if (mv != null && rv != null) { s += Math.abs(mv - rv); n++; } });
+    return n ? s / n : null;
+  }
+
+  /* ── 정확도 현황: 참가자를 레퍼런스 편차 밴드로 묶은 코칭용 뷰(순위 없음) ── */
+  window.cupRvLeaderboard = async function () {
+    var sessionId = curSession(), body = _$("cupRvBody");
+    if (!sessionId || !body || typeof supabaseClient === "undefined") return;
+    body.innerHTML = emptyMsg("불러오는 중…");
+    var d;
+    try { d = await loadSessionData(sessionId); }
+    catch (e) { body.innerHTML = '<div style="padding:16px 0;color:#e5484d;font-size:13px;line-height:1.6;">조회 실패: ' + esc(e.message || "") + '</div>'; return; }
+    var byPart = {};
+    d.recs.forEach(function (r) {
+      if (!(RV_KEYS.some(function (k) { return r[k] != null; }) || r.cva_score != null)) return;
+      var pid = r.participant_id; (byPart[pid] = byPart[pid] || []).push(r);
+    });
+    var people = Object.keys(byPart).map(function (pid) {
+      var recs = byPart[pid];
+      var scores = recs.map(function (r) { return num(r.cva_score); }).filter(function (v) { return v != null; });
+      var avgScore = scores.length ? scores.reduce(function (a, b) { return a + b; }, 0) / scores.length : null;
+      var devs = recs.map(function (r) { return recDev(r, d.refMap[r.bean_id]); }).filter(function (v) { return v != null; });
+      var avgDev = devs.length ? devs.reduce(function (a, b) { return a + b; }, 0) / devs.length : null;
+      return { name: d.names[pid] || "참가자", avgScore: avgScore, avgDev: avgDev, beans: recs.length };
+    });
+    if (!people.length) { body.innerHTML = emptyMsg("아직 입력된 평가가 없습니다."); return; }
+
+    var BANDS = [
+      { key: "near", label: "근접", sub: "편차 ≤ 1.0", color: "#00b386", bg: "#ecfdf3", bd: "#b7f0d0" },
+      { key: "ok", label: "적정", sub: "편차 1.0–2.5", color: "#c67c00", bg: "#fff7ea", bd: "#ffe0ad" },
+      { key: "far", label: "편차 큼", sub: "편차 > 2.5", color: "#d63b40", bg: "#fef1f1", bd: "#f7c7c7" },
+      { key: "none", label: "레퍼런스 없음", sub: "비교 대상 미입력", color: "#8b95a1", bg: "#f7f8fa", bd: "#e9ecf0" }
+    ];
+    function bandOf(dev) { if (dev == null) return "none"; if (dev <= 1) return "near"; if (dev <= 2.5) return "ok"; return "far"; }
+    var groups = { near: [], ok: [], far: [], none: [] };
+    people.forEach(function (p) { groups[bandOf(p.avgDev)].push(p); });
+    Object.keys(groups).forEach(function (k) {
+      groups[k].sort(function (a, b) { if (a.avgDev == null || b.avgDev == null) return (b.avgScore || 0) - (a.avgScore || 0); return a.avgDev - b.avgDev; });
+    });
+
+    var h = '<div style="font-size:12px;color:#8b95a1;margin-bottom:12px;line-height:1.5;">레퍼런스에 얼마나 가깝게 평가했는지 — 코칭 참고용이에요. 순위가 아니라 편차 구간으로 묶었어요.</div>';
+    BANDS.forEach(function (bd) {
+      var list = groups[bd.key]; if (!list.length) return;
+      h += '<div style="margin-bottom:14px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+          '<span style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:' + bd.color + ';">' +
+            '<span style="width:8px;height:8px;border-radius:50%;background:' + bd.color + ';display:inline-block;"></span>' + bd.label + '</span>' +
+          '<span style="font-size:11px;color:#b0b8c1;font-weight:600;">' + bd.sub + '</span>' +
+          '<span style="margin-left:auto;font-size:11px;color:#8b95a1;font-weight:700;">' + list.length + '명</span>' +
+        '</div>';
+      list.forEach(function (p) {
+        h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid ' + bd.bd + ';background:' + bd.bg + ';border-radius:10px;margin-bottom:6px;">' +
+          '<div style="min-width:0;flex:1;font-size:13.5px;font-weight:700;color:#191f28;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(p.name) +
+            '<span style="font-size:10.5px;color:#8b95a1;font-weight:600;"> · 원두 ' + p.beans + '종</span></div>' +
+          '<div style="text-align:right;flex-shrink:0;"><span style="font-size:14px;font-weight:800;color:#ea6f00;">' + fx(p.avgScore) + '</span>' +
+            '<span style="font-size:10px;color:#b0b8c1;font-weight:700;"> 점</span></div>' +
+          '<div style="text-align:right;flex-shrink:0;min-width:52px;">' +
+            (p.avgDev == null ? '<span style="font-size:12px;color:#b0b8c1;font-weight:700;">—</span>'
+              : '<span style="font-size:13px;font-weight:800;color:' + bd.color + ';">±' + p.avgDev.toFixed(2) + '</span><div style="font-size:9px;color:#a7b0ba;font-weight:600;">편차</div>') +
+          '</div>' +
+        '</div>';
+      });
+      h += '</div>';
+    });
+    body.innerHTML = h;
+  };
+
+  /* ── 세션 요약 CSV 내보내기(참가자·원두별 점수·편차) ── */
+  function csvCell(v) { v = (v == null ? "" : String(v)); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  window.cupRvExportCsv = async function () {
+    var sessionId = curSession();
+    if (!sessionId || typeof supabaseClient === "undefined") return;
+    if (typeof showToast === "function") showToast("요약 생성 중…");
+    var d;
+    try { d = await loadSessionData(sessionId); }
+    catch (e) { if (typeof showToast === "function") showToast("내보내기 실패: " + (e.message || "")); return; }
+    var rows = d.recs.filter(function (r) { return RV_KEYS.some(function (k) { return r[k] != null; }) || r.cva_score != null; });
+    if (!rows.length) { if (typeof showToast === "function") showToast("내보낼 평가가 없습니다."); return; }
+    rows.sort(function (a, b) {
+      var oa = d.order[a.bean_id] == null ? 99 : d.order[a.bean_id], ob = d.order[b.bean_id] == null ? 99 : d.order[b.bean_id];
+      if (oa !== ob) return oa - ob; return (num(b.cva_score) || 0) - (num(a.cva_score) || 0);
+    });
+    var header = ["참가자", "원두", "형식", "점수", "만점"].concat(RV_LABS).concat(["평균편차", "비균일컵", "결점컵", "제출"]);
+    var lines = [header];
+    rows.forEach(function (r) {
+      var isBasic = r.form_type === "basic";
+      var dev = recDev(r, d.refMap[r.bean_id]);
+      var line = [
+        d.names[r.participant_id] || "참가자",
+        d.beanName[r.bean_id] || "원두",
+        isBasic ? "베이직" : "CVA",
+        num(r.cva_score) == null ? "" : num(r.cva_score),
+        isBasic ? 120 : 100
+      ];
+      RV_KEYS.forEach(function (k) { var v = num(r[k]); line.push(v == null ? "" : v); });
+      line.push(dev == null ? "" : dev.toFixed(2));
+      line.push(r.nonuniform_cups || 0);
+      line.push(r.defective_cups || 0);
+      line.push(r.submitted_at ? "제출" : "임시");
+      lines.push(line);
+    });
+    var csv = "﻿" + lines.map(function (row) { return row.map(csvCell).join(","); }).join("\r\n");
+    var title = (window._cuppingSession && window._cuppingSession.title) || "커핑세션";
+    var fname = "커핑요약_" + String(title).replace(/[\\/:*?"<>|]/g, "_") + ".csv";
+    try {
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a"); a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) {} }, 4000);
+      if (typeof showToast === "function") showToast("요약 CSV를 내보냈어요 (" + rows.length + "건)");
+    } catch (e) { console.error("[cupping] CSV 내보내기 실패", e); if (typeof showToast === "function") showToast("내보내기 실패"); }
   };
 
   /* ── 렌더(좌우 스크롤 없음). 멤버리스트(파트8)에서도 재사용 ── */
