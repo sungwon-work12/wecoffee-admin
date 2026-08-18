@@ -2509,6 +2509,12 @@ window.hideCalibration = async function() {
     const host = ensurePanel();
     liveTS = parseTS(session && session.timer_state) || defaultTS();
     if (!liveTS.phases || !liveTS.phases.length) liveTS.phases = defaultTS().phases;
+    // 단계 "이름"은 항상 코드(CUP_LIVE_DEFAULT) 기준으로 통일 — 시간(secs)은 세션 저장분 유지.
+    // (예전 세션에 옛 이름이 저장돼 있어도, 열면 최신 이름으로 자동 갱신됨)
+    liveTS.phases = CUP_LIVE_DEFAULT.map(function (p, i) {
+      var saved = liveTS.phases[i];
+      return { name: p.name, secs: (saved && saved.secs != null) ? saved.secs : p.secs };
+    });
 
     const recRevealed = !!(session && session.records_revealed === true);
     const phaseRows = liveTS.phases.map(function (p, i) {
