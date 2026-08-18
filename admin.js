@@ -2453,11 +2453,11 @@ window.hideCalibration = async function() {
 
   // ── SCA 표준 프리셋 (물 93°C · 침지 정확히 4분 후 브레이크 · 온도별 시음) ──
   const CUP_LIVE_DEFAULT = [
-    { name: "분쇄 & 건향(프래그런스) 평가", secs: 180 },
-    { name: "물 붓기 & 침지 (93°C, 무교반)", secs: 240 },
-    { name: "크러스트 브레이크 & 습향(아로마)", secs: 120 },
-    { name: "스키밍 & 냉각 대기", secs: 120 },
-    { name: "시음 평가 (70→55→38°C)", secs: 840 }
+    { name: "분쇄 & 프래그런스 평가", secs: 180 },
+    { name: "물 붓기 & 침지 (93°C · 4분)", secs: 240 },
+    { name: "크러스트 브레이크 & 웻 아로마", secs: 120 },
+    { name: "스키밍 & 식히기", secs: 120 },
+    { name: "테이스팅 (70→55→38°C)", secs: 840 }
   ];
 
   let liveTS = null;          // 현재 세션의 timer_state 미러
