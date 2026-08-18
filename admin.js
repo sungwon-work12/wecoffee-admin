@@ -8,7 +8,7 @@ let currentGlobalCenter = '전체', currentDashView = 'week', currentDashMonthOf
 let currentSummaryData = [], currentInsightData = {};
 let isCrmReadOnly = false;
 let currentAdminEmail = '';
-const adminNameMap = {'sungwon.work@gmail.com':'박성원','sungbin0528@gmail.com':'조성빈','ocarinist89@gmail.com':'강현준','klaesiksoul@gmail.com':'최현준'};
+const adminNameMap = {'sungwon.work@gmail.com':'박성원','sungbin0528@gmail.com':'조성빈','ocarinist89@gmail.com':'강현준','klaesiksoul@gmail.com':'최현준','mailto:nari9557@gmail.com':'하나리'};
 window.getAdminName = function(email) { if(!email) return ''; return adminNameMap[email] || email; };
 let quillEditor = null;
 let isAppInitialized = false;
