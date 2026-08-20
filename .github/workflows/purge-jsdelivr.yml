@@ -1,0 +1,21 @@
+name: jsDelivr 캐시 자동 갱신
+
+# main 브랜치에 커밋(푸시)될 때마다, 이번에 바뀐 파일들의
+# jsDelivr CDN 캐시를 자동으로 갱신합니다. → 커밋하면 끝.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 변경된 파일 캐시 갱신
+        run: |
+          # 이번 푸시에 포함된 커밋들에서 추가/수정된 파일 목록 추출
+          jq -r '[.commits[].added[], .commits[].modified[]] | unique | .[]' "$GITHUB_EVENT_PATH" \
+          | while IFS= read -r f; do
+              echo "purge → $f"
+              curl -fsS "https://purge.jsdelivr.net/gh/${{ github.repository }}@main/${f}" || true
+            done
+          echo "완료. 30초쯤 뒤부터 새 버전이 서비스됩니다."
