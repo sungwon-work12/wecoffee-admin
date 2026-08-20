@@ -3,11 +3,9 @@
    전역/헬퍼, 로그인·실시간 동기화, fetchCenterData(예약·수업·주문·블록·공지 로드).
    의존: 없음 (가장 먼저 로드)
    ═══════════════════════════════════════════════════════════ */
-
 const { createClient } = supabase;
 const supabaseClient = createClient('https://dqvzowmhxorxhiqoibmk.supabase.co', 'sb_publishable_DSi3rGnuQhy6OtML_3ukEA_7ptfaoK-');
 const $ = id => document.getElementById(id), $$ = q => document.querySelector(q), $$$ = q => document.querySelectorAll(q);
-
 let globalApps=[], globalMembers=[], gRes=[], gTrn=[], gOrd=[], gBlk=[], gNotice=[];    
 let isInsightView = false, currentCalDate = new Date(), currentScheduleAppId = null, currentBlockId = null, pendingOptionData = null;
 let currentGlobalCenter = '전체', currentDashView = 'week', currentDashMonthOffset = 0, currentAppDashView = 'week', appDashMonthOffset = 0;
@@ -19,14 +17,10 @@ window.getAdminName = function(email) { if(!email) return ''; return adminNameMa
 let quillEditor = null;
 let isAppInitialized = false;
 let realtimeChannel = null;
-
 let currentTimelineDate = null;
-
 let currentMemberPage = 1, memberItemsPerPage = 50, currentFilteredMembers = [];
 let currentResPage = 1, resItemsPerPage = 10, currentFilteredRes = [];
-
 window.currentEditingBlockId = null;
-
 window.showGlobalTooltip = function(e, el) {
     let tt = document.getElementById('global-tooltip');
     if(!tt) {
@@ -47,13 +41,11 @@ window.showGlobalTooltip = function(e, el) {
     tt.style.left = left + 'px'; tt.style.top = top + 'px';
 };
 window.hideGlobalTooltip = function() { let tt = document.getElementById('global-tooltip'); if(tt) tt.style.display = 'none'; };
-
 window.changeGlobalCenter = function(centerValue) {
     currentGlobalCenter = centerValue;
     if(window.updateDashSpaceFilter) window.updateDashSpaceFilter();
     window.fetchCenterData();
 };
-
 document.addEventListener('click', function(e) {
     let txt = e.target.innerText || '';
     if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
@@ -77,7 +69,6 @@ document.addEventListener('click', function(e) {
         else if (btnTxt.includes('일괄센터도착')) window.batchUpdateOrderStatus('센터 도착');
     }
 });
-
 document.addEventListener('change', function(e) {
     if (e.target && e.target.tagName === 'SELECT') {
         if (e.target.innerHTML.includes('마포 센터') && e.target.innerHTML.includes('광진 센터') && e.target.id !== 'dashSpaceFilter' && e.target.id !== 'blkCenter') {
@@ -87,14 +78,12 @@ document.addEventListener('change', function(e) {
     if (e.target.id === 'filterPendingOrd' || e.target.id === 'ordVendorFilter' || e.target.id === 'resSpaceFilter' || e.target.id === 'trnContentFilter') window.renderCenterData();
     if (e.target.id === 'blkCenter') if(window.updateSpaceOptions) window.updateSpaceOptions();
 });
-
 document.addEventListener('input', function(e) {
     if (e.target.id === 'searchOrd' || e.target.id === 'searchRes' || e.target.id === 'searchTrn' || e.target.id === 'memberSearch') {
         if (e.target.id === 'memberSearch') window.searchMembers();
         else window.renderCenterData();
     }
 });
-
 let wecoffeeStyle = document.getElementById('wecoffee-custom-styles');
 if (!wecoffeeStyle) {
     wecoffeeStyle = document.createElement('style');
@@ -214,9 +203,7 @@ wecoffeeStyle.innerHTML = `
     }
     @media (min-width: 769px) { .timeline-fullscreen-btn { display: none !important; } #timelineFullscreenOverlay { display: none !important; } }
 `;
-
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
-
 window.normalizePhone = function(p) {
     if(!p) return '';
     let d = String(p).replace(/\D/g, '');
@@ -229,14 +216,12 @@ window.normalizePhone = function(p) {
 window.samePhone = function(a, b) {
     return String(a||'').replace(/\D/g,'') === String(b||'').replace(/\D/g,'') && String(a||'').replace(/\D/g,'') !== '';
 };
-
 // 기존 데이터 호환을 위해 유지합니다.
 window.mapInterestLevel = function(v) {
     if(!v) return '';
     const map = {'꼭 가입하고 싶어요':'꼭 가입하고 싶어요. 오래 지켜봐 왔어요.','상담 후 결정하고 싶어요':'상담 후 예상과 비슷하다면 가입 의향이 있어요.','아직 고민 중이에요':'관심이 생겨서 좀 더 알아보고 싶어요.'};
     return map[v] || v;
 };
-
 window.preserveCheckboxState = function(scope) {
     scope = scope || document;
     const state = {};
@@ -266,14 +251,12 @@ window.restoreCheckboxState = function(state, scope) {
         });
     });
 };
-
 window.safeKST = function(dateStr) { if(!dateStr) return new Date(); let d = new Date(dateStr); if(isNaN(d.getTime())) { let str = String(dateStr).replace(/-/g, '/').replace('T', ' ').split('.')[0]; d = new Date(str); } return isNaN(d.getTime()) ? new Date() : d; };
 window.parseDeliveryDate = function(dateStr) { if(!dateStr) return new Date(); let str = String(dateStr).trim(); let currentYear = new Date().getFullYear(); let m = str.match(/(\d{1,2})[\/\-\.월]\s*(\d{1,2})/); if(m) return new Date(currentYear, parseInt(m[1],10)-1, parseInt(m[2],10)); let d = new Date(str); if(!isNaN(d.getTime())) { if(d.getFullYear()<2010) d.setFullYear(currentYear); return d; } return new Date(); };
 window.formatDeliveryDateFull = function(dateStr) { if(!dateStr) return '미정'; let d=window.parseDeliveryDate(dateStr); let dow=['일','월','화','수','목','금','토'][d.getDay()]; return `${d.getMonth()+1}월 ${d.getDate()}일 ${dow}요일`; };
 window.holidaysCache = {};
 window.fetchHolidays = async function(year) { if(window.holidaysCache['fetched_'+year]) return; window.holidaysCache['fetched_'+year]=true; const serviceKey='dd13ab368b573e49574bd2b121ecf8b4dd4673e273e64135156968f533954bd5'; const url=`https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=${serviceKey}&solYear=${year}&numOfRows=100&_type=json`; try { const res=await fetch(url); const data=await res.json(); const items=data?.response?.body?.items?.item; if(items) { let arr=Array.isArray(items)?items:[items]; arr.forEach(item=>{ if(item.isHoliday==='Y') { let dStr=String(item.locdate); let fmt=`${dStr.substring(0,4)}-${dStr.substring(4,6)}-${dStr.substring(6,8)}`; window.holidaysCache[fmt]=item.dateName; } }); } } catch(e) { console.error("Holiday API Fallback"); } };
 window.getHoliday = function(y,m,d) { let key=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; return window.holidaysCache[key]||null; };
-
 function getDow(dStr) { if(!dStr) return ''; try { let str=String(dStr).replace('T',' ').split('.')[0]; let datePart=str.split(' ')[0]; if(!datePart) return ''; let [y,m,d]=datePart.split('-'); if(!y||!m||!d) return ''; return ['일','월','화','수','목','금','토'][new Date(y,m-1,d).getDay()]||''; } catch(e) { return ''; } }
 function formatDtWithDow(dateStr) { if(!dateStr) return "-"; try { let d=new Date(dateStr); if(isNaN(d.getTime())) return String(dateStr); let dow=['일','월','화','수','목','금','토'][d.getDay()]; let h=d.getHours(),mi=d.getMinutes(); let ap=h>=12?'오후':'오전'; let h12=h%12||12; let miStr=mi>0?` ${mi}분`:''; return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일(${dow}) ${ap} ${h12}시${miStr}`; } catch(e) { return String(dateStr); } }
 function formatDtKorean(dateStr) { if(!dateStr) return "-"; try { let d=new Date(dateStr); if(isNaN(d.getTime())) return String(dateStr); let dow=['일','월','화','수','목','금','토'][d.getDay()]; let h=d.getHours(),mi=d.getMinutes(); let ap=h>=12?'오후':'오전'; let h12=h%12||12; let miStr=mi>0?` ${mi}분`:''; return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일(${dow}) ${ap} ${h12}시${miStr}`; } catch(e) { return String(dateStr); } }
@@ -281,9 +264,7 @@ function formatDt(dateStr) { if(!dateStr) return "-"; try { let d=new Date(dateS
 function comma(str) { return Number(String(str).replace(/[^0-9]/g,'')).toLocaleString(); }
 function showToast(msg) { const toast=$("toast"); if(!toast) return; toast.innerText=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),3500); }
 window.toggleAll=function(checkbox,targetClass){document.querySelectorAll('.'+targetClass).forEach(cb=>{if(!cb.disabled)cb.checked=checkbox.checked;});};
-
 window.batchUpdateOrderStatus=async function(statusText){let checkedBoxes=document.querySelectorAll('input[type="checkbox"][class*="chk-ord"]:checked');let idsToUpdate=Array.from(checkedBoxes).map(cb=>String(cb.value)).filter(val=>val!=="on");if(idsToUpdate.length===0)return showToast("선택된 발주 건이 없습니다.");window.openCustomConfirm("일괄 상태 변경",null,`선택한 ${idsToUpdate.length}건을 일괄 <b>[${statusText}]</b> 처리하시겠습니까?`,async()=>{let logEntries=idsToUpdate.map(id=>{let o=gOrd.find(x=>String(x.id)===String(id));return{order_id:String(id),action:'status_changed',field_name:'status',old_value:o?(o.status||'주문 접수'):'',new_value:statusText,performed_by:currentAdminEmail||'unknown',target_member:o?(o.name||''):''};});const{error}=await supabaseClient.from('orders').update({status:statusText,updated_at:new Date().toISOString()}).in('id',idsToUpdate);if(error){showToast("일괄 변경에 실패했습니다.");console.error(error);}else{try{await supabaseClient.from('invoice_logs').insert(logEntries);}catch(e){console.warn('일괄 로그 실패',e);}showToast(`${idsToUpdate.length}건이 [${statusText}] 상태로 변경되었습니다.`);window.fetchCenterData({force:true});}},"일괄 변경");};
-
 window.formatBlockDate=function(v){let d=String(v).replace(/\D/g,'');if(d.length===4){let y=new Date().getFullYear();return `${y}-${d.slice(0,2)}-${d.slice(2,4)}`;}if(d.length===6)return `20${d.slice(0,2)}-${d.slice(2,4)}-${d.slice(4,6)}`;if(d.length>=8)return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;return v;};
 window.formatBlockTime=function(v){let t=String(v).replace(/\D/g,'');if(t.length===1)return `0${t}:00`;if(t.length===2)return `${t.padStart(2,'0')}:00`;if(t.length===3)return `0${t.slice(0,1)}:${t.slice(1,3)}`;if(t.length>=4)return `${t.slice(0,2)}:${t.slice(2,4)}`;return v;};
 window.formatCounselDateDisplay=function(val){if(!val)return '';let dt=String(val).replace(/\D/g,'');if(dt.length===8)dt=dt.slice(4);if(dt.length>4&&dt.length!==8)dt=dt.slice(-4);if(dt.length!==4)return val;let now=new Date();let y=now.getFullYear();let m=parseInt(dt.slice(0,2),10);let d=parseInt(dt.slice(2,4),10);if(m<now.getMonth()+1-2)y+=1;let dObj=new Date(y,m-1,d);if(isNaN(dObj.getTime()))return val;let dowKr=['일','월','화','수','목','금','토'][dObj.getDay()];return `${y}년 ${m}월 ${d}일 (${dowKr})`;};
@@ -293,28 +274,22 @@ window.copyTxt=function(txt,successMsg="복사되었습니다."){if(navigator.cl
 function fallbackCopyTextToClipboard(text,successMsg){var textArea=document.createElement("textarea");textArea.value=text;textArea.style.cssText="position:fixed;top:0;left:0;";document.body.appendChild(textArea);textArea.focus();textArea.select();try{document.execCommand('copy');showToast(successMsg);}catch(err){showToast("복사 실패");}document.body.removeChild(textArea);}
 window.fetchGoogleCalendarEvents=async function(yyyy,mm){const API_KEY='AIzaSyAjtrSlv56VPhtqMYGsQd0L4q1AlZTW1Ng';const CALENDAR_ID='wecoffeekorea@gmail.com';try{const timeMin=new Date(yyyy,mm-1,1).toISOString();const timeMax=new Date(yyyy,mm,0,23,59,59).toISOString();const url=`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(CALENDAR_ID)}/events?key=${API_KEY}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`;const response=await fetch(url);if(!response.ok)return[];const data=await response.json();return(data.items||[]).map(event=>{let dateStr,timeStr;if(event.start.date){dateStr=event.start.date;timeStr='종일';}else if(event.start.dateTime){dateStr=event.start.dateTime.split('T')[0];timeStr=event.start.dateTime.split('T')[1].substring(0,5);}else return null;return{date:dateStr,time:timeStr,start:timeStr,text:event.summary||'일정',type:'google'};}).filter(Boolean);}catch(error){return[];}};
 window.updateDailyInOutBanner=function(){let td=new Date();let ds=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;const getDailyEvents=(centerFilter)=>{let evts=[];gRes.forEach(r=>{if(r.res_date===ds&&r.center===centerFilter&&!String(r.status||'').includes('취소')){let st=String(r.res_time||"").split('~')[0].trim();let enParts=String(r.res_time||"").split('~');let en=enParts.length>1?enParts[1].trim():'';let spc=String(r.space_equip||"").split(' ')[0];evts.push({start:st,end:en,name:r.name,space:spc});}});return evts;};let centers=currentGlobalCenter==='전체'?['마포 센터','광진 센터']:[currentGlobalCenter];let html='';centers.forEach(c=>{let evts=getDailyEvents(c);if(evts.length===0){html+=`<div class="inout-card"><div style="font-weight:800;margin-bottom:8px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;">${c}</div><div style="font-size:13px;color:var(--text-secondary);padding:8px 0;">오늘 확정된 예약이 없습니다.</div></div>`;}else{let first=[...evts].sort((a,b)=>String(a.start||'').localeCompare(String(b.start||'')))[0];let last=[...evts].sort((a,b)=>String(b.end||'').localeCompare(String(a.end||'')))[0];html+=`<div class="inout-card" style="padding:16px;gap:8px;border-radius:12px;border:1px solid var(--border-strong);background:#fff;align-items:flex-start;text-align:left;width:100%;box-sizing:border-box;"><div style="font-weight:800;font-size:15px;margin-bottom:12px;color:var(--text-display);border-bottom:1px solid var(--border-strong);padding-bottom:8px;width:100%;">${c}</div><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;width:100%;"><span style="font-weight:600;font-size:14px;color:var(--text-display);">[${first.space||''}] ${window.escapeHtml(first.name||'')}</span><span style="color:var(--text-secondary);font-size:13px;font-weight:600;">첫 입실 <strong style="color:var(--text-display);font-weight:600;">${first.start||''}</strong></span></div><div style="display:flex;align-items:center;justify-content:space-between;width:100%;"><span style="font-weight:600;font-size:14px;color:var(--text-display);">[${last.space||''}] ${window.escapeHtml(last.name||'')}</span><span style="color:var(--text-secondary);font-size:13px;font-weight:600;">최종 퇴실 <strong style="color:var(--text-display);font-weight:600;">${last.end||''}</strong></span></div></div>`;}});if($("dailyInOutBanner"))$("dailyInOutBanner").innerHTML=html;};
-
 window.updateCancelAccumulationBanner=function(){let now=new Date();let y=now.getFullYear();let m=String(now.getMonth()+1).padStart(2,'0');let monthPrefix=`${y}-${m}`;let cancelMap={};let addCancel=(phoneRaw,name,batch,desc,reason,dateStr)=>{let phone=window.normalizePhone(phoneRaw);if(!phone)return;if(!cancelMap[phone])cancelMap[phone]={name,batch,phone,count:0,items:[]};cancelMap[phone].count++;cancelMap[phone].items.push({date:dateStr,desc:desc,reason:reason||'사유 미기재'});};gRes.forEach(r=>{if(r.status==='당일 취소'&&String(r.res_date||r.created_at).startsWith(monthPrefix)){let desc=`[예약] ${r.center||''} ${r.space_equip||'-'} (${r.res_time||''})`;addCancel(r.phone,r.name,r.batch,desc,r.cancel_reason,r.res_date);}});gTrn.forEach(t=>{if(t.status==='당일 취소'){let cInfo=String(t.content||'').split('||').map(s=>s.trim());let dateStr=cInfo.length>=5?cInfo[0]:String(t.created_at).slice(0,10);if(dateStr.startsWith(monthPrefix)){let desc=cInfo.length>=5?`[수강] ${cInfo[4]} (${cInfo[2]})`:`[수강] ${t.content}`;addCancel(t.phone,t.name,t.batch,desc,t.cancel_reason,dateStr);}}});window.cancelDataMap=cancelMap;let sorted=Object.entries(cancelMap).sort((a,b)=>b[1].count-a[1].count);let warnings=sorted.filter(([p,u])=>u.count>=4);let nonWarnings=sorted.filter(([p,u])=>u.count<4);let html='';if(sorted.length===0){html=`<div class="inout-card" style="text-align:center;color:var(--text-secondary);padding:16px;background:#fff;border:1px solid var(--border-strong);border-radius:12px;">이번 달 당일 취소 내역이 없습니다.</div>`;}else{warnings.forEach(([phone,user])=>{html+=`<div onclick="window.openCancelDetailModal('${phone}')" style="padding:14px 16px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;border:1px solid var(--error);background:#fff0f0;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#ffe5e5'" onmouseout="this.style.background='#fff0f0'"><div style="color:var(--error);font-weight:800;font-size:14px;">[${user.batch||'-'}] ${window.escapeHtml(user.name)} <span style="background:var(--error);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:8px;font-weight:700;vertical-align:middle;">경고</span></div><div style="font-size:14px;font-weight:800;color:var(--error);">${user.count}회</div></div>`;});if(nonWarnings.length>0){let restRows='';nonWarnings.forEach(([phone,user])=>{restRows+=`<div onclick="window.openCancelDetailModal('${phone}')" style="padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;border:1px solid var(--border-strong);background:#fff;cursor:pointer;transition:0.15s;" onmouseover="this.style.borderColor='var(--text-tertiary)'" onmouseout="this.style.borderColor='var(--border-strong)'"><div style="color:var(--text-display);font-weight:700;font-size:14px;">[${user.batch||'-'}] ${window.escapeHtml(user.name)}</div><div style="font-size:13px;font-weight:700;color:var(--text-secondary);">${user.count}회</div></div>`;});html+=`<div style="margin-top:${warnings.length>0?'8px':'0'};border:1px solid var(--border-strong);border-radius:12px;background:#fff;overflow:hidden;transition:0.15s;" onmouseover="this.style.borderColor='var(--text-tertiary)'" onmouseout="this.style.borderColor='var(--border-strong)'"><div onclick="window.toggleCancelAccordion()" style="padding:14px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-size:14px;font-weight:700;color:var(--text-secondary);background:#fff;"><span>1~3회 누적 멤버 (${nonWarnings.length}명)</span><span id="cancelAccordionArrow" style="color:var(--text-tertiary);font-size:12px;">▼</span></div><div id="cancelAccordionContent" style="display:none;padding:8px 12px 12px;border-top:1px solid var(--border-strong);">${restRows}</div></div>`;}}if($("cancelAccumulationBanner"))$("cancelAccumulationBanner").innerHTML=html;};
 window.toggleCancelAccordion=function(){let content=document.getElementById('cancelAccordionContent');let arrow=document.getElementById('cancelAccordionArrow');if(!content)return;if(content.style.display==='none'){content.style.display='block';if(arrow)arrow.textContent='▲';}else{content.style.display='none';if(arrow)arrow.textContent='▼';}};
 window.openCancelDetailModal=function(phone){let userData=window.cancelDataMap?.[phone];if(!userData){showToast('취소 내역을 찾을 수 없습니다.');return;}let modal=document.getElementById('cancelDetailModal');if(!modal){modal=document.createElement('div');modal.id='cancelDetailModal';modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:99990;display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';document.body.appendChild(modal);modal.addEventListener('click',function(e){if(e.target===modal)window.closeCancelDetailModal();});}let itemsHtml=userData.items.map((item,idx)=>`<div style="background:#f9fafb;padding:12px 14px;border-radius:8px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="font-size:11px;color:var(--text-tertiary);font-weight:700;margin-bottom:4px;">${idx+1}. ${item.date}</div><div style="font-size:13px;color:var(--text-display);font-weight:700;line-height:1.4;margin-bottom:6px;">${window.escapeHtml(item.desc)}</div><div style="font-size:12px;color:var(--text-secondary);background:#fff;padding:8px 10px;border-radius:6px;line-height:1.4;border:1px solid var(--border-strong);"><span style="color:var(--text-tertiary);font-weight:700;margin-right:4px;">사유:</span>${window.escapeHtml(item.reason)}</div></div>`).join('');modal.innerHTML=`<div style="background:#fff;border-radius:16px;width:100%;max-width:520px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.18);overflow:hidden;"><div style="padding:20px 24px 16px;border-bottom:1px solid var(--border-strong);"><div style="font-size:16px;font-weight:800;color:var(--text-display);">[${userData.batch||'-'}] ${window.escapeHtml(userData.name)} 님 당일 취소 내역</div><div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">이번 달 총 <strong style="color:${userData.count>=4?'var(--error)':'var(--text-display)'};font-size:15px;">${userData.count}회</strong> 당일 취소</div></div><div style="flex:1;overflow-y:auto;padding:16px 24px;">${itemsHtml}</div><div style="padding:16px 24px;border-top:1px solid var(--border-strong);display:flex;justify-content:flex-end;"><button class="btn-outline" onclick="window.closeCancelDetailModal()" style="padding:10px 20px;">닫기</button></div></div>`;modal.style.display='flex';};
 window.closeCancelDetailModal=function(){let modal=document.getElementById('cancelDetailModal');if(modal)modal.style.display='none';};
-
 window.renderNoticeData=function(){let fNoti=[...gNotice];fNoti.sort((a,b)=>{if(a.is_pinned===b.is_pinned)return window.safeKST(b.created_at)-window.safeKST(a.created_at);return a.is_pinned?-1:1;});if($("noticeTableBody"))$("noticeTableBody").innerHTML=fNoti.length?fNoti.map(n=>{let pinBadge=n.is_pinned?`<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>`:`<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`;let statBadge=n.status==='발행'?`<span class="status-badge badge-green">발행 중</span>`:`<span class="status-badge badge-gray">숨김</span>`;let targetBadge=n.target_batch?`<span class="status-badge badge-blue">${window.escapeHtml(n.target_batch)}</span>`:`<span class="status-badge badge-gray">전체</span>`;let mPreview=`<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${window.escapeHtml(n.title)}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`;return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="대상" class="tc">${targetBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${window.escapeHtml(n.title)}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`;}).join(""):`<tr><td colspan="6" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`;};
 window.updateDashSpaceFilter=function(){let filter=$("dashSpaceFilter");if(!filter)return;let currentVal=filter.value;let html=`<option value="전체">전체 공간</option>`;if(currentGlobalCenter==='마포 센터')html+=`<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;else if(currentGlobalCenter==='광진 센터')html+=`<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디룸">스터디룸</option>`;else html+=`<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디">스터디존/룸</option>`;filter.innerHTML=html;if([...filter.options].some(o=>o.value===currentVal))filter.value=currentVal;else filter.value='전체';};
 window.currentSpaceOpts=[];
-
 window.updateSpaceOptions=function(){let center=$("blkCenter")?$("blkCenter").value:"마포 센터";window.currentSpaceOpts=['전체 (공간 전체)'];if(center==='마포 센터'){window.currentSpaceOpts.push('에스프레소존','아스토리아 스톰 1번 그룹 (좌)','아스토리아 스톰 2번 그룹 (우)','로스팅존','이지스터 800 1번 (좌)','이지스터 800 2번 (우)','이지스터 1.8','스트롱홀드 S7X','브루잉존','커핑존','스터디존');}else{window.currentSpaceOpts.push('에스프레소존','시네소 MVP 하이드라 1번 그룹 (좌)','시네소 MVP 하이드라 2번 그룹 (우)','페마 페미나 1그룹','산레모 You 1그룹','이글원 프리마 프로 1그룹','이글원 프리마 EXP 1그룹','로스팅존','이지스터 800 1번 (좌)','이지스터 800 2번 (우)','이지스터 1.8 1번 (좌)','스트롱홀드 S7X','브루잉존','커핑존','스터디룸');}let blkSpaceInput=$("blkSpace");if(!blkSpaceInput)return;blkSpaceInput.removeAttribute('list');let wrapper=document.getElementById('custom-space-dropdown');if(!wrapper){wrapper=document.createElement('div');wrapper.id='custom-space-dropdown';wrapper.style.cssText='position:absolute;background:#fff;border:1px solid var(--border-strong);border-radius:8px;max-height:200px;overflow-y:auto;width:100%;z-index:9999;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.15);margin-top:4px;';blkSpaceInput.parentNode.style.position='relative';blkSpaceInput.parentNode.appendChild(wrapper);blkSpaceInput.addEventListener('focus',()=>{wrapper.style.display='block';window.renderCustomOptions("");});blkSpaceInput.addEventListener('click',()=>{wrapper.style.display='block';window.renderCustomOptions("");});document.addEventListener('click',(e)=>{if(e.target!==blkSpaceInput&&!wrapper.contains(e.target))wrapper.style.display='none';});blkSpaceInput.addEventListener('input',function(){let parts=this.value.split(',');let lastTerm=parts[parts.length-1].trim();wrapper.style.display='block';window.renderCustomOptions(lastTerm);});}window.renderCustomOptions=(searchTerm="")=>{let currentArr=blkSpaceInput.value?blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean):[];let filteredOpts=searchTerm?window.currentSpaceOpts.filter(opt=>opt.toLowerCase().includes(searchTerm.toLowerCase())):window.currentSpaceOpts;if(filteredOpts.length===0){wrapper.innerHTML=`<div style="padding:10px 12px;font-size:13px;color:var(--text-secondary);">검색 결과가 없습니다.</div>`;}else{wrapper.innerHTML=filteredOpts.map(opt=>{let isSelected=currentArr.includes(opt);let bgStyle=isSelected?'background:#e8f0fe;color:var(--primary);font-weight:800;':'';return `<div class="space-opt-item" style="padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid #f2f4f6;transition:0.1s;${bgStyle}">${opt}</div>`;}).join('');}wrapper.querySelectorAll('.space-opt-item').forEach(item=>{item.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();let clickedVal=this.innerText.trim();let parts=blkSpaceInput.value.split(',').map(s=>s.trim());if(searchTerm)parts.pop();if(clickedVal==='전체 (공간 전체)'){blkSpaceInput.value='전체 (공간 전체)';}else{let arr=parts.filter(s=>s!=='전체 (공간 전체)'&&s!=='');if(!arr.includes(clickedVal))arr.push(clickedVal);else arr=arr.filter(v=>v!==clickedVal);blkSpaceInput.value=arr.join(', ');}blkSpaceInput.focus();window.renderCustomOptions("");});});};let currentVals=blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean);if(currentVals.some(v=>!window.currentSpaceOpts.includes(v)&&v!==""))blkSpaceInput.value='';window.renderCustomOptions("");};
-
 let fetchDebounceTimer = null;
 let pollingTimer = null;
-
 function hasActiveCheckboxSelection() {
     try {
         return document.querySelectorAll('input[type="checkbox"]:checked').length > 0
             && document.querySelectorAll('.chk-ord:checked, .chk-res:checked, .chk-trn:checked, .chk-mem:checked, input[type="checkbox"][class*="chk-ord-dyn"]:checked').length > 0;
     } catch(e) { return false; }
 }
-
 function startRealtimeSync(){
     if(realtimeChannel) return;
     function debouncedFetchCenter() {
@@ -343,13 +318,11 @@ function startRealtimeSync(){
         window.fetchCenterData();
     }, 600000);
 }
-
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && isAppInitialized) {
         window.fetchCenterData();
     }
 });
-
 function handleLoginSuccess(){var lv=$("login-view");if(lv)lv.classList.remove('active');var dv=$("dashboard-view");if(dv)dv.style.display='block';startRealtimeSync();let savedMain=localStorage.getItem('wecoffee_main_tab')||'page-center';let savedSub=localStorage.getItem('wecoffee_sub_tab')||'sub-res';if(savedSub==='sub-trn'||savedSub==='sub-blk')savedSub='sub-trn-blk';let mainEl=document.querySelector(`.gnb-item[onclick*="${savedMain}"]`);if(mainEl)window.switchMainTab(savedMain,mainEl);else window.switchMainTab('page-center',document.querySelector(`.gnb-item[onclick*="page-center"]`));if(savedMain==='page-center'){let subEl=document.querySelector(`.sub-item[onclick*="${savedSub}"]`);if(subEl)window.switchSubTab(savedSub,subEl);}}
 function initializeApp(){window.fetchHolidays(new Date().getFullYear());if(window.updateDashSpaceFilter)window.updateDashSpaceFilter();supabaseClient.auth.getSession().then(({data:{session}})=>{if(session&&!isAppInitialized){currentAdminEmail=session.user?.email||'';handleLoginSuccess();isAppInitialized=true;}});supabaseClient.auth.onAuthStateChange((event,session)=>{if(session){currentAdminEmail=session.user?.email||'';if(!isAppInitialized){handleLoginSuccess();isAppInitialized=true;}}else{var lv=$("login-view");if(lv)lv.classList.add('active');var dv=$("dashboard-view");if(dv)dv.style.display='none';isAppInitialized=false;if(realtimeChannel){supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}if(pollingTimer){clearInterval(pollingTimer);pollingTimer=null;}}});}
 if(document.readyState==='loading')document.addEventListener("DOMContentLoaded",initializeApp);else initializeApp();
@@ -362,11 +335,9 @@ window.closeConfirmModal=function(){if($("confirmModal"))$("confirmModal").class
 window.closeOnBackdrop=function(event,modalId){ return; };
 window.showCancelReason=function(reason){window.openCustomConfirm("당일 취소 사유",null,`<div style="padding:16px;background:#f9fafb;border-radius:8px;text-align:left;font-size:14px;line-height:1.5;color:var(--text-display);border:1px solid var(--border-strong);white-space:pre-wrap;">${window.escapeHtml(reason||'사유가 기재되지 않았습니다.')}</div>`,()=>{},"확인");};
 window.isOrderExpired=function(order,now){let baseDate=order.delivery_date?window.parseDeliveryDate(order.delivery_date):window.safeKST(order.created_at);let cancelBaseDate=order.updated_at?window.safeKST(order.updated_at):baseDate;let status=order.status||'주문 접수';if(['주문 접수','입금 대기','입금 확인 중','입금 확인','대기'].includes(status))return false;if(status==='주문 취소'||status==='품절')return(now.getTime()-cancelBaseDate.getTime())>48*60*60*1000;if(status==='센터 도착')return(now.getTime()-cancelBaseDate.getTime())>7*24*60*60*1000;return false;};
-
 let isFetchingCenter = false;
 let lastCenterFetchAt = 0;
 const CENTER_STALE_MS = 120000;
-
 window.fetchCenterData = async function(opts) {
   opts = opts || {};
   const force = opts.force === true;
@@ -447,9 +418,7 @@ window.fetchCenterData = async function(opts) {
     if(window.ensureInvoiceButton) window.ensureInvoiceButton();
   } catch(e) { console.error(e); }
 };
-
 /* ═══ 파트 1 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 파트 2 — 대시보드 · 캘린더 · 실시간 타임라인
    센터 대시보드(주/월), 구글캘린더 연동, 실시간 센터 현황 타임라인(전체화면).
@@ -668,7 +637,6 @@ window.openTimelineFullscreen=function(){
 window.closeTimelineFullscreen=function(){const overlay=document.getElementById('timelineFullscreenOverlay');if(overlay)overlay.classList.remove('active');document.body.style.overflow='';};
 document.addEventListener('keydown',function(e){if(e.key==='Escape')window.closeTimelineFullscreen();});
 /* ═══ 파트 2 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 파트 3 — 예약 리스트 · 생두 주문 · 가입상담 CRM · 기수 설정
    예약 페이지네이션, 주문/명세서 행, 신청자 CRM, batch_config·자동 멤버등록, 상담 일정 모달.
@@ -1396,7 +1364,6 @@ window.renderAppTable = function(data) {
 window.showGhostHistory=function(phoneDigits){let history=globalApps.filter(a=>(a.status==='연락 두절'||a.join_status==='연락 두절')&&String(a.phone||'').replace(/\D/g,'')===phoneDigits);if(history.length===0)return showToast('연락 두절 이력이 없습니다.');let html=history.map(a=>`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="font-weight:700;font-size:14px;color:var(--text-display);margin-bottom:4px;">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>상담 메모: ${window.escapeHtml((a.admin_memo||'없음').split('|||').pop())}</div></div>`).join('');window.openCustomConfirm('연락 두절 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');}
 window.showPrevAppHistory=function(phoneDigits){let history=globalApps.filter(a=>String(a.phone||'').replace(/\D/g,'')===phoneDigits).sort((a,b)=>{let aN=parseInt(String(a.desired_batch||'').replace(/[^0-9]/g,''))||0;let bN=parseInt(String(b.desired_batch||'').replace(/[^0-9]/g,''))||0;return aN-bN;});if(history.length===0)return showToast('신청 이력이 없습니다.');let html=history.map(a=>{let stBadge='';if(a.join_status==='가입 완료')stBadge='<span class="status-badge badge-green" style="font-size:11px;">가입 완료</span>';else if(a.join_status==='연락 두절')stBadge='<span class="status-badge badge-red" style="font-size:11px;">연락 두절</span>';else if(a.join_status)stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.join_status)}</span>`;else stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.status||'대기')}</span>`;return`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span style="font-weight:700;font-size:14px;color:var(--text-display);">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</span>${stBadge}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>희망센터: ${window.escapeHtml(a.desired_center||'-')}</div></div>`;}).join('');window.openCustomConfirm('전체 신청 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');};
 /* ═══ 파트 3 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 파트 4 — 멤버 관리 · 명세서 · 블록/공지 · 인사이트 · 엑셀
    멤버 연장/정지, 청구 명세서, 스케줄·공지 CRUD, 가입 인사이트, CSV 다운로드.
@@ -1731,7 +1698,6 @@ window.downloadExcel = function(type) {
     }catch(err){console.error("Excel Download Error: ",err);if(typeof showToast==='function')showToast('엑셀 다운로드 중 오류가 발생했습니다.');}
 };
 /* ═══ 파트 4 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 1 — 세션 + 라인업(원두) 관리
    커핑 세션 토글·생성, 라인업 CRUD, 라인업 복사/붙여넣기(교육매니저 레퍼런스 포함).
@@ -2056,16 +2022,184 @@ window.moveCuppingBean = async function(sessionId, beanId, dir) {
   await window.fetchCuppingBeans(sessionId);
 };
 /* ═══ 커핑 1 끝 ═══ */
-
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 커핑 2 — 참가자 관리
+   참가자 로드·승인·삭제, 사전등록, 수업신청 ↔ 참가자 연동 취소.
+   의존: 파트 1~4 · 커핑 1
+   ═══════════════════════════════════════════════════════════ */
+let gCuppingParts = {};
+window.togglePreRegForm = function() {
+  const f = $("preRegForm");
+  if (f) f.style.display = f.style.display === "none" ? "block" : "none";
+};
+window.fetchCuppingParticipants = async function(sessionId) {
+  const { data, error } = await supabaseClient
+    .from("cupping_participants")
+    .select("*, members(name, batch, phone)")
+    .eq("session_id", sessionId)
+    .order("joined_at", { ascending: true });
+  if (error) { console.error(error); return; }
+  gCuppingParts[sessionId] = data || [];
+  window.renderCuppingParticipants(sessionId);
+};
+window.renderCuppingParticipants = function(sessionId) {
+  const parts = gCuppingParts[sessionId] || [];
+  const area = $("partListArea");
+  if ($("partCount")) $("partCount").textContent = parts.length;
+  if (!area) return;
+  if (!parts.length) {
+    area.innerHTML = '<div class="empty-state" style="padding:20px 0;font-size:13px;">참가자가 없습니다.</div>';
+    return;
+  }
+  area.innerHTML = parts.map(function(p) {
+    const isMember = !!p.member_id;
+    const name = isMember ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트");
+    const sub = isMember ? ((p.members && p.members.batch) || "") : (p.guest_phone || "");
+    const joinLabel = { member: "멤버", pre_registered: "사전등록", walk_in: "현장참여" }[p.join_type] || p.join_type;
+    const approved = p.approved;
+    const dotColor = approved ? "#00b386" : "#e24b4a";
+    const approveBtn = !approved
+      ? '<button class="btn-outline btn-sm" style="color:var(--primary);border-color:var(--primary);padding:4px 10px;" onclick="window.approveParticipant(\'' + sessionId + '\',\'' + p.id + '\')">승인</button>' : '';
+    return '<div class="wc-part-card">' +
+      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;"></span>' +
+      '<div style="min-width:0;">' +
+      '<div style="font-size:14px;font-weight:700;color:var(--text-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(name) + '</div>' +
+      '<div style="font-size:11px;color:var(--text-secondary);">' + escapeHtml(sub) + ' · ' + joinLabel + (!approved ? ' · 대기 중' : '') + '</div>' +
+      '</div></div>' +
+      '<div class="wc-part-actions">' + approveBtn +
+      '<button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--error);padding:4px 8px;" onclick="window.removeParticipant(\'' + sessionId + '\',\'' + p.id + '\')">삭제</button>' +
+      '</div></div>';
+  }).join("");
+};
+window.approveParticipant = async function(sessionId, partId) {
+  const { error } = await supabaseClient
+    .from("cupping_participants").update({ approved: true }).eq("id", partId);
+  if (error) { showToast("승인 실패"); return; }
+  showToast("승인되었습니다.");
+  await window.fetchCuppingParticipants(sessionId);
+};
+window.removeParticipant = function(sessionId, partId) {
+  var _cm = document.getElementById("confirmModal"); if (_cm) { document.body.appendChild(_cm); _cm.style.zIndex = "2147483000"; }
+  const part = (gCuppingParts[sessionId] || []).find(function(p){ return String(p.id) === String(partId); });
+  window.openCustomConfirm("참가자 삭제", null, "이 참가자를 삭제하시겠습니까?<div style='font-size:12px;color:var(--text-tertiary);margin-top:8px;'>연결된 수업 신청도 함께 취소됩니다.</div>", async function() {
+    const { error } = await supabaseClient.from("cupping_participants").delete().eq("id", partId);
+    if (error) { showToast("삭제 실패"); return; }
+    // 매칭되는 수업신청(trainings) 취소
+    try { await window.cancelTrainingsForCuppingPart(part); } catch (e) { console.warn("[cupping] trainings 연동취소 실패", e); }
+    showToast("삭제되었습니다.");
+    await window.fetchCuppingParticipants(sessionId);
+    if (window.fetchCenterData) window.fetchCenterData({ force: true });
+  });
+};
+/* ── 커핑 참가자 ↔ 수업신청(trainings) 연동 취소 헬퍼 ── */
+window.cancelTrainingsForCuppingPart = async function(part) {
+  if (!part) return;
+  const sess = window._cuppingSession;
+  if (!sess || !sess.block_id) return;
+  const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){ return String(b.id) === String(sess.block_id); });
+  if (!blk) return;
+  const phone = part.member_id ? (part.members && part.members.phone) : part.guest_phone;
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (!digits) return;
+  const contentKey = "[" + (blk.category || "") + "] " + (blk.reason || "");
+  const timeRange = (blk.start_time || "") + "~" + (blk.end_time || "");
+  const { data } = await supabaseClient.from("trainings").select("*").like("content", blk.block_date + " ||%");
+  const list = (data || []).filter(function(t){
+    if (String(t.status || "").includes("취소")) return false;
+    if (String(t.phone || "").replace(/\D/g, "") !== digits) return false;
+    const ci = String(t.content || "").split("||").map(function(s){ return s.trim(); });
+    return ci.length >= 5 && ci[0] === blk.block_date && ci[2] === timeRange && ci[3] === blk.center && ci[4] === contentKey;
+  });
+  for (const t of list) {
+    await supabaseClient.from("trainings").update({ status: "관리자 취소", cancel_reason: "커핑 참가자 삭제 연동" }).eq("id", t.id);
+  }
+};
+/* ── 수업신청 "취소"(cancelAction) 확장: 커핑 세션이면 cupping_participants도 제거 ── */
+(function() {
+  const _origCancelAction = window.cancelAction;
+  window.cancelAction = function(table, id) {
+    if (table !== "trainings") { return _origCancelAction(table, id); }
+    const t = (typeof gTrn !== "undefined" ? gTrn : []).find(function(x){ return String(x.id) === String(id); });
+    window.openCustomConfirm("일정 취소", null,
+      "이 일정을 <b>관리자 취소</b> 처리하시겠습니까?<div style='font-size:12px;color:var(--text-tertiary);margin-top:8px;'>커핑 세션이면 참가자 명단에서도 함께 제거됩니다.<br>관리자 취소는 당일 취소 누적에 포함되지 않습니다.</div>",
+      async function() {
+        const { error } = await supabaseClient.from("trainings").update({ status: "관리자 취소" }).eq("id", id);
+        if (error) { showToast("취소 처리 실패"); return; }
+        if (t) { try { await window.removeCuppingPartByTraining(t); } catch (e) { console.warn("[cupping] 참가자 연동제거 실패", e); } }
+        showToast("관리자 취소 처리되었습니다.");
+        if (window.fetchCenterData) window.fetchCenterData({ force: true });
+      }, "관리자 취소");
+  };
+})();
+/* ── trainings 1건 → 매칭 커핑 참가자 제거 ── */
+window.removeCuppingPartByTraining = async function(t) {
+  const ci = String(t.content || "").split("||").map(function(s){ return s.trim(); });
+  if (ci.length < 5) return;
+  const blockDate = ci[0], timeRange = ci[2], centerFull = ci[3], contentKey = ci[4];
+  const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){
+    return b.block_date === blockDate && (b.start_time + "~" + b.end_time) === timeRange && b.center === centerFull && ("[" + b.category + "] " + b.reason) === contentKey;
+  });
+  if (!blk) return;
+  const { data: sess } = await supabaseClient.from("cupping_sessions").select("id").eq("block_id", blk.id).maybeSingle();
+  if (!sess) return;
+  const digits = String(t.phone || "").replace(/\D/g, "");
+  const { data: parts } = await supabaseClient.from("cupping_participants").select("*, members(phone)").eq("session_id", sess.id);
+  for (const p of (parts || [])) {
+    const pphone = p.member_id ? (p.members && p.members.phone) : p.guest_phone;
+    if (String(pphone || "").replace(/\D/g, "") === digits) {
+      await supabaseClient.from("cupping_participants").delete().eq("id", p.id);
+    }
+  }
+};
+window.preRegParticipant = async function() {
+  const sessionId = $("lineupSessionId").value;
+  const name = $("preRegName").value.trim();
+  const phone = $("preRegPhone").value.trim();
+  const type = $("preRegType").value;
+  if (!name) return showToast("성함을 입력해주세요.");
+  if (type === "member") {
+    const { data: member } = await supabaseClient
+      .from("members").select("id").eq("name", name).maybeSingle();
+    if (!member) return showToast("해당 이름의 멤버를 찾을 수 없습니다.");
+    const { data: dup } = await supabaseClient
+      .from("cupping_participants").select("id")
+      .eq("session_id", sessionId).eq("member_id", member.id).maybeSingle();
+    if (dup) return showToast("이미 등록된 멤버입니다.");
+    const { error } = await supabaseClient.from("cupping_participants").insert([{
+      session_id: sessionId, member_id: member.id,
+      role: "participant", join_type: "pre_registered", approved: true
+    }]);
+    if (error) return showToast("등록 실패");
+  } else {
+    if (!phone) return showToast("연락처를 입력해주세요.");
+    const { error } = await supabaseClient.from("cupping_participants").insert([{
+      session_id: sessionId, guest_name: name, guest_phone: phone,
+      role: "participant", join_type: "pre_registered", approved: true
+    }]);
+    if (error) return showToast("등록 실패");
+  }
+  $("preRegName").value = "";
+  $("preRegPhone").value = "";
+  showToast("참가자가 등록되었습니다.");
+  await window.fetchCuppingParticipants(sessionId);
+};
+/* openCuppingLineup 확장: 참가자도 함께 로드 */
+(function() {
+  const _orig = window.openCuppingLineup;
+  window.openCuppingLineup = async function(session) {
+    await _orig(session);
+    await window.fetchCuppingParticipants(session.id);
+  };
+})();
+/* ═══ 커핑 2 끝 ═══ */
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 3 — CVA 호스트 레퍼런스 입력 + 공개 제어
    원두별 기준 강도·노트 저장, 미입력 경고, 공개 전 정답 잠금.
    의존: 파트 1~4 · 커핑 1~2
    ═══════════════════════════════════════════════════════════ */
-
 const CUPPING_REF_KEYS   = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
 const CUPPING_REF_LABELS = ["프래그런스","아로마","향미","뒷맛","산미","단맛","마우스필"];
-
 /* openCuppingLineup 재확장: 레퍼런스 섹션 세팅 */
 (function() {
   const _orig = window.openCuppingLineup;
@@ -2074,7 +2208,6 @@ const CUPPING_REF_LABELS = ["프래그런스","아로마","향미","뒷맛","산
     setupRefSection(session);
   };
 })();
-
 function setupRefSection(session) {
   const beans = gCuppingBeans[session.id] || [];
   // 원두 셀렉트
@@ -2102,7 +2235,6 @@ function setupRefSection(session) {
   window.loadRefForBean();
   refCoverageWarn(session);
 }
-
 /* ── 레퍼런스 입력 커버리지 경고(원두 중 미입력 표시) ── */
 function refHasValues(x) { return !!x && CUPPING_REF_KEYS.some(function (k) { return x[k] != null; }); }
 async function refMissingBeans(session) {
@@ -2136,7 +2268,6 @@ async function refCoverageWarn(session) {
   }
 }
 window.refCoverageWarn = refCoverageWarn;
-
 function updateRevealButtons(isRevealed) {
   const revBtn = $("refRevealBtn"), hideBtn = $("refHideBtn"), statusEl = $("refStatus");
   if (!revBtn || !hideBtn) return;
@@ -2146,7 +2277,6 @@ function updateRevealButtons(isRevealed) {
     ? "✓ 레퍼런스 공개됨 — 참가자 결과 화면에서 열람 가능"
     : "공개 전 — 참가자는 레퍼런스를 볼 수 없어요 (오픈북 방지)";
 }
-
 window.loadRefForBean = async function() {
   const beanId = $("refBeanSelect") ? $("refBeanSelect").value : null;
   if (!beanId) return;
@@ -2160,7 +2290,6 @@ window.loadRefForBean = async function() {
     CUPPING_REF_KEYS.forEach(function(k) { if ($(k)) $(k).value = ""; });
   }
 };
-
 window.saveRef = async function() {
   const sessionId = $("lineupSessionId").value;
   const beanId = $("refBeanSelect") ? $("refBeanSelect").value : null;
@@ -2178,7 +2307,6 @@ window.saveRef = async function() {
   showToast("레퍼런스가 저장되었습니다.");
   if (window._cuppingSession) refCoverageWarn(window._cuppingSession);
 };
-
 /* ── 공개 제어: cupping_sessions.reference_revealed 토글 ── */
 async function doReveal(sessionId) {
   const { error } = await supabaseClient.from("cupping_sessions")
@@ -2202,7 +2330,6 @@ window.revealCalibration = async function() {
   }
   await doReveal(sessionId);
 };
-
 window.hideCalibration = async function() {
   const sessionId = $("lineupSessionId").value;
   const { error } = await supabaseClient.from("cupping_sessions")
@@ -2212,18 +2339,14 @@ window.hideCalibration = async function() {
   showToast("레퍼런스 공개가 취소되었습니다.");
   updateRevealButtons(false);
 };
-
 /* ═══ 커핑 3 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 4 — 라이브 제어 · 실시간 프로토콜 타이머
    SCA 프리셋 타이머 실시간 동기화, 참가자 결과 공개 토글.
    의존: 파트 1~4 · 커핑 1~3
    ═══════════════════════════════════════════════════════════ */
-
 (function () {
   "use strict";
-
   // ── SCA 표준 프리셋 (물 93°C · 침지 정확히 4분 후 브레이크 · 온도별 시음) ──
   const CUP_LIVE_DEFAULT = [
     { name: "분쇄 & 프래그런스 평가", secs: 180 },
@@ -2232,18 +2355,15 @@ window.hideCalibration = async function() {
     { name: "스키밍 & 식히기", secs: 120 },
     { name: "테이스팅 (70→55→38°C)", secs: 840 }
   ];
-
   let liveTS = null;          // 현재 세션의 timer_state 미러
   let liveLoop = null;        // 자동전환/표시 인터벌
   let liveWriting = false;    // 쓰기 중복 방지
-
   function _$(id) { return document.getElementById(id); }
   function _toast(m) { try { showToast(m); } catch (e) { console.log(m); } }
   function _esc(s) { try { return escapeHtml(s); } catch (e) { return String(s == null ? "" : s); } }
   function fmt(sec) { sec = Math.max(0, sec | 0); const m = Math.floor(sec / 60), s = sec % 60; return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s; }
   function parseTS(v) { if (!v) return null; if (typeof v === "string") { try { v = JSON.parse(v); } catch (e) { return null; } } return (v && typeof v === "object") ? v : null; }
   function defaultTS() { return { v: 1, phases: CUP_LIVE_DEFAULT.map(function (p) { return { name: p.name, secs: p.secs }; }), idx: -1, running: false, endsAt: null, remain: null, updatedAt: Date.now() }; }
-
   /* ── openCuppingLineup 확장: 라이브 패널 주입/갱신 ── */
   const _origOpen = window.openCuppingLineup;
   window.openCuppingLineup = async function (session) {
@@ -2255,7 +2375,6 @@ window.hideCalibration = async function() {
     if (liveLoop) { clearInterval(liveLoop); liveLoop = null; }   // 모달 닫으면 자동전환 정지(재오픈 시 DB 상태로 복귀)
     if (_origClose) _origClose(); else { const m = _$("cuppingLineupModal"); if (m) m.classList.remove("show"); }
   };
-
   function commonAncestor(a, b) {
     if (!a || !b) return null;
     const anc = [];
@@ -2277,7 +2396,6 @@ window.hideCalibration = async function() {
     body.appendChild(host);
     return host;
   }
-
   function setupLivePanel(session) {
     const host = ensurePanel();
     liveTS = parseTS(session && session.timer_state) || defaultTS();
@@ -2288,7 +2406,6 @@ window.hideCalibration = async function() {
       var saved = liveTS.phases[i];
       return { name: p.name, secs: (saved && saved.secs != null) ? saved.secs : p.secs };
     });
-
     const recRevealed = !!(session && session.records_revealed === true);
     const phaseRows = liveTS.phases.map(function (p, i) {
       return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
@@ -2296,7 +2413,6 @@ window.hideCalibration = async function() {
         '<input type="number" class="input-search cupLivePhMin" data-i="' + i + '" value="' + (Math.round(p.secs / 6) / 10) + '" min="0.5" step="0.5" style="width:70px;box-sizing:border-box;height:30px;font-size:13px;padding:0 8px;text-align:right;"><span style="font-size:12px;color:var(--text-tertiary,#8b95a1);">분</span>' +
         '</div>';
     }).join("");
-
     host.innerHTML =
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">' +
         '<div style="font-size:14px;font-weight:800;color:var(--text-display,#191f28);">라이브 제어 · 프로토콜 타이머</div>' +
@@ -2328,11 +2444,9 @@ window.hideCalibration = async function() {
           '<button id="cupRecBtn" class="' + (recRevealed ? "btn-outline" : "btn-primary") + '" onclick="window.cupToggleRecords()" style="height:36px;padding:0 14px;flex-shrink:0;">' + (recRevealed ? "공개 취소" : "결과 공개") + '</button>' +
         '</div>' +
       '</div>';
-
     startLoop();
     renderStatus();
   }
-
   function renderStatus() {
     const nameEl = _$("cupLiveStepName"), subEl = _$("cupLiveStepSub"), clockEl = _$("cupLiveClock"), btn = _$("cupLiveStartBtn");
     if (!nameEl) return;
@@ -2353,7 +2467,6 @@ window.hideCalibration = async function() {
     clockEl.textContent = fmt(remain);
     if (btn) btn.innerHTML = liveTS.running ? "⏸ 일시정지" : "▶ 시작";
   }
-
   function startLoop() {
     if (liveLoop) return;
     liveLoop = setInterval(function () {
@@ -2368,7 +2481,6 @@ window.hideCalibration = async function() {
       if (changed) writeTS(); else renderStatus();
     }, 500);
   }
-
   async function writeTS() {
     renderStatus();
     if (liveWriting) return;
@@ -2382,13 +2494,11 @@ window.hideCalibration = async function() {
       else if (window._cuppingSession) window._cuppingSession.timer_state = liveTS;
     } finally { liveWriting = false; }
   }
-
   function curRemain() {
     const ph = liveTS.phases[liveTS.idx];
     if (!ph) return 0;
     return liveTS.running ? Math.max(0, Math.round(((liveTS.endsAt || 0) - Date.now()) / 1000)) : (liveTS.remain != null ? liveTS.remain : ph.secs);
   }
-
   window.cupLiveToggle = function () {
     if (!liveTS) liveTS = defaultTS();
     if (liveTS.idx == null || liveTS.idx < 0 || liveTS.idx >= liveTS.phases.length) { liveTS.idx = 0; liveTS.remain = null; }
@@ -2402,7 +2512,6 @@ window.hideCalibration = async function() {
     }
     writeTS();
   };
-
   window.cupLiveNext = function () {
     if (!liveTS) return;
     if (liveTS.idx < 0) liveTS.idx = 0;
@@ -2412,7 +2521,6 @@ window.hideCalibration = async function() {
     else { liveTS.remain = liveTS.phases[liveTS.idx].secs; }
     writeTS();
   };
-
   window.cupLivePrev = function () {
     if (!liveTS) return;
     if (liveTS.idx >= liveTS.phases.length) liveTS.idx = liveTS.phases.length - 1;
@@ -2421,13 +2529,11 @@ window.hideCalibration = async function() {
     else { liveTS.remain = liveTS.phases[liveTS.idx].secs; }
     writeTS();
   };
-
   window.cupLiveReset = function () {
     if (!liveTS) liveTS = defaultTS();
     liveTS.idx = -1; liveTS.running = false; liveTS.endsAt = null; liveTS.remain = null;
     writeTS();
   };
-
   window.cupLiveSavePhases = function () {
     if (!liveTS) liveTS = defaultTS();
     const inputs = document.querySelectorAll(".cupLivePhMin");
@@ -2442,7 +2548,6 @@ window.hideCalibration = async function() {
     writeTS();
     _toast("단계 시간을 저장했어요.");
   };
-
   /* ── 참가자 결과(기록) 공개 토글 ── */
   window.cupToggleRecords = async function () {
     const sessionId = _$("lineupSessionId").value;
@@ -2458,9 +2563,7 @@ window.hideCalibration = async function() {
     _toast(next ? "참가자 결과가 공개되었습니다." : "결과 공개가 취소되었습니다.");
   };
 })();
-
 /* ═══ 커핑 4 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 5 — UI 보정
    스케줄 관리 컬럼 정렬, 커핑 행 잔여 정원에 게스트 합산.
@@ -2547,18 +2650,15 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 5 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 6 — 세션 URL QR 코드
    커핑 설정 모달 URL 옆 QR 생성, 전체화면 확대.
    의존: 파트 1~4 · 커핑 1
    ═══════════════════════════════════════════════════════════ */
-
 (function () {
   "use strict";
   var QR_SRC = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
   function _$(id) { return document.getElementById(id); }
-
   function loadQR(cb) {
     if (window.QRCode) { cb(); return; }
     var existing = _$("cupQrLib");
@@ -2582,14 +2682,12 @@ window.hideCalibration = async function() {
     });
   }
   function curUrl() { var el = _$("sessionUrlText"); return el ? (el.textContent || "").trim() : ""; }
-
   /* openCuppingLineup 확장: URL 옆 QR 주입 */
   var _origOpen = window.openCuppingLineup;
   window.openCuppingLineup = async function (session) {
     if (_origOpen) await _origOpen(session);
     setupQR(session);
   };
-
   function setupQR() {
     var urlEl = _$("sessionUrlText");
     if (!urlEl) return;
@@ -2612,7 +2710,6 @@ window.hideCalibration = async function() {
     var url = curUrl();
     if (url) makeQR(_$("cupQrBox"), url, 84);
   }
-
   window.cupQrZoom = function () {
     var url = curUrl();
     if (!url) return;
@@ -2637,15 +2734,12 @@ window.hideCalibration = async function() {
   };
   window.cupQrClose = function () { var ov = _$("cupQrOverlay"); if (ov) ov.style.display = "none"; };
 })();
-
 /* ═══ 커핑 6 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 7 — 참가자 평가 조회 (호스트)
    원두별/정확도 집계, 참가자별 상세(레이더·CVA폼), 세션 요약 CSV.
    의존: 파트 1~4 · 커핑 1~4
    ═══════════════════════════════════════════════════════════ */
-
 (function () {
   "use strict";
   var RV_KEYS = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
@@ -2661,7 +2755,6 @@ window.hideCalibration = async function() {
   function fx(v,d){ return v==null?"—":Number(v).toFixed(d==null?1:d); }
   function uniq(arr){ var seen={}, out=[]; (arr||[]).forEach(function(v){ var k=String(v==null?"":v).trim(); if(k && !seen[k]){ seen[k]=1; out.push(k); } }); return out; }
   function ymd(s){ var d=new Date(s); if(isNaN(d)) return ""; return d.getFullYear()+". "+String(d.getMonth()+1).padStart(2,"0")+". "+String(d.getDate()).padStart(2,"0"); }
-
   /* ═══ 내장 렌더러 (레이더 + CVA 공식 폼) — 멤버 결과보기와 동일 ═══ */
   function radarSVGLocal(me, ref, extra, AX){
     AX = AX || []; var MAX=15, cx=170, cy=150, R=105, N=AX.length || 1;
@@ -2738,7 +2831,6 @@ window.hideCalibration = async function() {
       extrinsic: r.extrinsic||"", qnotes: r.q_notes||{}, cva: num(r.cva_score)
     };
   }
-
   /* 참가자별 상세(레이더·CVA폼) 상태 · 렌더 */
   var _rvRows = [], _rvRef = null, _rvNames = {}, _rvView = {}, _rvBeanName = "";
   window.cupRvDetail = function (i) {
@@ -2784,7 +2876,6 @@ window.hideCalibration = async function() {
   function curSession(){ var el=_$("lineupSessionId"); return el?el.value:null; }
   function beansOf(sid){ return (typeof gCuppingBeans!=="undefined" && gCuppingBeans[sid]) || []; }
   function partsOf(sid){ return (typeof gCuppingParts!=="undefined" && gCuppingParts[sid]) || []; }
-
   /* ── 원두 셀렉트 동기화: 원두 추가/삭제 후 renderCuppingBeans 호출 시 함께 갱신 ── */
   var _rcb = window.renderCuppingBeans;
   window.renderCuppingBeans = function (sessionId) {
@@ -2801,7 +2892,6 @@ window.hideCalibration = async function() {
     if (cur && beans.some(function (b) { return b.id === cur; })) sel.value = cur;
     if (cb) { try { cb(); } catch (e) {} }
   }
-
   /* ── 조회 버튼 + 인라인 영역 주입: 라이브 제어 패널 '결과 공개' 아래 ── */
   var _origOpen = window.openCuppingLineup;
   window.openCuppingLineup = async function (session) {
@@ -2836,7 +2926,6 @@ window.hideCalibration = async function() {
     var urlEl = _$("sessionUrlText");
     if (urlEl) { var box = urlEl.closest("div") || urlEl.parentNode; if (box && box.parentNode) box.parentNode.insertBefore(wrap, box.nextSibling); }
   }
-
   var _rvMode = "bean";
   window.cupRvToggle = function () {
     var inl = _$("cupRvInline"), btn = _$("cupRvBtn"); if (!inl) return;
@@ -2860,15 +2949,12 @@ window.hideCalibration = async function() {
       else body.innerHTML = emptyMsg("원두를 먼저 추가하세요.");
     } else { window.cupRvLeaderboard(); }
   };
-
   function emptyMsg(t) { return '<div style="padding:26px 0;text-align:center;color:#8b95a1;font-size:13px;">' + t + '</div>'; }
-
   function partNameMap(sessionId) {
     var map = {};
     partsOf(sessionId).forEach(function (p) { map[p.id] = p.member_id ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트"); });
     return map;
   }
-
   window.cupRvLoad = async function () {
     var sessionId = curSession(), beanId = _$("cupRvBean") ? _$("cupRvBean").value : null, body = _$("cupRvBody");
     if (!sessionId || !beanId || !body || typeof supabaseClient === "undefined") return;
@@ -2880,7 +2966,6 @@ window.hideCalibration = async function() {
     beanName = String(beanName || "").replace(/^\d+\.\s*/, "");
     body.innerHTML = window.wcRenderReview(recsRes.data || [], refRes.data || null, partNameMap(sessionId), beanName);
   };
-
   /* ── 세션 데이터 로드(리더보드·CSV 공용): 전체 기록 + 레퍼런스 ── */
   async function loadSessionData(sessionId) {
     var recsRes = await supabaseClient.from("cupping_records").select("*").eq("session_id", sessionId);
@@ -2899,7 +2984,6 @@ window.hideCalibration = async function() {
     RV_KEYS.forEach(function (k) { var mv = num(r[k]), rv = num(ref[k]); if (mv != null && rv != null) { s += Math.abs(mv - rv); n++; } });
     return n ? s / n : null;
   }
-
   /* ── 정확도 현황: 참가자를 레퍼런스 편차 밴드로 묶은 코칭용 뷰(순위 없음) ── */
   window.cupRvLeaderboard = async function () {
     var sessionId = curSession(), body = _$("cupRvBody");
@@ -2922,7 +3006,6 @@ window.hideCalibration = async function() {
       return { name: d.names[pid] || "참가자", avgScore: avgScore, avgDev: avgDev, beans: recs.length };
     });
     if (!people.length) { body.innerHTML = emptyMsg("아직 입력된 평가가 없습니다."); return; }
-
     var BANDS = [
       { key: "near", label: "근접", sub: "편차 ≤ 1.0", color: "#00b386", bg: "#ecfdf3", bd: "#b7f0d0" },
       { key: "ok", label: "적정", sub: "편차 1.0–2.5", color: "#c67c00", bg: "#fff7ea", bd: "#ffe0ad" },
@@ -2935,7 +3018,6 @@ window.hideCalibration = async function() {
     Object.keys(groups).forEach(function (k) {
       groups[k].sort(function (a, b) { if (a.avgDev == null || b.avgDev == null) return (b.avgScore || 0) - (a.avgScore || 0); return a.avgDev - b.avgDev; });
     });
-
     var h = '<div style="font-size:12px;color:#8b95a1;margin-bottom:12px;line-height:1.5;">레퍼런스에 얼마나 가깝게 평가했는지 — 코칭 참고용이에요. 순위가 아니라 편차 구간으로 묶었어요.</div>';
     BANDS.forEach(function (bd) {
       var list = groups[bd.key]; if (!list.length) return;
@@ -2962,7 +3044,6 @@ window.hideCalibration = async function() {
     });
     body.innerHTML = h;
   };
-
   /* ── 세션 요약 CSV 내보내기(참가자·원두별 점수·편차) ── */
   function csvCell(v) { v = (v == null ? "" : String(v)); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   window.cupRvExportCsv = async function () {
@@ -3009,13 +3090,11 @@ window.hideCalibration = async function() {
       if (typeof showToast === "function") showToast("요약 CSV를 내보냈어요 (" + rows.length + "건)");
     } catch (e) { console.error("[cupping] CSV 내보내기 실패", e); if (typeof showToast === "function") showToast("내보내기 실패"); }
   };
-
   /* ── 렌더(좌우 스크롤 없음). 멤버리스트(파트8)에서도 재사용 ── */
   window.wcRenderReview = function (recs, ref, names, beanName) {
     names = names || {};
     var rows = recs.filter(function (r) { return RV_KEYS.some(function (k) { return r[k] != null; }) || r.cva_score != null; });
     if (!rows.length) return emptyMsg("아직 입력된 평가가 없습니다.");
-
     var n = rows.length;
     var scores = rows.map(function (r) { return num(r.cva_score); }).filter(function (v) { return v != null; });
     var avgScore = scores.length ? scores.reduce(function (a, b) { return a + b; }, 0) / scores.length : null;
@@ -3023,12 +3102,10 @@ window.hideCalibration = async function() {
       var vs = rows.map(function (r) { return num(r[k]); }).filter(function (v) { return v != null; });
       return vs.length ? vs.reduce(function (a, b) { return a + b; }, 0) / vs.length : null;
     });
-
     var h = '';
     h += '<div style="display:flex;gap:8px;margin-bottom:14px;">' +
       statCard("참가자", n + "명") + statCard("평균 점수", avgScore == null ? "—" : avgScore.toFixed(1)) +
       statCard("레퍼런스", ref ? "입력됨" : "미입력") + '</div>';
-
     var cw = ref ? ["34%","22%","22%","22%"] : ["50%","50%"];
     h += '<table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;margin-bottom:16px;border:1px solid #eef0f3;border-radius:10px;overflow:hidden;">' +
       '<thead><tr style="background:#f9fafb;">' + th("항목","left",cw[0]) + th("평균","center",cw[1]) + (ref ? th("레퍼런스","center",cw[2]) + th("편차","center",cw[3]) : "") + '</tr></thead><tbody>';
@@ -3037,7 +3114,6 @@ window.hideCalibration = async function() {
       h += '<tr>' + td(RV_LABS[i], "left", "700") + td(fx(av)) + (ref ? td(fx(rv)) + tdDev(dev) : "") + '</tr>';
     });
     h += '</tbody></table>';
-
     h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:4px 0 8px;">참가자별 상세 (' + n + '명)</div>';
     rows.sort(function (a, b) { return (num(b.cva_score) || 0) - (num(a.cva_score) || 0); });
     // 상세(레이더·CVA폼) 토글용 상태 저장
@@ -3068,7 +3144,6 @@ window.hideCalibration = async function() {
       var cups = ((r.nonuniform_cups || 0) + (r.defective_cups || 0)) > 0
         ? '<span style="font-size:11px;color:#8b95a1;">균일X ' + (r.nonuniform_cups || 0) + ' · 결점 ' + (r.defective_cups || 0) + '</span>' : "";
       var maxLbl = isBasic ? " / 120" : " / 100";
-
       h += '<div style="border:1px solid #e9ebee;border-radius:12px;padding:12px 13px;margin-bottom:8px;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">' +
           '<div style="display:flex;align-items:center;gap:7px;min-width:0;"><span style="font-size:14px;font-weight:800;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(nm) + '</span>' + badge + status + '</div>' +
@@ -3083,7 +3158,6 @@ window.hideCalibration = async function() {
     });
     return h;
   };
-
   function statCard(l, v) {
     return '<div style="flex:1;min-width:0;background:#f9fafb;border:1px solid #eef0f3;border-radius:10px;padding:10px 8px;text-align:center;">' +
       '<div style="font-size:11px;color:#8b95a1;font-weight:600;margin-bottom:3px;">' + l + '</div>' +
@@ -3097,15 +3171,12 @@ window.hideCalibration = async function() {
     return '<td style="text-align:center;padding:7px 6px;border-top:1px solid #f2f4f6;font-weight:800;color:' + c + ';">' + (dev > 0 ? "+" : "") + dev.toFixed(1) + '</td>';
   }
 })();
-
 /* ═══ 커핑 7 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 8 — 멤버 활동·성장 조회
    멤버 '내역' 모달 확장: 이용 통계, 센서리 성장 추이, 이력.
    의존: 파트 1~7
    ═══════════════════════════════════════════════════════════ */
-
 (function () {
   "use strict";
   var RV_KEYS = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
@@ -3149,25 +3220,21 @@ window.hideCalibration = async function() {
     if(/스터디/.test(s)) return key==="광진 센터" ? "스터디룸" : "스터디존";
     return "기타";
   }
-
   var CACHE = {};
   var _orig = window.openHistoryModal;
   window.openHistoryModal = async function (phone, name) {
     if (_orig) await _orig(phone, name);
     try { await appendExtras(phone, name); } catch (e) { console.error("[cupping] 멤버 활동 확장 오류", e); }
   };
-
   async function appendExtras(phone, name) {
     var body = document.getElementById("historyModalBody"); if (!body || typeof supabaseClient === "undefined") return;
     var old = document.getElementById("memActExtras"); if (old) old.remove();
     var host = document.createElement("div"); host.id = "memActExtras"; host.style.cssText = "margin-top:8px;";
     host.innerHTML = '<div style="padding:16px 0 8px;color:var(--text-tertiary,#8b95a1);font-size:13px;">활동·성장 데이터 불러오는 중…</div>';
     body.appendChild(host);
-
     var m = (window.globalMembers || []).find(function (x) { return same(x.phone, phone); });
     var memberId = m ? m.id : null;
     var last4 = String(phone).replace(/\D/g, "").slice(-4);
-
     // ── 예약 · 콘텐츠 참여 이력 ──
     var ress = [], trns = [];
     try {
@@ -3178,7 +3245,6 @@ window.hideCalibration = async function() {
         trns = (tq.data || []).filter(function (r) { return same(r.phone, phone) && !String(r.status||"").includes("취소"); });
       }
     } catch (e) { console.warn("[cupping] 이용 이력 조회 실패", e); }
-
     // ── 센터/공간 집계 (공간은 센터별로 분리) ──
     var centerCnt = {}, zoneByCenter = {};
     function bump(o, k) { k = (k || "").trim(); if (!k) return; o[k] = (o[k] || 0) + 1; }
@@ -3187,7 +3253,6 @@ window.hideCalibration = async function() {
     function trnZone(center, c) { var z = resolveZone(center, c[1]); if (!z || z === "기타") { var z2 = resolveZone(center, c[4]); if (z2 && z2 !== "기타") z = z2; } return z; }
     ress.forEach(function (r) { bump(centerCnt, r.center); bumpZone(r.center, resolveZone(r.center, r.space_equip)); });
     trns.forEach(function (t) { var c = String(t.content || "").split(" || "); bump(centerCnt, c[3]); bumpZone(c[3], trnZone(c[3], c)); });
-
     // ── 커핑(센서리) 성장 ── (member_id + 전화번호(게스트 참여)까지 매칭)
     var sessions = [];
     {
@@ -3223,14 +3288,11 @@ window.hideCalibration = async function() {
         sessions.sort(function (a, b) { return (a.date ? new Date(a.date) : 0) - (b.date ? new Date(b.date) : 0); });
       } catch (e) { console.warn("[cupping] 센서리 성장 조회 실패", e); }
     }
-
     var resCnt = ress.length, trnCnt = trns.length, cupCnt = sessions.length;
     var h = '<div style="border-top:1px solid var(--border-strong,#e5e8eb);margin-top:8px;padding-top:18px;">';
-
     // 요약
     h += '<div style="display:flex;gap:8px;margin-bottom:20px;">' +
       stat("센터 예약", resCnt + "회") + stat("콘텐츠 참여", trnCnt + "회") + stat("커핑 세션", cupCnt + "회") + '</div>';
-
     // ── 센터 이용 비율 ──
     var cKeys = Object.keys(centerCnt), cTot = cKeys.reduce(function (a, k) { return a + centerCnt[k]; }, 0);
     h += sectionTitle("센터 이용 비율");
@@ -3240,7 +3302,6 @@ window.hideCalibration = async function() {
         h += barRow(k, Math.round(centerCnt[k] / cTot * 100), 100, true, false);
       });
     }
-
     // ── 공간 이용 통계 (센터별) ──
     h += sectionTitle("공간 이용 통계", "18px", "센터별 공간·장비");
     var usedCenters = Object.keys(zoneByCenter);
@@ -3259,7 +3320,6 @@ window.hideCalibration = async function() {
         });
       });
     }
-
     // ── 센서리 성장 ──
     h += sectionTitle("센서리 성장", "20px", "커핑 세션 점수 · 레퍼런스 정확도");
     if (!cupCnt) h += emptyBox("커핑 평가 데이터가 없습니다.");
@@ -3293,13 +3353,11 @@ window.hideCalibration = async function() {
           '</div><div class="memCupEval" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #f2f4f6;"></div></div>';
       });
     }
-
     // ── 콘텐츠 참여 이력 (더보기) ──
     h += sectionTitle("콘텐츠 참여 이력", "18px", "수업·훈련 스케줄");
     if (!trns.length) h += emptyBox("콘텐츠 참여 이력이 없습니다.");
     else { trns.sort(function (a, b) { return new Date(trnDate(b)) - new Date(trnDate(a)); });
       h += moreList("memTrnMore", trns, 5, function (t) { return listItem(trnTitle(t), dstr(trnDate(t))); }); }
-
     // ── 센터 예약 이력 (더보기) ──
     h += sectionTitle("센터 예약 이력", "18px", "장비·공간");
     if (!ress.length) h += emptyBox("센터 예약 이력이 없습니다.");
@@ -3307,11 +3365,9 @@ window.hideCalibration = async function() {
       h += moreList("memResMore", ress, 5, function (r) {
         var t = [r.center, r.space_equip].filter(Boolean).join(" · ") || "센터 예약"; if (r.res_time) t += " · " + r.res_time;
         return listItem(t, dstr(r.res_date)); }); }
-
     h += '</div>';
     host.innerHTML = h;
   }
-
   /* ── 렌더 헬퍼 ── */
   function sectionTitle(t, mt, sub) {
     return '<div style="font-size:13px;font-weight:800;color:var(--text-display,#191f28);margin:' + (mt || "2px") + ' 0 12px;">' + t +
@@ -3356,7 +3412,6 @@ window.hideCalibration = async function() {
     var open = el.style.display === "none"; el.style.display = open ? "block" : "none";
     btn.textContent = open ? "접기" : "더보기 (" + el.children.length + "건)";
   };
-
   function trnDate(t) { var c = String(t.content || "").split(" || "); return (c[0] && /\d{4}-\d{2}-\d{2}/.test(c[0])) ? c[0].trim() : (t.created_at || ""); }
   function trnTitle(t) {
     // 콘텐츠 명만 표기: "[구분] 로스팅 디펙트" → "로스팅 디펙트" (센터·시간·구분 대괄호 제거)
@@ -3367,7 +3422,6 @@ window.hideCalibration = async function() {
     title = String(title).trim();
     return title || "수업·훈련 참여";
   }
-
   window.memCupDetail = async function (pid, btn) {
     var card = btn.closest(".memCupCard"), area = card ? card.querySelector(".memCupEval") : null; if (!area) return;
     if (area.style.display !== "none") { area.style.display = "none"; btn.textContent = "상세"; return; }
@@ -3382,7 +3436,6 @@ window.hideCalibration = async function() {
     } catch (e) {}
     area.innerHTML = recs.map(function (r) { return beanCard(r, beanName[r.bean_id] || "원두", c.refMap[r.bean_id]); }).join("");
   };
-
   function beanCard(r, bnName, ref) {
     var isBasic = r.form_type === "basic";
     var badge = '<span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;' + (isBasic ? 'background:#eaf2fe;color:#3182f6;' : 'background:#fff2e6;color:#ea6f00;') + '">' + (isBasic ? "베이직" : "CVA") + '</span>';
@@ -3431,12 +3484,10 @@ window.hideCalibration = async function() {
     if (r.extrinsic && String(r.extrinsic).trim()) h += '<div style="margin-top:10px;">' + qnRow("외재", r.extrinsic, "#8b95a1") + '</div>';
     return h ? '<div style="margin-top:8px;border-top:1px solid #f2f4f6;padding-top:8px;">' + h + '</div>' : "";
   }
-
   function stat(l, v) {
     return '<div style="flex:1;min-width:0;background:#f9fafb;border:1px solid #eef0f3;border-radius:10px;padding:11px 8px;text-align:center;">' +
       '<div style="font-size:11px;color:#8b95a1;font-weight:600;margin-bottom:3px;">' + l + '</div>' +
       '<div style="font-size:18px;font-weight:800;color:#191f28;">' + v + '</div></div>';
   }
 })();
-
 /* ═══ 커핑 8 끝 ═══ */
