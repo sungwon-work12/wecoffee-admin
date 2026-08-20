@@ -2523,29 +2523,27 @@ window.hideCalibration = async function() {
    스케줄 관리 컬럼 정렬, 커핑 행 잔여 정원에 게스트 합산.
    의존: 파트 1~4 · 커핑 1
    ═══════════════════════════════════════════════════════════ */
-
 (function () {
   "use strict";
-
   /* ── #1 · #4 레이아웃 보정 CSS 주입 ── */
   if (!document.getElementById("cupUiFixStyle")) {
     const st = document.createElement("style");
     st.id = "cupUiFixStyle";
     st.textContent =
       /* 관리 컬럼: 버튼 3개(커핑 설정/수정/삭제)여도 한 줄 · 우측 정렬 · 줄바꿈 금지 */
+      '@media (min-width: 769px){' +
       '#blkTableBody td[data-label="관리"]{white-space:nowrap;text-align:right;}' +
       '#blkTableBody td[data-label="관리"] .action-wrap-flex{display:inline-flex;flex-wrap:nowrap;gap:6px;justify-content:flex-end;align-items:center;}' +
       '#blkTableBody td[data-label="관리"] .btn-sm{flex-shrink:0;white-space:nowrap;}' +
       /* 대상 기수 · 정원 컬럼이 눌려 줄내림 되지 않도록 */
       '#blkTableBody td[data-label="대상 기수"]{white-space:nowrap;}' +
-      '#blkTableBody td[data-label="정원"]{white-space:nowrap;}' +
+      '#blkTableBody td[data-label="정원"]{white-space:nowrap;}' + '}' +
       /* #4 커핑 설정 모달 내부 요소가 가로 폭을 넘지 않도록 안전장치 */
       '#cuppingLineupModal input,#cuppingLineupModal textarea{max-width:100%;box-sizing:border-box;}' +
       '#refScoreInputs{max-width:100%;box-sizing:border-box;}' +
       '#cupLivePanel{box-sizing:border-box;width:100%;max-width:100%;}';
     document.head.appendChild(st);
   }
-
   /* ── #3 커핑 행 잔여 정원 재계산: 표시된 신청 수 + 게스트(비멤버) 참가자 ── */
   const _origRender = window.renderCenterData;
   if (typeof _origRender === "function") {
@@ -2554,7 +2552,6 @@ window.hideCalibration = async function() {
       setTimeout(fixCuppingCapacity, 0);   // 커핑 버튼 주입(파트1) 이후에 실행
     };
   }
-
   async function fixCuppingCapacity() {
     const body = document.getElementById("blkTableBody");
     if (!body || typeof supabaseClient === "undefined") return;
@@ -2574,7 +2571,6 @@ window.hideCalibration = async function() {
       if (cell) rows.push({ blockId: blockId, blk: blk, cell: cell });
     });
     if (!rows.length) return;
-
     try {
       const blockIds = rows.map(function (r) { return r.blockId; });
       const sres = await supabaseClient.from("cupping_sessions").select("id,block_id").in("block_id", blockIds);
@@ -2582,7 +2578,6 @@ window.hideCalibration = async function() {
       (sres.data || []).forEach(function (s) { byBlock[String(s.block_id)] = s.id; });
       const sessIds = (sres.data || []).map(function (s) { return s.id; });
       if (!sessIds.length) return;
-
       const pres = await supabaseClient.from("cupping_participants")
         .select("session_id,member_id,guest_name,approved").in("session_id", sessIds);
       const guestBySess = {};
@@ -2590,7 +2585,6 @@ window.hideCalibration = async function() {
         const isGuest = (p.member_id == null) && !!p.guest_name;   // 비멤버(게스트)만
         if (isGuest && p.approved !== false) guestBySess[p.session_id] = (guestBySess[p.session_id] || 0) + 1;
       });
-
       rows.forEach(function (r) {
         const sid = byBlock[String(r.blockId)];
         if (!sid) return;
@@ -2609,7 +2603,6 @@ window.hideCalibration = async function() {
     } catch (e) { console.error("[cupping] 정원 재계산 실패", e); }
   }
 })();
-
 /* ═══ 커핑 5 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
