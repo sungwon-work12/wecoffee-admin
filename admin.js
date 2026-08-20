@@ -1,3 +1,9 @@
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 파트 1 — 공통 유틸 · 초기화 · 센터 데이터 로드
+   전역/헬퍼, 로그인·실시간 동기화, fetchCenterData(예약·수업·주문·블록·공지 로드).
+   의존: 없음 (가장 먼저 로드)
+   ═══════════════════════════════════════════════════════════ */
+
 const { createClient } = supabase;
 const supabaseClient = createClient('https://dqvzowmhxorxhiqoibmk.supabase.co', 'sb_publishable_DSi3rGnuQhy6OtML_3ukEA_7ptfaoK-');
 const $ = id => document.getElementById(id), $$ = q => document.querySelector(q), $$$ = q => document.querySelectorAll(q);
@@ -442,9 +448,13 @@ window.fetchCenterData = async function(opts) {
   } catch(e) { console.error(e); }
 };
 
-// ▼▼▼ 파트1 끝 — 파트2에서 이어집니다 ▼▼▼
+/* ═══ 파트 1 끝 ═══ */
 
-// ▼▼▼ 파트 2 시작 ▼▼▼
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 파트 2 — 대시보드 · 캘린더 · 실시간 타임라인
+   센터 대시보드(주/월), 구글캘린더 연동, 실시간 센터 현황 타임라인(전체화면).
+   의존: 파트 1
+   ═══════════════════════════════════════════════════════════ */
 
 window.toggleDashView=function(view){currentDashView=view;if(view==='month'){if($("dashMonthNav"))$("dashMonthNav").style.display='flex';}else{if($("dashMonthNav"))$("dashMonthNav").style.display='none';currentDashMonthOffset=0;}window.renderDashboard();};
 window.changeDashMonth=function(offset){currentDashMonthOffset+=offset;window.renderDashboard();};
@@ -676,9 +686,13 @@ window.openTimelineFullscreen=function(){
 window.closeTimelineFullscreen=function(){const overlay=document.getElementById('timelineFullscreenOverlay');if(overlay)overlay.classList.remove('active');document.body.style.overflow='';};
 document.addEventListener('keydown',function(e){if(e.key==='Escape')window.closeTimelineFullscreen();});
 
-// ▼▼▼ 파트 2 끝 ▼▼▼
+/* ═══ 파트 2 끝 ═══ */
 
-// ▼▼▼ 파트3 시작 (renderResTablePage 부터) ▼▼▼
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 파트 3 — 예약 리스트 · 생두 주문 · 가입상담 CRM · 기수 설정
+   예약 페이지네이션, 주문/명세서 행, 신청자 CRM, batch_config·자동 멤버등록, 상담 일정 모달.
+   의존: 파트 1~2
+   ═══════════════════════════════════════════════════════════ */
 
 window.renderResTablePage = function() {
     let data = window.currentFilteredRes || [];
@@ -1457,9 +1471,13 @@ window.showGhostHistory=function(phoneDigits){let history=globalApps.filter(a=>(
 
 window.showPrevAppHistory=function(phoneDigits){let history=globalApps.filter(a=>String(a.phone||'').replace(/\D/g,'')===phoneDigits).sort((a,b)=>{let aN=parseInt(String(a.desired_batch||'').replace(/[^0-9]/g,''))||0;let bN=parseInt(String(b.desired_batch||'').replace(/[^0-9]/g,''))||0;return aN-bN;});if(history.length===0)return showToast('신청 이력이 없습니다.');let html=history.map(a=>{let stBadge='';if(a.join_status==='가입 완료')stBadge='<span class="status-badge badge-green" style="font-size:11px;">가입 완료</span>';else if(a.join_status==='연락 두절')stBadge='<span class="status-badge badge-red" style="font-size:11px;">연락 두절</span>';else if(a.join_status)stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.join_status)}</span>`;else stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.status||'대기')}</span>`;return`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span style="font-weight:700;font-size:14px;color:var(--text-display);">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</span>${stBadge}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>희망센터: ${window.escapeHtml(a.desired_center||'-')}</div></div>`;}).join('');window.openCustomConfirm('전체 신청 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');};
 
-// ▼▼▼ 파트3 끝 — 파트4에서 이어집니다 ▼▼▼
+/* ═══ 파트 3 끝 ═══ */
 
-// ▼▼▼ 파트4 시작 (changeMemberPerPage 부터) ▼▼▼
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 파트 4 — 멤버 관리 · 명세서 · 블록/공지 · 인사이트 · 엑셀
+   멤버 연장/정지, 청구 명세서, 스케줄·공지 CRUD, 가입 인사이트, CSV 다운로드.
+   의존: 파트 1~3
+   ═══════════════════════════════════════════════════════════ */
 
 window.changeMemberPerPage=function(val){memberItemsPerPage=val==='all'?999999:parseInt(val);currentMemberPage=1;renderMemberTablePage();};
 window.changeMemberPage=function(page){currentMemberPage=page;renderMemberTablePage();};
@@ -1832,12 +1850,12 @@ window.downloadExcel = function(type) {
     }catch(err){console.error("Excel Download Error: ",err);if(typeof showToast==='function')showToast('엑셀 다운로드 중 오류가 발생했습니다.');}
 };
 
-// ▼▼▼ 파트 4 끝 ▼▼▼
+/* ═══ 파트 4 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 1 (세션 + 라인업)
-   admin.js 맨 하단에 파트1 → 파트2 → 파트3 순서로 붙이기
-   삭제 시: 세 파트 전체 제거
+   WeCoffee Admin · 커핑 1 — 세션 + 라인업(원두) 관리
+   커핑 세션 토글·생성, 라인업 CRUD, 라인업 복사/붙여넣기(교육매니저 레퍼런스 포함).
+   의존: 파트 1~4
    ═══════════════════════════════════════════════════════════ */
 
 let gCuppingBeans = {};
@@ -2058,30 +2076,69 @@ window.renderCuppingBeans = function(sessionId) {
   }).join("");
 };
 
-/* ── 원두 복사 / 라인업 전체 복사 / 붙여넣기 ── */
-window.copyCuppingBean = function(sessionId, beanId) {
-  const beans = gCuppingBeans[sessionId] || [];
-  const b = beans.find(function(x) { return String(x.id) === String(beanId); });
-  if (!b) return;
-  _wcClipSet([_wcBeanPick(b)]);
-  showToast("원두 1개를 복사했어요. 다른 세션에서 '붙여넣기' 하세요.");
+/* ── 라인업 복사/붙여넣기 클립보드 (회차 간 재사용 · 교육매니저 레퍼런스 포함) ──
+   · localStorage 클립보드에 원두 + 각 원두의 레퍼런스(교육매니저 평가)를 함께 저장
+   · 붙여넣기 시 새 원두에 레퍼런스를 자동 복원 (공개 전 상태로 들어감 → 정답 유출 없음)
+   · 레퍼런스 없는 원두는 원두 정보만 복사(무해) · 예전 클립(레퍼런스 미포함)도 안전 동작 */
+var _WC_REF_COLS = ["int_fragrance", "int_aroma", "int_flavor", "int_aftertaste", "int_acidity", "int_sweetness", "int_mouthfeel"];
+function _wcClipGet() { try { return JSON.parse(localStorage.getItem("wc_cupping_bean_clip") || "[]") || []; } catch (e) { return []; } }
+function _wcClipSet(arr) { try { localStorage.setItem("wc_cupping_bean_clip", JSON.stringify(arr || [])); } catch (e) {} }
+function _wcBeanPick(b) { return { name: b.name, origin: b.origin, farm: b.farm, process: b.process, altitude: b.altitude, variety: b.variety, roast_level: b.roast_level }; }
+function _wcRefPick(r) {
+  if (!r) return null;
+  var o = {}, has = false;
+  _WC_REF_COLS.forEach(function (k) { if (r[k] != null) { o[k] = r[k]; has = true; } });
+  if (r.ref_notes && r.ref_notes.length) { o.ref_notes = r.ref_notes; has = true; }
+  return has ? o : null;
+}
+function _wcClipToolbar(sessionId, beanCount) {
+  var clipN = _wcClipGet().length;
+  function btn(label, enabled, onclick, primary) {
+    var st = "padding:6px 12px;" + (primary ? "color:var(--primary);border-color:var(--primary);" : "") + (enabled ? "" : "opacity:.4;cursor:not-allowed;");
+    return '<button type="button" class="btn-outline btn-sm" style="' + st + '"' + (enabled ? '' : ' disabled') + ' onclick="' + (enabled ? onclick : '') + '">' + label + '</button>';
+  }
+  return '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">' +
+    btn("라인업 전체 복사" + (beanCount ? " (" + beanCount + ")" : ""), beanCount > 0, "window.copyCuppingLineup(\'" + sessionId + "\')", false) +
+    btn("붙여넣기" + (clipN ? " (" + clipN + ")" : ""), clipN > 0, "window.pasteCuppingLineup(\'" + sessionId + "\')", true) +
+    '</div>';
+}
+
+/* ── 원두 1개 복사 (원두 + 레퍼런스) ── */
+window.copyCuppingBean = async function (sessionId, beanId) {
+  var beans = gCuppingBeans[sessionId] || [];
+  var b = beans.find(function (x) { return String(x.id) === String(beanId); });
+  if (!b) return showToast("원두 정보를 찾을 수 없습니다.");
+  var ref = null;
+  try { var rf = await supabaseClient.from("cupping_references").select("*").eq("bean_id", beanId).maybeSingle(); ref = rf.data; } catch (e) {}
+  var o = _wcBeanPick(b); o._ref = _wcRefPick(ref);
+  _wcClipSet([o]);
+  showToast("원두 1개 복사" + (o._ref ? " (레퍼런스 포함)" : "") + ". 다른 세션에서 \'붙여넣기\' 하세요.");
   window.renderCuppingBeans(sessionId);
 };
 
-window.copyCuppingLineup = function(sessionId) {
-  const beans = gCuppingBeans[sessionId] || [];
+/* ── 라인업 전체 복사 (원두 + 레퍼런스) ── */
+window.copyCuppingLineup = async function (sessionId) {
+  var beans = gCuppingBeans[sessionId] || [];
   if (!beans.length) return showToast("복사할 원두가 없습니다.");
-  _wcClipSet(beans.map(_wcBeanPick));
-  showToast("라인업 " + beans.length + "개를 복사했어요.");
+  var refMap = {};
+  try {
+    var rf = await supabaseClient.from("cupping_references").select("*").in("bean_id", beans.map(function (b) { return b.id; }));
+    (rf.data || []).forEach(function (x) { refMap[x.bean_id] = x; });
+  } catch (e) { console.warn("[cupping] 레퍼런스 조회 실패", e); }
+  var clip = beans.map(function (b) { var o = _wcBeanPick(b); o._ref = _wcRefPick(refMap[b.id]); return o; });
+  _wcClipSet(clip);
+  var refN = clip.filter(function (c) { return c._ref; }).length;
+  showToast("라인업 " + beans.length + "개 복사" + (refN ? " (레퍼런스 " + refN + "개 포함)" : "") + ".");
   window.renderCuppingBeans(sessionId);
 };
 
-window.pasteCuppingLineup = async function(sessionId) {
-  const clip = _wcClipGet();
+/* ── 붙여넣기 (원두 삽입 후 레퍼런스 복원) ── */
+window.pasteCuppingLineup = async function (sessionId) {
+  var clip = _wcClipGet();
   if (!clip.length) return showToast("붙여넣을 원두가 없습니다. 먼저 복사하세요.");
-  const beans = gCuppingBeans[sessionId] || [];
-  const base = beans.length;
-  const rows = clip.map(function(b, i) {
+  var beans = gCuppingBeans[sessionId] || [];
+  var base = beans.length;
+  var rows = clip.map(function (b, i) {
     return {
       session_id: sessionId, sort_order: base + i,
       name: b.name || "원두", origin: b.origin || null, farm: b.farm || null,
@@ -2089,12 +2146,23 @@ window.pasteCuppingLineup = async function(sessionId) {
       variety: b.variety || null, roast_level: b.roast_level || null
     };
   });
-  const { error } = await supabaseClient.from("cupping_beans").insert(rows);
-  if (error) { showToast("붙여넣기 실패"); console.error(error); return; }
-  showToast(clip.length + "개 원두를 라인업에 붙여넣었어요.");
+  var ins = await supabaseClient.from("cupping_beans").insert(rows).select("id,sort_order");
+  if (ins.error) { showToast("붙여넣기 실패"); console.error(ins.error); return; }
+  var byOrder = {};
+  (ins.data || []).forEach(function (nb) { byOrder[nb.sort_order] = nb.id; });
+  var refRows = [];
+  clip.forEach(function (c, i) {
+    if (c._ref) { var bid = byOrder[base + i]; if (bid) refRows.push(Object.assign({ session_id: sessionId, bean_id: bid }, c._ref)); }
+  });
+  var refN = 0;
+  if (refRows.length) {
+    var rr = await supabaseClient.from("cupping_references").upsert(refRows, { onConflict: "bean_id" });
+    if (rr.error) { console.warn("[cupping] 레퍼런스 복원 실패", rr.error); showToast("원두는 붙여넣었지만 레퍼런스 복원 실패: " + (rr.error.message || "")); }
+    else refN = refRows.length;
+  }
+  showToast(clip.length + "개 원두" + (refN ? " + 레퍼런스 " + refN + "개" : "") + " 붙여넣기 완료.");
   await window.fetchCuppingBeans(sessionId);
 };
-
 window.addCuppingBean = async function() {
   const sessionId = $("lineupSessionId").value;
   const name = $("beanName").value.trim();
@@ -2143,11 +2211,12 @@ window.moveCuppingBean = async function(sessionId, beanId, dir) {
   await window.fetchCuppingBeans(sessionId);
 };
 
-/* ═══ 커핑 관리 모듈 파트 1 끝 ═══ */
+/* ═══ 커핑 1 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 2 (참가자)
-   파트1 바로 아래에 붙이기
+   WeCoffee Admin · 커핑 2 — 참가자 관리
+   참가자 로드·승인·삭제, 사전등록, 수업신청 ↔ 참가자 연동 취소.
+   의존: 파트 1~4 · 커핑 1
    ═══════════════════════════════════════════════════════════ */
 
 let gCuppingParts = {};
@@ -2331,13 +2400,14 @@ window.preRegParticipant = async function() {
   };
 })();
 
-/* ═══ 커핑 관리 모듈 파트 2 끝 ═══ */
+/* ═══ 커핑 2 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 3 (CVA 호스트 레퍼런스 + 공개)
-   기존 파트3 전체를 이 블록으로 교체
-   · 강도 0~15 · int_* 컬럼 · session.reference_revealed 로 공개 제어
+   WeCoffee Admin · 커핑 3 — CVA 호스트 레퍼런스 입력 + 공개 제어
+   원두별 기준 강도·노트 저장, 미입력 경고, 공개 전 정답 잠금.
+   의존: 파트 1~4 · 커핑 1~2
    ═══════════════════════════════════════════════════════════ */
+
 const CUPPING_REF_KEYS   = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
 const CUPPING_REF_LABELS = ["프래그런스","아로마","향미","뒷맛","산미","단맛","마우스필"];
 
@@ -2487,16 +2557,15 @@ window.hideCalibration = async function() {
   showToast("레퍼런스 공개가 취소되었습니다.");
   updateRevealButtons(false);
 };
-/* ═══ 커핑 관리 모듈 파트 3 끝 ═══ */
+
+/* ═══ 커핑 3 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 4 (라이브 제어 · 실시간 동기화)
-   · 호스트가 프로토콜 타이머를 라이브로 제어 → 참가자 화면 실시간 동기화
-   · cupping_sessions.timer_state(jsonb)에 상태 기록 → postgres_changes로 전파
-   · SCA 표준 프리셋(호스트 조정 가능) · 자동+수동 단계 전환
-   · 참가자 결과(기록) 공개 토글(records_revealed)
-   설치: admin.js 뒤(파트3 다음)에 이 블록을 붙여넣기. Webflow HTML 수정 불필요(패널은 JS가 주입).
+   WeCoffee Admin · 커핑 4 — 라이브 제어 · 실시간 프로토콜 타이머
+   SCA 프리셋 타이머 실시간 동기화, 참가자 결과 공개 토글.
+   의존: 파트 1~4 · 커핑 1~3
    ═══════════════════════════════════════════════════════════ */
+
 (function () {
   "use strict";
 
@@ -2734,14 +2803,15 @@ window.hideCalibration = async function() {
     _toast(next ? "참가자 결과가 공개되었습니다." : "결과 공개가 취소되었습니다.");
   };
 })();
-/* ═══ 커핑 관리 모듈 파트 4 끝 ═══ */
+
+/* ═══ 커핑 4 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 5 (UI 보정)
-   · #1 스케줄 리스트 관리 컬럼 정렬(커핑 설정 버튼 추가로 무너진 위계 복구)
-   · #3 게스트(비멤버) 참가자를 잔여 정원에 합산
-   설치: admin.js 뒤(파트4 다음)에 이 블록을 붙여넣기.
+   WeCoffee Admin · 커핑 5 — UI 보정
+   스케줄 관리 컬럼 정렬, 커핑 행 잔여 정원에 게스트 합산.
+   의존: 파트 1~4 · 커핑 1
    ═══════════════════════════════════════════════════════════ */
+
 (function () {
   "use strict";
 
@@ -2827,15 +2897,15 @@ window.hideCalibration = async function() {
     } catch (e) { console.error("[cupping] 정원 재계산 실패", e); }
   }
 })();
-/* ═══ 커핑 관리 모듈 파트 5 끝 ═══ */
+
+/* ═══ 커핑 5 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 6 (세션 URL QR 코드 + 크게 보기)
-   · 커핑 설정 모달의 세션 URL 옆에 QR 생성(참가자 모바일 접속용)
-   · "QR 크게 보기"로 전체화면 확대(분쇄 중 스캔 유도)
-   · QR 은 브라우저에서 직접 생성(URL 외부 전송 없음). CDN 라이브러리 사용.
-   설치: admin.js 뒤(파트5 다음)에 이 블록을 붙여넣기. Webflow HTML 수정 불필요.
+   WeCoffee Admin · 커핑 6 — 세션 URL QR 코드
+   커핑 설정 모달 URL 옆 QR 생성, 전체화면 확대.
+   의존: 파트 1~4 · 커핑 1
    ═══════════════════════════════════════════════════════════ */
+
 (function () {
   "use strict";
   var QR_SRC = "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js";
@@ -2919,17 +2989,15 @@ window.hideCalibration = async function() {
   };
   window.cupQrClose = function () { var ov = _$("cupQrOverlay"); if (ov) ov.style.display = "none"; };
 })();
-/* ═══ 커핑 관리 모듈 파트 6 끝 ═══ */
+
+/* ═══ 커핑 6 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 7 (호스트: 참가자 평가 조회 · 인라인 + 원두 셀렉트 동기화)
-   · 원두별 참가자 평가를 집계(항목 평균·레퍼런스 대비) + 개인별 상세로 조회
-   · 별도 팝업이 아니라 라이브 제어 패널 안에서 인라인으로 펼침(좌우 스크롤 없음)
-   · CVA/베이직 혼재 지원(공통 강도축 int_*). '결과 공개' 전에도 열람.
-   · 관리자(authenticated) 전용 읽기 RLS 필요: cupping-host-read.sql 먼저 실행.
-   · window.wcRenderReview(recs, ref, names) 노출 → 멤버리스트(파트8)에서 재사용.
-   설치: admin.js 뒤(파트6 다음)에 붙여넣기. Webflow HTML 수정 불필요.
+   WeCoffee Admin · 커핑 7 — 참가자 평가 조회 (호스트)
+   원두별/정확도 집계, 참가자별 상세(레이더·CVA폼), 세션 요약 CSV.
+   의존: 파트 1~4 · 커핑 1~4
    ═══════════════════════════════════════════════════════════ */
+
 (function () {
   "use strict";
   var RV_KEYS = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
@@ -3381,18 +3449,15 @@ window.hideCalibration = async function() {
     return '<td style="text-align:center;padding:7px 6px;border-top:1px solid #f2f4f6;font-weight:800;color:' + c + ';">' + (dev > 0 ? "+" : "") + dev.toFixed(1) + '</td>';
   }
 })();
-/* ═══ 커핑 관리 모듈 파트 7 끝 ═══ */
+
+/* ═══ 커핑 7 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   커핑 관리 모듈 — 파트 8 (멤버 활동·성장 조회: '내역' 모달 확장)
-   · 기존 멤버 '내역' 모달(openHistoryModal)에 아래를 추가:
-     - 활동 요약(센터 예약 · 콘텐츠 참여 · 커핑 세션)
-     - 센터 이용 비율 / 공간(존) 이용 통계
-     - 센서리 성장: 세션별 점수 + 레퍼런스 정확도(평균 편차) + 추이, 원두별 상세
-     - 콘텐츠 참여 이력 / 센터 예약 이력 (더보기)
-   · 관리자(authenticated) 읽기 RLS 필요: cupping-host-read.sql 먼저 실행.
-   설치: admin.js 뒤(파트7 다음)에 붙여넣기. Webflow HTML 수정 불필요.
+   WeCoffee Admin · 커핑 8 — 멤버 활동·성장 조회
+   멤버 '내역' 모달 확장: 이용 통계, 센서리 성장 추이, 이력.
+   의존: 파트 1~7
    ═══════════════════════════════════════════════════════════ */
+
 (function () {
   "use strict";
   var RV_KEYS = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
@@ -3725,4 +3790,5 @@ window.hideCalibration = async function() {
       '<div style="font-size:18px;font-weight:800;color:#191f28;">' + v + '</div></div>';
   }
 })();
-/* ═══ 커핑 관리 모듈 파트 8 끝 ═══ */
+
+/* ═══ 커핑 8 끝 ═══ */
