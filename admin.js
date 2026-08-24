@@ -2962,6 +2962,7 @@ window.hideCalibration = async function() {
           '<select id="cupRvBean" style="flex:1;height:32px;font-size:12.5px;min-width:0;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;" onchange="window.cupRvBeanChange()"></select>' +
           '<button type="button" onclick="window.cupRvLoad()" title="최신 평가 다시 불러오기" aria-label="새로고침" style="height:32px;width:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e5e8eb;border-radius:8px;background:#fff;cursor:pointer;color:#4e5968;flex-shrink:0;">' + SVG_REFRESH + '</button>' +
         '</div>' +
+        '<div id="cupRvRefWarn"></div>' +
         '<div id="cupRvBody" style="padding:14px;"></div>' +
       '</div>';
     var recBtn = _$("cupRecBtn"), panel = _$("cupLivePanel");
@@ -2994,12 +2995,29 @@ window.hideCalibration = async function() {
       if (beansOf(sid).length) window.cupRvLoad();
       else body.innerHTML = emptyMsg("원두를 먼저 추가하세요.");
     } else { window.cupRvLeaderboard(); }
+    try { window.cupRvRefWarn(); } catch (e) {}
   };
   window.cupRvBeanChange = function () {
     if (_rvMode === "board") { window.cupRvLeaderboard(); return; }
     var sel = _$("cupRvBean");
     if (sel && sel.value === "__all__") { var bs = beansOf(curSession()); if (bs.length) sel.value = bs[0].id; }
     window.cupRvLoad();
+  };
+  /* ── 레퍼런스 미입력 경고: 미숙한 호스트가 빠뜨려도 눈에 띄게 ── */
+  window.cupRvRefWarn = async function () {
+    var el = _$("cupRvRefWarn"); if (!el) return;
+    var sid = curSession(); if (!sid) { el.innerHTML = ""; return; }
+    var beans = beansOf(sid); if (!beans.length || typeof supabaseClient === "undefined") { el.innerHTML = ""; return; }
+    var have = {};
+    try {
+      var rf = await supabaseClient.from("cupping_references").select("bean_id").in("bean_id", beans.map(function (b) { return b.id; }));
+      (rf.data || []).forEach(function (x) { if (x.bean_id) have[x.bean_id] = true; });
+    } catch (e) { el.innerHTML = ""; return; }
+    var missing = beans.filter(function (b) { return !have[b.id]; }).map(function (b) { return b.name; });
+    if (!missing.length) { el.innerHTML = ""; return; }
+    el.innerHTML = '<div style="margin:0 14px 10px;padding:10px 12px;background:#fff7ea;border:1px solid #ffe0ad;border-radius:9px;font-size:12px;color:#8a5a00;line-height:1.55;">' +
+      '<b>레퍼런스 미입력 ' + missing.length + '개</b> · ' + missing.map(esc).join(", ") + '<br>' +
+      '<span style="color:#a97b2e;">이 원두는 정확도·코칭 비교가 비어요. 매니저 평가(레퍼런스)를 입력하면 채워집니다.</span></div>';
   };
   function emptyMsg(t) { return '<div style="padding:26px 0;text-align:center;color:#8b95a1;font-size:13px;">' + t + '</div>'; }
   function partNameMap(sessionId) {
