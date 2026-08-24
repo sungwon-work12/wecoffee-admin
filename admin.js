@@ -3616,3 +3616,54 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 8 끝 ═══ */
+
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 커핑 9 — 평가 모드 설정 (호스트)
+   커핑 설정 모달에 '평가 모드' 셀렉터 주입 → cupping_sessions.assess_mode 저장.
+   full=묘사+정동 / descriptive=묘사만 / affective=정동만
+   의존: 파트 1(openCuppingLineup), DB assess_mode 컬럼(cupping-assess-mode.sql)
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  var _$ = function (id) { return document.getElementById(id); };
+  var MODES = [
+    { v: "full",        label: "묘사 + 정동 (전체 CVA)", desc: "강도·품질 모두 입력 — CVA 점수 + 정확도(편차) 둘 다 기록" },
+    { v: "descriptive", label: "묘사 평가만",            desc: "강도(0~15)·향미만 — 정확도(편차)만 기록, CVA 점수는 없음" },
+    { v: "affective",   label: "정동 평가만",            desc: "품질(1~9)·컵 평가만 — CVA 점수만 기록, 정확도(편차)는 없음" }
+  ];
+  function descOf(v) { for (var i = 0; i < MODES.length; i++) if (MODES[i].v === v) return MODES[i]; return MODES[0]; }
+  var _orig = window.openCuppingLineup;
+  window.openCuppingLineup = async function (session) {
+    if (_orig) await _orig(session);
+    try { injectMode(session); } catch (e) { console.error("[cupping] 평가 모드 주입 오류", e); }
+  };
+  function injectMode(session) {
+    if (!session) return;
+    var host = _$("cupAssessModeRow");
+    if (!host) {
+      var anchor = _$("beanListArea"); if (!anchor || !anchor.parentNode) return;
+      host = document.createElement("div");
+      host.id = "cupAssessModeRow";
+      host.style.cssText = "margin:0 0 16px;padding:12px 14px;background:#f9fafb;border:1px solid #eef0f3;border-radius:12px;";
+      anchor.parentNode.insertBefore(host, anchor);
+    }
+    var cur = session.assess_mode || "full";
+    host.innerHTML =
+      '<div style="font-size:12px;font-weight:800;color:#4e5968;margin-bottom:7px;">평가 모드 <span style="font-weight:600;color:#8b95a1;">· 참가자가 입력할 항목</span></div>' +
+      '<select id="cupAssessMode" onchange="window.cupSetAssessMode()" style="width:100%;height:38px;font-size:13px;font-weight:600;border:1px solid #e5e8eb;border-radius:9px;padding:0 10px;background:#fff;color:#191f28;">' +
+      MODES.map(function (m) { return '<option value="' + m.v + '"' + (m.v === cur ? ' selected' : '') + '>' + m.label + '</option>'; }).join("") +
+      '</select>' +
+      '<div id="cupAssessModeDesc" style="font-size:11.5px;color:#8b95a1;margin-top:6px;line-height:1.5;">' + descOf(cur).desc + '</div>';
+  }
+  window.cupSetAssessMode = async function () {
+    var sel = _$("cupAssessMode"); if (!sel || typeof supabaseClient === "undefined") return;
+    var sid = window._cuppingSession && window._cuppingSession.id; if (!sid) return;
+    var mode = sel.value, m = descOf(mode);
+    var d = _$("cupAssessModeDesc"); if (d) d.textContent = m.desc;
+    var res = await supabaseClient.from("cupping_sessions").update({ assess_mode: mode }).eq("id", sid);
+    if (res.error) { if (typeof showToast === "function") showToast("평가 모드 저장 실패"); console.error("[cupping] assess_mode 저장 실패", res.error); return; }
+    if (window._cuppingSession) window._cuppingSession.assess_mode = mode;
+    if (typeof showToast === "function") showToast("평가 모드: " + m.label);
+  };
+})();
+/* ═══ 커핑 9 끝 ═══ */
