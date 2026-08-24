@@ -2894,14 +2894,15 @@ window.hideCalibration = async function() {
     if (_rcb) _rcb(sessionId);
     try {
       syncBeanSelect("refBeanSelect", sessionId, window.loadRefForBean);
-      if (_$("cupRvInline") && _$("cupRvInline").style.display !== "none") syncBeanSelect("cupRvBean", sessionId, window.cupRvLoad);
+      if (_$("cupRvInline") && _$("cupRvInline").style.display !== "none") syncBeanSelect("cupRvBean", sessionId, window.cupRvBeanChange, true);
     } catch (e) { console.error("[cupping] 원두 셀렉트 동기화 오류", e); }
   };
-  function syncBeanSelect(id, sessionId, cb) {
+  function syncBeanSelect(id, sessionId, cb, withAll) {
     var sel = _$(id); if (!sel) return;
     var beans = beansOf(sessionId), cur = sel.value;
-    sel.innerHTML = beans.map(function (b, i) { return '<option value="' + b.id + '">' + (i + 1) + ". " + esc(b.name) + '</option>'; }).join("");
-    if (cur && beans.some(function (b) { return b.id === cur; })) sel.value = cur;
+    var opts = withAll ? '<option value="__all__">전체 원두</option>' : '';
+    sel.innerHTML = opts + beans.map(function (b, i) { return '<option value="' + b.id + '">' + (i + 1) + ". " + esc(b.name) + '</option>'; }).join("");
+    if (cur && (cur === "__all__" ? withAll : beans.some(function (b) { return b.id === cur; }))) sel.value = cur;
     if (cb) { try { cb(); } catch (e) {} }
   }
   /* ── 조회 버튼 + 인라인 영역 주입: 라이브 제어 패널 '결과 공개' 아래 ── */
@@ -2927,7 +2928,7 @@ window.hideCalibration = async function() {
         '</div>' +
         '<div id="cupRvBeanRow" style="display:flex;align-items:center;gap:6px;padding:10px 14px 0;">' +
           '<span style="font-size:12px;font-weight:700;color:#8b95a1;flex-shrink:0;">원두</span>' +
-          '<select id="cupRvBean" style="flex:1;height:32px;font-size:12.5px;min-width:0;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;" onchange="window.cupRvLoad()"></select>' +
+          '<select id="cupRvBean" style="flex:1;height:32px;font-size:12.5px;min-width:0;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;" onchange="window.cupRvBeanChange()"></select>' +
           '<button type="button" onclick="window.cupRvLoad()" title="최신 평가 다시 불러오기" aria-label="새로고침" style="height:32px;width:32px;display:inline-flex;align-items:center;justify-content:center;border:1px solid #e5e8eb;border-radius:8px;background:#fff;cursor:pointer;color:#4e5968;flex-shrink:0;">' + SVG_REFRESH + '</button>' +
         '</div>' +
         '<div id="cupRvBody" style="padding:14px;"></div>' +
@@ -2950,16 +2951,24 @@ window.hideCalibration = async function() {
     var tb = _$("cupRvTabBean"), tr = _$("cupRvTabBoard"), row = _$("cupRvBeanRow");
     if (tb) { tb.style.background = _rvMode === "bean" ? "#fff" : "transparent"; tb.style.color = _rvMode === "bean" ? "#191f28" : "#8b95a1"; tb.style.boxShadow = _rvMode === "bean" ? "0 1px 4px rgba(0,0,0,.06)" : "none"; }
     if (tr) { tr.style.background = _rvMode === "board" ? "#fff" : "transparent"; tr.style.color = _rvMode === "board" ? "#191f28" : "#8b95a1"; tr.style.boxShadow = _rvMode === "board" ? "0 1px 4px rgba(0,0,0,.06)" : "none"; }
-    if (row) row.style.display = _rvMode === "bean" ? "flex" : "none";
+    if (row) row.style.display = "flex";
   }
   window.cupRvMode = function (mode) {
     _rvMode = mode; syncTabs();
     var sid = curSession(), body = _$("cupRvBody"); if (!body) return;
+    syncBeanSelect("cupRvBean", sid, null, true);
     if (mode === "bean") {
-      syncBeanSelect("cupRvBean", sid, null);
+      var sel = _$("cupRvBean");
+      if (sel && (!sel.value || sel.value === "__all__")) { var bs = beansOf(sid); if (bs.length) sel.value = bs[0].id; }
       if (beansOf(sid).length) window.cupRvLoad();
       else body.innerHTML = emptyMsg("원두를 먼저 추가하세요.");
     } else { window.cupRvLeaderboard(); }
+  };
+  window.cupRvBeanChange = function () {
+    if (_rvMode === "board") { window.cupRvLeaderboard(); return; }
+    var sel = _$("cupRvBean");
+    if (sel && sel.value === "__all__") { var bs = beansOf(curSession()); if (bs.length) sel.value = bs[0].id; }
+    window.cupRvLoad();
   };
   function emptyMsg(t) { return '<div style="padding:26px 0;text-align:center;color:#8b95a1;font-size:13px;">' + t + '</div>'; }
   function partNameMap(sessionId) {
@@ -3004,8 +3013,12 @@ window.hideCalibration = async function() {
     var d;
     try { d = await loadSessionData(sessionId); }
     catch (e) { body.innerHTML = '<div style="padding:16px 0;color:#e5484d;font-size:13px;line-height:1.6;">조회 실패: ' + esc(e.message || "") + '</div>'; return; }
+    var beanSel = _$("cupRvBean"), beanId = beanSel ? beanSel.value : "__all__";
+    var perBean = !!(beanId && beanId !== "__all__");
+    var beanLabel = perBean && beanSel ? String((beanSel.options[beanSel.selectedIndex] || {}).text || "").replace(/^\d+\.\s*/, "") : "";
+    var recsUse = perBean ? d.recs.filter(function (r) { return r.bean_id === beanId; }) : d.recs;
     var byPart = {};
-    d.recs.forEach(function (r) {
+    recsUse.forEach(function (r) {
       if (!(RV_KEYS.some(function (k) { return r[k] != null; }) || r.cva_score != null)) return;
       var pid = r.participant_id; (byPart[pid] = byPart[pid] || []).push(r);
     });
@@ -3030,7 +3043,11 @@ window.hideCalibration = async function() {
     Object.keys(groups).forEach(function (k) {
       groups[k].sort(function (a, b) { if (a.avgDev == null || b.avgDev == null) return (b.avgScore || 0) - (a.avgScore || 0); return a.avgDev - b.avgDev; });
     });
-    var h = '<div style="font-size:12px;color:#8b95a1;margin-bottom:12px;line-height:1.5;">레퍼런스에 얼마나 가깝게 평가했는지 — 코칭 참고용이에요. 순위가 아니라 편차 구간으로 묶었어요.</div>';
+    var h = '<div style="font-size:12px;color:#8b95a1;margin-bottom:12px;line-height:1.5;">' +
+      (perBean
+        ? '<b style="color:#4e5968;">' + esc(beanLabel) + '</b> · 이 원두에서 레퍼런스에 얼마나 가깝게 평가했는지예요. 편차 구간으로 묶고, 구간 안에서는 근접순으로 정렬했어요. 코칭 참고용입니다.'
+        : '전체 원두 평균 기준이에요. 위에서 특정 원두를 고르면 그 원두에서 누가 근접했는지 볼 수 있어요. 순위가 아니라 편차 구간으로 묶었어요.') +
+      '</div>';
     BANDS.forEach(function (bd) {
       var list = groups[bd.key]; if (!list.length) return;
       h += '<div style="margin-bottom:14px;">' +
@@ -3043,7 +3060,7 @@ window.hideCalibration = async function() {
       list.forEach(function (p) {
         h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid ' + bd.bd + ';background:' + bd.bg + ';border-radius:10px;margin-bottom:6px;">' +
           '<div style="min-width:0;flex:1;font-size:13.5px;font-weight:700;color:#191f28;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(p.name) +
-            '<span style="font-size:10.5px;color:#8b95a1;font-weight:600;"> · 원두 ' + p.beans + '종</span></div>' +
+            '<span style="font-size:10.5px;color:#8b95a1;font-weight:600;">' + (perBean ? '' : ' · 원두 ' + p.beans + '종') + '</span></div>' +
           '<div style="text-align:right;flex-shrink:0;"><span style="font-size:14px;font-weight:800;color:#ea6f00;">' + fx(p.avgScore) + '</span>' +
             '<span style="font-size:10px;color:#b0b8c1;font-weight:700;"> 점</span></div>' +
           '<div style="text-align:right;flex-shrink:0;min-width:52px;">' +
