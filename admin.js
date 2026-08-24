@@ -3143,6 +3143,38 @@ window.hideCalibration = async function() {
       h += '<tr>' + td(RV_LABS[i], "left", "700") + td(fx(av)) + (ref ? td(fx(rv)) + tdDev(dev) : "") + '</tr>';
     });
     h += '</tbody></table>';
+    // ── 코칭 포인트: 참가자별 눈에 띄는 편차 자동 감지 (레퍼런스 우선, 없으면 그룹 평균) ──
+    (function () {
+      var useRef = !!ref, thr = useRef ? 2.5 : 3;
+      if (!useRef && n < 3) return;
+      var base = RV_KEYS.map(function (k, i) { return useRef ? num(ref[k]) : attrAvg[i]; });
+      var cmp = useRef ? "교육 매니저" : "그룹 평균";
+      var lines = [];
+      rows.forEach(function (r) {
+        var devs = [];
+        RV_KEYS.forEach(function (k, i) {
+          var mv = num(r[k]), bv = base[i];
+          if (mv == null || bv == null) return;
+          var d = mv - bv; if (Math.abs(d) >= thr) devs.push({ lab: RV_LABS[i], d: d });
+        });
+        if (!devs.length) return;
+        devs.sort(function (a, b) { return Math.abs(b.d) - Math.abs(a.d); });
+        var top = devs.slice(0, 2).map(function (x) {
+          var sign = x.d > 0 ? "+" : "", val = Number.isInteger(x.d) ? x.d : x.d.toFixed(1);
+          var col = x.d > 0 ? "#d63b40" : "#2b6fd6";
+          return '<span style="font-weight:700;color:' + col + ';">' + esc(x.lab) + ' ' + sign + val + '</span>';
+        }).join('<span style="color:#c7ccd2;"> · </span>');
+        lines.push('<div style="display:flex;gap:8px;align-items:baseline;padding:8px 10px;border:1px solid #eef0f3;border-radius:9px;margin-bottom:6px;">' +
+          '<span style="font-size:12.5px;font-weight:800;color:#191f28;flex-shrink:0;">' + esc(names[r.participant_id] || "참가자") + '</span>' +
+          '<span style="font-size:12px;color:#4e5968;">' + top + '</span></div>');
+      });
+      h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:4px 0 8px;">코칭 포인트 <span style="font-weight:600;color:#8b95a1;">· ' + cmp + ' 대비 ' + thr + '점 이상 차이</span></div>';
+      if (lines.length) {
+        h += lines.join("") + '<div style="font-size:11px;color:#b0b8c1;margin:2px 0 16px;line-height:1.5;">숫자는 ' + cmp + ' 대비 강도 차이(0~15). <span style="color:#d63b40;">+는 높게</span>, <span style="color:#2b6fd6;">−는 낮게</span> 평가.</div>';
+      } else {
+        h += '<div style="padding:12px;text-align:center;color:#00a06d;font-size:12.5px;font-weight:600;background:#f0fbf5;border:1px solid #cdeede;border-radius:9px;margin-bottom:16px;">' + cmp + ' 대비 큰 편차 없이 잘 맞았어요 👍</div>';
+      }
+    })();
     h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:4px 0 8px;">참가자별 상세 (' + n + '명)</div>';
     rows.sort(function (a, b) { return (num(b.cva_score) || 0) - (num(a.cva_score) || 0); });
     // 상세(레이더·CVA폼) 토글용 상태 저장
