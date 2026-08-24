@@ -419,6 +419,7 @@ window.fetchCenterData = async function(opts) {
   } catch(e) { console.error(e); }
 };
 /* ═══ 파트 1 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 파트 2 — 대시보드 · 캘린더 · 실시간 타임라인
    센터 대시보드(주/월), 구글캘린더 연동, 실시간 센터 현황 타임라인(전체화면).
@@ -474,7 +475,22 @@ function renderAttendeeModal(title, sub, attendees, contentKey, downloadMeta) {
     window._trnContentModalData = { attendees, contentKey, ...downloadMeta };
     document.getElementById('trnContentModal').classList.add('show');
 }
-window.openBlkAttendees=function(blockId){let b=gBlk.find(x=>String(x.id)===String(blockId));if(!b)return;let contentKey=`[${b.category}] ${b.reason}`;let timeRange=`${b.start_time}~${b.end_time}`;let attendees=gTrn.filter(t=>{if(String(t.status||'').includes('취소'))return false;let cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length<5)return false;return cInfo[0]===b.block_date&&cInfo[2]===timeRange&&cInfo[3]===b.center&&cInfo[4]===contentKey;});attendees=attendees.map(t=>({...t,_nth:calcNth(t.phone,contentKey)}));attendees.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));renderAttendeeModal(b.reason,`${b.block_date} | ${timeRange} | ${b.center}`,attendees,contentKey,{title:`${b.block_date}_${b.reason}`});};
+window.openBlkAttendees=async function(blockId){let b=gBlk.find(x=>String(x.id)===String(blockId));if(!b)return;let contentKey=`[${b.category}] ${b.reason}`;let timeRange=`${b.start_time}~${b.end_time}`;let sub=`${b.block_date} | ${timeRange} | ${b.center}`;let dmeta={title:`${b.block_date}_${b.reason}`};
+  // 커핑 블록 = 콘텐츠 참가자가 곧 커핑 세션 참가자 → 승인된 세션 참가자(멤버+게스트)로 명단 구성
+  let isCup=(String(b.category||'')+' '+String(b.reason||'')).includes('커핑')||b.is_cupping;
+  if(isCup){
+    try{
+      let sres=await supabaseClient.from("cupping_sessions").select("id").eq("block_id",b.id).maybeSingle();
+      let sid=sres.data&&sres.data.id;
+      if(!sid){renderAttendeeModal(b.reason,sub,[],contentKey,dmeta);return;}
+      let pres=await supabaseClient.from("cupping_participants").select("*, members(name,batch,phone)").eq("session_id",sid).order("joined_at",{ascending:true});
+      let parts=(pres.data||[]).filter(p=>p.approved!==false);
+      let attendees=parts.map(p=>{let isMember=!!p.member_id;let phone=isMember?((p.members&&p.members.phone)||''):(p.guest_phone||'');let br=isMember?((p.members&&p.members.batch)||''):'';let batch=isMember?(br?(/^\d+$/.test(String(br).trim())?String(br).trim()+'기':br):'-'):'게스트';return{batch:batch,name:isMember?((p.members&&p.members.name)||'멤버'):(p.guest_name||'게스트'),phone:phone,created_at:p.joined_at,_nth:calcNth(phone,contentKey)};});
+      renderAttendeeModal(b.reason,sub,attendees,contentKey,dmeta);
+    }catch(e){console.error("[cupping] 참가자 명단 로드 실패",e);renderAttendeeModal(b.reason,sub,[],contentKey,dmeta);}
+    return;
+  }
+  let attendees=gTrn.filter(t=>{if(String(t.status||'').includes('취소'))return false;let cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length<5)return false;return cInfo[0]===b.block_date&&cInfo[2]===timeRange&&cInfo[3]===b.center&&cInfo[4]===contentKey;});attendees=attendees.map(t=>({...t,_nth:calcNth(t.phone,contentKey)}));attendees.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));renderAttendeeModal(b.reason,sub,attendees,contentKey,dmeta);};
 window.closeTrnContentModal=function(){let modal=document.getElementById('trnContentModal');if(modal)modal.classList.remove('show');};
 window.downloadTrnContentAttendees=function(){let d=window._trnContentModalData;if(!d||!d.attendees||d.attendees.length===0){showToast('다운로드할 데이터가 없습니다.');return;}let titleStr=d.title||d.contentKey||'명단';let csv='\uFEFF순번,기수,성함,연락처,참여회차,신청일\n';d.attendees.forEach((t,idx)=>{csv+=`"${idx+1}","${t.batch||'-'}","${String(t.name||'').replace(/"/g,'""')}","${String(t.phone||'').replace(/"/g,'""')}","${t._nth>=2?t._nth+'회차':'-'}","${formatDt(t.created_at)}"\n`;});const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_신청자명단_${String(titleStr).replace(/[\/\s:]/g,'_').slice(0,40)}_${new Date().toISOString().slice(0,10)}.csv`;link.click();showToast('명단이 다운로드되었습니다.');};
 window.renderTimeline=function(){
@@ -637,6 +653,7 @@ window.openTimelineFullscreen=function(){
 window.closeTimelineFullscreen=function(){const overlay=document.getElementById('timelineFullscreenOverlay');if(overlay)overlay.classList.remove('active');document.body.style.overflow='';};
 document.addEventListener('keydown',function(e){if(e.key==='Escape')window.closeTimelineFullscreen();});
 /* ═══ 파트 2 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 파트 3 — 예약 리스트 · 생두 주문 · 가입상담 CRM · 기수 설정
    예약 페이지네이션, 주문/명세서 행, 신청자 CRM, batch_config·자동 멤버등록, 상담 일정 모달.
@@ -2566,7 +2583,7 @@ window.hideCalibration = async function() {
 /* ═══ 커핑 4 끝 ═══ */
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 5 — UI 보정
-   스케줄 관리 컬럼 정렬, 커핑 행 잔여 정원에 게스트 합산.
+   스케줄 관리 컬럼 정렬, 커핑 행 잔여 정원 = 승인된 세션 참가자 수(멤버+게스트).
    의존: 파트 1~4 · 커핑 1
    ═══════════════════════════════════════════════════════════ */
 (function () {
@@ -2626,25 +2643,20 @@ window.hideCalibration = async function() {
       if (!sessIds.length) return;
       const pres = await supabaseClient.from("cupping_participants")
         .select("session_id,member_id,guest_name,approved").in("session_id", sessIds);
-      const guestBySess = {};
+      // 커핑 블록 정원 = 승인된 커핑 세션 참가자 수(멤버+게스트). 대기(미승인) 게스트는 제외.
+      const cntBySess = {};
       (pres.data || []).forEach(function (p) {
-        const isGuest = (p.member_id == null) && !!p.guest_name;   // 비멤버(게스트)만
-        if (isGuest && p.approved !== false) guestBySess[p.session_id] = (guestBySess[p.session_id] || 0) + 1;
+        if (p.approved !== false) cntBySess[p.session_id] = (cntBySess[p.session_id] || 0) + 1;
       });
       rows.forEach(function (r) {
         const sid = byBlock[String(r.blockId)];
-        if (!sid) return;
-        const g = guestBySess[sid] || 0;
-        if (!g) return;
+        if (!sid) return;                                       // 세션 없으면 기존(수업신청) 표시 유지
+        const cnt = cntBySess[sid] || 0;
         const max = (r.blk && r.blk.capacity != null) ? parseInt(r.blk.capacity, 10) : null;
-        if (max === null || isNaN(max) || max === 0) return;   // 무제한/오픈예정은 제외
-        const strong = r.cell.querySelector("strong");
-        const cur = strong ? parseInt(strong.textContent, 10) : NaN;
-        if (isNaN(cur)) return;                                  // 이미 마감 등은 그대로
-        const total = cur + g;
-        r.cell.innerHTML = (total >= max)
+        if (max === null || isNaN(max) || max === 0) return;    // 무제한/오픈예정은 그대로
+        r.cell.innerHTML = (cnt >= max)
           ? '<strong style="color:var(--error);">마감 (' + max + '명)</strong>'
-          : '<strong>' + total + '</strong> / ' + max;
+          : '<strong>' + cnt + '</strong> / ' + max;
       });
     } catch (e) { console.error("[cupping] 정원 재계산 실패", e); }
   }
