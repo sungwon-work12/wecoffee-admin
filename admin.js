@@ -2776,6 +2776,7 @@ window.hideCalibration = async function() {
     [5,10,15].forEach(function(rv){ var p=AX.map(function(_,i){ return pt(i,rv).join(","); }).join(" "); h+='<polygon points="'+p+'" fill="none" stroke="#e5e8eb" stroke-width="1"/>'; });
     AX.forEach(function(lab,i){ var e=pt(i,15), lp=pt(i,17.8); h+='<line x1="'+cx+'" y1="'+cy+'" x2="'+e[0]+'" y2="'+e[1]+'" stroke="#eceef1" stroke-width="1"/>'; var anc=Math.abs(lp[0]-cx)<6?"middle":(lp[0]<cx?"end":"start"); h+='<text x="'+lp[0]+'" y="'+(lp[1]+4)+'" font-size="11" font-weight="700" fill="#8b95a1" text-anchor="'+anc+'">'+lab+'</text>'; });
     if(ref){ h+='<polygon points="'+poly(ref)+'" fill="rgba(49,130,246,0.14)" stroke="#3182f6" stroke-width="2"/>'; ref.forEach(function(v,i){ if(v==null)return; var p=pt(i,v); h+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3" fill="#3182f6"/>'; }); }
+    if(extra){ h+='<polygon points="'+poly(extra)+'" fill="rgba(18,182,134,0.14)" stroke="#12b886" stroke-width="2"/>'; extra.forEach(function(v,i){ if(v==null)return; var p=pt(i,v); h+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3" fill="#12b886"/>'; }); }
     h+='<polygon points="'+poly(me)+'" fill="rgba(255,121,0,0.16)" stroke="#ff7900" stroke-width="2"/>';
     me.forEach(function(v,i){ if(v==null)return; var p=pt(i,v); h+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3.5" fill="#fff" stroke="#ff7900" stroke-width="2"/>'; });
     return '<svg width="340" height="300" viewBox="0 0 340 300" style="max-width:100%;height:auto;">'+h+'</svg>';
@@ -2854,6 +2855,36 @@ window.hideCalibration = async function() {
     renderDetail(i);
   };
   window.cupRvDetailView = function (i, v) { _rvView[i] = v; renderDetail(i); };
+  /* ── 참가자 A/B 레이더 겹쳐보기 ── */
+  window.cupRvCmpRender = function (a, b) {
+    var A = _rvRows[a], B = _rvRows[b]; if (!A || !B) return '<div style="padding:16px 0;text-align:center;color:#b0b8c1;font-size:12.5px;">비교할 참가자를 두 명 선택하세요.</div>';
+    var meA = RV_KEYS.map(function (k) { return num(A[k]); });
+    var meB = RV_KEYS.map(function (k) { return num(B[k]); });
+    var refV = _rvRef ? RV_KEYS.map(function (k) { return num(_rvRef[k]); }) : null;
+    var nmA = _rvNames[A.participant_id] || "참가자", nmB = _rvNames[B.participant_id] || "참가자";
+    var radar = radarSVGLocal(meA, refV, meB, RV_LABS);
+    var legend = '<div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;font-size:11.5px;font-weight:700;color:#4e5968;margin-top:2px;">' +
+      '<span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ff7900;margin-right:4px;vertical-align:middle;"></i>' + esc(nmA) + '</span>' +
+      '<span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#12b886;margin-right:4px;vertical-align:middle;"></i>' + esc(nmB) + '</span>' +
+      (refV ? '<span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#3182f6;margin-right:4px;vertical-align:middle;"></i>교육 매니저</span>' : '') + '</div>';
+    var tbl = '<table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;margin-top:10px;border:1px solid #eef0f3;border-radius:10px;overflow:hidden;">' +
+      '<thead><tr style="background:#f9fafb;"><th style="text-align:left;padding:6px 8px;color:#8b95a1;font-weight:700;">항목</th><th style="text-align:center;padding:6px 8px;color:#ea6f00;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(nmA) + '</th><th style="text-align:center;padding:6px 8px;color:#0a9d74;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(nmB) + '</th><th style="text-align:center;padding:6px 8px;color:#8b95a1;font-weight:700;">차이</th></tr></thead><tbody>';
+    RV_LABS.forEach(function (lab, i) {
+      var va = meA[i], vb = meB[i], df = (va != null && vb != null) ? (va - vb) : null;
+      var dc = df == null ? "#b0b8c1" : (Math.abs(df) <= 1 ? "#00b386" : (Math.abs(df) <= 2.5 ? "#e08600" : "#e5484d"));
+      tbl += '<tr><td style="padding:6px 8px;font-weight:700;color:#191f28;">' + lab + '</td>' +
+        '<td style="text-align:center;padding:6px 8px;">' + fx(va) + '</td>' +
+        '<td style="text-align:center;padding:6px 8px;">' + fx(vb) + '</td>' +
+        '<td style="text-align:center;padding:6px 8px;font-weight:800;color:' + dc + ';">' + (df == null ? "—" : (df > 0 ? "+" : "") + (Number.isInteger(df) ? df : df.toFixed(1))) + '</td></tr>';
+    });
+    tbl += '</tbody></table>';
+    return '<div style="display:flex;justify-content:center;">' + radar + '</div>' + legend + tbl;
+  };
+  window.cupRvCmp = function () {
+    var sa = _$("cupRvCmpA"), sb = _$("cupRvCmpB"), box = _$("cupRvCmpBox");
+    if (!sa || !sb || !box) return;
+    box.innerHTML = window.cupRvCmpRender(parseInt(sa.value, 10) || 0, parseInt(sb.value, 10) || 0);
+  };
   function renderDetail(i){
     var box = _$("cupRvDetail" + i); if (!box) return;
     var r = _rvRows[i]; if (!r) return;
@@ -3175,10 +3206,22 @@ window.hideCalibration = async function() {
         h += '<div style="padding:12px;text-align:center;color:#00a06d;font-size:12.5px;font-weight:600;background:#f0fbf5;border:1px solid #cdeede;border-radius:9px;margin-bottom:16px;">' + cmp + ' 대비 큰 편차 없이 잘 맞았어요 👍</div>';
       }
     })();
-    h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:4px 0 8px;">참가자별 상세 (' + n + '명)</div>';
     rows.sort(function (a, b) { return (num(b.cva_score) || 0) - (num(a.cva_score) || 0); });
-    // 상세(레이더·CVA폼) 토글용 상태 저장
+    // 상세 토글·비교용 상태 저장
     _rvRows = rows; _rvRef = ref || null; _rvNames = names; _rvView = {}; _rvBeanName = beanName || "";
+    // ── 참가자 A/B 레이더 겹쳐보기 ──
+    if (n >= 2) {
+      var cmpOpts = rows.map(function (r, ri) { return '<option value="' + ri + '">' + esc(names[r.participant_id] || "참가자") + '</option>'; }).join("");
+      var cmpOptsB = rows.map(function (r, ri) { return '<option value="' + ri + '"' + (ri === 1 ? ' selected' : '') + '>' + esc(names[r.participant_id] || "참가자") + '</option>'; }).join("");
+      h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:14px 0 8px;">참가자 비교 <span style="font-weight:600;color:#8b95a1;">· 두 명 골라 레이더 겹쳐보기</span></div>' +
+        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">' +
+          '<select id="cupRvCmpA" onchange="window.cupRvCmp()" style="flex:1;height:32px;font-size:12.5px;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;min-width:0;">' + cmpOpts + '</select>' +
+          '<span style="color:#b0b8c1;font-weight:800;flex-shrink:0;">vs</span>' +
+          '<select id="cupRvCmpB" onchange="window.cupRvCmp()" style="flex:1;height:32px;font-size:12.5px;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;min-width:0;">' + cmpOptsB + '</select>' +
+        '</div>' +
+        '<div id="cupRvCmpBox">' + window.cupRvCmpRender(0, 1) + '</div>';
+    }
+    h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:18px 0 8px;">참가자별 상세 (' + n + '명)</div>';
     rows.forEach(function (r, ri) {
       var isBasic = r.form_type === "basic";
       var nm = names[r.participant_id] || "참가자";
