@@ -3269,33 +3269,36 @@ window.hideCalibration = async function() {
     var sessions = [];
     {
       try {
-        var partsMap = {};
+        // 기록을 member_id·subj_phone 스냅샷으로 직접 조회 (참가자/세션 삭제돼도 보존분 노출)
+        var digits = String(phone || "").replace(/\D/g, "");
+        var recMap = {};
         if (memberId) {
-          var pq = await supabaseClient.from("cupping_participants").select("id,session_id,member_id,guest_phone").eq("member_id", memberId);
-          (pq.data || []).forEach(function (p) { partsMap[p.id] = p; });
+          var rq1 = await supabaseClient.from("cupping_records").select("*").eq("member_id", memberId);
+          (rq1.data || []).forEach(function (r) { recMap[r.id] = r; });
         }
-        if (last4.length >= 3) {
-          var gq = await supabaseClient.from("cupping_participants").select("id,session_id,member_id,guest_phone").ilike("guest_phone", "%" + last4);
-          (gq.data || []).forEach(function (p) { if (same(p.guest_phone, phone)) partsMap[p.id] = p; });
+        if (digits.length >= 8) {
+          var rq2 = await supabaseClient.from("cupping_records").select("*").eq("subj_phone", digits);
+          (rq2.data || []).forEach(function (r) { recMap[r.id] = r; });
         }
-        var parts = Object.keys(partsMap).map(function (k) { return partsMap[k]; });
-        var pids = parts.map(function (p) { return p.id; });
-        var sids = parts.map(function (p) { return p.session_id; }).filter(Boolean);
-        var recsAll = [], sessMap = {}, refMap = {};
-        if (pids.length) { var rr = await supabaseClient.from("cupping_records").select("*").in("participant_id", pids); recsAll = rr.data || []; }
-        if (sids.length) { var ssq = await supabaseClient.from("cupping_sessions").select("id,title,scheduled_at").in("id", sids); (ssq.data || []).forEach(function (s) { sessMap[s.id] = s; }); }
-        var beanIds = recsAll.map(function (r) { return r.bean_id; }).filter(Boolean);
+        var recsAll = Object.keys(recMap).map(function (k) { return recMap[k]; });
+        var refMap = {};
+        var beanIds = uniq(recsAll.map(function (r) { return r.bean_id; }).filter(Boolean));
         if (beanIds.length) { var rf = await supabaseClient.from("cupping_references").select("*").in("bean_id", beanIds); (rf.data || []).forEach(function (x) { refMap[x.bean_id] = x; }); }
-        parts.forEach(function (p) {
-          var recs = recsAll.filter(function (r) { return r.participant_id === p.id; }); if (!recs.length) return;
-          var s = sessMap[p.session_id] || {};
+        // 세션 단위로 묶기 — 세션 삭제 시 스냅샷(session_title·session_at) 사용
+        var groups = {};
+        recsAll.forEach(function (r) {
+          var key = r.session_id || ("t:" + (r.session_title || "") + "|" + (r.session_at || r.created_at || ""));
+          (groups[key] = groups[key] || { recs: [], title: r.session_title, date: r.session_at, sid: r.session_id }).recs.push(r);
+        });
+        Object.keys(groups).forEach(function (key) {
+          var g = groups[key], recs = g.recs;
           var scores = recs.map(function (r) { return num(r.cva_score); }).filter(function (v) { return v != null; });
           var avgScore = scores.length ? scores.reduce(function (a, b) { return a + b; }, 0) / scores.length : null;
           var devs = [];
           recs.forEach(function (r) { var ref = refMap[r.bean_id]; if (!ref) return; RV_KEYS.forEach(function (k) { var mv = num(r[k]), rv = num(ref[k]); if (mv != null && rv != null) devs.push(Math.abs(mv - rv)); }); });
           var acc = devs.length ? devs.reduce(function (a, b) { return a + b; }, 0) / devs.length : null;
-          CACHE[p.id] = { recs: recs, refMap: refMap, session: s };
-          sessions.push({ pid: p.id, title: s.title || "커핑 세션", date: s.scheduled_at, score: avgScore, acc: acc });
+          CACHE[key] = { recs: recs, refMap: refMap, session: { id: g.sid, title: g.title, date: g.date } };
+          sessions.push({ pid: key, title: g.title || "커핑 세션", date: g.date, score: avgScore, acc: acc });
         });
         sessions.sort(function (a, b) { return (a.date ? new Date(a.date) : 0) - (b.date ? new Date(b.date) : 0); });
       } catch (e) { console.warn("[cupping] 센서리 성장 조회 실패", e); }
@@ -3446,7 +3449,7 @@ window.hideCalibration = async function() {
         var order = {}; (bq.data || []).forEach(function (b, i) { beanName[b.id] = b.name; order[b.id] = i; });
         recs.sort(function (a, b) { return (order[a.bean_id] == null ? 99 : order[a.bean_id]) - (order[b.bean_id] == null ? 99 : order[b.bean_id]); }); }
     } catch (e) {}
-    area.innerHTML = recs.map(function (r) { return beanCard(r, beanName[r.bean_id] || "원두", c.refMap[r.bean_id]); }).join("");
+    area.innerHTML = recs.map(function (r) { return beanCard(r, beanName[r.bean_id] || r.bean_name || "원두", c.refMap[r.bean_id]); }).join("");
   };
   function beanCard(r, bnName, ref) {
     var isBasic = r.form_type === "basic";
