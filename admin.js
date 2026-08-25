@@ -1802,13 +1802,13 @@ function buildSessionPayload(blk) {
   };
 })();
 function injectCuppingButtons() {
+  // ★ '커핑 설정' 버튼은 제거 — 커핑 콘텐츠는 콘텐츠명(사유) 클릭으로 커핑 설정 진입(openBlkAttendees 래핑).
+  //   이 함수는 남은 stale 버튼 정리 + 커핑 행 콘텐츠명 안내 문구 갱신만 담당.
   const body = $("blkTableBody");
   if (!body) return;
   body.querySelectorAll("tr").forEach(function(tr) {
-    if (tr.querySelector(".cupping-setup-btn")) return;
-    const wrap = tr.querySelector('td[data-label="관리"] .action-wrap-flex');
-    if (!wrap) return;
-    const editBtn = wrap.querySelector('button[onclick*="editBlock"]');
+    var stale = tr.querySelector(".cupping-setup-btn"); if (stale) stale.remove();   // 예전 버튼 잔재 제거
+    const editBtn = tr.querySelector('button[onclick*="editBlock"]');
     if (!editBtn) return;
     const m = editBtn.getAttribute("onclick").match(/editBlock\('([^']+)'\)/);
     if (!m) return;
@@ -1819,14 +1819,21 @@ function injectCuppingButtons() {
     const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){ return String(b.id) === String(blockId); });
     const cupOn = blk && (blk.is_cupping === true || blk.is_cupping === "true" || blk.is_cupping === 1 || blk.is_cupping === "1");
     if (!cupOn) return;
-    const btn = document.createElement("button");
-    btn.className = "btn-outline btn-sm cupping-setup-btn";
-    btn.style.cssText = "color:var(--primary);border-color:var(--primary);font-weight:700;";
-    btn.textContent = "커핑 설정";
-    btn.onclick = function(e) { e.stopPropagation(); window.openCuppingSetup(blockId); };
-    wrap.insertBefore(btn, wrap.firstChild);
+    // 커핑 콘텐츠는 콘텐츠명 클릭 = 커핑 설정 → 안내 문구 갱신
+    var reasonSpan = tr.querySelector('td[data-label="사유"] span[onclick]');
+    if (reasonSpan) reasonSpan.setAttribute("title", "커핑 설정 열기");
   });
 }
+/* ── 콘텐츠명(사유) 클릭 라우팅: 커핑 콘텐츠면 신청자 명단 대신 커핑 설정 모달 ── */
+(function() {
+  const _origOpenBlkAttendees = window.openBlkAttendees;
+  window.openBlkAttendees = function(blockId) {
+    const blk = (typeof gBlk !== "undefined" ? gBlk : []).find(function(b){ return String(b.id) === String(blockId); });
+    const cupOn = blk && (blk.is_cupping === true || blk.is_cupping === "true" || blk.is_cupping === 1 || blk.is_cupping === "1");
+    if (cupOn && typeof window.openCuppingSetup === "function") { return window.openCuppingSetup(blockId); }
+    return _origOpenBlkAttendees.apply(this, arguments);
+  };
+})();
 /* ── 커핑 설정 열기: 블록 → 세션 조회(없으면 생성) → 라인업 모달 ── */
 window.openCuppingSetup = async function(blockId) {
   let { data: session } = await supabaseClient
