@@ -1,21 +1,31 @@
 name: jsDelivr 캐시 자동 갱신
+# main 에 푸시될 때마다, 바뀐 파일 + admin.js(안전망)의 jsDelivr 캐시를 지웁니다.
+# 커밋하면 끝. (다만 브라우저는 별개 — 페이지에선 하드 리프레시 필요)
 
-# main 브랜치에 커밋(푸시)될 때마다, 이번에 바뀐 파일들의
-# jsDelivr CDN 캐시를 자동으로 갱신합니다. → 커밋하면 끝.
 on:
   push:
     branches: [main]
+  workflow_dispatch:      # Actions 탭에서 수동 실행 버튼
 
 jobs:
   purge:
     runs-on: ubuntu-latest
     steps:
-      - name: 변경된 파일 캐시 갱신
+      - name: 변경 파일 + admin.js 캐시 갱신
         run: |
-          # 이번 푸시에 포함된 커밋들에서 추가/수정된 파일 목록 추출
-          jq -r '[.commits[].added[], .commits[].modified[]] | unique | .[]' "$GITHUB_EVENT_PATH" \
-          | while IFS= read -r f; do
-              echo "purge → $f"
-              curl -fsS "https://purge.jsdelivr.net/gh/${{ github.repository }}@main/${f}" || true
-            done
-          echo "완료. 30초쯤 뒤부터 새 버전이 서비스됩니다."
+          set -u
+          # 1) 이번 푸시의 추가/수정 파일 (null 안전 — ? 로 에러 방지)
+          CHANGED="$(jq -r '[.commits[]? | (.added[]?, .modified[]?)] | unique | .[]' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"
+          # 2) admin.js 는 항상 포함(안전망) + 중복 제거 + 빈 줄 제거
+          FILES="$(printf '%s\nadmin.js\n' "$CHANGED" | sort -u | sed '/^$/d')"
+
+          echo "── purge 대상 ──"; echo "$FILES"; echo "───────────────"
+
+          echo "$FILES" | while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            url="https://purge.jsdelivr.net/gh/${{ github.repository }}@main/${f}"
+            code="$(curl -s -o /dev/null -w '%{http_code}' "$url")"
+            echo "purge → $f  (HTTP $code)"
+          done
+
+          echo "완료. 30초~1분 뒤부터 새 버전. (페이지에선 하드 리프레시 필요)"
