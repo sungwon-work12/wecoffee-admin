@@ -1717,6 +1717,7 @@ window.downloadExcel = function(type) {
     }catch(err){console.error("Excel Download Error: ",err);if(typeof showToast==='function')showToast('엑셀 다운로드 중 오류가 발생했습니다.');}
 };
 /* ═══ 파트 4 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 1 — 세션 + 라인업(원두) 관리
    커핑 세션 토글·생성, 라인업 CRUD, 라인업 복사/붙여넣기(교육매니저 레퍼런스 포함).
@@ -2048,6 +2049,7 @@ window.moveCuppingBean = async function(sessionId, beanId, dir) {
   await window.fetchCuppingBeans(sessionId);
 };
 /* ═══ 커핑 1 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 2 — 참가자 관리
    참가자 로드·승인·삭제, 사전등록, 수업신청 ↔ 참가자 연동 취소.
