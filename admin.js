@@ -659,6 +659,8 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')window.close
    예약 페이지네이션, 주문/명세서 행, 신청자 CRM, batch_config·자동 멤버등록, 상담 일정 모달.
    의존: 파트 1~2
    ═══════════════════════════════════════════════════════════ */
+// 신청자 id → 짧은 설문 링크(?c=). 실패 시 기존 uid 링크로 폴백. (설문 안내 메시지에서 사용)
+window.wcSurveyLink = async function(appId){ try{ const{data:code,error}=await supabaseClient.rpc('ensure_survey_code',{p_id:appId}); if(!error&&code) return 'https://www.wecoffee.co.kr/survey?c='+code; }catch(e){ console.warn('[survey] 단축코드 발급 실패',e); } return 'https://www.wecoffee.co.kr/survey?uid='+appId; };
 window.renderResTablePage = function() {
     let data = window.currentFilteredRes || [];
     let tbody = $("resTableBody");
@@ -1139,7 +1141,7 @@ window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
     modal.classList.add('show'); modal.style.display = 'flex';
 };
 window.closeScheduleModal = function() { const modal = document.getElementById('scheduleModal'); if (modal) { modal.classList.remove('show'); modal.style.display = 'none'; } };
-window.saveSchedule = async function() { const modal = document.getElementById('scheduleModal'); if (!modal || !modal._targetId) return; const id = modal._targetId; const dateVal = (document.getElementById('schedDateInput')?.value || '').trim(); const timeVal = (document.getElementById('schedTimeInput')?.value || '').trim(); const counselorVal = (document.getElementById('schedCounselorInput')?.value || '').trim(); const callTime = [dateVal?window.formatBlockDate(dateVal):'', timeVal?window.formatBlockTime(timeVal):''].filter(Boolean).join(' '); const { error } = await supabaseClient.from('applications').update({ call_time: callTime || null, counselor_name: counselorVal || null }).eq('id', id); if (error) { showToast("저장 실패"); return; } const app = globalApps.find(a => String(a.id) === String(id)); if (app) { app.call_time = callTime; app.counselor_name = counselorVal; } window.closeScheduleModal(); window.applyFilterApp(); const surveyUrl=`https://www.wecoffee.co.kr/survey?uid=${id}&name=${encodeURIComponent(app?.name||'')}`;let _ct=callTime.split(' ');let _dateNice='',_timeNice='';if(_ct[0]){let _dp=_ct[0].split('-');let _dObj=new Date(parseInt(_dp[0]),parseInt(_dp[1])-1,parseInt(_dp[2]));let _dow=['일','월','화','수','목','금','토'][_dObj.getDay()];_dateNice=`${parseInt(_dp[1])}월 ${parseInt(_dp[2])}일(${_dow})`;}if(_ct[1]){let _tp=_ct[1].split(':');let _h=parseInt(_tp[0]),_m=_tp[1]||'00';let _ap=_h>=12?'오후':'오전';let _h12=_h%12||12;_timeNice=`${_ap} ${_h12}:${_m}`;}let _scheduleStr=_dateNice&&_timeNice?`${_dateNice}, ${_timeNice}`:callTime;let _msgTemplate=`안녕하세요 ${app?.name||''}님, 통화했던 위커피 운영팀입니다 :)\n상담일정은 ${_scheduleStr} 입니다.\n\n오시기 전에 아래 링크의 설문을 작성해주시길 부탁드립니다.\n\n[Wecoffee 주소]\n마포 센터: 서울 마포구 월드컵북로 41 301호\n광진 센터: 서울 광진구 능동로36길 18 3층\n\n*센터 내 지정 주차 공간은 마련되어 있지 않습니다.\n차량으로 방문하실 경우 인근의 공영 주차장 이용을 부탁드립니다.\n\n[상담 전 작성설문]\n${surveyUrl}\n\n[상담 전 홈페이지 내용을 꼼꼼히 숙지해주세요]\nwww.wecoffee.co.kr`;window.openCustomConfirm("상담 안내 메시지",null,`<div style="text-align:center;font-size:14px;color:var(--text-secondary);line-height:1.7;">상담 일정이 저장되었습니다.<br><strong style="color:var(--text-display);font-size:15px;">${window.escapeHtml(app?.name||'')}님</strong>께 상담 안내 메시지를 전달하시겠어요?</div>`,_msgTemplate,"복사하기"); };
+window.saveSchedule = async function() { const modal = document.getElementById('scheduleModal'); if (!modal || !modal._targetId) return; const id = modal._targetId; const dateVal = (document.getElementById('schedDateInput')?.value || '').trim(); const timeVal = (document.getElementById('schedTimeInput')?.value || '').trim(); const counselorVal = (document.getElementById('schedCounselorInput')?.value || '').trim(); const callTime = [dateVal?window.formatBlockDate(dateVal):'', timeVal?window.formatBlockTime(timeVal):''].filter(Boolean).join(' '); const { error } = await supabaseClient.from('applications').update({ call_time: callTime || null, counselor_name: counselorVal || null }).eq('id', id); if (error) { showToast("저장 실패"); return; } const app = globalApps.find(a => String(a.id) === String(id)); if (app) { app.call_time = callTime; app.counselor_name = counselorVal; } window.closeScheduleModal(); window.applyFilterApp(); const surveyUrl=await window.wcSurveyLink(id);let _ct=callTime.split(' ');let _dateNice='',_timeNice='';if(_ct[0]){let _dp=_ct[0].split('-');let _dObj=new Date(parseInt(_dp[0]),parseInt(_dp[1])-1,parseInt(_dp[2]));let _dow=['일','월','화','수','목','금','토'][_dObj.getDay()];_dateNice=`${parseInt(_dp[1])}월 ${parseInt(_dp[2])}일(${_dow})`;}if(_ct[1]){let _tp=_ct[1].split(':');let _h=parseInt(_tp[0]),_m=_tp[1]||'00';let _ap=_h>=12?'오후':'오전';let _h12=_h%12||12;_timeNice=`${_ap} ${_h12}:${_m}`;}let _scheduleStr=_dateNice&&_timeNice?`${_dateNice}, ${_timeNice}`:callTime;let _msgTemplate=`안녕하세요 ${app?.name||''}님, 통화했던 위커피 운영팀입니다 :)\n상담일정은 ${_scheduleStr} 입니다.\n\n오시기 전에 아래 링크의 설문을 작성해주시길 부탁드립니다.\n\n[Wecoffee 주소]\n마포 센터: 서울 마포구 월드컵북로 41 301호\n광진 센터: 서울 광진구 능동로36길 18 3층\n\n*센터 내 지정 주차 공간은 마련되어 있지 않습니다.\n차량으로 방문하실 경우 인근의 공영 주차장 이용을 부탁드립니다.\n\n[상담 전 작성설문]\n${surveyUrl}\n\n[상담 전 홈페이지 내용을 꼼꼼히 숙지해주세요]\nwww.wecoffee.co.kr`;window.openCustomConfirm("상담 안내 메시지",null,`<div style="text-align:center;font-size:14px;color:var(--text-secondary);line-height:1.7;">상담 일정이 저장되었습니다.<br><strong style="color:var(--text-display);font-size:15px;">${window.escapeHtml(app?.name||'')}님</strong>께 상담 안내 메시지를 전달하시겠어요?</div>`,_msgTemplate,"복사하기"); };
 window.renderAppTable = function(data) {
     let tableWrap=document.querySelector('#app-table-area .table-wrap');
     if(!tableWrap)return;
@@ -1426,7 +1428,7 @@ window.deleteHistory=async function(id,phone,name,action_detail){window.openCust
 window.openHistoryModal=async function(phone,name){if(!$("historyModalTitle"))return;$("historyModalTitle").innerText=`${name} 님의 내역`;const modal=$("historyModal");modal.classList.add('show');const body=$("historyModalBody");body.innerHTML='<div class="empty-state">내역을 불러오는 중입니다.</div>';const{data,error}=await supabaseClient.from('member_history').select('*').eq('member_phone',phone).order('created_at',{ascending:false});if(error||!data||data.length===0){body.innerHTML='<div class="empty-state" style="color:var(--text-tertiary);">결제/연장 내역이 없습니다.</div>';return;}body.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">'+data.map(item=>`<div class="wc-hist-item"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}${item.performed_by?` · ${window.getAdminName(item.performed_by)}`:''}</div></div><div class="wc-hist-side"><div class="wc-hist-amount">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation();window.deleteHistory('${item.id}','${phone}','${name}','${item.action_detail}')">삭제</button></div></div>`).join('')+'</div>';}
 window.closeHistoryModal=function(){if($("historyModal"))$("historyModal").classList.remove('show');}
 window.downloadAttendanceExcel=function(){if(!window.currentFilteredTrn||window.currentFilteredTrn.length===0){showToast('출력할 데이터가 없습니다.');return;}let csv="\uFEFF기수,성함,연락처,참여 회차,상태,수업 정보\n";window.currentFilteredTrn.forEach(t=>{let cInfo=String(t.content||'').split(' || ');let classInfo=cInfo.length>=5?`[${cInfo[0]}] ${cInfo[2]} ${cInfo[4]}`:t.content;csv+=`"${t.batch||'-'}","${String(t.name).replace(/"/g,'""')}","${String(t.phone).replace(/"/g,'""')}","${t._attendCount||1}회차","${t.status}","${String(classInfo).replace(/"/g,'""')}"\n`;});const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_참가자리스트_${new Date().toISOString().slice(0,10)}.csv`;link.click();};
-window.copySurveyTemplate=function(appId){let app=globalApps.find(a=>String(a.id)===String(appId));if(!app)return showToast('신청 정보를 찾을 수 없습니다.');let surveyUrl=`https://www.wecoffee.co.kr/survey?uid=${app.id}&name=${encodeURIComponent(app.name||'')}`;let scheduleStr='미정';if(app.call_time&&app.call_time!=='null'){let ct=String(app.call_time).split(' ');let dateNice='',timeNice='';if(ct[0]&&ct[0].includes('-')){let dp=ct[0].split('-');let dObj=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));let dow=['일','월','화','수','목','금','토'][dObj.getDay()];dateNice=`${parseInt(dp[1])}월 ${parseInt(dp[2])}일(${dow})`;}if(ct[1]&&ct[1].includes(':')){let tp=ct[1].split(':');let h=parseInt(tp[0]),m=tp[1]||'00';let ap=h>=12?'오후':'오전';let h12=h%12||12;timeNice=`${ap} ${h12}:${m}`;}if(dateNice&&timeNice)scheduleStr=`${dateNice}, ${timeNice}`;else if(dateNice)scheduleStr=dateNice;else scheduleStr=app.call_time;}let msg=`안녕하세요 ${app?.name||''}님, 통화했던 위커피 운영팀입니다 :)\n상담일정은 ${scheduleStr} 입니다.\n\n오시기 전에 아래 링크의 설문을 작성해주시길 부탁드립니다.\n\n[Wecoffee 주소]\n마포 센터: 서울 마포구 월드컵북로 41 301호\n광진 센터: 서울 광진구 능동로36길 18 3층\n\n*센터 내 지정 주차 공간은 마련되어 있지 않습니다.\n차량으로 방문하실 경우 인근의 공영 주차장 이용을 부탁드립니다.\n\n[상담 전 작성설문]\n${surveyUrl}\n\n[상담 전 홈페이지 내용을 꼼꼼히 숙지해주세요]\nwww.wecoffee.co.kr`;window.copyTxt(msg,'상담 안내 메시지가 복사되었습니다.');};
+window.copySurveyTemplate=async function(appId){let app=globalApps.find(a=>String(a.id)===String(appId));if(!app)return showToast('신청 정보를 찾을 수 없습니다.');let surveyUrl=await window.wcSurveyLink(app.id);let scheduleStr='미정';if(app.call_time&&app.call_time!=='null'){let ct=String(app.call_time).split(' ');let dateNice='',timeNice='';if(ct[0]&&ct[0].includes('-')){let dp=ct[0].split('-');let dObj=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));let dow=['일','월','화','수','목','금','토'][dObj.getDay()];dateNice=`${parseInt(dp[1])}월 ${parseInt(dp[2])}일(${dow})`;}if(ct[1]&&ct[1].includes(':')){let tp=ct[1].split(':');let h=parseInt(tp[0]),m=tp[1]||'00';let ap=h>=12?'오후':'오전';let h12=h%12||12;timeNice=`${ap} ${h12}:${m}`;}if(dateNice&&timeNice)scheduleStr=`${dateNice}, ${timeNice}`;else if(dateNice)scheduleStr=dateNice;else scheduleStr=app.call_time;}let msg=`안녕하세요 ${app?.name||''}님, 통화했던 위커피 운영팀입니다 :)\n상담일정은 ${scheduleStr} 입니다.\n\n오시기 전에 아래 링크의 설문을 작성해주시길 부탁드립니다.\n\n[Wecoffee 주소]\n마포 센터: 서울 마포구 월드컵북로 41 301호\n광진 센터: 서울 광진구 능동로36길 18 3층\n\n*센터 내 지정 주차 공간은 마련되어 있지 않습니다.\n차량으로 방문하실 경우 인근의 공영 주차장 이용을 부탁드립니다.\n\n[상담 전 작성설문]\n${surveyUrl}\n\n[상담 전 홈페이지 내용을 꼼꼼히 숙지해주세요]\nwww.wecoffee.co.kr`;window.copyTxt(msg,'상담 안내 메시지가 복사되었습니다.');};
 window.saveAdminNote=async function(){if(!$("crmAppId"))return;const id=$("crmAppId").value;const app=globalApps.find(a=>String(a.id)===String(id));if(!app){showToast("신청 정보를 찾을 수 없습니다.");return;}const content=$("crmNoteInput")?$("crmNoteInput").value.trim():"";if(!content)return showToast("내용을 입력해주세요.");let now=new Date();let h=now.getHours(),mi=now.getMinutes();let ap=h>=12?'오후':'오전';let h12=h%12||12;let dateLabel=`${now.getMonth()+1}/${now.getDate()} ${ap} ${h12}:${String(mi).padStart(2,'0')}`;const newNote=`${dateLabel}:::${content}`;let updatedMemo=app.admin_memo?app.admin_memo+'|||'+newNote:newNote;const originalMemo=app.admin_memo;app.admin_memo=updatedMemo;window.renderCrmInner(id,isCrmReadOnly);const{error}=await supabaseClient.from('applications').update({admin_memo:updatedMemo}).eq('id',id);if(error){app.admin_memo=originalMemo;window.renderCrmInner(id,isCrmReadOnly);showToast("기록 추가에 실패했습니다.");console.error(error);}else{showToast("상담 기록이 추가되었습니다.");}}
 window.openCrmModalFromPhone=async function(phone){if(!phone||phone==='-')return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");const targetDigits=String(phone).replace(/\D/g,'');let app=globalApps.find(a=>window.samePhone(a.phone,phone));if(app){window.openCrmModal(app.id,true);}else{showToast("내역을 불러오는 중입니다...");const last4=targetDigits.slice(-4);if(last4.length<4){showToast("연락처 정보가 충분하지 않아 검색할 수 없습니다.");return;}const{data,error}=await supabaseClient.from('applications').select('*').ilike('phone',`%${last4}`).limit(50);if(!error&&data){let matched=data.find(a=>window.samePhone(a.phone,phone));if(matched){if(!globalApps.find(a=>String(a.id)===String(matched.id)))globalApps.push(matched);window.openCrmModal(matched.id,true);return;}}showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");}};
 window.showOrderSummary=function(){let qOrd=($("searchOrd")?.value||"").toLowerCase();let vOrd=$("ordVendorFilter")?.value||"전체";let checkedBoxes=document.querySelectorAll('.chk-ord:checked, input[type="checkbox"][class*="chk-ord-dyn-"]:checked');let checkedIds=Array.from(checkedBoxes).map(cb=>String(cb.value)).filter(val=>val!=="on");let pendingOrders=gOrd.filter(o=>{if(checkedIds.length>0){if(o.status!=='주문 접수')return false;return checkedIds.includes(String(o.id));}else{if(o.status!=='주문 접수')return false;let matchCenter=(currentGlobalCenter==='전체'||o.center===currentGlobalCenter);let matchQ=`${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);let matchV=vOrd==='전체'?true:o.vendor===vOrd;return matchCenter&&matchQ&&matchV;}});if(pendingOrders.length===0){$("summaryModalBody").innerHTML='<div class="empty-state" style="padding:80px 0;">요약할 정상 발주(주문 접수) 내역이 없습니다.</div>';}else{window.currentMemberInfoMap={};pendingOrders.forEach(o=>{if(o.name&&o.name!=='이름없음'&&!window.currentMemberInfoMap[o.name])window.currentMemberInfoMap[o.name]={phone:o.phone||'-',batch:String(o.batch||'-')};});let grouped={};pendingOrders.forEach(o=>{let center=o.center||'미지정';let cNm=o.item_name;let targetDayStr=window.formatDeliveryDateFull(o.delivery_date);let bigKey=`[${targetDayStr} 발주] ${center}`;let vendor=o.vendor||'기타 생두사';let m=String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}if(!grouped[bigKey])grouped[bigKey]={};if(!grouped[bigKey][vendor])grouped[bigKey][vendor]={totalGrams:0,items:{}};if(!grouped[bigKey][vendor].items[cNm])grouped[bigKey][vendor].items[cNm]={totalGrams:0,orderers:[]};let rawQty=String(o.quantity||'0').trim().toLowerCase();let numMatch=rawQty.match(/[0-9.]+/);let numVal=numMatch?parseFloat(numMatch[0]):0;let grams=rawQty.includes('kg')?numVal*1000:numVal;grouped[bigKey][vendor].totalGrams+=grams;grouped[bigKey][vendor].items[cNm].totalGrams+=grams;let safePhone=(!o.phone||String(o.phone).trim()==='undefined')?'-':o.phone;let safeName=(!o.name||String(o.name).trim()==='undefined')?'이름없음':o.name;let safeBatch=(!o.batch||String(o.batch).trim()==='undefined')?'-':String(o.batch);grouped[bigKey][vendor].items[cNm].orderers.push({batch:safeBatch,name:safeName,phone:safePhone,rawQty:o.quantity||'0'});});let html=`<div style="display:flex;flex-direction:column;gap:0;width:100%;min-width:0;">`;let sortedBigKeys=Object.keys(grouped).sort();sortedBigKeys.forEach(bigKey=>{html+=`<div style="font-size:18px;font-weight:900;color:var(--text-display);margin-top:32px;padding-bottom:12px;border-bottom:3px solid var(--text-display);letter-spacing:-0.5px;">${bigKey}</div>`;let sortedVendors=Object.keys(grouped[bigKey]).sort();sortedVendors.forEach(vendor=>{let vData=grouped[bigKey][vendor];html+=`<div style="margin-top:20px;font-size:15px;font-weight:800;color:var(--primary);padding-left:4px;">${window.escapeHtml(vendor)}</div>`;let sortedItems=Object.keys(vData.items).sort();sortedItems.forEach(item=>{let d=vData.items[item];let displayQty=d.totalGrams>=1000?(d.totalGrams%1000===0?(d.totalGrams/1000)+'kg':(d.totalGrams/1000)+'kg'):d.totalGrams+'g';displayQty=displayQty.replace('.0kg','kg');let ordererText=d.orderers.map(ord=>`[${ord.batch}] ${ord.name}(${ord.rawQty})`).join(', ');html+=`<div style="margin:12px 0;padding:16px;background:#fff;border:1px solid var(--border-strong);border-radius:12px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div style="flex:1;font-weight:700;font-size:15px;color:var(--text-display);line-height:1.4;">${window.escapeHtml(item)}</div><div style="font-size:20px;font-weight:900;color:var(--primary);margin-left:12px;white-space:nowrap;">${displayQty}</div></div><div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;line-height:1.5;">주문자: ${window.escapeHtml(ordererText)}</div><div style="margin-top:10px;text-align:right;"><span style="font-size:11px;color:var(--primary);cursor:pointer;font-weight:800;border:1px solid var(--primary);padding:4px 10px;border-radius:6px;" onclick="window.copyTxt('${String(item).replace(/'/g,"\\'")}','상품명이 복사되었습니다.')">상품명 복사</span></div></div>`;});let vTotalQty=vData.totalGrams>=1000?(vData.totalGrams%1000===0?(vData.totalGrams/1000)+'kg':(vData.totalGrams/1000)+'kg'):vData.totalGrams+'g';vTotalQty=vTotalQty.replace('.0kg','kg');html+=`<div style="margin-bottom:24px;padding:16px;background:#f9fafb;border-radius:12px;display:flex;justify-content:space-between;align-items:center;border:1px solid #e5e8eb;"><span style="font-size:13px;font-weight:600;color:var(--text-secondary);">${window.escapeHtml(vendor)} 선택된 발주 총 수량</span><span style="font-size:18px;font-weight:900;color:var(--text-display);">${vTotalQty}</span></div>`;});});html+=`<div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border);display:flex;justify-content:center;gap:8px;"><button class="btn-outline" style="border-color:#32b06a;color:#32b06a;padding:12px 24px;font-size:14px;font-weight:700;" id="btn-send-sheet" onclick="window.sendToGoogleSheet()">구글 시트 전송</button></div></div>`;$("summaryModalBody").innerHTML=html;let exportData=[];pendingOrders.forEach(o=>{let dateGroup=window.formatDeliveryDateFull(o.delivery_date);let cNm=o.item_name;let m=String(cNm).match(/(.+) \[(?:희망:\s*)?(\d+)[\/\.](\d+)\s*\((월|화|수|목|금|토|일)\).*?\]/);if(m)cNm=m[1].trim();else{let oM=String(cNm).match(/(.+) \[(.*?)\]/);if(oM)cNm=oM[1].trim();}let safePhone=(!o.phone||String(o.phone).trim()==='undefined')?'-':o.phone;let safeName=(!o.name||String(o.name).trim()==='undefined')?'이름없음':o.name;let safeBatch=(!o.batch||String(o.batch).trim()==='undefined')?'-':String(o.batch);exportData.push({"등록 일시":formatDt(o.created_at),"발주 구분":dateGroup+" 발주","수령 센터":o.center||"미지정","생두사":o.vendor||"기타 생두사","상품명":cNm,"주문 수량":o.quantity||"0","결제 금액":"","기수":safeBatch,"성함":safeName,"연락처":safePhone});});exportData.sort((a,b)=>{if(a["발주 구분"]!==b["발주 구분"])return a["발주 구분"].localeCompare(b["발주 구분"]);if(a["수령 센터"]!==b["수령 센터"])return a["수령 센터"].localeCompare(b["수령 센터"]);if(a["생두사"]!==b["생두사"])return a["생두사"].localeCompare(b["생두사"]);return a["상품명"].localeCompare(b["상품명"]);});let separatedData=[];let prevCenter=null;exportData.forEach(row=>{if(prevCenter!==null&&prevCenter!==row["수령 센터"])separatedData.push({"등록 일시":"","발주 구분":"","수령 센터":"▼ "+row["수령 센터"]+" ▼","생두사":"","상품명":"","주문 수량":"","결제 금액":"","기수":"","성함":"","연락처":""});separatedData.push(row);prevCenter=row["수령 센터"];});window.currentSummaryData=separatedData;}const modal=$("summaryModal");if(modal)modal.classList.add('show');};
@@ -2213,6 +2215,8 @@ window.preRegParticipant = async function() {
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 3 — CVA 호스트 레퍼런스 입력 + 공개 제어
    원두별 기준 강도·노트 저장, 미입력 경고, 공개 전 정답 잠금.
+   · 레퍼런스 공개 + 참가자 결과 공개를 '레퍼런스 저장' 아래 '공개 관리' 블록으로 통합
+     (참가자 결과 공개 토글의 실제 처리는 커핑 4의 window.cupToggleRecords).
    의존: 파트 1~4 · 커핑 1~2
    ═══════════════════════════════════════════════════════════ */
 const CUPPING_REF_KEYS   = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
@@ -2251,6 +2255,10 @@ function setupRefSection(session) {
   updateRevealButtons(session.reference_revealed === true);
   window.loadRefForBean();
   refCoverageWarn(session);
+  wcFixRefSaveGap();
+  wcEnsureDisclosure(session);
+  wcSyncDiscRef(session.reference_revealed === true);
+  wcSyncDiscRec(session.records_revealed === true);
 }
 /* ── 레퍼런스 입력 커버리지 경고(원두 중 미입력 표시) ── */
 function refHasValues(x) { return !!x && CUPPING_REF_KEYS.some(function (k) { return x[k] != null; }); }
@@ -2276,24 +2284,99 @@ async function refCoverageWarn(session) {
   }
   if (!res.total) { host.innerHTML = ""; return; }
   if (!res.missing.length) {
-    host.innerHTML = '<div style="display:flex;align-items:center;gap:7px;background:#ecfdf3;border:1px solid #b7f0d0;border-radius:10px;padding:10px 12px;font-size:12.5px;font-weight:700;color:#087443;">✓ 모든 원두 레퍼런스 입력 완료 (' + res.total + '종)</div>';
+    host.innerHTML = '<div style="display:flex;align-items:center;gap:7px;background:#ecfdf3;border:1px solid #b7f0d0;border-radius:10px;padding:10px 12px;font-size:12.5px;font-weight:700;color:#087443;">모든 원두 레퍼런스 입력 완료 (' + res.total + '종)</div>';
   } else {
     var names = res.missing.map(function (b) { return escapeHtml(b.name); }).join(", ");
     host.innerHTML = '<div style="background:#fff4e5;border:1px solid #ffd9a8;border-radius:10px;padding:10px 12px;font-size:12.5px;color:#9a5b00;line-height:1.55;">' +
-      '<b>⚠ 레퍼런스 미입력 ' + res.missing.length + '/' + res.total + '종</b><br>미입력: ' + names +
+      '<b>레퍼런스 미입력 ' + res.missing.length + '/' + res.total + '종</b><br>미입력: ' + names +
       '<br><span style="color:#b0791f;">레퍼런스가 없는 원두는 참가자 정확도·성장 집계에서 빠집니다.</span></div>';
   }
 }
 window.refCoverageWarn = refCoverageWarn;
 function updateRevealButtons(isRevealed) {
-  const revBtn = $("refRevealBtn"), hideBtn = $("refHideBtn"), statusEl = $("refStatus");
-  if (!revBtn || !hideBtn) return;
-  revBtn.style.display  = isRevealed ? "none" : "";
-  hideBtn.style.display = isRevealed ? "" : "none";
-  if (statusEl) statusEl.textContent = isRevealed
-    ? "✓ 레퍼런스 공개됨 — 참가자 결과 화면에서 열람 가능"
-    : "공개 전 — 참가자는 레퍼런스를 볼 수 없어요 (오픈북 방지)";
+  // 원본 공개 버튼/상태는 '공개 관리' 블록으로 대체 → 항상 숨김
+  ["refRevealBtn","refHideBtn","refStatus"].forEach(function (id) { var e = $(id); if (e) e.style.display = "none"; });
+  wcSyncDiscRef(isRevealed === true);
 }
+/* ══════════════════════════════════════════════════════════
+   공개 관리: 레퍼런스 공개 + 참가자 결과 공개 통합 블록
+   · '레퍼런스 저장' 버튼 바로 아래에 삽입
+   · 버튼은 아이콘 없이 텍스트만, 상태는 점(dot)으로 표시 (이모지 없음)
+   · 실제 처리는 기존 로직 호출만: revealCalibration / hideCalibration / cupToggleRecords
+   ══════════════════════════════════════════════════════════ */
+var wcDiscState = { ref: false, rec: false };
+function wcFixRefSaveGap() {
+  var modal = $("cuppingLineupModal");
+  var saveBtn = modal ? modal.querySelector('[onclick*="saveRef"]') : null;
+  if (saveBtn) saveBtn.style.marginTop = "18px";   // 마우스필 입력 ↔ 레퍼런스 저장 여백 확보
+}
+function wcEnsureDiscStyle() {
+  if ($("wcDiscStyle")) return;
+  var st = document.createElement("style"); st.id = "wcDiscStyle";
+  st.textContent =
+    "#wcDisc{margin-top:22px;padding-top:20px;border-top:1px solid #eef1f4;}" +
+    "#wcDisc .wc-disc-head{font-size:14px;font-weight:800;color:#191f28;margin-bottom:4px;}" +
+    "#wcDisc .wc-disc-desc{font-size:12.5px;font-weight:500;color:#8b95a1;line-height:1.5;margin-bottom:14px;}" +
+    "#wcDisc .wc-disc-row{border:1px solid #e5e8eb;border-radius:13px;padding:14px 15px;margin-bottom:10px;transition:.15s;}" +
+    "#wcDisc .wc-disc-row.on{border-color:#b8e6cf;background:#f4fbf7;}" +
+    "#wcDisc .wc-disc-rowtop{display:flex;align-items:center;justify-content:space-between;gap:10px;}" +
+    "#wcDisc .wc-disc-name{font-size:14px;font-weight:800;color:#191f28;}" +
+    "#wcDisc .wc-disc-sub{font-size:12px;font-weight:500;color:#8b95a1;margin-top:3px;}" +
+    "#wcDisc .wc-disc-stat{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:800;flex-shrink:0;color:#8b95a1;}" +
+    "#wcDisc .wc-disc-stat.on{color:#00b386;}" +
+    "#wcDisc .wc-disc-stat .dot{width:7px;height:7px;border-radius:50%;background:#b0b8c1;}" +
+    "#wcDisc .wc-disc-stat.on .dot{background:#00b386;}" +
+    "#wcDisc .wc-disc-btn{width:100%;height:44px;border:none;border-radius:11px;font-size:14px;font-weight:800;margin-top:12px;cursor:pointer;font-family:inherit;letter-spacing:-0.02em;}" +
+    "#wcDisc .wc-disc-btn.go{background:var(--primary,#ff7900);color:#fff;box-shadow:0 5px 14px rgba(255,121,0,.24);}" +
+    "#wcDisc .wc-disc-btn.undo{background:#f2f4f6;color:#4e5968;}";
+  document.head.appendChild(st);
+}
+function wcDiscRowHTML(kind, name, sub) {
+  return '<div class="wc-disc-row" data-k="' + kind + '">' +
+    '<div class="wc-disc-rowtop"><div><div class="wc-disc-name">' + name + '</div>' +
+    '<div class="wc-disc-sub">' + sub + '</div></div><span class="wc-disc-stat"></span></div>' +
+    '<button type="button" class="wc-disc-btn" data-act="' + kind + '"></button></div>';
+}
+function wcEnsureDisclosure(session) {
+  wcEnsureDiscStyle();
+  var panel = $("wcDisc");
+  if (!panel) {
+    panel = document.createElement("div"); panel.id = "wcDisc";
+    panel.innerHTML =
+      '<div class="wc-disc-head">공개 관리</div>' +
+      '<div class="wc-disc-desc">공개하면 참가자 화면에 즉시 반영되고, 이후 평가 수정이 잠깁니다.</div>' +
+      wcDiscRowHTML("ref", "레퍼런스 정답 공개", "호스트가 입력한 기준 점수·노트") +
+      wcDiscRowHTML("rec", "참가자 평가 결과 공개", "전체 참가자 점수·레이더 비교");
+    var modal = $("cuppingLineupModal");
+    var anchor = (modal && modal.querySelector('[onclick*="saveRef"]')) || $("refStatus") || $("refNotes");
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(panel, anchor.nextSibling);
+    else if ($("refScoreInputs") && $("refScoreInputs").parentNode) $("refScoreInputs").parentNode.appendChild(panel);
+    panel.querySelector('[data-act="ref"]').addEventListener("click", function () {
+      if (wcDiscState.ref) { if (window.hideCalibration) window.hideCalibration(); }
+      else { if (window.revealCalibration) window.revealCalibration(); }
+    });
+    panel.querySelector('[data-act="rec"]').addEventListener("click", function () {
+      if (window.cupToggleRecords) window.cupToggleRecords();
+    });
+  }
+  ["refRevealBtn","refHideBtn","refStatus"].forEach(function (id) { var e = $(id); if (e) e.style.display = "none"; });
+}
+function wcPaintDisc(kind, on) {
+  var panel = $("wcDisc"); if (!panel) return;
+  var row = panel.querySelector('.wc-disc-row[data-k="' + kind + '"]'); if (!row) return;
+  row.classList.toggle("on", !!on);
+  var stat = row.querySelector(".wc-disc-stat");
+  stat.className = "wc-disc-stat" + (on ? " on" : "");
+  stat.innerHTML = '<i class="dot"></i>' + (on ? "공개됨" : "공개 전");
+  var btn = row.querySelector(".wc-disc-btn");
+  btn.className = "wc-disc-btn " + (on ? "undo" : "go");
+  btn.textContent = kind === "ref"
+    ? (on ? "레퍼런스 공개 취소" : "레퍼런스 공개하기")
+    : (on ? "결과 공개 취소" : "결과 공개하기");
+}
+function wcSyncDiscRef(on) { wcDiscState.ref = !!on; wcPaintDisc("ref", !!on); }
+function wcSyncDiscRec(on) { wcDiscState.rec = !!on; wcPaintDisc("rec", !!on); }
+window.wcSyncDiscRec = wcSyncDiscRec;   // 커핑 4의 cupToggleRecords에서 호출
 window.loadRefForBean = async function() {
   const beanId = $("refBeanSelect") ? $("refBeanSelect").value : null;
   if (!beanId) return;
@@ -2360,6 +2443,8 @@ window.hideCalibration = async function() {
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 4 — 라이브 제어 · 실시간 프로토콜 타이머
    SCA 프리셋 타이머 실시간 동기화, 참가자 결과 공개 토글.
+   · 참가자 결과 공개 토글은 커핑 3의 '공개 관리' 블록에 표시되고,
+     여기서는 window.cupToggleRecords 처리만 담당(window.wcSyncDiscRec로 블록 동기화).
    의존: 파트 1~4 · 커핑 1~3
    ═══════════════════════════════════════════════════════════ */
 (function () {
@@ -2423,7 +2508,6 @@ window.hideCalibration = async function() {
       var saved = liveTS.phases[i];
       return { name: p.name, secs: (saved && saved.secs != null) ? saved.secs : p.secs };
     });
-    const recRevealed = !!(session && session.records_revealed === true);
     const phaseRows = liveTS.phases.map(function (p, i) {
       return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
         '<span class="cupLivePhName" data-i="' + i + '" style="flex:1;font-size:13px;font-weight:600;color:var(--text-secondary,#4e5968);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (i + 1) + '. ' + _esc(p.name) + '</span>' +
@@ -2452,15 +2536,7 @@ window.hideCalibration = async function() {
       // 단계 시간 편집
       '<div style="font-size:12px;font-weight:700;color:var(--text-secondary,#4e5968);margin-bottom:8px;">단계 시간 (SCA 프리셋 · 조정 가능)</div>' +
       phaseRows +
-      '<button class="btn-outline btn-sm" onclick="window.cupLiveSavePhases()" style="margin-top:6px;height:32px;padding:0 12px;font-size:12px;">단계 시간 저장</button>' +
-      // 결과 공개
-      '<div style="border-top:1px solid var(--border,#e5e8eb);margin-top:16px;padding-top:14px;">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
-          '<div style="min-width:0;"><div style="font-size:13px;font-weight:700;color:var(--text-display,#191f28);">참가자 결과 공개</div>' +
-          '<div id="cupRecStatus" style="font-size:11px;color:var(--text-tertiary,#8b95a1);margin-top:2px;">' + (recRevealed ? "✓ 공개됨 — 참가자가 결과 화면을 볼 수 있어요" : "공개 전 — 세션 종료 후 공개하세요") + '</div></div>' +
-          '<button id="cupRecBtn" class="' + (recRevealed ? "btn-outline" : "btn-primary") + '" onclick="window.cupToggleRecords()" style="height:36px;padding:0 14px;flex-shrink:0;">' + (recRevealed ? "공개 취소" : "결과 공개") + '</button>' +
-        '</div>' +
-      '</div>';
+      '<button class="btn-outline btn-sm" onclick="window.cupLiveSavePhases()" style="margin-top:6px;height:32px;padding:0 12px;font-size:12px;">단계 시간 저장</button>';
     startLoop();
     renderStatus();
   }
@@ -2565,7 +2641,7 @@ window.hideCalibration = async function() {
     writeTS();
     _toast("단계 시간을 저장했어요.");
   };
-  /* ── 참가자 결과(기록) 공개 토글 ── */
+  /* ── 참가자 결과(기록) 공개 토글 (표시는 커핑 3 '공개 관리' 블록) ── */
   window.cupToggleRecords = async function () {
     const sessionId = _$("lineupSessionId").value;
     const now = !!(window._cuppingSession && window._cuppingSession.records_revealed === true);
@@ -2574,9 +2650,7 @@ window.hideCalibration = async function() {
       .update({ records_revealed: next, updated_at: new Date().toISOString() }).eq("id", sessionId);
     if (error) { _toast("결과 공개 변경 실패: " + (error.message || "")); return; }
     if (window._cuppingSession) window._cuppingSession.records_revealed = next;
-    const st = _$("cupRecStatus"), btn = _$("cupRecBtn");
-    if (st) st.textContent = next ? "✓ 공개됨 — 참가자가 결과 화면을 볼 수 있어요" : "공개 전 — 세션 종료 후 공개하세요";
-    if (btn) { btn.textContent = next ? "공개 취소" : "결과 공개"; btn.className = next ? "btn-outline" : "btn-primary"; }
+    if (typeof window.wcSyncDiscRec === "function") window.wcSyncDiscRec(next);   // '공개 관리' 블록 동기화
     _toast(next ? "참가자 결과가 공개되었습니다." : "결과 공개가 취소되었습니다.");
   };
 })();
@@ -3235,7 +3309,7 @@ window.hideCalibration = async function() {
       if (lines.length) {
         h += lines.join("") + '<div style="font-size:11px;color:#b0b8c1;margin:2px 0 16px;line-height:1.5;">숫자는 ' + cmp + ' 대비 강도 차이(0~15). <span style="color:#d63b40;">+는 높게</span>, <span style="color:#2b6fd6;">−는 낮게</span> 평가.</div>';
       } else {
-        h += '<div style="padding:12px;text-align:center;color:#00a06d;font-size:12.5px;font-weight:600;background:#f0fbf5;border:1px solid #cdeede;border-radius:9px;margin-bottom:16px;">' + cmp + ' 대비 큰 편차 없이 잘 맞았어요 👍</div>';
+        h += '<div style="padding:12px;text-align:center;color:#00a06d;font-size:12.5px;font-weight:600;background:#f0fbf5;border:1px solid #cdeede;border-radius:9px;margin-bottom:16px;">' + cmp + ' 대비 큰 편차 없이 잘 맞았어요</div>';
       }
     })();
     rows.sort(function (a, b) { return (num(b.cva_score) || 0) - (num(a.cva_score) || 0); });
