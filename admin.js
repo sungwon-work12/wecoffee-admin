@@ -145,7 +145,7 @@ wecoffeeStyle.innerHTML = `
     .timeline-date-nav .tdn-hidden-picker { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; left: 50%; bottom: 0; }
     #trnContentModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99990; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
     #trnContentModal.show { display:flex; }
-    #trnContentModal .tcm-box { background:#fff; border-radius:16px; width:100%; max-width:820px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; }
+    #trnContentModal .tcm-box { background:#fff; border-radius:16px; width:100%; max-width:720px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; }
     #trnContentModal .tcm-header { padding:20px 24px 16px; border-bottom:1px solid var(--border-strong); flex-shrink:0; }
     #trnContentModal .tcm-title { font-size:16px; font-weight:800; color:var(--text-display); margin-bottom:4px; line-height:1.4; word-break:keep-all; }
     #trnContentModal .tcm-sub { font-size:13px; color:var(--text-secondary); font-weight:500; }
@@ -202,9 +202,13 @@ wecoffeeStyle.innerHTML = `
         #timelineFullscreenBody .timeline-container { overflow: auto !important; overscroll-behavior: contain !important; -webkit-overflow-scrolling: touch; }
     }
     @media (min-width: 769px) { .timeline-fullscreen-btn { display: none !important; } #timelineFullscreenOverlay { display: none !important; } }
-    /* ── 관리자 모달 가로폭 통일 (820px) · Webflow .modal-content + JS 생성 모달 함께 ── */
-    .modal-content { max-width:820px !important; width:100% !important; box-sizing:border-box; }
-    #invoiceModal > div, #cancelDetailModal > div, #scheduleModal > div, #batchConfigModal > div { max-width:820px !important; }
+    /* ── 관리자 모달 가로폭 통일: 정보·폼 모달은 720px로 통일(표가 스크롤 없이 다 들어가는 폭) ── */
+    /* .modal-content 는 상한만 720(강제 확장 안 함) → 짧은 확인/알림창은 원래대로 작게 유지 */
+    .modal-content { max-width:720px !important; box-sizing:border-box; }
+    /* JS 생성 정보·폼 모달(인라인 폭 덮어씀): 인보이스·취소내역·스케줄·기수설정 → 720 통일 (참석자명단 tcm-box 는 자체 규칙에서 720) */
+    #invoiceModal > div, #cancelDetailModal > div, #scheduleModal > div, #batchConfigModal > div { max-width:720px !important; }
+    /* 커핑 설정 모달은 평소엔 원래 폭 유지(전체화면 버튼 따로 있음). 전체화면(.wc-fs)일 때만 확대 */
+    #cuppingLineupModal:not(.wc-fs) .modal-content { max-width:600px !important; }
 `;
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 window.normalizePhone = function(p) {
