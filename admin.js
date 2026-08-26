@@ -472,7 +472,7 @@ function renderAttendeeModal(title, sub, attendees, contentKey, downloadMeta) {
             bodyEl.innerHTML = `<table class="tcm-table"><thead><tr><th style="width:36px;">#</th><th style="width:56px;">기수</th><th style="width:76px;">성함</th><th style="width:150px;">연락처</th><th style="width:80px;text-align:center;">참여회차</th><th style="width:130px;">신청일</th></tr></thead><tbody>${attendees.map((t, idx) => `<tr>
 <td data-label="#">${idx + 1}</td>
 <td data-label="기수"><strong>${t.batch || '-'}</strong></td>
-<td data-label="성함"><strong style="color:var(--text-display);">${window.escapeHtml(t.name)}</strong></td>
+<td data-label="성함"><strong style="color:var(--text-display);">${window.escapeHtml(t.name)}</strong>${t._srcBadge||''}</td>
 <td data-label="연락처" style="color:var(--text-secondary);">${window.escapeHtml(t.phone)}</td>
 <td data-label="참여회차" style="text-align:center;">${t._nth >= 2 ? `<span class="nth-badge">${t._nth}회차</span>` : '-'}</td>
 <td data-label="신청일" style="color:var(--text-tertiary);font-size:12px;">${formatDt(t.created_at)}</td>
@@ -483,18 +483,34 @@ function renderAttendeeModal(title, sub, attendees, contentKey, downloadMeta) {
     document.getElementById('trnContentModal').classList.add('show');
 }
 window.openBlkAttendees=async function(blockId){let b=gBlk.find(x=>String(x.id)===String(blockId));if(!b)return;let contentKey=`[${b.category}] ${b.reason}`;let timeRange=`${b.start_time}~${b.end_time}`;let sub=`${b.block_date} | ${timeRange} | ${b.center}`;let dmeta={title:`${b.block_date}_${b.reason}`};
-  // 커핑 블록 = 콘텐츠 참가자가 곧 커핑 세션 참가자 → 승인된 세션 참가자(멤버+게스트)로 명단 구성
+  // 커핑 블록: 수업 신청자(trainings) + 실제 세션 참가자(cupping_participants)를 통합 표시.
+  //   기본 명단 = trainings 신청자(날짜+센터+콘텐츠명 일치, 시간은 초 무시).
+  //   cupping_participants(세션 입장/게스트/현장참여)는 전화번호로 합쳐 뱃지로 구분.
   let isCup=(String(b.category||'')+' '+String(b.reason||'')).includes('커핑')||b.is_cupping;
   if(isCup){
+    let normT=s=>String(s||'').replace(/(\d{1,2}:\d{2}):\d{2}/g,'$1').replace(/\s+/g,'');
+    let nrm=s=>String(s||'').replace(/\s+/g,'');
+    let digitsOf=s=>String(s||'').replace(/\D/g,'');
+    // 1) 수업 신청자(trainings) — 신청자 리스트와 동일 기준(날짜+시간+콘텐츠명), 취소 제외
+    let signups=gTrn.filter(t=>{if(String(t.status||'').includes('취소'))return false;let cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length<5)return false;return cInfo[0]===b.block_date&&cInfo[3]===b.center&&nrm(cInfo[4])===nrm(contentKey)&&normT(cInfo[2])===normT(timeRange);}).map(t=>({batch:t.batch,name:t.name,phone:t.phone,created_at:t.created_at,_src:'signup'}));
+    // 2) 커핑 세션 참가자(cupping_participants) — 실제 입장/게스트/현장참여
+    let sessAtt=[];
     try{
       let sres=await supabaseClient.from("cupping_sessions").select("id").eq("block_id",b.id).maybeSingle();
       let sid=sres.data&&sres.data.id;
-      if(!sid){renderAttendeeModal(b.reason,sub,[],contentKey,dmeta);return;}
-      let pres=await supabaseClient.from("cupping_participants").select("*, members(name,batch,phone)").eq("session_id",sid).order("joined_at",{ascending:true});
-      let parts=(pres.data||[]).filter(p=>p.approved!==false);
-      let attendees=parts.map(p=>{let isMember=!!p.member_id;let phone=isMember?((p.members&&p.members.phone)||''):(p.guest_phone||'');let br=isMember?((p.members&&p.members.batch)||''):'';let batch=isMember?(br?(/^\d+$/.test(String(br).trim())?String(br).trim()+'기':br):'-'):'게스트';return{batch:batch,name:isMember?((p.members&&p.members.name)||'멤버'):(p.guest_name||'게스트'),phone:phone,created_at:p.joined_at,_nth:calcNth(phone,contentKey)};});
-      renderAttendeeModal(b.reason,sub,attendees,contentKey,dmeta);
-    }catch(e){console.error("[cupping] 참가자 명단 로드 실패",e);renderAttendeeModal(b.reason,sub,[],contentKey,dmeta);}
+      if(sid){
+        let pres=await supabaseClient.from("cupping_participants").select("*, members(name,batch,phone)").eq("session_id",sid).order("joined_at",{ascending:true});
+        let parts=(pres.data||[]).filter(p=>p.approved!==false);
+        sessAtt=parts.map(p=>{let isMember=!!p.member_id;let phone=isMember?((p.members&&p.members.phone)||''):(p.guest_phone||'');let br=isMember?((p.members&&p.members.batch)||''):'';let batch=isMember?(br?(/^\d+$/.test(String(br).trim())?String(br).trim()+'기':br):'-'):'게스트';return{batch:batch,name:isMember?((p.members&&p.members.name)||'멤버'):(p.guest_name||'게스트'),phone:phone,created_at:p.joined_at,_src:isMember?'session':'guest'};});
+      }
+    }catch(e){console.error("[cupping] 세션 참가자 로드 실패",e);}
+    // 3) 병합(전화번호 기준 중복 제거). 신청+세션입장이 겹치면 '세션 입장' 우선.
+    let byKey={};
+    signups.forEach(s=>{let k=digitsOf(s.phone)||('n:'+s.name);byKey[k]={...s};});
+    sessAtt.forEach(a=>{let k=digitsOf(a.phone)||('n:'+a.name);if(byKey[k]){byKey[k]._src=(a._src==='guest')?'guest':'session';if(!byKey[k].batch||byKey[k].batch==='-')byKey[k].batch=a.batch;}else{byKey[k]=a;}});
+    let merged=Object.values(byKey).map(a=>{let badge='';if(a._src==='session')badge=' <span class="status-badge badge-green" style="font-size:10px;margin-left:6px;vertical-align:middle;">세션 입장</span>';else if(a._src==='guest')badge=' <span class="status-badge badge-orange" style="font-size:10px;margin-left:6px;vertical-align:middle;">게스트</span>';return{...a,_nth:calcNth(a.phone,contentKey),_srcBadge:badge};});
+    merged.sort((x,y)=>new Date(x.created_at||0)-new Date(y.created_at||0));
+    renderAttendeeModal(b.reason,sub,merged,contentKey,dmeta);
     return;
   }
   let attendees=gTrn.filter(t=>{if(String(t.status||'').includes('취소'))return false;let cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length<5)return false;return cInfo[0]===b.block_date&&cInfo[2]===timeRange&&cInfo[3]===b.center&&cInfo[4]===contentKey;});attendees=attendees.map(t=>({...t,_nth:calcNth(t.phone,contentKey)}));attendees.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));renderAttendeeModal(b.reason,sub,attendees,contentKey,dmeta);};
