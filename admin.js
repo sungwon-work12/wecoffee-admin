@@ -2689,7 +2689,9 @@ window.hideCalibration = async function() {
 /* ═══ 커핑 4 끝 ═══ */
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 5 — UI 보정
-   스케줄 관리 컬럼 정렬, 커핑 행 잔여 정원 = 승인된 세션 참가자 수(멤버+게스트).
+   스케줄 관리 컬럼 정렬 + 커핑 행 잔여 정원 재계산.
+   잔여 정원 = 수업신청(trainings) ∪ 세션 참가자(cupping_participants),
+              전화번호 기준 중복 제거 → 참석자 명단 모달과 동일한 인원.
    의존: 파트 1~4 · 커핑 1
    ═══════════════════════════════════════════════════════════ */
 (function () {
@@ -2713,7 +2715,8 @@ window.hideCalibration = async function() {
       '#cupLivePanel{box-sizing:border-box;width:100%;max-width:100%;}';
     document.head.appendChild(st);
   }
-  /* ── #3 커핑 행 잔여 정원 재계산: 표시된 신청 수 + 게스트(비멤버) 참가자 ── */
+
+  /* ── #3 커핑 행 잔여 정원 재계산 (통합) ── */
   const _origRender = window.renderCenterData;
   if (typeof _origRender === "function") {
     window.renderCenterData = function () {
@@ -2721,6 +2724,31 @@ window.hideCalibration = async function() {
       setTimeout(fixCuppingCapacity, 0);   // 커핑 버튼 주입(파트1) 이후에 실행
     };
   }
+
+  const _digits = function (s) { return String(s || "").replace(/\D/g, ""); };
+  const _normT  = function (s) { return String(s || "").replace(/(\d{1,2}:\d{2}):\d{2}/g, "$1").replace(/\s+/g, ""); };
+  const _nrm    = function (s) { return String(s || "").replace(/\s+/g, ""); };
+
+  // 블록에 매칭되는 수업신청(trainings)의 전화번호 집합 (신청자 명단과 동일 기준, 취소 제외)
+  function signupPhonesForBlock(blk) {
+    const out = { set: new Set(), noPhone: 0 };
+    if (!blk) return out;
+    const ck = "[" + (blk.category || "") + "] " + (blk.reason || "");
+    const tr = (blk.start_time || "") + "~" + (blk.end_time || "");
+    const list = (typeof gTrn !== "undefined" ? gTrn : []);
+    list.forEach(function (t) {
+      if (String(t.status || "").includes("취소")) return;
+      const cInfo = String(t.content || "").split("||").map(function (s) { return s.trim(); });
+      if (cInfo.length < 5) return;
+      if (cInfo[0] === blk.block_date && cInfo[3] === blk.center &&
+          _nrm(cInfo[4]) === _nrm(ck) && _normT(cInfo[2]) === _normT(tr)) {
+        const k = _digits(t.phone);
+        if (k) out.set.add(k); else out.noPhone++;
+      }
+    });
+    return out;
+  }
+
   async function fixCuppingCapacity() {
     const body = document.getElementById("blkTableBody");
     if (!body || typeof supabaseClient === "undefined") return;
@@ -2740,31 +2768,45 @@ window.hideCalibration = async function() {
       if (cell) rows.push({ blockId: blockId, blk: blk, cell: cell });
     });
     if (!rows.length) return;
+
+    // 세션 참가자 전화번호를 세션별로 수집 (승인된 것만)
+    const sessPhones = {};   // session_id → { set:Set(전화digits), extra:int(전화없는 게스트 수) }
+    const byBlock = {};      // block_id → session_id
     try {
       const blockIds = rows.map(function (r) { return r.blockId; });
       const sres = await supabaseClient.from("cupping_sessions").select("id,block_id").in("block_id", blockIds);
-      const byBlock = {};
       (sres.data || []).forEach(function (s) { byBlock[String(s.block_id)] = s.id; });
       const sessIds = (sres.data || []).map(function (s) { return s.id; });
-      if (!sessIds.length) return;
-      const pres = await supabaseClient.from("cupping_participants")
-        .select("session_id,member_id,guest_name,approved").in("session_id", sessIds);
-      // 커핑 블록 정원 = 승인된 커핑 세션 참가자 수(멤버+게스트). 대기(미승인) 게스트는 제외.
-      const cntBySess = {};
-      (pres.data || []).forEach(function (p) {
-        if (p.approved !== false) cntBySess[p.session_id] = (cntBySess[p.session_id] || 0) + 1;
-      });
-      rows.forEach(function (r) {
-        const sid = byBlock[String(r.blockId)];
-        if (!sid) return;                                       // 세션 없으면 기존(수업신청) 표시 유지
-        const cnt = cntBySess[sid] || 0;
-        const max = (r.blk && r.blk.capacity != null) ? parseInt(r.blk.capacity, 10) : null;
-        if (max === null || isNaN(max) || max === 0) return;    // 무제한/오픈예정은 그대로
-        r.cell.innerHTML = (cnt >= max)
-          ? '<strong style="color:var(--error);">마감 (' + max + '명)</strong>'
-          : '<strong>' + cnt + '</strong> / ' + max;
-      });
-    } catch (e) { console.error("[cupping] 정원 재계산 실패", e); }
+      if (sessIds.length) {
+        const pres = await supabaseClient.from("cupping_participants")
+          .select("session_id,member_id,guest_phone,approved, members(phone)").in("session_id", sessIds);
+        (pres.data || []).forEach(function (p) {
+          if (p.approved === false) return;
+          const ph = p.member_id ? (p.members && p.members.phone) : p.guest_phone;
+          const k = _digits(ph);
+          if (!sessPhones[p.session_id]) sessPhones[p.session_id] = { set: new Set(), extra: 0 };
+          if (k) sessPhones[p.session_id].set.add(k); else sessPhones[p.session_id].extra++;
+        });
+      }
+    } catch (e) { console.error("[cupping] 정원 재계산 - 세션 조회 실패", e); }
+
+    // 각 커핑 행: 신청자 ∪ 세션참가자 (전화번호 중복 제거)
+    rows.forEach(function (r) {
+      const max = (r.blk && r.blk.capacity != null) ? parseInt(r.blk.capacity, 10) : null;
+      if (max === null || isNaN(max) || max === 0) return;   // 무제한/오픈예정은 그대로
+      const su = signupPhonesForBlock(r.blk);
+      const uni = new Set(su.set);
+      let extra = su.noPhone;
+      const sid = byBlock[String(r.blockId)];
+      if (sid && sessPhones[sid]) {
+        sessPhones[sid].set.forEach(function (k) { uni.add(k); });
+        extra += sessPhones[sid].extra;
+      }
+      const cnt = uni.size + extra;
+      r.cell.innerHTML = (cnt >= max)
+        ? '<strong style="color:var(--error);">마감 (' + max + '명)</strong>'
+        : '<strong>' + cnt + '</strong> / ' + max;
+    });
   }
 })();
 /* ═══ 커핑 5 끝 ═══ */
