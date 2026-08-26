@@ -426,7 +426,6 @@ window.fetchCenterData = async function(opts) {
   } catch(e) { console.error(e); }
 };
 /* ═══ 파트 1 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 파트 2 — 대시보드 · 캘린더 · 실시간 타임라인
    센터 대시보드(주/월), 구글캘린더 연동, 실시간 센터 현황 타임라인(전체화면).
@@ -1460,7 +1459,7 @@ window.sendToGoogleSheet=async function(){if(!window.currentSummaryData||window.
 window.cancelAction=function(table,id){const cancelStatus='관리자 취소';window.openCustomConfirm("일정 취소",null,`이 일정을 <b>관리자 취소</b> 처리하시겠습니까?<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">관리자 취소는 당일 취소 누적에 포함되지 않습니다.</div>`,async()=>{const{error}=await supabaseClient.from(table).update({status:cancelStatus}).eq('id',id);if(error)showToast("취소 처리 실패");else{showToast("관리자 취소 처리되었습니다.");window.fetchCenterData({force:true});}});};
 window.toggleAllDay=function(checkbox){let blkStart=$("blkStart");let blkEnd=$("blkEnd");if(checkbox.checked){if(blkStart){blkStart.value='00:00';blkStart.disabled=true;blkStart.style.opacity='0.4';}if(blkEnd){blkEnd.value='23:59';blkEnd.disabled=true;blkEnd.style.opacity='0.4';}}else{if(blkStart){blkStart.disabled=false;blkStart.style.opacity='1';if(blkStart.value==='00:00')blkStart.value='09:00';}if(blkEnd){blkEnd.disabled=false;blkEnd.style.opacity='1';if(blkEnd.value==='23:59')blkEnd.value='18:00';}}};
 window.setupBlockModalControls=function(isEdit){let blkStartEl=$("blkStart");let blkEndEl=$("blkEnd");if(blkStartEl&&!document.getElementById('blkAllDayWrap')){let wrap=document.createElement('div');wrap.id='blkAllDayWrap';wrap.innerHTML=`<input type="checkbox" id="blkAllDay" onchange="window.toggleAllDay(this)"><label for="blkAllDay">하루 종일</label>`;let timeContainer=blkStartEl.parentNode;while(timeContainer&&blkEndEl&&!timeContainer.contains(blkEndEl)){timeContainer=timeContainer.parentNode;}if(timeContainer&&timeContainer.parentNode){timeContainer.parentNode.insertBefore(wrap,timeContainer);}else{blkStartEl.parentNode.insertBefore(wrap,blkStartEl);}}let allDayCb=document.getElementById('blkAllDay');if(allDayCb){allDayCb.checked=false;if(blkStartEl){blkStartEl.disabled=false;blkStartEl.style.opacity='1';}if(blkEndEl){blkEndEl.disabled=false;blkEndEl.style.opacity='1';}}let repTypeEl=$("blkRepeatType");if(repTypeEl){let repSection=repTypeEl.parentElement?.parentElement;if(repSection)repSection.style.display=isEdit?'none':'flex';if(!isEdit){repTypeEl.value='none';let repCountEl=$("blkRepeatCount");if(repCountEl)repCountEl.value='';}}if(!document.getElementById('blkBatchWrap')){let blkCapacityEl=$("blkCapacity");if(blkCapacityEl){let batchWrap=document.createElement('div');batchWrap.id='blkBatchWrap';batchWrap.style.cssText='margin-bottom:12px;';batchWrap.innerHTML=`<label class="input-label">대상 기수 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary);">비워두면 전체 기수</span></label><input type="text" id="blkBatch" class="input-search" style="width:100%;box-sizing:border-box;" placeholder="예: 34기" onblur="let v=this.value.trim();if(v&&/^\\d+$/.test(v))this.value=v+'기';">`;let capParent=blkCapacityEl.parentElement;if(capParent&&capParent.parentNode)capParent.parentNode.insertBefore(batchWrap,capParent);}}if(!document.getElementById('blkIsCuppingWrap')){let capEl2=$("blkCapacity");if(capEl2){let cupWrap=document.createElement('div');cupWrap.id='blkIsCuppingWrap';cupWrap.style.cssText='margin-bottom:12px;display:flex;align-items:flex-start;gap:10px;padding:14px;background:#fff7f0;border:1px solid #ffd9b3;border-radius:12px;';cupWrap.innerHTML='<input type="checkbox" id="blkIsCupping" style="width:20px;height:20px;accent-color:var(--primary);cursor:pointer;flex-shrink:0;margin:1px 0 0 0;"><label for="blkIsCupping" style="cursor:pointer;word-break:keep-all;flex:1;"><div style="font-size:14px;font-weight:700;color:var(--text-display);line-height:1.4;">이 스케줄을 커핑 세션으로 운영</div><div style="font-size:12px;font-weight:500;color:var(--text-tertiary);margin-top:3px;line-height:1.4;">체크하면 라인업·참가자·레퍼런스 설정이 열려요</div></label>';let refWrap=document.getElementById('blkBatchWrap')||capEl2.parentElement;if(refWrap&&refWrap.parentNode)refWrap.parentNode.insertBefore(cupWrap,refWrap);}}};
-window.updateRepeatPreview=function(){let baseDateStr=$("blkDate")?$("blkDate").value:'';let repType=document.getElementById('blkRepeatType')?document.getElementById('blkRepeatType').value:'none';let repCount=parseInt(document.getElementById('blkRepeatCount')?document.getElementById('blkRepeatCount').value:'4')||4;let preview=document.getElementById('blkRepeatPreview');if(!preview||repType==='none'||!baseDateStr)return;let baseDate=new Date(baseDateStr+'T00:00:00');if(isNaN(baseDate.getTime()))return;let lastDate=new Date(baseDate);if(repType==='weekly')lastDate.setDate(lastDate.getDate()+(repCount-1)*7);else if(repType==='monthly')lastDate.setMonth(lastDate.getMonth()+(repCount-1));let dow=['일','월','화','수','목','금','토'][baseDate.getDay()];let lastStr=`${lastDate.getFullYear()}-${String(lastDate.getMonth()+1).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;preview.style.display='block';preview.innerHTML=`${baseDateStr}(${dow}) 부터 ${repCount}회 → 마지막: ${lastStr}`;};
+window.updateRepeatPreview=function(){let baseDateStr=$("blkDate")?$("blkDate").value:'';let repType=document.getElementById('blkRepeatType')?document.getElementById('blkRepeatType').value:'none';let repCount=parseInt(document.getElementById('blkRepeatCount')?document.getElementById('blkRepeatCount').value:'4')||4;let preview=document.getElementById('blkRepeatPreview');if(!preview||repType==='none'||!baseDateStr)return;let baseDate=new Date(baseDateStr+'T00:00:00');if(isNaN(baseDate.getTime()))return;let lastDate=new Date(baseDate);if(repType==='weekly')lastDate.setDate(lastDate.getDate()+(repCount-1)*7);else if(repType==='monthly')lastDate.setMonth(lastDate.getMonth()+(repCount-1));let dow=['일','월','화','수','목','금','토'][baseDate.getDay()];let lastStr=`${lastDate.getFullYear()}-${String(lastDate.getMonth()+1).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;preview.style.display='block';preview.innerHTML=`📅 ${baseDateStr}(${dow}) 부터 ${repCount}회 → 마지막: ${lastStr}`;};
 window.openBlockModal=function(dateStr,timeStr){if($("blockModal"))$("blockModal").classList.add('show');if($("blkId"))$("blkId").value='';if($("blkDate"))$("blkDate").value=window.formatBlockDate(dateStr||currentCalDate.toISOString().split('T')[0]);if($("blkStart"))$("blkStart").value=window.formatBlockTime(timeStr||'09:00');if($("blkEnd"))$("blkEnd").value=window.formatBlockTime(timeStr?String(parseInt(timeStr.split(':')[0])+2).padStart(2,'0')+':00':'18:00');if($("blkCategory"))$("blkCategory").value='기본 수업';if($("blkCenter"))$("blkCenter").value=currentGlobalCenter==='전체'?'마포 센터':currentGlobalCenter;if(window.updateSpaceOptions)window.updateSpaceOptions();if($("blkSpace")){$("blkSpace").value='';$("blkSpace").dataset.selectedValues='';}if($("blkReason"))$("blkReason").value='';if($("blkCapacity"))$("blkCapacity").value='';if($("blkBatch"))$("blkBatch").value='';if($("blockModalTitle"))$("blockModalTitle").innerText="신규 스케줄 등록";window.setupBlockModalControls(false);if($("blkIsCupping"))$("blkIsCupping").checked=false;};
 window.editBlock=function(id){let b=gBlk.find(x=>String(x.id)===String(id));if(!b)return;if($("blockModal"))$("blockModal").classList.add('show');if($("blkId"))$("blkId").value=b.id;if($("blkDate"))$("blkDate").value=b.block_date;if($("blkStart"))$("blkStart").value=b.start_time;if($("blkEnd"))$("blkEnd").value=b.end_time;if($("blkCategory"))$("blkCategory").value=b.category;if($("blkCenter"))$("blkCenter").value=b.center||'마포 센터';if(window.updateSpaceOptions)window.updateSpaceOptions();if($("blkSpace")){$("blkSpace").value=b.space_equip||'';$("blkSpace").dataset.selectedValues=b.space_equip||'';}if($("blkReason"))$("blkReason").value=b.reason;if($("blkCapacity"))$("blkCapacity").value=b.capacity===null?'':b.capacity;if($("blkBatch"))$("blkBatch").value=b.target_batch||'';if($("blockModalTitle"))$("blockModalTitle").innerText="스케줄 수정";window.setupBlockModalControls(true);if($("blkIsCupping"))$("blkIsCupping").checked=!!b.is_cupping;let allDayCb=document.getElementById('blkAllDay');if(allDayCb&&b.start_time==='00:00'&&b.end_time==='23:59'){allDayCb.checked=true;window.toggleAllDay(allDayCb);}};
 window.closeBlockModal=function(){if($("blockModal"))$("blockModal").classList.remove('show');};
@@ -1740,7 +1739,6 @@ window.downloadExcel = function(type) {
     }catch(err){console.error("Excel Download Error: ",err);if(typeof showToast==='function')showToast('엑셀 다운로드 중 오류가 발생했습니다.');}
 };
 /* ═══ 파트 4 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 1 — 세션 + 라인업(원두) 관리
    커핑 세션 토글·생성, 라인업 CRUD, 라인업 복사/붙여넣기(교육매니저 레퍼런스 포함).
@@ -2072,7 +2070,6 @@ window.moveCuppingBean = async function(sessionId, beanId, dir) {
   await window.fetchCuppingBeans(sessionId);
 };
 /* ═══ 커핑 1 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 2 — 참가자 관리
    참가자 로드·승인·삭제, 사전등록, 수업신청 ↔ 참가자 연동 취소.
@@ -2810,6 +2807,7 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 5 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 6 — 세션 URL QR 코드
    커핑 설정 모달 URL 옆 QR 생성, 전체화면 확대.
@@ -3783,7 +3781,6 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 8 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 9 — 평가 모드 설정 (호스트)
    커핑 설정 모달에 '평가 모드' 셀렉터 주입 → cupping_sessions.assess_mode 저장.
@@ -3834,3 +3831,139 @@ window.hideCalibration = async function() {
   };
 })();
 /* ═══ 커핑 9 끝 ═══ */
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 커핑 10 — 커핑 설정 모달: 국면별 재배치 + 전체화면
+   · 호스트 동선(시간순)으로 4국면 묶음 + 국면 헤더:
+       【1 세션 준비】 평가 방법 → 원두 추가 → 라인업 → 호스트 레퍼런스
+       【2 참가자 입장】 접속 URL·QR → 참가자 명단
+       【3 라이브 진행】 프로토콜 타이머
+       【4 공개·리뷰】 참가자 평가 조회 → 공개 관리
+   · 헤더에 전체화면 토글 버튼(뷰포트 전체로 확대/복귀).
+   · 정적 HTML(Webflow)은 그대로, 패널 주입 끝난 뒤 DOM 노드만 재배치.
+   의존: 파트 1~4 · 커핑 1~9 (openCuppingLineup 최종 래핑)
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  var _$ = function (id) { return document.getElementById(id); };
+
+  var FS_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>';
+  var FS_EXIT_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>';
+
+  function ensureStyle() {
+    if (_$("cupModalOrderStyle")) return;
+    var st = document.createElement("style");
+    st.id = "cupModalOrderStyle";
+    st.textContent =
+      // 전체화면
+      "#cuppingLineupModal.wc-fs{align-items:stretch !important;justify-content:stretch !important;padding:0 !important;}" +
+      "#cuppingLineupModal.wc-fs .modal-content{max-width:none !important;width:100vw !important;height:100vh !important;border-radius:0 !important;margin:0 !important;display:flex !important;flex-direction:column !important;}" +
+      "#cuppingLineupModal.wc-fs .modal-body{max-height:none !important;flex:1 1 auto !important;}" +
+      "#cuppingLineupModal .modal-header{position:relative;}" +
+      "#cupFsBtn{margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text-secondary,#6b7684);padding:4px 8px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;transition:.12s;-webkit-tap-highlight-color:transparent;}" +
+      "#cupFsBtn:hover{color:var(--text-display,#191f28);background:#f2f4f6;}" +
+      // 국면 헤더
+      ".wc-phase-hdr{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;color:var(--text-tertiary,#8b95a1);letter-spacing:.01em;margin:24px 0 14px;padding-bottom:9px;border-bottom:1px solid #eef1f4;}" +
+      "#wcPhaseHdr1{margin-top:4px;}" +
+      ".wc-phase-hdr .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--primary,#ff7900);color:#fff;font-size:11px;font-weight:800;flex-shrink:0;}";
+    document.head.appendChild(st);
+  }
+
+  function ensureFsButton() {
+    ensureStyle();
+    var modal = _$("cuppingLineupModal");
+    if (!modal) return;
+    var header = modal.querySelector(".modal-header");
+    if (!header || _$("cupFsBtn")) return;
+    var closeBtn = header.querySelector(".btn-close");
+    var btn = document.createElement("button");
+    btn.id = "cupFsBtn";
+    btn.type = "button";
+    btn.title = "전체화면";
+    btn.setAttribute("aria-label", "전체화면");
+    btn.innerHTML = FS_ICON;
+    btn.onclick = function () {
+      var m = _$("cuppingLineupModal");
+      if (!m) return;
+      var on = m.classList.toggle("wc-fs");
+      btn.innerHTML = on ? FS_EXIT_ICON : FS_ICON;
+      btn.title = on ? "전체화면 종료" : "전체화면";
+    };
+    if (closeBtn && closeBtn.parentNode) closeBtn.parentNode.insertBefore(btn, closeBtn);
+    else header.appendChild(btn);
+  }
+
+  // modal-body 직속 자식 중 주어진 노드를 포함하는 노드 반환(없으면 null)
+  function topChild(bodyEl, node) {
+    if (!node) return null;
+    var el = node;
+    while (el && el.parentNode !== bodyEl) el = el.parentNode;
+    return el;
+  }
+
+  // 국면 헤더 노드(최초 1회 생성 후 재사용)
+  function phaseHdr(id, num, label) {
+    var el = _$(id);
+    if (!el) {
+      el = document.createElement("div");
+      el.id = id;
+      el.className = "wc-phase-hdr";
+      el.innerHTML = '<span class="n">' + num + '</span>' + label;
+    }
+    return el;
+  }
+
+  function reorderModal() {
+    var modal = _$("cuppingLineupModal");
+    if (!modal) return;
+    var bodyEl = modal.querySelector(".modal-body");
+    if (!bodyEl) return;
+
+    ensureStyle();
+
+    // ── 섹션 루트 노드 ──
+    var assess   = _$("cupAssessModeRow");                   // 평가 방법 (커핑 9)
+    var beanForm = topChild(bodyEl, _$("beanName"));         // 원두 추가 폼
+    var lineTtl  = topChild(bodyEl, _$("beanCount"));        // 라인업 타이틀(개수)
+    var beanList = _$("beanListArea");                       // 라인업 목록
+    var refSec   = topChild(bodyEl, _$("refBeanSelect"));    // 호스트 레퍼런스(평가 입력)
+    var urlBox   = topChild(bodyEl, _$("sessionUrlText"));   // 접속 URL 박스
+    var qrHost   = _$("cupQrHost");                          // QR (커핑 6)
+    var partSec  = topChild(bodyEl, _$("partListArea"));     // 참가자
+    var livePan  = _$("cupLivePanel");                       // 라이브 타이머 (커핑 4)
+    var rvTrig   = _$("cupRvTrigger");                       // 참가자 평가 조회 (커핑 7)
+    var disc     = _$("wcDisc");                             // 공개 관리 (커핑 3)
+
+    // ── 국면 헤더 ──
+    var h1 = phaseHdr("wcPhaseHdr1", "1", "세션 준비");
+    var h2 = phaseHdr("wcPhaseHdr2", "2", "참가자 입장");
+    var h3 = phaseHdr("wcPhaseHdr3", "3", "라이브 진행");
+    var h4 = phaseHdr("wcPhaseHdr4", "4", "공개 · 리뷰");
+
+    // 원하는 순서대로 modal-body 끝에 재-append(=이동). 숨은 lineupSessionId 는 맨 앞 유지.
+    [h1, assess, beanForm, lineTtl, beanList, refSec,   // 【1 준비】
+     h2, urlBox, qrHost, partSec,                        // 【2 참가자 입장】
+     h3, livePan,                                        // 【3 라이브】
+     h4, rvTrig, disc                                    // 【4 공개·리뷰】
+    ].forEach(function (el) { if (el && el.parentNode !== undefined) bodyEl.appendChild(el); });
+  }
+
+  // ── openCuppingLineup 최종 래핑: 모든 주입 이후 재배치 + 전체화면 버튼 ──
+  var _origOpen = window.openCuppingLineup;
+  window.openCuppingLineup = async function (session) {
+    if (_origOpen) await _origOpen(session);
+    try { ensureFsButton(); } catch (e) { console.error("[cupping10] 전체화면 버튼 오류", e); }
+    try { reorderModal(); } catch (e) { console.error("[cupping10] 재배치 오류", e); }
+  };
+
+  // ── 닫을 때 전체화면 해제(재오픈 시 기본 상태) ──
+  var _origClose = window.closeCuppingLineupModal;
+  window.closeCuppingLineupModal = function () {
+    var m = _$("cuppingLineupModal");
+    if (m) m.classList.remove("wc-fs");
+    var b = _$("cupFsBtn");
+    if (b) { b.innerHTML = FS_ICON; b.title = "전체화면"; }
+    if (_origClose) _origClose();
+    else if (m) m.classList.remove("show");
+  };
+})();
+/* ═══ 커핑 10 끝 ═══ */
