@@ -1459,7 +1459,7 @@ window.sendToGoogleSheet=async function(){if(!window.currentSummaryData||window.
 window.cancelAction=function(table,id){const cancelStatus='관리자 취소';window.openCustomConfirm("일정 취소",null,`이 일정을 <b>관리자 취소</b> 처리하시겠습니까?<div style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">관리자 취소는 당일 취소 누적에 포함되지 않습니다.</div>`,async()=>{const{error}=await supabaseClient.from(table).update({status:cancelStatus}).eq('id',id);if(error)showToast("취소 처리 실패");else{showToast("관리자 취소 처리되었습니다.");window.fetchCenterData({force:true});}});};
 window.toggleAllDay=function(checkbox){let blkStart=$("blkStart");let blkEnd=$("blkEnd");if(checkbox.checked){if(blkStart){blkStart.value='00:00';blkStart.disabled=true;blkStart.style.opacity='0.4';}if(blkEnd){blkEnd.value='23:59';blkEnd.disabled=true;blkEnd.style.opacity='0.4';}}else{if(blkStart){blkStart.disabled=false;blkStart.style.opacity='1';if(blkStart.value==='00:00')blkStart.value='09:00';}if(blkEnd){blkEnd.disabled=false;blkEnd.style.opacity='1';if(blkEnd.value==='23:59')blkEnd.value='18:00';}}};
 window.setupBlockModalControls=function(isEdit){let blkStartEl=$("blkStart");let blkEndEl=$("blkEnd");if(blkStartEl&&!document.getElementById('blkAllDayWrap')){let wrap=document.createElement('div');wrap.id='blkAllDayWrap';wrap.innerHTML=`<input type="checkbox" id="blkAllDay" onchange="window.toggleAllDay(this)"><label for="blkAllDay">하루 종일</label>`;let timeContainer=blkStartEl.parentNode;while(timeContainer&&blkEndEl&&!timeContainer.contains(blkEndEl)){timeContainer=timeContainer.parentNode;}if(timeContainer&&timeContainer.parentNode){timeContainer.parentNode.insertBefore(wrap,timeContainer);}else{blkStartEl.parentNode.insertBefore(wrap,blkStartEl);}}let allDayCb=document.getElementById('blkAllDay');if(allDayCb){allDayCb.checked=false;if(blkStartEl){blkStartEl.disabled=false;blkStartEl.style.opacity='1';}if(blkEndEl){blkEndEl.disabled=false;blkEndEl.style.opacity='1';}}let repTypeEl=$("blkRepeatType");if(repTypeEl){let repSection=repTypeEl.parentElement?.parentElement;if(repSection)repSection.style.display=isEdit?'none':'flex';if(!isEdit){repTypeEl.value='none';let repCountEl=$("blkRepeatCount");if(repCountEl)repCountEl.value='';}}if(!document.getElementById('blkBatchWrap')){let blkCapacityEl=$("blkCapacity");if(blkCapacityEl){let batchWrap=document.createElement('div');batchWrap.id='blkBatchWrap';batchWrap.style.cssText='margin-bottom:12px;';batchWrap.innerHTML=`<label class="input-label">대상 기수 <span style="font-size:11px;font-weight:500;color:var(--text-tertiary);">비워두면 전체 기수</span></label><input type="text" id="blkBatch" class="input-search" style="width:100%;box-sizing:border-box;" placeholder="예: 34기" onblur="let v=this.value.trim();if(v&&/^\\d+$/.test(v))this.value=v+'기';">`;let capParent=blkCapacityEl.parentElement;if(capParent&&capParent.parentNode)capParent.parentNode.insertBefore(batchWrap,capParent);}}if(!document.getElementById('blkIsCuppingWrap')){let capEl2=$("blkCapacity");if(capEl2){let cupWrap=document.createElement('div');cupWrap.id='blkIsCuppingWrap';cupWrap.style.cssText='margin-bottom:12px;display:flex;align-items:flex-start;gap:10px;padding:14px;background:#fff7f0;border:1px solid #ffd9b3;border-radius:12px;';cupWrap.innerHTML='<input type="checkbox" id="blkIsCupping" style="width:20px;height:20px;accent-color:var(--primary);cursor:pointer;flex-shrink:0;margin:1px 0 0 0;"><label for="blkIsCupping" style="cursor:pointer;word-break:keep-all;flex:1;"><div style="font-size:14px;font-weight:700;color:var(--text-display);line-height:1.4;">이 스케줄을 커핑 세션으로 운영</div><div style="font-size:12px;font-weight:500;color:var(--text-tertiary);margin-top:3px;line-height:1.4;">체크하면 라인업·참가자·레퍼런스 설정이 열려요</div></label>';let refWrap=document.getElementById('blkBatchWrap')||capEl2.parentElement;if(refWrap&&refWrap.parentNode)refWrap.parentNode.insertBefore(cupWrap,refWrap);}}};
-window.updateRepeatPreview=function(){let baseDateStr=$("blkDate")?$("blkDate").value:'';let repType=document.getElementById('blkRepeatType')?document.getElementById('blkRepeatType').value:'none';let repCount=parseInt(document.getElementById('blkRepeatCount')?document.getElementById('blkRepeatCount').value:'4')||4;let preview=document.getElementById('blkRepeatPreview');if(!preview||repType==='none'||!baseDateStr)return;let baseDate=new Date(baseDateStr+'T00:00:00');if(isNaN(baseDate.getTime()))return;let lastDate=new Date(baseDate);if(repType==='weekly')lastDate.setDate(lastDate.getDate()+(repCount-1)*7);else if(repType==='monthly')lastDate.setMonth(lastDate.getMonth()+(repCount-1));let dow=['일','월','화','수','목','금','토'][baseDate.getDay()];let lastStr=`${lastDate.getFullYear()}-${String(lastDate.getMonth()+1).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;preview.style.display='block';preview.innerHTML=`📅 ${baseDateStr}(${dow}) 부터 ${repCount}회 → 마지막: ${lastStr}`;};
+window.updateRepeatPreview=function(){let baseDateStr=$("blkDate")?$("blkDate").value:'';let repType=document.getElementById('blkRepeatType')?document.getElementById('blkRepeatType').value:'none';let repCount=parseInt(document.getElementById('blkRepeatCount')?document.getElementById('blkRepeatCount').value:'4')||4;let preview=document.getElementById('blkRepeatPreview');if(!preview||repType==='none'||!baseDateStr)return;let baseDate=new Date(baseDateStr+'T00:00:00');if(isNaN(baseDate.getTime()))return;let lastDate=new Date(baseDate);if(repType==='weekly')lastDate.setDate(lastDate.getDate()+(repCount-1)*7);else if(repType==='monthly')lastDate.setMonth(lastDate.getMonth()+(repCount-1));let dow=['일','월','화','수','목','금','토'][baseDate.getDay()];let lastStr=`${lastDate.getFullYear()}-${String(lastDate.getMonth()+1).padStart(2,'0')}-${String(lastDate.getDate()).padStart(2,'0')}`;preview.style.display='block';preview.innerHTML=`${baseDateStr}(${dow}) 부터 ${repCount}회 → 마지막: ${lastStr}`;};
 window.openBlockModal=function(dateStr,timeStr){if($("blockModal"))$("blockModal").classList.add('show');if($("blkId"))$("blkId").value='';if($("blkDate"))$("blkDate").value=window.formatBlockDate(dateStr||currentCalDate.toISOString().split('T')[0]);if($("blkStart"))$("blkStart").value=window.formatBlockTime(timeStr||'09:00');if($("blkEnd"))$("blkEnd").value=window.formatBlockTime(timeStr?String(parseInt(timeStr.split(':')[0])+2).padStart(2,'0')+':00':'18:00');if($("blkCategory"))$("blkCategory").value='기본 수업';if($("blkCenter"))$("blkCenter").value=currentGlobalCenter==='전체'?'마포 센터':currentGlobalCenter;if(window.updateSpaceOptions)window.updateSpaceOptions();if($("blkSpace")){$("blkSpace").value='';$("blkSpace").dataset.selectedValues='';}if($("blkReason"))$("blkReason").value='';if($("blkCapacity"))$("blkCapacity").value='';if($("blkBatch"))$("blkBatch").value='';if($("blockModalTitle"))$("blockModalTitle").innerText="신규 스케줄 등록";window.setupBlockModalControls(false);if($("blkIsCupping"))$("blkIsCupping").checked=false;};
 window.editBlock=function(id){let b=gBlk.find(x=>String(x.id)===String(id));if(!b)return;if($("blockModal"))$("blockModal").classList.add('show');if($("blkId"))$("blkId").value=b.id;if($("blkDate"))$("blkDate").value=b.block_date;if($("blkStart"))$("blkStart").value=b.start_time;if($("blkEnd"))$("blkEnd").value=b.end_time;if($("blkCategory"))$("blkCategory").value=b.category;if($("blkCenter"))$("blkCenter").value=b.center||'마포 센터';if(window.updateSpaceOptions)window.updateSpaceOptions();if($("blkSpace")){$("blkSpace").value=b.space_equip||'';$("blkSpace").dataset.selectedValues=b.space_equip||'';}if($("blkReason"))$("blkReason").value=b.reason;if($("blkCapacity"))$("blkCapacity").value=b.capacity===null?'':b.capacity;if($("blkBatch"))$("blkBatch").value=b.target_batch||'';if($("blockModalTitle"))$("blockModalTitle").innerText="스케줄 수정";window.setupBlockModalControls(true);if($("blkIsCupping"))$("blkIsCupping").checked=!!b.is_cupping;let allDayCb=document.getElementById('blkAllDay');if(allDayCb&&b.start_time==='00:00'&&b.end_time==='23:59'){allDayCb.checked=true;window.toggleAllDay(allDayCb);}};
 window.closeBlockModal=function(){if($("blockModal"))$("blockModal").classList.remove('show');};
@@ -2093,13 +2093,39 @@ window.fetchCuppingParticipants = async function(sessionId) {
 window.renderCuppingParticipants = function(sessionId) {
   const parts = gCuppingParts[sessionId] || [];
   const area = $("partListArea");
-  if ($("partCount")) $("partCount").textContent = parts.length;
   if (!area) return;
-  if (!parts.length) {
+  // ── 수업 신청자(trainings) 병합: 이 세션 블록에 신청했지만 아직 세션 미입장인 사람도 명단에 표시(읽기전용) ──
+  var _digits = function(s){ return String(s||"").replace(/\D/g,""); };
+  var _partPhones = {};
+  parts.forEach(function(p){ var ph = p.member_id ? (p.members && p.members.phone) : p.guest_phone; var k = _digits(ph); if(k) _partPhones[k] = true; });
+  var signups = [];
+  try {
+    var _sess = window._cuppingSession;
+    var _blk = (_sess && typeof gBlk !== "undefined") ? gBlk.find(function(b){ return String(b.id) === String(_sess.block_id); }) : null;
+    if (_blk) {
+      var _nrm = function(s){ return String(s||"").replace(/\s+/g,""); };
+      var _normT = function(s){ return String(s||"").replace(/(\d{1,2}:\d{2}):\d{2}/g,"$1").replace(/\s+/g,""); };
+      var _ck = "[" + (_blk.category||"") + "] " + (_blk.reason||"");
+      var _tr = (_blk.start_time||"") + "~" + (_blk.end_time||"");
+      (typeof gTrn !== "undefined" ? gTrn : []).forEach(function(t){
+        if (String(t.status||"").includes("취소")) return;
+        var ci = String(t.content||"").split("||").map(function(s){ return s.trim(); });
+        if (ci.length < 5) return;
+        if (ci[0]===_blk.block_date && ci[3]===_blk.center && _nrm(ci[4])===_nrm(_ck) && _normT(ci[2])===_normT(_tr)) {
+          var k = _digits(t.phone);
+          if (k && _partPhones[k]) return;   // 이미 세션 참가자면 중복 제외
+          signups.push({ name: t.name, batch: t.batch, phone: t.phone });
+        }
+      });
+    }
+  } catch(e) { console.warn("[cupping] 참가자 신청자 병합 오류", e); }
+  var totalCount = parts.length + signups.length;
+  if ($("partCount")) $("partCount").textContent = totalCount;
+  if (!totalCount) {
     area.innerHTML = '<div class="empty-state" style="padding:20px 0;font-size:13px;">참가자가 없습니다.</div>';
     return;
   }
-  area.innerHTML = parts.map(function(p) {
+  var html = parts.map(function(p) {
     const isMember = !!p.member_id;
     const name = isMember ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트");
     const sub = isMember ? ((p.members && p.members.batch) || "") : (p.guest_phone || "");
@@ -2119,6 +2145,19 @@ window.renderCuppingParticipants = function(sessionId) {
       '<button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--error);padding:4px 8px;" onclick="window.removeParticipant(\'' + sessionId + '\',\'' + p.id + '\')">삭제</button>' +
       '</div></div>';
   }).join("");
+  // 수업 신청자(세션 미입장) — 읽기전용, '신청' 뱃지. 세션 입장 전이라 승인/삭제 대상 아님.
+  html += signups.map(function(s) {
+    return '<div class="wc-part-card">' +
+      '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">' +
+      '<span style="width:8px;height:8px;border-radius:50%;background:#b0b8c1;flex-shrink:0;"></span>' +
+      '<div style="min-width:0;">' +
+      '<div style="font-size:14px;font-weight:700;color:var(--text-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(s.name || "신청자") +
+      ' <span style="font-size:10px;font-weight:700;color:#6b7684;background:#f2f4f6;padding:1px 6px;border-radius:5px;margin-left:4px;">신청</span></div>' +
+      '<div style="font-size:11px;color:var(--text-secondary);">' + escapeHtml((s.batch || "") + (s.phone ? " · " + s.phone : "")) + ' · 수업 신청 · 세션 미입장</div>' +
+      '</div></div>' +
+      '</div>';
+  }).join("");
+  area.innerHTML = html;
 };
 window.approveParticipant = async function(sessionId, partId) {
   const { error } = await supabaseClient
@@ -3855,9 +3894,12 @@ window.hideCalibration = async function() {
     st.id = "cupModalOrderStyle";
     st.textContent =
       // 전체화면
-      "#cuppingLineupModal.wc-fs{align-items:stretch !important;justify-content:stretch !important;padding:0 !important;}" +
-      "#cuppingLineupModal.wc-fs .modal-content{max-width:none !important;width:100vw !important;height:100vh !important;border-radius:0 !important;margin:0 !important;display:flex !important;flex-direction:column !important;}" +
-      "#cuppingLineupModal.wc-fs .modal-body{max-height:none !important;flex:1 1 auto !important;}" +
+      // 전체화면: 모달 내부 구조(클래스)에 의존하지 않고, 모달 컨테이너 자체를 뷰포트로 만들고
+      //           직속 카드가 화면을 꽉 채우게 함(불투명 배경 → 뒤 페이지 안 비침, 세로 넘치면 스크롤).
+      "#cuppingLineupModal.wc-fs{position:fixed !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;width:100% !important;height:100% !important;max-width:none !important;margin:0 !important;padding:0 !important;background:#fff !important;display:block !important;overflow-y:auto !important;-webkit-overflow-scrolling:touch;z-index:100000 !important;}" +
+      "#cuppingLineupModal.wc-fs > *{max-width:none !important;width:100% !important;min-height:100vh !important;height:auto !important;max-height:none !important;margin:0 !important;border-radius:0 !important;box-shadow:none !important;box-sizing:border-box !important;}" +
+      "#cuppingLineupModal.wc-fs .modal-body{max-height:none !important;height:auto !important;overflow:visible !important;}" +
+      "#cuppingLineupModal.wc-fs .modal-header{position:sticky !important;top:0 !important;background:#fff !important;z-index:5 !important;}" +
       "#cuppingLineupModal .modal-header{position:relative;}" +
       "#cupFsBtn{margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text-secondary,#6b7684);padding:4px 8px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;transition:.12s;-webkit-tap-highlight-color:transparent;}" +
       "#cupFsBtn:hover{color:var(--text-display,#191f28);background:#f2f4f6;}" +
