@@ -1,5 +1,5 @@
-/* ═══════════════════════════════════════════════════════════
-   WeCoffee Admin · 파트 1 — 공통 유틸 · 초기화 · 센터 데이터 로드
+/* ═══
+WeCoffee Admin · 파트 1 — 공통 유틸 · 초기화 · 센터 데이터 로드
    전역/헬퍼, 로그인·실시간 동기화, fetchCenterData(예약·수업·주문·블록·공지 로드).
    의존: 없음 (가장 먼저 로드)
    ═══════════════════════════════════════════════════════════ */
@@ -145,7 +145,7 @@ wecoffeeStyle.innerHTML = `
     .timeline-date-nav .tdn-hidden-picker { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; left: 50%; bottom: 0; }
     #trnContentModal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99990; align-items:center; justify-content:center; padding:16px; box-sizing:border-box; }
     #trnContentModal.show { display:flex; }
-    #trnContentModal .tcm-box { background:#fff; border-radius:16px; width:100%; max-width:900px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; }
+    #trnContentModal .tcm-box { background:#fff; border-radius:16px; width:100%; max-width:820px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 32px rgba(0,0,0,0.18); overflow:hidden; }
     #trnContentModal .tcm-header { padding:20px 24px 16px; border-bottom:1px solid var(--border-strong); flex-shrink:0; }
     #trnContentModal .tcm-title { font-size:16px; font-weight:800; color:var(--text-display); margin-bottom:4px; line-height:1.4; word-break:keep-all; }
     #trnContentModal .tcm-sub { font-size:13px; color:var(--text-secondary); font-weight:500; }
@@ -202,6 +202,9 @@ wecoffeeStyle.innerHTML = `
         #timelineFullscreenBody .timeline-container { overflow: auto !important; overscroll-behavior: contain !important; -webkit-overflow-scrolling: touch; }
     }
     @media (min-width: 769px) { .timeline-fullscreen-btn { display: none !important; } #timelineFullscreenOverlay { display: none !important; } }
+    /* ── 관리자 모달 가로폭 통일 (820px) · Webflow .modal-content + JS 생성 모달 함께 ── */
+    .modal-content { max-width:820px !important; width:100% !important; box-sizing:border-box; }
+    #invoiceModal > div, #cancelDetailModal > div, #scheduleModal > div, #batchConfigModal > div { max-width:820px !important; }
 `;
 window.escapeHtml = function(unsafe) { if (!unsafe) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); };
 window.normalizePhone = function(p) {
