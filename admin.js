@@ -1873,10 +1873,12 @@ window.openCuppingSetup = async function(blockId) {
 /* ── 라인업 모달 ── */
 window.openCuppingLineup = async function(session) {
   window._cuppingSession = session;
+  window._wcEditBeanId = null;
   $("lineupSessionId").value = session.id;
   $("lineupModalTitle").textContent = session.title + " — 커핑 설정";
   $("sessionUrlText").textContent = "https://www.wecoffee.co.kr/cupping?slug=" + session.slug;
-  ["beanName","beanOrigin","beanFarm","beanProcess","beanAltitude","beanVariety","beanRoast"]
+  _wcEnsureBeanUrlInput();
+  ["beanName","beanOrigin","beanFarm","beanProcess","beanAltitude","beanVariety","beanRoast","beanUrl"]
     .forEach(function(id) { if ($(id)) $(id).value = ""; });
   await window.fetchCuppingBeans(session.id);
   $("cuppingLineupModal").classList.add("show");
@@ -1899,7 +1901,7 @@ window.fetchCuppingBeans = async function(sessionId) {
 /* ── 라인업 복사/붙여넣기 클립보드(회차 간 재사용, localStorage) ── */
 function _wcClipGet() { try { return JSON.parse(localStorage.getItem("wc_cupping_bean_clip") || "[]") || []; } catch (e) { return []; } }
 function _wcClipSet(arr) { try { localStorage.setItem("wc_cupping_bean_clip", JSON.stringify(arr || [])); } catch (e) {} }
-function _wcBeanPick(b) { return { name: b.name, origin: b.origin, farm: b.farm, process: b.process, altitude: b.altitude, variety: b.variety, roast_level: b.roast_level }; }
+function _wcBeanPick(b) { return { name: b.name, origin: b.origin, farm: b.farm, process: b.process, altitude: b.altitude, variety: b.variety, roast_level: b.roast_level, source_url: b.source_url }; }
 function _wcClipToolbar(sessionId, beanCount) {
   var clipN = _wcClipGet().length;
   function btn(label, enabled, onclick, primary) {
@@ -1924,6 +1926,7 @@ window.renderCuppingBeans = function(sessionId) {
     return;
   }
   area.innerHTML = toolbar + beans.map(function(b, idx) {
+    if (String(window._wcEditBeanId) === String(b.id)) return _wcBeanEditCardHtml(b, sessionId, idx);
     const specs = [b.origin, b.process, b.altitude, b.variety, b.roast_level].filter(Boolean);
     const upBtn = idx > 0
       ? '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.moveCuppingBean(\'' + sessionId + '\',\'' + b.id + '\',\'up\')">↑</button>' : '';
@@ -1936,11 +1939,80 @@ window.renderCuppingBeans = function(sessionId) {
       '<span style="font-size:15px;font-weight:700;color:var(--text-display);">' + escapeHtml(b.name) + '</span></div>' +
       (specs.length ? '<div style="font-size:12px;color:var(--text-secondary);margin-left:32px;">' + specs.map(escapeHtml).join(" · ") + '</div>' : '') +
       (b.farm ? '<div style="font-size:12px;color:var(--text-tertiary);margin-left:32px;">농장: ' + escapeHtml(b.farm) + '</div>' : '') +
+      (b.source_url ? '<div style="font-size:12px;margin-left:32px;margin-top:3px;"><a href="' + escapeHtml(b.source_url) + '" target="_blank" rel="noopener" style="color:var(--primary,#ff7900);font-weight:600;text-decoration:none;">생두사 링크 바로가기</a></div>' : '') +
       '</div><div class="wc-bean-actions">' + upBtn + downBtn +
+      '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.editCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">수정</button>' +
       '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.copyCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">복사</button>' +
       '<button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--error);padding:4px 8px;" onclick="window.deleteCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">삭제</button>' +
       '</div></div>';
   }).join("");
+};
+/* ── 원두 정보 인라인 수정 (수정 버튼 → 카드가 입력폼으로 전환) ── */
+function _wcBeanEditCardHtml(b, sessionId, idx) {
+  function fld(label, key, val) {
+    return '<label style="display:block;">' +
+      '<span style="font-size:11px;font-weight:700;color:var(--text-secondary);">' + label + '</span>' +
+      '<input id="wcBE_' + key + '_' + b.id + '" value="' + escapeHtml(val || '') + '" ' +
+      'style="width:100%;box-sizing:border-box;margin-top:3px;padding:8px 10px;border:1px solid var(--border-strong,#e5e8eb);border-radius:8px;font-size:14px;"></label>';
+  }
+  return '<div class="wc-bean-card" style="display:block;border-color:var(--primary,#ff7900);">' +
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' +
+    '<span style="width:24px;height:24px;border-radius:7px;background:#fff3e9;color:var(--primary,#ff7900);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">' + (idx + 1) + '</span>' +
+    '<span style="font-size:13px;font-weight:800;color:var(--primary,#ff7900);">원두 정보 수정</span></div>' +
+    fld('원두명', 'name', b.name) +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">' +
+    fld('산지', 'origin', b.origin) + fld('농장', 'farm', b.farm) +
+    fld('가공', 'process', b.process) + fld('고도', 'altitude', b.altitude) +
+    fld('품종', 'variety', b.variety) + fld('로스팅', 'roast', b.roast_level) +
+    '</div>' +
+    '<div style="margin-top:8px;">' + fld('생두사 상품 링크 (멤버가 원두명 클릭 시 이동)', 'url', b.source_url) + '</div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">' +
+    '<button class="btn-outline btn-sm" style="padding:6px 14px;" onclick="window.cancelCuppingBeanEdit(\'' + sessionId + '\')">취소</button>' +
+    '<button class="btn-sm" style="padding:6px 16px;background:var(--primary,#ff7900);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;" onclick="window.saveCuppingBeanEdit(\'' + sessionId + '\',\'' + b.id + '\')">저장</button>' +
+    '</div></div>';
+}
+/* ── 원두 추가폼에 '생두사 링크' 입력칸 주입 (Webflow HTML 수정 없이 JS로 1회 삽입) ── */
+function _wcEnsureBeanUrlInput() {
+  try {
+    if (document.getElementById("beanUrl")) return;
+    var anchor = document.getElementById("beanRoast");
+    if (!anchor) return;
+    var inp = document.createElement("input");
+    inp.id = "beanUrl";
+    inp.type = "url";
+    inp.placeholder = "생두사 상품 링크 (선택) · https://...";
+    if (anchor.className) { inp.className = anchor.className; inp.style.marginTop = "8px"; }
+    else { inp.style.cssText = "width:100%;box-sizing:border-box;margin-top:8px;padding:8px 10px;border:1px solid var(--border-strong,#e5e8eb);border-radius:8px;font-size:14px;"; }
+    if (anchor.nextSibling) anchor.parentNode.insertBefore(inp, anchor.nextSibling);
+    else anchor.parentNode.appendChild(inp);
+  } catch (e) { console.error("[cupping] 링크 입력칸 주입 실패", e); }
+}
+window.editCuppingBean = function(sessionId, beanId) {
+  window._wcEditBeanId = String(beanId);
+  window.renderCuppingBeans(sessionId);
+};
+window.cancelCuppingBeanEdit = function(sessionId) {
+  window._wcEditBeanId = null;
+  window.renderCuppingBeans(sessionId);
+};
+window.saveCuppingBeanEdit = async function(sessionId, beanId) {
+  const g = function(key) { const el = document.getElementById("wcBE_" + key + "_" + beanId); return el ? el.value.trim() : ""; };
+  const name = g("name");
+  if (!name) return showToast("원두명을 입력해주세요.");
+  const { error } = await supabaseClient.from("cupping_beans").update({
+    name: name,
+    origin: g("origin") || null,
+    farm: g("farm") || null,
+    process: g("process") || null,
+    altitude: g("altitude") || null,
+    variety: g("variety") || null,
+    roast_level: g("roast") || null,
+    source_url: g("url") || null
+  }).eq("id", beanId);
+  if (error) { showToast("수정 실패"); console.error(error); return; }
+  window._wcEditBeanId = null;
+  showToast("원두 정보가 수정되었습니다.");
+  await window.fetchCuppingBeans(sessionId);
 };
 /* ── 라인업 복사/붙여넣기 클립보드 (회차 간 재사용 · 교육매니저 레퍼런스 포함) ──
    · localStorage 클립보드에 원두 + 각 원두의 레퍼런스(교육매니저 평가)를 함께 저장
@@ -1949,7 +2021,7 @@ window.renderCuppingBeans = function(sessionId) {
 var _WC_REF_COLS = ["int_fragrance", "int_aroma", "int_flavor", "int_aftertaste", "int_acidity", "int_sweetness", "int_mouthfeel"];
 function _wcClipGet() { try { return JSON.parse(localStorage.getItem("wc_cupping_bean_clip") || "[]") || []; } catch (e) { return []; } }
 function _wcClipSet(arr) { try { localStorage.setItem("wc_cupping_bean_clip", JSON.stringify(arr || [])); } catch (e) {} }
-function _wcBeanPick(b) { return { name: b.name, origin: b.origin, farm: b.farm, process: b.process, altitude: b.altitude, variety: b.variety, roast_level: b.roast_level }; }
+function _wcBeanPick(b) { return { name: b.name, origin: b.origin, farm: b.farm, process: b.process, altitude: b.altitude, variety: b.variety, roast_level: b.roast_level, source_url: b.source_url }; }
 function _wcRefPick(r) {
   if (!r) return null;
   var o = {}, has = false;
@@ -2006,7 +2078,8 @@ window.pasteCuppingLineup = async function (sessionId) {
       session_id: sessionId, sort_order: base + i,
       name: b.name || "원두", origin: b.origin || null, farm: b.farm || null,
       process: b.process || null, altitude: b.altitude || null,
-      variety: b.variety || null, roast_level: b.roast_level || null
+      variety: b.variety || null, roast_level: b.roast_level || null,
+      source_url: b.source_url || null
     };
   });
   var ins = await supabaseClient.from("cupping_beans").insert(rows).select("id,sort_order");
@@ -2038,10 +2111,11 @@ window.addCuppingBean = async function() {
     process: $("beanProcess").value.trim() || null,
     altitude: $("beanAltitude").value.trim() || null,
     variety: $("beanVariety").value.trim() || null,
-    roast_level: $("beanRoast").value.trim() || null
+    roast_level: $("beanRoast").value.trim() || null,
+    source_url: ($("beanUrl") && $("beanUrl").value.trim()) || null
   }]);
   if (error) { showToast("원두 추가 실패"); console.error(error); return; }
-  ["beanName","beanOrigin","beanFarm","beanProcess","beanAltitude","beanVariety","beanRoast"]
+  ["beanName","beanOrigin","beanFarm","beanProcess","beanAltitude","beanVariety","beanRoast","beanUrl"]
     .forEach(function(id) { if ($(id)) $(id).value = ""; });
   if ($("beanName")) $("beanName").focus();
   showToast("원두가 추가되었습니다.");
@@ -2327,7 +2401,82 @@ function setupRefSection(session) {
   wcEnsureDisclosure(session);
   wcSyncDiscRef(session.reference_revealed === true);
   wcSyncDiscRec(session.records_revealed === true);
+  ensureHostCvaFormBtn();
 }
+/* ── 호스트 CVA폼 미리보기: 지금 입력한 레퍼런스(강도7+노트)를 CVA 공식 양식 한 장으로 ── */
+function ensureHostCvaFormBtn() {
+  if (document.getElementById("hostCvaFormBtn")) return;
+  var saveBtn = document.querySelector('[onclick*="saveRef"]');
+  if (!saveBtn) return;
+  var btn = document.createElement("button");
+  btn.id = "hostCvaFormBtn";
+  btn.type = "button";
+  btn.className = "btn-outline";
+  btn.style.cssText = "width:100%;margin-top:10px;padding:12px;font-weight:700;color:#3182f6;border-color:#3182f6;box-sizing:border-box;";
+  btn.textContent = "호스트 CVA폼 미리보기";
+  btn.onclick = window.viewHostCvaForm;
+  saveBtn.parentNode.insertBefore(btn, saveBtn.nextSibling);
+}
+window.viewHostCvaForm = function () {
+  var builder = window.__wcBuildCvaFormLocal;
+  if (typeof builder !== "function") { showToast("CVA폼 모듈을 불러오지 못했습니다."); return; }
+  var session = window._cuppingSession || {};
+  var sel = $("refBeanSelect");
+  var beanName = (sel && sel.selectedOptions && sel.selectedOptions[0])
+    ? sel.selectedOptions[0].textContent.replace(/^\s*\d+\.\s*/, "") : "";
+  function v(id) { var el = $(id); if (!el) return null; var x = String(el.value || "").trim(); return x === "" ? null : Number(x); }
+  var intens = {};
+  CUPPING_REF_KEYS.forEach(function (k) { intens[k.replace("int_", "")] = v(k); });
+  var notes = ($("refNotes") ? String($("refNotes").value || "") : "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+  var d = session.scheduled_at ? new Date(session.scheduled_at) : null;
+  var date = (d && !isNaN(d)) ? (d.getFullYear() + ". " + String(d.getMonth() + 1).padStart(2, "0") + ". " + String(d.getDate()).padStart(2, "0")) : "";
+  var payload = {
+    name: "교육 매니저", date: date, purpose: session.title || "센서리 훈련", sample: beanName,
+    intens: intens, qual: {}, descAroma: [], descFlavor: [], mainTastes: [], mouthfeelDesc: [],
+    aromaNotes: notes.join(", "), flavorNotes: "", nonuniform: 0, defective: 0, defectTypes: [], extrinsic: "", cva: null
+  };
+  var ov = document.getElementById("hostCvaFormOverlay");
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.id = "hostCvaFormOverlay";
+    ov.style.cssText = "position:fixed;inset:0;z-index:2147483600;background:rgba(25,31,40,.55);display:none;flex-direction:column;align-items:center;justify-content:flex-start;padding:24px 16px;overflow:hidden;";
+    ov.innerHTML =
+      '<div style="position:relative;width:100%;max-width:760px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.24);display:flex;flex-direction:column;max-height:calc(100vh - 96px);">' +
+        '<div style="padding:18px 22px 14px;border-bottom:1px solid #e5e8eb;flex:0 0 auto;">' +
+          '<div style="font-size:12px;font-weight:800;color:#3182f6;">교육 매니저 평가</div>' +
+          '<div id="hostCvaFormTitle" style="font-size:18px;font-weight:800;color:#191f28;margin-top:2px;padding-right:36px;">CVA 폼</div>' +
+          '<div style="font-size:12px;color:#8b95a1;font-weight:600;margin-top:3px;">지금 입력한 강도·노트 기준 미리보기 (품질 점수 칸은 호스트 입력 항목이 아니라 비어 있어요)</div>' +
+        '</div>' +
+        '<button id="hostCvaFormX" style="position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:10px;border:none;background:#f2f4f6;color:#4e5968;font-size:17px;cursor:pointer;">✕</button>' +
+        '<div id="hostCvaFormHost" style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:16px 20px;"></div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click", function (e) { if (e.target === ov) ov.style.display = "none"; });
+    ov.querySelector("#hostCvaFormX").addEventListener("click", function () { ov.style.display = "none"; });
+  }
+  document.body.appendChild(ov);
+  var titleEl = ov.querySelector("#hostCvaFormTitle");
+  if (titleEl) titleEl.textContent = (beanName || "원두") + " · 교육 매니저 CVA 폼";
+  var host = ov.querySelector("#hostCvaFormHost");
+  host.style.overflowX = "hidden";
+  host.innerHTML = "";
+  var node = builder(payload);
+  host.appendChild(node);
+  ov.style.display = "flex";
+  requestAnimationFrame(function () {
+    try {
+      var cs = getComputedStyle(host);
+      var pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      var avail = host.clientWidth - pad, w = node.offsetWidth;
+      if (w > avail && avail > 0) {
+        var sc = avail / w;
+        node.style.transformOrigin = "top left";
+        node.style.transform = "scale(" + sc + ")";
+        node.style.marginBottom = (-node.offsetHeight * (1 - sc)) + "px";
+      }
+    } catch (e) {}
+  });
+};
 /* ── 레퍼런스 입력 커버리지 경고(원두 중 미입력 표시) ── */
 function refHasValues(x) { return !!x && CUPPING_REF_KEYS.some(function (k) { return x[k] != null; }); }
 async function refMissingBeans(session) {
@@ -3016,6 +3165,7 @@ window.hideCalibration = async function() {
     if(giHtml) add('<div style="width:'+(50*U)+'px;">'+giHtml+'</div>', 8, 84.4);
     return wrap;
   }
+  window.__wcBuildCvaFormLocal = buildCvaFormLocal;   // 호스트 CVA폼 미리보기(커핑3)에서 재사용
   function recToPayload(r, beanName, nm){
     return {
       name: nm||"참가자", date: ymd(r.submitted_at || r.created_at || r.updated_at), purpose: "센서리 훈련", sample: beanName||"",
