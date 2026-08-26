@@ -3086,9 +3086,24 @@ window.hideCalibration = async function() {
     box.innerHTML = seg;
     if (!isBasic && _rvView[i] === "form") {
       var host = document.createElement("div");
-      host.style.cssText = "background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:10px;overflow-x:auto;";
-      host.appendChild(buildCvaFormLocal(recToPayload(r, _rvBeanName, _rvNames[r.participant_id] || "참가자")));
+      host.style.cssText = "background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:10px;overflow:hidden;";
+      var sheetEl = buildCvaFormLocal(recToPayload(r, _rvBeanName, _rvNames[r.participant_id] || "참가자"));
+      host.appendChild(sheetEl);
       box.appendChild(host);
+      // 컨테이너 폭에 맞춰 CVA 폼 축소 → 가로 스크롤 없이 한눈에 (참가자 결과보기와 동일 방식)
+      requestAnimationFrame(function () {
+        try {
+          var cs = getComputedStyle(host);
+          var pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+          var avail = host.clientWidth - pad, w = sheetEl.offsetWidth;
+          if (w > avail && avail > 0) {
+            var sc = avail / w;
+            sheetEl.style.transformOrigin = "top left";
+            sheetEl.style.transform = "scale(" + sc + ")";
+            sheetEl.style.marginBottom = (-sheetEl.offsetHeight * (1 - sc)) + "px";
+          }
+        } catch (e) {}
+      });
     } else {
       var rad = document.createElement("div");
       rad.style.cssText = "display:flex;flex-direction:column;align-items:center;padding:4px 0;";
@@ -3906,7 +3921,9 @@ window.hideCalibration = async function() {
       // 국면 헤더
       ".wc-phase-hdr{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;color:var(--text-tertiary,#8b95a1);letter-spacing:.01em;margin:24px 0 14px;padding-bottom:9px;border-bottom:1px solid #eef1f4;}" +
       "#wcPhaseHdr1{margin-top:4px;}" +
-      ".wc-phase-hdr .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--primary,#ff7900);color:#fff;font-size:11px;font-weight:800;flex-shrink:0;}";
+      ".wc-phase-hdr .n{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:var(--primary,#ff7900);color:#fff;font-size:11px;font-weight:800;flex-shrink:0;}" +
+      // 모바일: 커핑 설정 모달 라벨이 한 글자씩 세로로 깨지는 것 방지(단어 단위 줄바꿈) + 가로 넘침 차단
+      "@media (max-width:768px){#cuppingLineupModal .modal-body{word-break:keep-all !important;overflow-x:hidden !important;}#cuppingLineupModal .modal-body *{word-break:keep-all !important;}}";
     document.head.appendChild(st);
   }
 
