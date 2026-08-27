@@ -1929,9 +1929,9 @@ window.renderCuppingBeans = function(sessionId) {
     if (String(window._wcEditBeanId) === String(b.id)) return _wcBeanEditCardHtml(b, sessionId, idx);
     const _info = [['산지', b.origin], ['농장', b.farm], ['가공', b.process], ['고도', b.altitude], ['품종', b.variety], ['로스팅', b.roast_level]].filter(function(p){ return p[1]; });
     const infoHtml = _info.length
-      ? '<div style="margin-left:32px;margin-top:5px;">' +
-        _info.map(function(p){ return '<div style="display:flex;gap:8px;font-size:12px;line-height:1.65;">' +
-          '<span style="flex:0 0 46px;color:var(--text-tertiary,#8b95a1);font-weight:400;">' + p[0] + '</span>' +
+      ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;margin-left:32px;margin-top:5px;">' +
+        _info.map(function(p){ return '<div style="display:flex;gap:8px;font-size:12px;line-height:1.5;min-width:0;">' +
+          '<span style="flex:0 0 40px;color:var(--text-tertiary,#8b95a1);font-weight:400;">' + p[0] + '</span>' +
           '<b style="min-width:0;color:var(--text-secondary,#4e5968);font-weight:700;">' + escapeHtml(p[1]) + '</b></div>'; }).join('') +
         '</div>'
       : '';
@@ -1945,7 +1945,7 @@ window.renderCuppingBeans = function(sessionId) {
       '<span style="width:24px;height:24px;border-radius:7px;background:#f2f4f6;color:#4e5968;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">' + (idx + 1) + '</span>' +
       '<span style="font-size:15px;font-weight:700;color:var(--text-display);">' + escapeHtml(b.name) + '</span></div>' +
       infoHtml +
-      (b.source_url ? '<div style="font-size:12px;margin-left:32px;margin-top:5px;"><a href="' + escapeHtml(b.source_url) + '" target="_blank" rel="noopener" style="color:var(--primary,#ff7900);font-weight:600;text-decoration:none;">생두사 링크 바로가기</a></div>' : '') +
+      (b.source_url ? '<div style="font-size:12px;margin-left:32px;margin-top:7px;"><a href="' + escapeHtml(b.source_url) + '" target="_blank" rel="noopener" style="color:var(--text-tertiary,#8b95a1);font-weight:500;text-decoration:underline;text-underline-offset:2px;">생두사 링크 바로가기 ↗</a></div>' : '') +
       '</div><div class="wc-bean-actions">' + upBtn + downBtn +
       '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.editCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">수정</button>' +
       '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.copyCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">복사</button>' +
