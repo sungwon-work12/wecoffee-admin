@@ -2262,13 +2262,28 @@ window.renderCuppingParticipants = function(sessionId) {
   var _partPhones = {};
   parts.forEach(function(p){ var ph = p.member_id ? (p.members && p.members.phone) : p.guest_phone; var k = _digits(ph); if(k) _partPhones[k] = true; });
   var signups = [];
+  var _nrm = function(s){ return String(s||"").replace(/\s+/g,""); };
+  var _ck = "";
+  // 이 커핑 콘텐츠를 몇 번째 참여인지(수강 테이블의 N회차 뱃지와 동일 기준: gTrn에서 같은 콘텐츠명 카운트)
+  function _nthFor(phoneRaw){
+    var pk = _digits(phoneRaw); if (!pk || !_ck) return 0;
+    var n = 0;
+    (typeof gTrn !== "undefined" ? gTrn : []).forEach(function(t){
+      if (String(t.status||"").includes("취소")) return;
+      if (_digits(t.phone) !== pk) return;
+      var ci = String(t.content||"").split("||").map(function(s){ return s.trim(); });
+      if (ci.length < 5) return;
+      if (_nrm(ci[4]) === _nrm(_ck)) n++;
+    });
+    return n;
+  }
+  function _nthBadge(phoneRaw){ var n = _nthFor(phoneRaw); return n >= 2 ? ' <span class="nth-badge">' + n + '회차</span>' : ''; }
   try {
     var _sess = window._cuppingSession;
     var _blk = (_sess && typeof gBlk !== "undefined") ? gBlk.find(function(b){ return String(b.id) === String(_sess.block_id); }) : null;
     if (_blk) {
-      var _nrm = function(s){ return String(s||"").replace(/\s+/g,""); };
       var _normT = function(s){ return String(s||"").replace(/(\d{1,2}:\d{2}):\d{2}/g,"$1").replace(/\s+/g,""); };
-      var _ck = "[" + (_blk.category||"") + "] " + (_blk.reason||"");
+      _ck = "[" + (_blk.category||"") + "] " + (_blk.reason||"");
       var _tr = (_blk.start_time||"") + "~" + (_blk.end_time||"");
       (typeof gTrn !== "undefined" ? gTrn : []).forEach(function(t){
         if (String(t.status||"").includes("취소")) return;
@@ -2291,6 +2306,7 @@ window.renderCuppingParticipants = function(sessionId) {
   var html = parts.map(function(p) {
     const isMember = !!p.member_id;
     const name = isMember ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트");
+    const phone = isMember ? (p.members && p.members.phone) : p.guest_phone;
     const sub = isMember ? ((p.members && p.members.batch) || "") : (p.guest_phone || "");
     const joinLabel = { member: "멤버", pre_registered: "사전등록", walk_in: "현장참여" }[p.join_type] || p.join_type;
     const approved = p.approved;
@@ -2301,7 +2317,7 @@ window.renderCuppingParticipants = function(sessionId) {
       '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">' +
       '<span style="width:8px;height:8px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;"></span>' +
       '<div style="min-width:0;">' +
-      '<div style="font-size:14px;font-weight:700;color:var(--text-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(name) + '</div>' +
+      '<div style="display:flex;align-items:center;min-width:0;"><span style="font-size:14px;font-weight:700;color:var(--text-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">' + escapeHtml(name) + '</span>' + _nthBadge(phone) + '</div>' +
       '<div style="font-size:11px;color:var(--text-secondary);">' + escapeHtml(sub) + ' · ' + joinLabel + (!approved ? ' · 대기 중' : '') + '</div>' +
       '</div></div>' +
       '<div class="wc-part-actions">' + approveBtn +
@@ -2314,8 +2330,8 @@ window.renderCuppingParticipants = function(sessionId) {
       '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">' +
       '<span style="width:8px;height:8px;border-radius:50%;background:#b0b8c1;flex-shrink:0;"></span>' +
       '<div style="min-width:0;">' +
-      '<div style="font-size:14px;font-weight:700;color:var(--text-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(s.name || "신청자") +
-      ' <span style="font-size:10px;font-weight:700;color:#6b7684;background:#f2f4f6;padding:1px 6px;border-radius:5px;margin-left:4px;">신청</span></div>' +
+      '<div style="display:flex;align-items:center;min-width:0;"><span style="font-size:14px;font-weight:700;color:var(--text-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">' + escapeHtml(s.name || "신청자") + '</span>' + _nthBadge(s.phone) +
+      ' <span style="font-size:10px;font-weight:700;color:#6b7684;background:#f2f4f6;padding:1px 6px;border-radius:5px;margin-left:4px;flex-shrink:0;">신청</span></div>' +
       '<div style="font-size:11px;color:var(--text-secondary);">' + escapeHtml((s.batch || "") + (s.phone ? " · " + s.phone : "")) + ' · 수업 신청 · 세션 미입장</div>' +
       '</div></div>' +
       '</div>';
