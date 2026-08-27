@@ -1927,7 +1927,12 @@ window.renderCuppingBeans = function(sessionId) {
   }
   area.innerHTML = toolbar + beans.map(function(b, idx) {
     if (String(window._wcEditBeanId) === String(b.id)) return _wcBeanEditCardHtml(b, sessionId, idx);
-    const specs = [b.origin, b.process, b.altitude, b.variety, b.roast_level].filter(Boolean);
+    const _info = [['산지', b.origin], ['농장', b.farm], ['가공', b.process], ['고도', b.altitude], ['품종', b.variety], ['로스팅', b.roast_level]].filter(function(p){ return p[1]; });
+    const infoHtml = _info.length
+      ? '<div style="display:flex;flex-wrap:wrap;gap:5px 16px;margin-left:32px;margin-top:3px;">' +
+        _info.map(function(p){ return '<span style="font-size:12px;color:var(--text-tertiary,#8b95a1);font-weight:400;white-space:nowrap;">' + p[0] + ' <b style="color:var(--text-secondary,#4e5968);font-weight:700;">' + escapeHtml(p[1]) + '</b></span>'; }).join('') +
+        '</div>'
+      : '';
     const upBtn = idx > 0
       ? '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.moveCuppingBean(\'' + sessionId + '\',\'' + b.id + '\',\'up\')">↑</button>' : '';
     const downBtn = idx < beans.length - 1
@@ -1937,9 +1942,8 @@ window.renderCuppingBeans = function(sessionId) {
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
       '<span style="width:24px;height:24px;border-radius:7px;background:#f2f4f6;color:#4e5968;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">' + (idx + 1) + '</span>' +
       '<span style="font-size:15px;font-weight:700;color:var(--text-display);">' + escapeHtml(b.name) + '</span></div>' +
-      (specs.length ? '<div style="font-size:12px;color:var(--text-secondary);margin-left:32px;">' + specs.map(escapeHtml).join(" · ") + '</div>' : '') +
-      (b.farm ? '<div style="font-size:12px;color:var(--text-tertiary);margin-left:32px;">농장: ' + escapeHtml(b.farm) + '</div>' : '') +
-      (b.source_url ? '<div style="font-size:12px;margin-left:32px;margin-top:3px;"><a href="' + escapeHtml(b.source_url) + '" target="_blank" rel="noopener" style="color:var(--primary,#ff7900);font-weight:600;text-decoration:none;">생두사 링크 바로가기</a></div>' : '') +
+      infoHtml +
+      (b.source_url ? '<div style="font-size:12px;margin-left:32px;margin-top:5px;"><a href="' + escapeHtml(b.source_url) + '" target="_blank" rel="noopener" style="color:var(--primary,#ff7900);font-weight:600;text-decoration:none;">생두사 링크 바로가기</a></div>' : '') +
       '</div><div class="wc-bean-actions">' + upBtn + downBtn +
       '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.editCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">수정</button>' +
       '<button class="btn-outline btn-sm" style="padding:4px 8px;" onclick="window.copyCuppingBean(\'' + sessionId + '\',\'' + b.id + '\')">복사</button>' +
@@ -2036,9 +2040,92 @@ function _wcClipToolbar(sessionId, beanCount) {
     return '<button type="button" class="btn-outline btn-sm" style="' + st + '"' + (enabled ? '' : ' disabled') + ' onclick="' + (enabled ? onclick : '') + '">' + label + '</button>';
   }
   return '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">' +
+    btn("지난 라인업 불러오기", true, "window.openPastLineup(\'" + sessionId + "\')", false) +
     btn("라인업 전체 복사" + (beanCount ? " (" + beanCount + ")" : ""), beanCount > 0, "window.copyCuppingLineup(\'" + sessionId + "\')", false) +
     btn("붙여넣기" + (clipN ? " (" + clipN + ")" : ""), clipN > 0, "window.pasteCuppingLineup(\'" + sessionId + "\')", true) +
     '</div>';
+}
+/* ── 지난 세션 라인업 불러오기 (과거 세션 목록에서 골라 원두+레퍼런스 복사) ── */
+window.openPastLineup = async function(targetSessionId) {
+  var ov = document.getElementById("wcPastLineupOly");
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.id = "wcPastLineupOly";
+    ov.style.cssText = "position:fixed;inset:0;z-index:2147483200;background:rgba(25,31,40,.5);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;";
+    ov.addEventListener("click", function(e){ if (e.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = '<div style="background:#fff;border-radius:18px;width:100%;max-width:480px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.24);">' +
+    '<div style="padding:18px 20px 14px;border-bottom:1px solid #f0f1f3;display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
+      '<span style="font-size:16px;font-weight:800;color:#191f28;">지난 라인업 불러오기</span>' +
+      '<button type="button" onclick="document.getElementById(\'wcPastLineupOly\').remove()" style="width:32px;height:32px;border:none;background:#f2f4f6;border-radius:9px;font-size:16px;color:#4e5968;cursor:pointer;">✕</button>' +
+    '</div>' +
+    '<div id="wcPastLineupBody" style="padding:12px 14px 16px;overflow-y:auto;"><div style="padding:30px 0;text-align:center;color:#8b95a1;font-size:13px;">불러오는 중…</div></div>' +
+  '</div>';
+  var body = document.getElementById("wcPastLineupBody");
+  try {
+    var sres = await supabaseClient.from("cupping_sessions").select("id,title,scheduled_at,created_at").order("created_at", { ascending: false }).limit(40);
+    var sessions = (sres.data || []).filter(function(s){ return String(s.id) !== String(targetSessionId); });
+    var ids = sessions.map(function(s){ return s.id; });
+    var counts = {};
+    if (ids.length) {
+      var bres = await supabaseClient.from("cupping_beans").select("session_id").in("session_id", ids);
+      (bres.data || []).forEach(function(b){ counts[b.session_id] = (counts[b.session_id] || 0) + 1; });
+    }
+    var list = sessions.filter(function(s){ return (counts[s.id] || 0) > 0; });
+    if (!list.length) { body.innerHTML = '<div style="padding:30px 0;text-align:center;color:#8b95a1;font-size:13px;">불러올 라인업이 있는 지난 세션이 없어요.</div>'; return; }
+    body.innerHTML = list.map(function(s){
+      var d = s.scheduled_at ? new Date(s.scheduled_at) : null;
+      var dt = (d && !isNaN(d)) ? (d.getFullYear() + "." + String(d.getMonth()+1).padStart(2,"0") + "." + String(d.getDate()).padStart(2,"0")) : "";
+      return '<button type="button" onclick="window.applyPastLineup(\'' + s.id + '\',\'' + targetSessionId + '\')" style="width:100%;text-align:left;border:1px solid #f0f1f3;background:#fff;border-radius:12px;padding:13px 15px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:inherit;">' +
+        '<span style="min-width:0;"><span style="display:block;font-size:14px;font-weight:700;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(s.title || "커핑 세션") + '</span>' +
+        '<span style="display:block;font-size:12px;color:#8b95a1;margin-top:2px;">' + dt + ' · 원두 ' + (counts[s.id] || 0) + '종</span></span>' +
+        '<span style="flex-shrink:0;font-size:12.5px;font-weight:700;color:var(--primary,#ff7900);">불러오기 ›</span></button>';
+    }).join("");
+  } catch (e) { console.error("[cupping] 지난 세션 로드 실패", e); body.innerHTML = '<div style="padding:30px 0;text-align:center;color:var(--error,#f04452);font-size:13px;">목록을 불러오지 못했어요.</div>'; }
+};
+window.applyPastLineup = async function(srcSessionId, targetSessionId) {
+  var cur = gCuppingBeans[targetSessionId] || [];
+  if (cur.length) {
+    var ov0 = document.getElementById("wcPastLineupOly"); if (ov0) ov0.remove();
+    var _cm = document.getElementById("confirmModal"); if (_cm) { document.body.appendChild(_cm); _cm.style.zIndex = "2147483400"; }
+    window.openCustomConfirm("라인업 덮어쓰기", null, "지금 원두 " + cur.length + "종이 있어요. 지난 라인업을 <b>기존 뒤에 추가</b>할까요?", async function() { await _doApplyPastLineup(srcSessionId, targetSessionId); });
+    return;
+  }
+  await _doApplyPastLineup(srcSessionId, targetSessionId);
+  var ov = document.getElementById("wcPastLineupOly"); if (ov) ov.remove();
+};
+async function _doApplyPastLineup(srcSessionId, targetSessionId) {
+  try {
+    var sbres = await supabaseClient.from("cupping_beans").select("*").eq("session_id", srcSessionId).order("sort_order", { ascending: true });
+    var srcBeans = sbres.data || [];
+    if (!srcBeans.length) { showToast("가져올 원두가 없습니다."); return; }
+    var base = (gCuppingBeans[targetSessionId] || []).length;
+    var rows = srcBeans.map(function(b, i){
+      return { session_id: targetSessionId, sort_order: base + i, name: b.name, origin: b.origin || null, farm: b.farm || null, process: b.process || null, altitude: b.altitude || null, variety: b.variety || null, roast_level: b.roast_level || null, source_url: b.source_url || null };
+    });
+    var ins = await supabaseClient.from("cupping_beans").insert(rows).select("id,sort_order");
+    if (ins.error) { showToast("불러오기 실패: " + (ins.error.message || "")); return; }
+    // 레퍼런스도 복사 (원본 bean_id → 새 bean_id 매핑, sort_order 기준)
+    var byOrder = {}; (ins.data || []).forEach(function(nb){ byOrder[nb.sort_order] = nb.id; });
+    var srcIds = srcBeans.map(function(b){ return b.id; });
+    var refN = 0;
+    try {
+      var rres = await supabaseClient.from("cupping_references").select("*").in("bean_id", srcIds);
+      var refByBean = {}; (rres.data || []).forEach(function(r){ refByBean[r.bean_id] = r; });
+      var refRows = [];
+      srcBeans.forEach(function(b, i){
+        var r = refByBean[b.id]; if (!r) return;
+        var nid = byOrder[base + i]; if (!nid) return;
+        refRows.push({ session_id: targetSessionId, bean_id: nid,
+          int_fragrance: r.int_fragrance, int_aroma: r.int_aroma, int_flavor: r.int_flavor, int_aftertaste: r.int_aftertaste,
+          int_acidity: r.int_acidity, int_sweetness: r.int_sweetness, int_mouthfeel: r.int_mouthfeel, ref_notes: r.ref_notes });
+      });
+      if (refRows.length) { var rr = await supabaseClient.from("cupping_references").upsert(refRows, { onConflict: "bean_id" }); if (!rr.error) refN = refRows.length; }
+    } catch (e) { console.warn("[cupping] 레퍼런스 복사 실패", e); }
+    showToast(srcBeans.length + "종 불러오기 완료" + (refN ? " (레퍼런스 " + refN + "개 포함)" : "") + ".");
+    await window.fetchCuppingBeans(targetSessionId);
+  } catch (e) { console.error("[cupping] 지난 라인업 적용 실패", e); showToast("불러오기 중 오류가 발생했습니다."); }
 }
 /* ── 원두 1개 복사 (원두 + 레퍼런스) ── */
 window.copyCuppingBean = async function (sessionId, beanId) {
