@@ -1929,10 +1929,10 @@ window.renderCuppingBeans = function(sessionId) {
     if (String(window._wcEditBeanId) === String(b.id)) return _wcBeanEditCardHtml(b, sessionId, idx);
     const _info = [['산지', b.origin], ['농장', b.farm], ['가공', b.process], ['고도', b.altitude], ['품종', b.variety], ['로스팅', b.roast_level]].filter(function(p){ return p[1]; });
     const infoHtml = _info.length
-      ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 20px;margin-left:32px;margin-top:5px;">' +
-        _info.map(function(p){ return '<div style="display:flex;gap:8px;font-size:12px;line-height:1.5;min-width:0;">' +
-          '<span style="flex:0 0 40px;color:var(--text-tertiary,#8b95a1);font-weight:400;">' + p[0] + '</span>' +
-          '<b style="min-width:0;color:var(--text-secondary,#4e5968);font-weight:700;">' + escapeHtml(p[1]) + '</b></div>'; }).join('') +
+      ? '<div style="margin-left:32px;margin-top:4px;">' +
+        _info.map(function(p){ return '<div style="display:flex;gap:6px;font-size:12px;line-height:1.7;">' +
+          '<span style="flex:0 0 44px;color:var(--text-tertiary,#8b95a1);font-weight:400;">' + p[0] + '</span>' +
+          '<b style="color:var(--text-secondary,#4e5968);font-weight:700;">' + escapeHtml(p[1]) + '</b></div>'; }).join('') +
         '</div>'
       : '';
     const upBtn = idx > 0
