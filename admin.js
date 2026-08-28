@@ -1466,6 +1466,43 @@ window.closeBlockModal=function(){if($("blockModal"))$("blockModal").classList.r
 window.isSavingBlock=false;
 window.saveBlockData=async function(){if(window.isSavingBlock)return;window.isSavingBlock=true;let id=$("blockId")?$("blockId").value:($("blkId")?$("blkId").value:"");let capVal=$("blkCapacity")?$("blkCapacity").value.trim():"";let batchVal=$("blkBatch")?$("blkBatch").value.trim():"";if(batchVal&&/^\d+$/.test(batchVal))batchVal=batchVal+'기';let isCuppingChecked=($("blkIsCupping")&&$("blkIsCupping").checked)?true:false;let spaceVal=$("blkSpace")?$("blkSpace").value.trim():"전체";let baseDateStr=$("blkDate")?$("blkDate").value:"";let startTime=$("blkStart")?$("blkStart").value:"";let endTime=$("blkEnd")?$("blkEnd").value:"";let category=$("blkCategory")?$("blkCategory").value:"수업";let center=$("blkCenter")?$("blkCenter").value:"마포 센터";let reason=$("blkReason")?$("blkReason").value:"";let capacity=capVal===""?null:parseInt(capVal);if(!baseDateStr||!startTime||!endTime||!reason){window.isSavingBlock=false;return showToast("필수 항목을 모두 입력해주세요.");}let repeatType='none';let repeatCount=1;if(!id||id===""){let repTypeEl=document.getElementById('blkRepeatType');let repCountEl=document.getElementById('blkRepeatCount');if(repTypeEl)repeatType=repTypeEl.value||'none';if(repeatType!=='none'&&repCountEl){let parsed=parseInt(repCountEl.value);if(!isNaN(parsed)&&parsed>=1)repeatCount=parsed;}}let payloads=[];let baseDate=new Date(baseDateStr+'T00:00:00');for(let i=0;i<repeatCount;i++){let targetDate=new Date(baseDate);if(repeatType==='weekly')targetDate.setDate(baseDate.getDate()+i*7);else if(repeatType==='monthly')targetDate.setMonth(baseDate.getMonth()+i);let yyyy=targetDate.getFullYear();let mm=String(targetDate.getMonth()+1).padStart(2,'0');let dd=String(targetDate.getDate()).padStart(2,'0');payloads.push({block_date:`${yyyy}-${mm}-${dd}`,start_time:startTime,end_time:endTime,category:category,center:center,space_equip:spaceVal||"전체",reason:reason,capacity:capacity,target_batch:batchVal||null,is_cupping:isCuppingChecked});}let error;let syncResult={updated:0,notified:0};if(id&&id!==""){const oldBlock=gBlk.find(b=>String(b.id)===String(id));const newPayload=payloads[0];const res=await supabaseClient.from('blocks').update(newPayload).eq('id',id);error=res.error;if(!error&&oldBlock){try{const oldContentKey=`[${oldBlock.category}] ${oldBlock.reason}`;const oldTimeRange=`${oldBlock.start_time}~${oldBlock.end_time}`;const newContentKey=`[${newPayload.category}] ${newPayload.reason}`;const newTimeRange=`${newPayload.start_time}~${newPayload.end_time}`;const{data:freshTrn}=await supabaseClient.from('trainings').select('*').like('content',`${oldBlock.block_date} ||%`);const affected=(freshTrn||[]).filter(t=>{if(String(t.status||'').includes('취소'))return false;const cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length<5)return false;return cInfo[0]===oldBlock.block_date&&cInfo[2]===oldTimeRange&&cInfo[3]===oldBlock.center&&cInfo[4]===oldContentKey;});for(const t of affected){const cInfo=String(t.content||'').split('||').map(s=>s.trim());cInfo[0]=newPayload.block_date;cInfo[2]=newTimeRange;cInfo[3]=newPayload.center;cInfo[4]=newContentKey;const newContent=cInfo.join(' || ');await supabaseClient.from('trainings').update({content:newContent}).eq('id',t.id);}syncResult.updated=affected.length;const changes=[];if(oldBlock.block_date!==newPayload.block_date)changes.push(`날짜: ${oldBlock.block_date} → ${newPayload.block_date}`);if(oldTimeRange!==newTimeRange)changes.push(`시간: ${oldTimeRange} → ${newTimeRange}`);if(oldBlock.center!==newPayload.center)changes.push(`센터: ${oldBlock.center} → ${newPayload.center}`);if((oldBlock.space_equip||'전체')!==(newPayload.space_equip||'전체'))changes.push(`공간/장비: ${oldBlock.space_equip||'전체'} → ${newPayload.space_equip||'전체'}`);if(oldBlock.reason!==newPayload.reason)changes.push(`상세 내용: ${oldBlock.reason} → ${newPayload.reason}`);const activeAffected=affected.filter(t=>!String(t.status||'').includes('취소'));if(activeAffected.length>0&&changes.length>0){const changeText=changes.join('\n');const notifications=activeAffected.map(t=>({member_phone:t.phone,member_name:t.name,title:'신청하신 수업/훈련 정보가 변경되었습니다',message:`${t.name}님이 신청하신 [${oldBlock.reason}]의 정보가 다음과 같이 변경되었습니다.\n\n${changeText}\n\n일정 확인 후 참여가 어려울 경우 취소 요청드립니다.`,related_type:'training_change',related_id:String(id)}));const notifRes=await supabaseClient.from('member_notifications').insert(notifications);if(!notifRes.error)syncResult.notified=activeAffected.length;}}catch(syncErr){console.warn('Sync error:',syncErr);}}}else{const res=await supabaseClient.from('blocks').insert(payloads);error=res.error;}window.isSavingBlock=false;if(error){showToast("저장 실패");console.error(error);}else{let msg=payloads.length>1?`${payloads.length}개의 스케줄이 등록되었습니다.`:"저장되었습니다.";if(syncResult.updated>0){msg=`저장 완료. 신청자 ${syncResult.updated}명의 정보가 함께 업데이트되었습니다${syncResult.notified>0?` (${syncResult.notified}명에게 알림 발송)`:''}.`;}showToast(msg);window.closeBlockModal();window.fetchCenterData({force:true});}};
 window.deleteBlock=function(id){window.openCustomConfirm("스케줄 삭제",null,"이 스케줄을 삭제하시겠습니까?",async()=>{const{error}=await supabaseClient.from('blocks').delete().eq('id',id);if(error)showToast("삭제 실패");else{showToast("삭제되었습니다.");window.fetchCenterData({force:true});}});};
+/* ── 공지 에디터(Quill) 초기화 — admin.js 자체 정의(Webflow 임베드 의존 제거) ──
+   컨테이너 #editor-container 에 Quill 'snow' 에디터를 붙임. 이미 초기화돼 있으면 재사용.
+   Quill 라이브러리는 페이지에 로드돼 있고(typeof Quill === 'function'), 스타일이 없으면 CDN에서 보강. */
+window.initQuill = function initQuill() {
+  if (typeof Quill === "undefined") { console.warn("[notice] Quill 라이브러리가 로드되지 않았습니다."); return; }
+  var el = document.getElementById("editor-container");
+  if (!el) { console.warn("[notice] #editor-container 를 찾을 수 없습니다."); return; }
+  // Quill 스타일이 없으면(툴바 안 보임 방지) 로드된 Quill 버전에 맞춰 CDN에서 주입
+  if (!document.querySelector('link[href*="quill"]') && !document.getElementById("wcQuillCss")) {
+    var ver = (window.Quill && Quill.version) ? Quill.version : "1.3.7";
+    var lnk = document.createElement("link");
+    lnk.id = "wcQuillCss"; lnk.rel = "stylesheet";
+    lnk.href = "https://cdnjs.cloudflare.com/ajax/libs/quill/" + ver + "/quill.snow.css";
+    document.head.appendChild(lnk);
+  }
+  // 이미 이 컨테이너에 에디터가 살아있으면 재사용(중복 툴바 방지)
+  if (quillEditor && el.querySelector(".ql-editor")) return;
+  // 이전 잔재(툴바/컨테이너) 정리 후 재생성
+  var host = el.parentNode;
+  if (host) { var oldTb = host.querySelector(".ql-toolbar"); if (oldTb) oldTb.remove(); }
+  el.classList.remove("ql-container");
+  el.innerHTML = "";
+  try {
+    quillEditor = new Quill(el, {
+      theme: "snow",
+      placeholder: "내용을 입력하세요",
+      modules: { toolbar: [
+        [{ header: [1, 2, 3, false] }],
+        ["bold", "italic", "underline", "strike"],
+        [{ list: "ordered" }, { list: "bullet" }],
+        [{ color: [] }, { background: [] }],
+        ["link"],
+        ["clean"]
+      ] }
+    });
+  } catch (e) { console.error("[notice] Quill 초기화 실패", e); }
+};
 window.openNoticeModal=function(){if($("noticeModal"))$("noticeModal").classList.add('show');setTimeout(()=>{try{initQuill();if(quillEditor)quillEditor.root.innerHTML='';}catch(e){}},50);if($("noticeId"))$("noticeId").value='';if($("noticeTitle"))$("noticeTitle").value='';if($("noticePinned"))$("noticePinned").checked=false;if($("noticeStatus"))$("noticeStatus").value='발행';if($("noticeTargetBatch"))$("noticeTargetBatch").value='';if($("noticeModalTitle"))$("noticeModalTitle").innerText="새 공지사항 등록";}
 window.editNotice=function(id){let n=gNotice.find(x=>String(x.id)===String(id));if(!n)return;if($("noticeModal"))$("noticeModal").classList.add('show');setTimeout(()=>{try{initQuill();if(quillEditor)quillEditor.root.innerHTML=n.content||'';}catch(e){}},50);if($("noticeId"))$("noticeId").value=n.id;if($("noticeTitle"))$("noticeTitle").value=n.title;if($("noticePinned"))$("noticePinned").checked=n.is_pinned;if($("noticeStatus"))$("noticeStatus").value=n.status||'발행';if($("noticeTargetBatch"))$("noticeTargetBatch").value=n.target_batch||'';if($("noticeModalTitle"))$("noticeModalTitle").innerText="공지사항 수정";}
 window.closeNoticeModal=function(){if($("noticeModal"))$("noticeModal").classList.remove('show');}
