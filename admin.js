@@ -2521,6 +2521,33 @@ function wcRefModeFlags(mode) {
   const m = mode || "full";
   return { showInt: m !== "affective", showQual: m !== "descriptive", mode: m };
 }
+/* [커핑 ⑤ UI] 점수 입력 통일 — 라벨-왼쪽 2열 행 (강도·품질·컵 공용) */
+const WC_SCORE_GRID = "display:grid;grid-template-columns:repeat(2,1fr);gap:9px 18px;width:100%;max-width:100%;box-sizing:border-box;";
+function wcScoreCell(id, label, min, max, ph, cls) {
+  return '<label class="wc-scell">' +
+    '<span class="wc-scell-l">' + label + '</span>' +
+    '<input type="number" id="' + id + '" class="' + (cls || "") + ' wc-scell-i" ' +
+      (min != null ? 'min="' + min + '" ' : '') + (max != null ? 'max="' + max + '" ' : '') +
+      'step="1" placeholder="' + ph + '"></label>';
+}
+function wcEnsureRefStyle() {
+  if (document.getElementById("wcRefUIStyle")) return;
+  const st = document.createElement("style");
+  st.id = "wcRefUIStyle";
+  st.textContent =
+    ".wc-scell{display:flex;align-items:center;gap:12px;min-width:0;}" +
+    ".wc-scell-l{font-size:12.5px;font-weight:600;color:#6b7684;flex:0 0 76px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}" +
+    ".wc-scell-i{flex:1;min-width:0;height:40px;border:1px solid #e5e8eb;border-radius:9px;padding:0 12px;font-size:14px;font-weight:600;color:#191f28;background:#fff;outline:none;-moz-appearance:textfield;box-sizing:border-box;transition:border-color .12s,box-shadow .12s;}" +
+    ".wc-scell-i:focus{border-color:var(--primary,#ff7900);box-shadow:0 0 0 3px rgba(255,121,0,.12);}" +
+    ".wc-scell-i::-webkit-outer-spin-button,.wc-scell-i::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}" +
+    ".wc-scell-i::placeholder{color:#c4ccd4;font-weight:500;}" +
+    ".wc-reflbl{font-size:12px;font-weight:800;color:#191f28;margin:18px 0 8px;display:flex;align-items:center;gap:7px;}" +
+    ".wc-reflbl .sub{font-size:11px;font-weight:500;color:#8b95a1;}" +
+    ".wc-reflbl .bdg{font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;}" +
+    ".wc-reflbl .bdg.int{color:#2b6fd6;background:#eaf2fe;}" +
+    ".wc-reflbl .bdg.qual{color:#ea6f00;background:#fff2e6;}";
+  document.head.appendChild(st);
+}
 /* openCuppingLineup 재확장: 레퍼런스 섹션 세팅 */
 (function() {
   const _orig = window.openCuppingLineup;
@@ -2548,20 +2575,35 @@ async function setupRefSection(session) {
     session.assess_mode = mode;
   }
   const flags = wcRefModeFlags(mode);
-  // 기준 강도 입력 (0~15) — 묘사/전체 모드에서만
+  wcEnsureRefStyle();
+  // 기준 강도 입력 (0~15) — 묘사/전체 모드에서만. 품질과 동일한 숫자 카드 그리드로 통일.
   const scoreArea = $("refScoreInputs");
   if (scoreArea) {
-    // 모달 폭을 넘지 않도록 2열 그리드를 직접 제어(인풋 min-width:0 로 축소 허용)
-    scoreArea.style.cssText = "display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;width:100%;max-width:100%;box-sizing:border-box;" + (flags.showInt ? "" : "display:none;");
+    scoreArea.style.cssText = WC_SCORE_GRID + (flags.showInt ? "" : "display:none;");
     scoreArea.innerHTML = CUPPING_REF_LABELS.map(function(s, i) {
-      return '<div style="display:flex;align-items:center;gap:6px;min-width:0;">' +
-        '<span style="font-size:11px;font-weight:600;color:var(--text-secondary);width:56px;flex-shrink:0;">' + s + '</span>' +
-        '<input type="number" id="' + CUPPING_REF_KEYS[i] + '" class="input-search" style="flex:1;min-width:0;box-sizing:border-box;height:32px;font-size:13px;padding:0 8px;" min="0" max="15" step="1" placeholder="0~15">' +
-        '</div>';
+      return wcScoreCell(CUPPING_REF_KEYS[i], s, 0, 15, "0~15", "input-search");
     }).join("");
+    // 강도 섹션 헤더(멱등)
+    if (!$("wcRefIntHdr") && scoreArea.parentNode) {
+      const hd = document.createElement("div");
+      hd.id = "wcRefIntHdr";
+      hd.className = "wc-reflbl";
+      hd.style.display = flags.showInt ? "" : "none";
+      hd.innerHTML = '강도 <span class="sub">묘사 · 0~15</span> <span class="bdg int">정확도</span>';
+      scoreArea.parentNode.insertBefore(hd, scoreArea);
+    } else if ($("wcRefIntHdr")) {
+      $("wcRefIntHdr").style.display = flags.showInt ? "" : "none";
+    }
   }
-  // 기준 노트 인풋도 모달 폭 안에 (box-sizing 보정)
-  if ($("refNotes")) $("refNotes").style.cssText = ($("refNotes").getAttribute("style") || "") + ";width:100%;max-width:100%;box-sizing:border-box;";
+  // 기준 노트(아로마) 인풋도 새 스타일로 통일 + 폭 보정
+  if ($("refNotes")) {
+    $("refNotes").style.cssText = "width:100%;max-width:100%;box-sizing:border-box;font-size:13px;padding:9px 11px;border:1px solid #e8eaed;border-radius:11px;outline:none;";
+    if (!$("refNotes")._wcFocusBound) {
+      $("refNotes")._wcFocusBound = true;
+      $("refNotes").addEventListener("focus", function () { this.style.borderColor = "var(--primary,#ff7900)"; this.style.boxShadow = "0 0 0 3px rgba(255,121,0,.12)"; });
+      $("refNotes").addEventListener("blur", function () { this.style.borderColor = "#e8eaed"; this.style.boxShadow = "none"; });
+    }
+  }
   // [커핑 ⑤] 풀 CVA 입력(정동 품질·컵·향미노트·외재) 주입 + 모드별 표시
   wcEnsureFullCvaInputs(flags);
   updateRevealButtons(session.reference_revealed === true);
@@ -2583,8 +2625,8 @@ async function setupRefSection(session) {
 function wcEnsureFullCvaInputs(flags) {
   const anchor = $("refNotes");
   if (!anchor || !anchor.parentNode) return;
-  const lbl = "font-size:11px;font-weight:600;color:var(--text-secondary);margin:14px 0 6px;display:block;";
-  const inp = "width:100%;max-width:100%;box-sizing:border-box;height:32px;font-size:13px;padding:0 8px;";
+  wcEnsureRefStyle();
+  const ta = "width:100%;max-width:100%;box-sizing:border-box;font-size:13px;padding:9px 11px;border:1px solid #e8eaed;border-radius:11px;outline:none;";
   let box = $("refFullCva");
   if (!box) {
     box = document.createElement("div");
@@ -2592,30 +2634,34 @@ function wcEnsureFullCvaInputs(flags) {
     box.style.cssText = "width:100%;max-width:100%;box-sizing:border-box;";
     box.innerHTML =
       // 향미 노트(향미/뒷맛 쪽) — 아로마 노트(refNotes)와 분리
-      '<label style="' + lbl + '" data-sec="desc">향미·뒷맛 노트 <span style="color:#b0b8c1;font-weight:500;">(쉼표로 구분, 선택)</span></label>' +
-      '<input type="text" id="refFlavorNotes" class="input-search" style="' + inp + '" placeholder="예) 다크초콜릿, 건포도" data-sec="desc">' +
+      '<div class="wc-reflbl" data-sec="desc">향미·뒷맛 노트 <span class="sub">쉼표로 구분 · 선택</span></div>' +
+      '<input type="text" id="refFlavorNotes" style="' + ta + '" placeholder="예) 다크초콜릿, 건포도" data-sec="desc">' +
       // 정동: 품질 1~9
-      '<label style="' + lbl + '" data-sec="qual">품질 점수 <span style="color:#b0b8c1;font-weight:500;">(정동 · 각 1~9)</span></label>' +
-      '<div id="refQualInputs" data-sec="qual" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;width:100%;max-width:100%;box-sizing:border-box;">' +
+      '<div class="wc-reflbl" data-sec="qual">품질 <span class="sub">정동 · 1~9</span> <span class="bdg qual">CVA</span></div>' +
+      '<div id="refQualInputs" data-sec="qual" style="' + WC_SCORE_GRID + '">' +
         CUPPING_QUAL_LABELS.map(function (s, i) {
-          return '<div style="display:flex;align-items:center;gap:6px;min-width:0;">' +
-            '<span style="font-size:11px;font-weight:600;color:var(--text-secondary);width:56px;flex-shrink:0;">' + s + '</span>' +
-            '<input type="number" id="' + CUPPING_QUAL_KEYS[i] + '" class="input-search wc-qinp" style="flex:1;min-width:0;box-sizing:border-box;height:32px;font-size:13px;padding:0 8px;" min="1" max="9" step="1" placeholder="1~9">' +
-            '</div>';
+          return wcScoreCell(CUPPING_QUAL_KEYS[i], s, 1, 9, "1~9", "wc-qinp");
         }).join("") +
       '</div>' +
       // 컵 불균일/결점
-      '<label style="' + lbl + '" data-sec="qual">컵 <span style="color:#b0b8c1;font-weight:500;">(불균일/결점 컵 수, 선택)</span></label>' +
-      '<div data-sec="qual" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;width:100%;box-sizing:border-box;">' +
-        '<div style="display:flex;align-items:center;gap:6px;min-width:0;"><span style="font-size:11px;font-weight:600;color:var(--text-secondary);width:56px;flex-shrink:0;">불균일</span><input type="number" id="ref_nonuniform" class="input-search wc-qinp" style="flex:1;min-width:0;box-sizing:border-box;height:32px;font-size:13px;padding:0 8px;" min="0" step="1" placeholder="0"></div>' +
-        '<div style="display:flex;align-items:center;gap:6px;min-width:0;"><span style="font-size:11px;font-weight:600;color:var(--text-secondary);width:56px;flex-shrink:0;">결점</span><input type="number" id="ref_defective" class="input-search wc-qinp" style="flex:1;min-width:0;box-sizing:border-box;height:32px;font-size:13px;padding:0 8px;" min="0" step="1" placeholder="0"></div>' +
+      '<div class="wc-reflbl" data-sec="qual">컵 <span class="sub">불균일 / 결점 컵 수 · 선택</span></div>' +
+      '<div data-sec="qual" style="' + WC_SCORE_GRID + '">' +
+        wcScoreCell("ref_nonuniform", "불균일", 0, null, "0", "wc-qinp") +
+        wcScoreCell("ref_defective", "결점", 0, null, "0", "wc-qinp") +
       '</div>' +
       // CVA 점수 미리보기(자동계산)
-      '<div id="refCvaPreview" data-sec="qual" style="margin-top:12px;padding:10px 12px;border:1px solid #e5e8eb;border-radius:10px;background:#f8f9fb;font-size:12.5px;font-weight:700;color:#8b95a1;">CVA 커핑 점수 <span id="refCvaVal" style="color:#191f28;">—</span> <span style="color:#b0b8c1;font-weight:600;">/ 100</span></div>' +
+      '<div id="refCvaPreview" data-sec="qual" style="margin-top:14px;padding:14px 16px;border:1px solid #ffe0c2;border-radius:13px;background:#fff8f1;display:flex;align-items:baseline;justify-content:space-between;gap:10px;">' +
+        '<span style="font-size:12.5px;font-weight:700;color:#c85f00;">CVA 커핑 점수</span>' +
+        '<span style="font-size:15px;font-weight:800;color:#c4ccd4;"><b id="refCvaVal" style="font-size:24px;color:#191f28;font-weight:800;">—</b> / 100</span></div>' +
       // 외재적 속성(선택)
-      '<label style="' + lbl + '">외재적 속성·메모 <span style="color:#b0b8c1;font-weight:500;">(선택)</span></label>' +
-      '<textarea id="refExtrinsic" class="input-search" rows="2" style="width:100%;max-width:100%;box-sizing:border-box;font-size:13px;padding:6px 8px;resize:vertical;" placeholder="향미의 배경·인상 등"></textarea>';
+      '<div class="wc-reflbl">외재적 속성·메모 <span class="sub">선택</span></div>' +
+      '<textarea id="refExtrinsic" rows="2" style="' + ta + 'resize:vertical;" placeholder="향미의 배경·인상 등"></textarea>';
     anchor.parentNode.insertBefore(box, anchor.nextSibling);
+    // 포커스 스타일: 노트/메모 입력도 통일
+    box.querySelectorAll("#refFlavorNotes,#refExtrinsic").forEach(function (el) {
+      el.addEventListener("focus", function () { el.style.borderColor = "var(--primary,#ff7900)"; el.style.boxShadow = "0 0 0 3px rgba(255,121,0,.12)"; });
+      el.addEventListener("blur", function () { el.style.borderColor = "#e8eaed"; el.style.boxShadow = "none"; });
+    });
     // 품질/컵 입력 변화 시 CVA 점수 즉시 갱신
     box.addEventListener("input", function (e) {
       if (e.target && (e.target.classList.contains("wc-qinp"))) wcRefUpdateCvaPreview();
