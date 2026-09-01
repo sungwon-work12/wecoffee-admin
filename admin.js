@@ -2537,7 +2537,7 @@ function wcEnsureRefStyle() {
   st.textContent =
     ".wc-scell{display:flex;align-items:center;gap:12px;min-width:0;}" +
     ".wc-scell-l{font-size:12.5px;font-weight:600;color:#6b7684;flex:0 0 76px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}" +
-    ".wc-scell-i{flex:1;min-width:0;height:40px;border:1px solid #e5e8eb;border-radius:9px;padding:0 12px;font-size:14px;font-weight:600;color:#191f28;background:#fff;outline:none;-moz-appearance:textfield;box-sizing:border-box;transition:border-color .12s,box-shadow .12s;}" +
+    ".wc-scell-i{flex:1;min-width:0;width:auto;height:40px;min-height:40px;max-height:40px;margin:0;line-height:20px;border:1px solid #e5e8eb;border-radius:9px;padding:0 12px;font-size:14px;font-weight:600;color:#191f28;background:#fff;outline:none;appearance:none;-webkit-appearance:none;-moz-appearance:textfield;box-sizing:border-box;transition:border-color .12s,box-shadow .12s;}" +
     ".wc-scell-i:focus{border-color:var(--primary,#ff7900);box-shadow:0 0 0 3px rgba(255,121,0,.12);}" +
     ".wc-scell-i::-webkit-outer-spin-button,.wc-scell-i::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}" +
     ".wc-scell-i::placeholder{color:#c4ccd4;font-weight:500;}" +
@@ -2581,7 +2581,7 @@ async function setupRefSection(session) {
   if (scoreArea) {
     scoreArea.style.cssText = WC_SCORE_GRID + (flags.showInt ? "" : "display:none;");
     scoreArea.innerHTML = CUPPING_REF_LABELS.map(function(s, i) {
-      return wcScoreCell(CUPPING_REF_KEYS[i], s, 0, 15, "0~15", "input-search");
+      return wcScoreCell(CUPPING_REF_KEYS[i], s, 0, 15, "0~15", "wc-iinp");
     }).join("");
     // 강도 섹션 헤더(멱등)
     if (!$("wcRefIntHdr") && scoreArea.parentNode) {
