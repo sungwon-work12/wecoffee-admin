@@ -2085,6 +2085,7 @@ function _wcClipToolbar(sessionId, beanCount) {
     btn("지난 라인업 불러오기", true, "window.openPastLineup(\'" + sessionId + "\')", false) +
     btn("라인업 전체 복사" + (beanCount ? " (" + beanCount + ")" : ""), beanCount > 0, "window.copyCuppingLineup(\'" + sessionId + "\')", false) +
     btn("붙여넣기" + (clipN ? " (" + clipN + ")" : ""), clipN > 0, "window.pasteCuppingLineup(\'" + sessionId + "\')", true) +
+    (beanCount > 0 ? '<button type="button" class="btn-outline btn-sm" style="padding:6px 12px;margin-left:auto;color:var(--error,#f04452);border-color:var(--error,#f04452);" onclick="window.deleteAllCuppingBeans(\'' + sessionId + '\')">전체 삭제 (' + beanCount + ')</button>' : '') +
     '</div>';
 }
 /* ── 지난 세션 라인업 불러오기 (과거 세션 목록에서 골라 원두+레퍼런스 복사) ── */
@@ -2257,6 +2258,21 @@ window.deleteCuppingBean = function(sessionId, beanId) {
     showToast("삭제되었습니다.");
     await window.fetchCuppingBeans(sessionId);
   });
+};
+/* [피드백②] 라인업 전체 삭제 — 하나씩 안 지우고 한 번에 */
+window.deleteAllCuppingBeans = function(sessionId) {
+  var beans = gCuppingBeans[sessionId] || [];
+  if (!beans.length) return showToast("삭제할 원두가 없습니다.");
+  var _cm = document.getElementById("confirmModal"); if (_cm) { document.body.appendChild(_cm); _cm.style.zIndex = "2147483000"; }
+  window.openCustomConfirm("라인업 전체 삭제", null,
+    "이 세션의 원두 <b>" + beans.length + "종</b>을 모두 삭제할까요?<br>입력해둔 레퍼런스도 함께 사라집니다. 되돌릴 수 없어요.",
+    async function() {
+      var ids = beans.map(function(b) { return b.id; });
+      const { error } = await supabaseClient.from("cupping_beans").delete().in("id", ids);
+      if (error) { showToast("전체 삭제 실패: " + (error.message || "")); console.error(error); return; }
+      showToast(ids.length + "종이 삭제되었습니다.");
+      await window.fetchCuppingBeans(sessionId);
+    }, "전체 삭제");
 };
 window.moveCuppingBean = async function(sessionId, beanId, dir) {
   const beans = gCuppingBeans[sessionId] || [];
@@ -3028,6 +3044,9 @@ window.hideCalibration = async function() {
   let liveTS = null;          // 현재 세션의 timer_state 미러
   let liveLoop = null;        // 자동전환/표시 인터벌
   let liveWriting = false;    // 쓰기 중복 방지
+  let liveChannel = null;     // [피드백③] 열려있는 세션 실시간 구독(다른 관리자/호스트 변경 수신)
+  let livePoll = null;        // realtime 미설정 대비 폴백 폴링
+  let liveSyncMode = null;    // 마지막으로 반영한 assess_mode
   function _$(id) { return document.getElementById(id); }
   function _toast(m) { try { showToast(m); } catch (e) { console.log(m); } }
   function _esc(s) { try { return escapeHtml(s); } catch (e) { return String(s == null ? "" : s); } }
@@ -3039,12 +3058,85 @@ window.hideCalibration = async function() {
   window.openCuppingLineup = async function (session) {
     if (_origOpen) await _origOpen(session);
     setupLivePanel(session);
+    startLiveSync(session);   // [피드백③] 열려있는 동안 실시간 반영(타이머·참가자·라인업)
   };
   const _origClose = window.closeCuppingLineupModal;
   window.closeCuppingLineupModal = function () {
     if (liveLoop) { clearInterval(liveLoop); liveLoop = null; }   // 모달 닫으면 자동전환 정지(재오픈 시 DB 상태로 복귀)
+    stopLiveSync();
     if (_origClose) _origClose(); else { const m = _$("cuppingLineupModal"); if (m) m.classList.remove("show"); }
   };
+  /* ── [피드백③] 열려있는 세션 실시간 동기화 ──────────────────────
+     B(내부 근무자)가 모달을 미리 켜둬도, A(호스트)의 타이머·진행·참가자·
+     라인업 변경이 재오픈 없이 바로 반영되게 함. 타이머는 표시만 갱신(입력칸 안 건드림). */
+  function applyIncomingSession(row) {
+    if (!row) return;
+    if (window._cuppingSession) {
+      window._cuppingSession.timer_state = row.timer_state;
+      if ("reference_revealed" in row) window._cuppingSession.reference_revealed = row.reference_revealed;
+      if ("records_revealed" in row) window._cuppingSession.records_revealed = row.records_revealed;
+      if ("assess_mode" in row) window._cuppingSession.assess_mode = row.assess_mode;
+    }
+    // 타이머: 내가 쓰는 중이 아닐 때만 최신 상태 미러 후 표시만 갱신
+    if (!liveWriting) {
+      var ts = parseTS(row.timer_state);
+      if (ts) {
+        liveTS = ts;
+        if (!liveTS.phases || !liveTS.phases.length) liveTS.phases = defaultTS().phases;
+        liveTS.phases = CUP_LIVE_DEFAULT.map(function (p, i) { var s = liveTS.phases[i]; return { name: p.name, secs: (s && s.secs != null) ? s.secs : p.secs }; });
+        startLoop(); renderStatus();
+      }
+    }
+    // 공개 버튼 동기화
+    try { if (typeof updateRevealButtons === "function") updateRevealButtons(row.reference_revealed === true); } catch (e) {}
+    try { if (typeof wcSyncDiscRec === "function") wcSyncDiscRec(row.records_revealed === true); } catch (e) {}
+    // 평가 모드가 바뀌었으면 레퍼런스 입력영역 갱신(값 입력 중이 아닐 때만 안전하게)
+    if ("assess_mode" in row && row.assess_mode !== liveSyncMode) {
+      liveSyncMode = row.assess_mode;
+      var ae = document.activeElement;
+      var editing = ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA") && _$("refFullCva") && _$("refFullCva").contains(ae);
+      if (!editing) { try { if (typeof setupRefSection === "function" && window._cuppingSession) setupRefSection(window._cuppingSession); } catch (e) {} }
+    }
+  }
+  async function refetchOpenSession(sid) {
+    try {
+      var r = await supabaseClient.from("cupping_sessions").select("*").eq("id", sid).maybeSingle();
+      if (r && r.data) applyIncomingSession(r.data);
+    } catch (e) {}
+  }
+  function startLiveSync(session) {
+    stopLiveSync();
+    var sid = session && session.id;
+    if (!sid || typeof supabaseClient === "undefined" || !supabaseClient.channel) return;
+    liveSyncMode = session.assess_mode;
+    try {
+      liveChannel = supabaseClient.channel("cup-live-" + sid)
+        .on("postgres_changes", { event: "*", schema: "public", table: "cupping_sessions", filter: "id=eq." + sid }, function (payload) {
+          if (payload && payload.new) applyIncomingSession(payload.new);
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "cupping_participants", filter: "session_id=eq." + sid }, function () {
+          try { if (typeof window.fetchCuppingParticipants === "function") window.fetchCuppingParticipants(sid); } catch (e) {}
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "cupping_beans", filter: "session_id=eq." + sid }, function () {
+          try { if (typeof window.fetchCuppingBeans === "function") window.fetchCuppingBeans(sid); } catch (e) {}
+        })
+        .subscribe(function (st) { if (st === "CHANNEL_ERROR" || st === "TIMED_OUT") console.warn("[cupping] 실시간 구독 상태", st); });
+    } catch (e) { console.warn("[cupping] 실시간 구독 실패", e); }
+    // 폴백 폴링: realtime 미설정 테이블도 커버(타이머·참가자·라인업). 모달 열려있을 때만.
+    if (livePoll) clearInterval(livePoll);
+    livePoll = setInterval(function () {
+      if (document.visibilityState !== "visible") return;
+      var m = _$("cuppingLineupModal");
+      if (!m || !m.classList.contains("show")) return;
+      refetchOpenSession(sid);
+      try { if (typeof window.fetchCuppingParticipants === "function") window.fetchCuppingParticipants(sid); } catch (e) {}
+    }, 7000);
+  }
+  function stopLiveSync() {
+    if (liveChannel) { try { supabaseClient.removeChannel(liveChannel); } catch (e) {} liveChannel = null; }
+    if (livePoll) { clearInterval(livePoll); livePoll = null; }
+    liveSyncMode = null;
+  }
   function commonAncestor(a, b) {
     if (!a || !b) return null;
     const anc = [];
@@ -4382,6 +4474,9 @@ window.hideCalibration = async function() {
     var res = await supabaseClient.from("cupping_sessions").update({ assess_mode: mode }).eq("id", sid);
     if (res.error) { if (typeof showToast === "function") showToast("평가 모드 저장 실패"); console.error("[cupping] assess_mode 저장 실패", res.error); return; }
     if (window._cuppingSession) window._cuppingSession.assess_mode = mode;
+    // [피드백①] 저장 즉시 레퍼런스 입력영역(강도/품질 표시) 갱신 — 모달 재열기 불필요
+    try { if (typeof setupRefSection === "function" && window._cuppingSession) setupRefSection(window._cuppingSession); }
+    catch (e) { console.warn("[cupping] 레퍼런스 영역 즉시 갱신 실패", e); }
     if (typeof showToast === "function") showToast("평가 모드: " + m.label);
   };
 })();
