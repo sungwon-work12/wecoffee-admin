@@ -2061,7 +2061,9 @@ window.saveCuppingBeanEdit = async function(sessionId, beanId) {
    · localStorage 클립보드에 원두 + 각 원두의 레퍼런스(교육매니저 평가)를 함께 저장
    · 붙여넣기 시 새 원두에 레퍼런스를 자동 복원 (공개 전 상태로 들어감 → 정답 유출 없음)
    · 레퍼런스 없는 원두는 원두 정보만 복사(무해) · 예전 클립(레퍼런스 미포함)도 안전 동작 */
-var _WC_REF_COLS = ["int_fragrance", "int_aroma", "int_flavor", "int_aftertaste", "int_acidity", "int_sweetness", "int_mouthfeel"];
+var _WC_REF_COLS = ["int_fragrance", "int_aroma", "int_flavor", "int_aftertaste", "int_acidity", "int_sweetness", "int_mouthfeel",
+  "q_fragrance", "q_aroma", "q_flavor", "q_aftertaste", "q_acidity", "q_sweetness", "q_mouthfeel", "q_overall",
+  "nonuniform_cups", "defective_cups", "cva_score", "form_type", "extrinsic"];
 function _wcClipGet() { try { return JSON.parse(localStorage.getItem("wc_cupping_bean_clip") || "[]") || []; } catch (e) { return []; } }
 function _wcClipSet(arr) { try { localStorage.setItem("wc_cupping_bean_clip", JSON.stringify(arr || [])); } catch(e){ console.warn("[wc] 무시된 오류", e); } }
 function _wcBeanPick(b) { return { name: b.name, origin: b.origin, farm: b.farm, process: b.process, altitude: b.altitude, variety: b.variety, roast_level: b.roast_level, source_url: b.source_url }; }
@@ -2070,6 +2072,7 @@ function _wcRefPick(r) {
   var o = {}, has = false;
   _WC_REF_COLS.forEach(function (k) { if (r[k] != null) { o[k] = r[k]; has = true; } });
   if (r.ref_notes && r.ref_notes.length) { o.ref_notes = r.ref_notes; has = true; }
+  if (r.ref_flavor_notes && r.ref_flavor_notes.length) { o.ref_flavor_notes = r.ref_flavor_notes; has = true; }
   return has ? o : null;
 }
 function _wcClipToolbar(sessionId, beanCount) {
@@ -2156,9 +2159,8 @@ async function _doApplyPastLineup(srcSessionId, targetSessionId) {
       srcBeans.forEach(function(b, i){
         var r = refByBean[b.id]; if (!r) return;
         var nid = byOrder[base + i]; if (!nid) return;
-        refRows.push({ session_id: targetSessionId, bean_id: nid,
-          int_fragrance: r.int_fragrance, int_aroma: r.int_aroma, int_flavor: r.int_flavor, int_aftertaste: r.int_aftertaste,
-          int_acidity: r.int_acidity, int_sweetness: r.int_sweetness, int_mouthfeel: r.int_mouthfeel, ref_notes: r.ref_notes });
+        var picked = _wcRefPick(r); if (!picked) return;   // ⑤ 품질·컵·향미노트·외재·CVA까지 전부 복사
+        refRows.push(Object.assign({ session_id: targetSessionId, bean_id: nid }, picked));
       });
       if (refRows.length) { var rr = await supabaseClient.from("cupping_references").upsert(refRows, { onConflict: "bean_id" }); if (!rr.error) refN = refRows.length; }
     } catch (e) { console.warn("[cupping] 레퍼런스 복사 실패", e); }
@@ -2670,9 +2672,9 @@ function wcEnsureFullCvaInputs(flags) {
         wcScoreCell("ref_defective", "결점", 0, null, "0", "wc-qinp") +
       '</div>' +
       // CVA 점수 미리보기(자동계산)
-      '<div id="refCvaPreview" data-sec="qual" style="margin-top:14px;padding:14px 16px;border:1px solid #ffe0c2;border-radius:13px;background:#fff8f1;display:flex;align-items:center;justify-content:space-between;gap:12px;">' +
-        '<span style="font-size:12.5px;font-weight:700;color:#c85f00;white-space:nowrap;">CVA 커핑 점수</span>' +
-        '<span id="refCvaRight" style="text-align:right;line-height:1.1;"></span></div>' +
+      '<div id="refCvaPreview" data-sec="qual" style="margin-top:14px;padding:14px 16px;border:1px solid #ffe0c2;border-radius:13px;background:#fff8f1;display:flex;align-items:center;justify-content:space-between;gap:4px 14px;flex-wrap:wrap;">' +
+        '<span style="font-size:12.5px;font-weight:700;color:#c85f00;white-space:nowrap;flex-shrink:0;">CVA 커핑 점수</span>' +
+        '<span id="refCvaRight" style="text-align:right;line-height:1.15;margin-left:auto;"></span></div>' +
       // 외재적 속성(선택)
       '<div class="wc-reflbl">외재적 속성·메모 <span class="sub">선택</span></div>' +
       '<textarea id="refExtrinsic" rows="2" style="' + ta + 'resize:vertical;" placeholder="향미의 배경·인상 등"></textarea>';
@@ -2705,8 +2707,8 @@ function wcRefUpdateCvaPreview() {
   if (right) {
     if (cva == null) {
       const total = CUPPING_QUAL_KEYS.length;
-      right.innerHTML = '<span style="font-size:12px;font-weight:600;color:#a0a8b3;">품질 ' +
-        (filled > 0 ? filled + '/' + total + ' 입력 · 8항목 모두 채우면 계산' : '8항목 입력 시 자동 계산') + '</span>';
+      right.innerHTML = '<span style="font-size:11.5px;font-weight:600;color:#a0a8b3;white-space:nowrap;">' +
+        (filled > 0 ? '품질 ' + filled + '/' + total + ' 입력' : '품질 8항목 입력 시 계산') + '</span>';
     } else {
       right.innerHTML = '<b style="font-size:24px;color:#191f28;font-weight:800;">' + cva.toFixed(1) +
         '</b><span style="font-size:15px;font-weight:800;color:#c4ccd4;"> / 100</span>';
