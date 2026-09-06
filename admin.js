@@ -4189,14 +4189,13 @@ window.hideCalibration = async function() {
     {
       try {
         var partsMap = {};
-        if (memberId) {
-          var pq = await supabaseClient.from("cupping_participants").select("id,session_id,member_id,guest_phone").eq("member_id", memberId);
-          (pq.data || []).forEach(function (p) { partsMap[p.id] = p; });
-        }
-        if (last4.length >= 3) {
-          var gq = await supabaseClient.from("cupping_participants").select("id,session_id,member_id,guest_phone").ilike("guest_phone", "%" + last4);
-          (gq.data || []).forEach(function (p) { if (same(p.guest_phone, phone)) partsMap[p.id] = p; });
-        }
+        // ★ id 말고 실제 전화번호로 매칭: 참가자에 members(phone) 붙여서, 멤버폰 or 게스트폰이 대상과 같으면 채택
+        //   (globalMembers id 불일치·중복 멤버행이 있어도 확실히 잡힘)
+        var allP = await supabaseClient.from("cupping_participants").select("id,session_id,member_id,guest_phone,members(phone)");
+        (allP.data || []).forEach(function (p) {
+          var pph = (p.members && p.members.phone) ? p.members.phone : p.guest_phone;
+          if (same(pph, phone)) partsMap[p.id] = p;
+        });
         var parts = Object.keys(partsMap).map(function (k) { return partsMap[k]; });
         var pids = parts.map(function (p) { return p.id; });
         var sids = parts.map(function (p) { return p.session_id; }).filter(Boolean);
