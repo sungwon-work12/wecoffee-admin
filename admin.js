@@ -4389,7 +4389,8 @@ window.hideCalibration = async function() {
         var pr = await supabaseClient.from("cupping_participants").select("id,member_id,guest_name,members(name,batch)").eq("session_id", sid);
         var nameMap = {};
         (pr.data || []).forEach(function (p) { nameMap[p.id] = p.member_id ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트"); });
-        var ar = await supabaseClient.from("cupping_records").select("*").eq("session_id", sid);
+        var OCOLS = "participant_id,bean_id,cva_score,int_fragrance,int_aroma,int_flavor,int_aftertaste,int_acidity,int_sweetness,int_mouthfeel";
+        var ar = await supabaseClient.from("cupping_records").select(OCOLS).eq("session_id", sid);
         var others = (ar.data || []).filter(function (x) {
           return String(x.participant_id) !== String(myPid) && (RV_KEYS.some(function (k) { return x[k] != null; }) || x.cva_score != null);
         });
