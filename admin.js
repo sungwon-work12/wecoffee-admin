@@ -4109,6 +4109,7 @@ window.hideCalibration = async function() {
    ═══════════════════════════════════════════════════════════ */
 (function () {
   "use strict";
+  var STAR = String.fromCharCode(42);   // 복사 중 별표(*) 씹힘 방지용 — select(STAR) === select("*")
   var RV_KEYS = ["int_fragrance","int_aroma","int_flavor","int_aftertaste","int_acidity","int_sweetness","int_mouthfeel"];
   var RV_LABS = ["프래그런스","아로마","향미","뒷맛","산미","단맛","마우스필"];
   // 센터별 공간·장비 구성(스케줄 등록과 동일 출처). admin.js 의 mapoSpaces/gwangjinSpaces 와 1:1.
@@ -4200,10 +4201,10 @@ window.hideCalibration = async function() {
         var pids = parts.map(function (p) { return p.id; });
         var sids = parts.map(function (p) { return p.session_id; }).filter(Boolean);
         var recsAll = [], sessMap = {}, refMap = {};
-        if (pids.length) { var rr = await supabaseClient.from("cupping_records").select("*").in("participant_id", pids); recsAll = rr.data || []; }
+        if (pids.length) { var rr = await supabaseClient.from("cupping_records").select(STAR).in("participant_id", pids); recsAll = rr.data || []; }
         if (sids.length) { var ssq = await supabaseClient.from("cupping_sessions").select("id,title,scheduled_at").in("id", sids); (ssq.data || []).forEach(function (s) { sessMap[s.id] = s; }); }
         var beanIds = recsAll.map(function (r) { return r.bean_id; }).filter(Boolean);
-        if (beanIds.length) { var rf = await supabaseClient.from("cupping_references").select("*").in("bean_id", beanIds); (rf.data || []).forEach(function (x) { refMap[x.bean_id] = x; }); }
+        if (beanIds.length) { var rf = await supabaseClient.from("cupping_references").select(STAR).in("bean_id", beanIds); (rf.data || []).forEach(function (x) { refMap[x.bean_id] = x; }); }
         parts.forEach(function (p) {
           var recs = recsAll.filter(function (r) { return r.participant_id === p.id; }); if (!recs.length) return;
           var s = sessMap[p.session_id] || {};
