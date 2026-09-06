@@ -4101,9 +4101,11 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 7 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 8 — 멤버 활동·성장 조회
    멤버 '내역' 모달 확장: 이용 통계, 센서리 성장 추이, 이력.
+   [1a 반영] 멤버 상세: 레퍼런스 값·레이더 + 함께 참가한 멤버 비교
    의존: 파트 1~7
    ═══════════════════════════════════════════════════════════ */
 (function () {
@@ -4149,6 +4151,18 @@ window.hideCalibration = async function() {
     if(/스터디/.test(s)) return key==="광진 센터" ? "스터디룸" : "스터디존";
     return "기타";
   }
+  // [1a] 미니 레이더 (본인 주황 vs 레퍼런스 파랑)
+  function radarMini(me, ref, AX){
+    AX = AX || []; var MAX=15, cx=130, cy=118, R=82, N=AX.length || 1;
+    function pt(i,v){ var a=-Math.PI/2 + i*(2*Math.PI/N); var r=((v==null?0:v)/MAX)*R; return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; }
+    function poly(vals){ return vals.map(function(v,i){ return pt(i,v).join(","); }).join(" "); }
+    var h="";
+    [5,10,15].forEach(function(rv){ h+='<polygon points="'+AX.map(function(_,i){ return pt(i,rv).join(","); }).join(" ")+'" fill="none" stroke="#eef0f3" stroke-width="1"/>'; });
+    AX.forEach(function(lab,i){ var lp=pt(i,17.6); var anc=Math.abs(lp[0]-cx)<6?"middle":(lp[0]<cx?"end":"start"); h+='<text x="'+lp[0]+'" y="'+(lp[1]+3)+'" font-size="9" font-weight="700" fill="#8b95a1" text-anchor="'+anc+'">'+lab+'</text>'; });
+    if(ref){ h+='<polygon points="'+poly(ref)+'" fill="rgba(49,130,246,0.12)" stroke="#3182f6" stroke-width="1.6"/>'; }
+    h+='<polygon points="'+poly(me)+'" fill="rgba(255,121,0,0.15)" stroke="#ff7900" stroke-width="1.8"/>';
+    return '<svg width="260" height="236" viewBox="0 0 260 236" style="max-width:100%;height:auto;display:block;margin:0 auto;">'+h+'</svg>';
+  }
   var CACHE = {};
   var _orig = window.openHistoryModal;
   window.openHistoryModal = async function (phone, name) {
@@ -4186,39 +4200,33 @@ window.hideCalibration = async function() {
     var sessions = [];
     {
       try {
-        // 기록을 member_id·subj_phone 스냅샷으로 직접 조회 (참가자/세션 삭제돼도 보존분 노출)
-        var digits = String(phone || "").replace(/\D/g, "");
-        var recMap = {};
+        var partsMap = {};
         if (memberId) {
-          var rq1 = await supabaseClient.from("cupping_records").select("*").eq("member_id", memberId);
-          (rq1.data || []).forEach(function (r) { recMap[r.id] = r; });
+          var pq = await supabaseClient.from("cupping_participants").select("id,session_id,member_id,guest_phone").eq("member_id", memberId);
+          (pq.data || []).forEach(function (p) { partsMap[p.id] = p; });
         }
-        if (digits.length >= 8) {
-          var rq2 = await supabaseClient.from("cupping_records").select("*").eq("subj_phone", digits);
-          (rq2.data || []).forEach(function (r) { recMap[r.id] = r; });
+        if (last4.length >= 3) {
+          var gq = await supabaseClient.from("cupping_participants").select("id,session_id,member_id,guest_phone").ilike("guest_phone", "%" + last4);
+          (gq.data || []).forEach(function (p) { if (same(p.guest_phone, phone)) partsMap[p.id] = p; });
         }
-        var recsAll = Object.keys(recMap).map(function (k) { return recMap[k]; }).filter(function (r) { return r.form_type !== "basic"; }); // 베이직폼 폐기 — 레거시 제외
-        var refMap = {};
-        var beanIds = uniq(recsAll.map(function (r) { return r.bean_id; }).filter(Boolean));
+        var parts = Object.keys(partsMap).map(function (k) { return partsMap[k]; });
+        var pids = parts.map(function (p) { return p.id; });
+        var sids = parts.map(function (p) { return p.session_id; }).filter(Boolean);
+        var recsAll = [], sessMap = {}, refMap = {};
+        if (pids.length) { var rr = await supabaseClient.from("cupping_records").select("*").in("participant_id", pids); recsAll = rr.data || []; }
+        if (sids.length) { var ssq = await supabaseClient.from("cupping_sessions").select("id,title,scheduled_at").in("id", sids); (ssq.data || []).forEach(function (s) { sessMap[s.id] = s; }); }
+        var beanIds = recsAll.map(function (r) { return r.bean_id; }).filter(Boolean);
         if (beanIds.length) { var rf = await supabaseClient.from("cupping_references").select("*").in("bean_id", beanIds); (rf.data || []).forEach(function (x) { refMap[x.bean_id] = x; }); }
-        // 세션 단위로 묶기 — 세션 삭제 시 스냅샷(session_title·session_at) 사용
-        var groups = {};
-        recsAll.forEach(function (r) {
-          var key = r.session_id || ("t:" + (r.session_title || "") + "|" + (r.session_at || r.created_at || ""));
-          (groups[key] = groups[key] || { recs: [], title: r.session_title, date: r.session_at, sid: r.session_id }).recs.push(r);
-        });
-        var modeMap = {};
-        var sids = uniq(Object.keys(groups).map(function (k) { return groups[k].sid; }).filter(Boolean));
-        if (sids.length) { try { var sm = await supabaseClient.from("cupping_sessions").select("id,assess_mode").in("id", sids); (sm.data || []).forEach(function (s) { modeMap[s.id] = s.assess_mode || "full"; }); } catch(e){ console.warn("[wc] 무시된 오류", e); } }
-        Object.keys(groups).forEach(function (key) {
-          var g = groups[key], recs = g.recs;
+        parts.forEach(function (p) {
+          var recs = recsAll.filter(function (r) { return r.participant_id === p.id; }); if (!recs.length) return;
+          var s = sessMap[p.session_id] || {};
           var scores = recs.map(function (r) { return num(r.cva_score); }).filter(function (v) { return v != null; });
           var avgScore = scores.length ? scores.reduce(function (a, b) { return a + b; }, 0) / scores.length : null;
           var devs = [];
           recs.forEach(function (r) { var ref = refMap[r.bean_id]; if (!ref) return; RV_KEYS.forEach(function (k) { var mv = num(r[k]), rv = num(ref[k]); if (mv != null && rv != null) devs.push(Math.abs(mv - rv)); }); });
           var acc = devs.length ? devs.reduce(function (a, b) { return a + b; }, 0) / devs.length : null;
-          CACHE[key] = { recs: recs, refMap: refMap, session: { id: g.sid, title: g.title, date: g.date } };
-          sessions.push({ pid: key, title: g.title || "커핑 세션", date: g.date, score: avgScore, acc: acc, mode: modeMap[g.sid] || "full" });
+          CACHE[p.id] = { recs: recs, refMap: refMap, session: s };
+          sessions.push({ pid: p.id, title: s.title || "커핑 세션", date: s.scheduled_at, score: avgScore, acc: acc });
         });
         sessions.sort(function (a, b) { return (a.date ? new Date(a.date) : 0) - (b.date ? new Date(b.date) : 0); });
       } catch (e) { console.warn("[cupping] 센서리 성장 조회 실패", e); }
@@ -4279,12 +4287,10 @@ window.hideCalibration = async function() {
       sessions.slice().reverse().forEach(function (s) {
         var accBadge = s.acc == null ? '<span style="font-size:11px;color:#b0b8c1;">레퍼런스 없음</span>'
           : '<span style="font-size:11px;font-weight:700;color:' + (s.acc <= 1 ? "#00b386" : (s.acc <= 2.5 ? "#e08600" : "#e5484d")) + ';">정확도 편차 ' + s.acc.toFixed(1) + '</span>';
-        var modeTag = s.mode === "descriptive" ? '<span style="font-size:10px;font-weight:700;color:#2b6fd6;background:#eaf2fe;padding:1px 6px;border-radius:5px;margin-left:6px;">묘사만</span>'
-          : s.mode === "affective" ? '<span style="font-size:10px;font-weight:700;color:#c2410c;background:#fff2e6;padding:1px 6px;border-radius:5px;margin-left:6px;">정동만</span>' : '';
         h += '<div class="memCupCard" style="border:1px solid var(--border-strong,#e5e8eb);border-radius:12px;padding:12px 14px;margin-bottom:8px;">' +
           '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">' +
             '<div style="min-width:0;"><div style="font-size:14px;font-weight:700;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(s.title) + '</div>' +
-            '<div style="font-size:12px;color:#8b95a1;margin-top:2px;">' + esc(dstr(s.date)) + ' · ' + accBadge + modeTag + '</div></div>' +
+            '<div style="font-size:12px;color:#8b95a1;margin-top:2px;">' + esc(dstr(s.date)) + ' · ' + accBadge + '</div></div>' +
             '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;"><div style="font-size:16px;font-weight:800;color:#ea6f00;">' + fx(s.score) + '<span style="font-size:10px;color:#8b95a1;font-weight:700;"> 점</span></div>' +
             '<button type="button" class="btn-outline btn-sm" style="height:30px;padding:0 10px;" onclick="window.memCupDetail(\'' + s.pid + '\',this)">상세</button></div>' +
           '</div><div class="memCupEval" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #f2f4f6;"></div></div>';
@@ -4359,38 +4365,88 @@ window.hideCalibration = async function() {
     title = String(title).trim();
     return title || "수업·훈련 참여";
   }
+  // [1a] 멤버 상세: 본인 평가(레퍼런스 값·레이더) + 함께 참가한 멤버
   window.memCupDetail = async function (pid, btn) {
     var card = btn.closest(".memCupCard"), area = card ? card.querySelector(".memCupEval") : null; if (!area) return;
     if (area.style.display !== "none") { area.style.display = "none"; btn.textContent = "상세"; return; }
     area.style.display = "block"; btn.textContent = "닫기";
     var c = CACHE[pid]; if (!c || !c.recs) { area.innerHTML = '<div style="color:#8b95a1;font-size:13px;">상세 데이터가 없습니다.</div>'; return; }
-    var recs = c.recs.slice(), beanName = {};
+    var recs = c.recs.slice(), beanName = {}, order = {};
+    var sid = c.session && c.session.id;
     try {
-      var sid = c.session && c.session.id;
-      if (sid) { var bq = await supabaseClient.from("cupping_beans").select("id,name,sort_order").eq("session_id", sid).order("sort_order", { ascending: true });
-        var order = {}; (bq.data || []).forEach(function (b, i) { beanName[b.id] = b.name; order[b.id] = i; });
-        recs.sort(function (a, b) { return (order[a.bean_id] == null ? 99 : order[a.bean_id]) - (order[b.bean_id] == null ? 99 : order[b.bean_id]); }); }
-    } catch(e){ console.warn("[wc] 무시된 오류", e); }
-    area.innerHTML = recs.map(function (r) { return beanCard(r, beanName[r.bean_id] || r.bean_name || "원두", c.refMap[r.bean_id]); }).join("");
+      if (sid) {
+        var bq = await supabaseClient.from("cupping_beans").select("id,name,sort_order").eq("session_id", sid).order("sort_order", { ascending: true });
+        (bq.data || []).forEach(function (b, i) { beanName[b.id] = b.name; order[b.id] = i; });
+        recs.sort(function (a, b) { return (order[a.bean_id] == null ? 99 : order[a.bean_id]) - (order[b.bean_id] == null ? 99 : order[b.bean_id]); });
+      }
+    } catch (e) {}
+    var html = '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:2px 0 8px;">본인 평가</div>' +
+      recs.map(function (r) { return beanCard(r, beanName[r.bean_id] || "원두", c.refMap[r.bean_id]); }).join("");
+    // ── 함께 참가한 다른 멤버 ──
+    try {
+      if (sid) {
+        var myPid = c.recs[0] && c.recs[0].participant_id;
+        var pr = await supabaseClient.from("cupping_participants").select("id,member_id,guest_name,members(name,batch)").eq("session_id", sid);
+        var nameMap = {};
+        (pr.data || []).forEach(function (p) { nameMap[p.id] = p.member_id ? ((p.members && p.members.name) || "멤버") : (p.guest_name || "게스트"); });
+        var ar = await supabaseClient.from("cupping_records").select("*").eq("session_id", sid);
+        var others = (ar.data || []).filter(function (x) {
+          return String(x.participant_id) !== String(myPid) && (RV_KEYS.some(function (k) { return x[k] != null; }) || x.cva_score != null);
+        });
+        if (others.length) {
+          var byBean = {};
+          others.forEach(function (x) { (byBean[x.bean_id] = byBean[x.bean_id] || []).push(x); });
+          html += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:16px 0 8px;">함께 참가한 멤버</div>';
+          recs.forEach(function (r) {
+            var list = byBean[r.bean_id]; if (!list || !list.length) return;
+            html += '<div style="border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff;">';
+            html += '<div style="font-size:12px;font-weight:800;color:#191f28;margin-bottom:8px;">' + esc(beanName[r.bean_id] || "원두") + ' <span style="color:#8b95a1;font-weight:600;">' + list.length + '명</span></div>';
+            list.forEach(function (o) {
+              var cs = RV_LABS.map(function (lab, i) { var v = num(o[RV_KEYS[i]]); return '<span style="font-size:11px;color:#8b95a1;white-space:nowrap;">' + lab + ' <b style="color:#191f28;font-weight:700;">' + fx(v) + '</b></span>'; }).join(" ");
+              html += '<div style="border-top:1px solid #f4f5f7;padding:7px 0;"><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;"><span style="font-size:12.5px;font-weight:700;color:#191f28;">' + esc(nameMap[o.participant_id] || "참가자") + '</span><span style="font-size:12px;font-weight:700;color:#ea6f00;">' + fx(num(o.cva_score)) + '</span></div><div style="display:flex;flex-wrap:wrap;gap:8px;">' + cs + '</div></div>';
+            });
+            html += '</div>';
+          });
+        }
+      }
+    } catch (e) { console.warn("[cupping] 다른 참가자 로드 실패", e); }
+    area.innerHTML = html;
   };
+  // [1a] 원두 카드: 본인 값 + 레퍼런스 값 + 편차 + 레이더 + 레퍼런스 노트
   function beanCard(r, bnName, ref) {
     var isBasic = r.form_type === "basic";
     var badge = '<span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;' + (isBasic ? 'background:#eaf2fe;color:#3182f6;' : 'background:#fff2e6;color:#ea6f00;') + '">' + (isBasic ? "베이직" : "CVA") + '</span>';
     var maxLbl = isBasic ? " / 120" : " / 100";
+    var me = RV_KEYS.map(function (k) { return num(r[k]); });
+    var rf = ref ? RV_KEYS.map(function (k) { return num(ref[k]); }) : null;
+    var hasAny = me.some(function (v) { return v != null; });
+    var radar = hasAny ? radarMini(me, rf, RV_LABS) : "";
     var cells = RV_LABS.map(function (lab, i) {
-      var mv = num(r[RV_KEYS[i]]), rv = ref ? num(ref[RV_KEYS[i]]) : null, dev = (mv != null && rv != null) ? (mv - rv) : null;
+      var mv = me[i], rv = rf ? rf[i] : null, dev = (mv != null && rv != null) ? (mv - rv) : null;
       var dc = dev == null ? "" : (Math.abs(dev) <= 1 ? "#00b386" : (Math.abs(dev) <= 2.5 ? "#e08600" : "#e5484d"));
-      return '<div style="flex:1 1 0;min-width:0;text-align:center;"><div style="font-size:9px;color:#8b95a1;white-space:nowrap;">' + lab + '</div>' +
-        '<div style="font-size:12px;font-weight:700;color:#191f28;">' + fx(mv) + '</div>' +
-        (dev == null ? "" : '<div style="font-size:9px;font-weight:700;color:' + dc + ';">' + (dev > 0 ? "+" : "") + dev.toFixed(1) + '</div>') + '</div>';
+      return '<div style="flex:1 1 0;min-width:0;text-align:center;">' +
+        '<div style="font-size:9px;color:#8b95a1;white-space:nowrap;">' + lab + '</div>' +
+        '<div style="font-size:13px;font-weight:800;color:#191f28;">' + fx(mv) + '</div>' +
+        (rv != null ? '<div style="font-size:10px;color:#3182f6;font-weight:700;">기준 ' + fx(rv) + '</div>' : '') +
+        (dev == null ? '' : '<div style="font-size:9px;font-weight:700;color:' + dc + ';">' + (dev > 0 ? "+" : "") + dev.toFixed(1) + '</div>') +
+        '</div>';
     });
-    if (isBasic && r.basic_overall != null) cells.push('<div style="flex:1 1 0;min-width:0;text-align:center;"><div style="font-size:9px;color:#ea6f00;white-space:nowrap;">전체적</div><div style="font-size:12px;font-weight:800;color:#ea6f00;">' + fx(num(r.basic_overall)) + '</div></div>');
+    if (isBasic && r.basic_overall != null) cells.push('<div style="flex:1 1 0;min-width:0;text-align:center;"><div style="font-size:9px;color:#ea6f00;white-space:nowrap;">전체적</div><div style="font-size:13px;font-weight:800;color:#ea6f00;">' + fx(num(r.basic_overall)) + '</div></div>');
+    var refNotes = (ref && ref.ref_notes && ref.ref_notes.length)
+      ? '<div style="margin-top:8px;"><div style="font-size:10px;font-weight:700;color:#3182f6;margin-bottom:5px;">레퍼런스 노트</div><div style="display:flex;flex-wrap:wrap;gap:5px;">' + ref.ref_notes.map(function (t) { return '<span style="font-size:11px;font-weight:600;color:#3172c0;background:#eaf2fe;border-radius:6px;padding:3px 9px;">' + esc(t) + '</span>'; }).join("") + '</div></div>'
+      : "";
+    var legend = radar
+      ? '<div style="padding:2px 0 6px;">' + radar + (rf
+          ? '<div style="display:flex;gap:14px;justify-content:center;margin-top:2px;font-size:10px;font-weight:700;color:#4e5968;"><span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:9px;height:9px;border-radius:2px;background:#ff7900;display:inline-block;"></i>본인</span><span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:9px;height:9px;border-radius:2px;background:#3182f6;display:inline-block;"></i>레퍼런스</span></div>'
+          : '<div style="text-align:center;font-size:10px;color:#8b95a1;margin-top:2px;">레퍼런스 미입력</div>') + '</div>'
+      : "";
     return '<div style="border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fbfcfd;">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">' +
         '<div style="display:flex;align-items:center;gap:6px;min-width:0;"><span style="font-size:13px;font-weight:800;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(bnName) + '</span>' + badge + '</div>' +
         '<div style="font-size:15px;font-weight:800;color:#ea6f00;flex-shrink:0;">' + fx(num(r.cva_score)) + '<span style="font-size:10px;color:#8b95a1;font-weight:700;">' + maxLbl + '</span></div></div>' +
+      legend +
       '<div style="display:flex;gap:4px;">' + cells.join("") + '</div>' +
-      (ref ? '<div style="font-size:10px;color:#8b95a1;margin-top:4px;">숫자 아래는 레퍼런스 대비 편차</div>' : "") +
+      refNotes +
       notesBlock(r, isBasic) + '</div>';
   }
   var QN_ORDER = ["fragrance","aroma","flavor","aftertaste","acidity","sweetness","mouthfeel","overall"];
@@ -4428,6 +4484,7 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 8 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 9 — 평가 모드 설정 (호스트)
    커핑 설정 모달에 '평가 모드' 셀렉터 주입 → cupping_sessions.assess_mode 저장.
