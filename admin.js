@@ -331,7 +331,7 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 function handleLoginSuccess(){var lv=$("login-view");if(lv)lv.classList.remove('active');var dv=$("dashboard-view");if(dv)dv.style.display='block';startRealtimeSync();let savedMain=localStorage.getItem('wecoffee_main_tab')||'page-center';let savedSub=localStorage.getItem('wecoffee_sub_tab')||'sub-res';if(savedSub==='sub-trn'||savedSub==='sub-blk')savedSub='sub-trn-blk';let mainEl=document.querySelector(`.gnb-item[onclick*="${savedMain}"]`);if(mainEl)window.switchMainTab(savedMain,mainEl);else window.switchMainTab('page-center',document.querySelector(`.gnb-item[onclick*="page-center"]`));if(savedMain==='page-center'){let subEl=document.querySelector(`.sub-item[onclick*="${savedSub}"]`);if(subEl)window.switchSubTab(savedSub,subEl);}}
-function initializeApp(){window.fetchHolidays(new Date().getFullYear());if(window.updateDashSpaceFilter)window.updateDashSpaceFilter();supabaseClient.auth.getSession().then(({data:{session}})=>{if(session&&!isAppInitialized){currentAdminEmail=session.user?.email||'';handleLoginSuccess();isAppInitialized=true;}});supabaseClient.auth.onAuthStateChange((event,session)=>{if(session){currentAdminEmail=session.user?.email||'';if(!isAppInitialized){handleLoginSuccess();isAppInitialized=true;}}else{var lv=$("login-view");if(lv)lv.classList.add('active');var dv=$("dashboard-view");if(dv)dv.style.display='none';isAppInitialized=false;if(realtimeChannel){supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}if(pollingTimer){clearInterval(pollingTimer);pollingTimer=null;}}});}
+function initializeApp(){window.fetchHolidays(new Date().getFullYear());if(window.updateDashSpaceFilter)window.updateDashSpaceFilter();supabaseClient.auth.getSession().then(({data:{session}})=>{if(session&&!isAppInitialized){currentAdminEmail=session.user?.email||'';handleLoginSuccess();isAppInitialized=true;}});supabaseClient.auth.onAuthStateChange((event,session)=>{if(session){currentAdminEmail=session.user?.email||'';if(!isAppInitialized){handleLoginSuccess();isAppInitialized=true;}}else{var lv=$("login-view");if(lv)lv.classList.add('active');var dv=$("dashboard-view");if(dv)dv.style.display='none';isAppInitialized=false;if(realtimeChannel){supabaseClient.removeChannel(realtimeChannel);realtimeChannel=null;}if(pollingTimer){clearInterval(pollingTimer);pollingTimer=null;}}});if(window.__wcAlive) window.__wcAlive();}
 if(document.readyState==='loading')document.addEventListener("DOMContentLoaded",initializeApp);else initializeApp();
 window.switchMainTab=function(pageId,element){$$$(".page").forEach(p=>p.classList.remove('active'));if($(pageId))$(pageId).classList.add('active');$$$(".gnb-item").forEach(item=>item.classList.remove('active'));let targetEl=element||document.querySelector(`.gnb-item[onclick*="${pageId}"]`);if(targetEl)targetEl.classList.add('active');localStorage.setItem('wecoffee_main_tab',pageId);if(pageId==='page-center')window.fetchCenterData();if(pageId==='page-applications'){window.fetchApplications();isInsightView=false;if($("app-table-area"))$("app-table-area").style.display="block";if($("app-insight-area"))$("app-insight-area").style.display="none";if($("insightToggleBtn"))$("insightToggleBtn").innerText="인사이트 보기";}if(pageId==='page-members')window.fetchMembers();};
 window.switchSubTab=function(subId,element){$$$(".sub-page").forEach(p=>p.classList.remove('active'));if($(subId))$(subId).classList.add('active');$$$(".sub-item").forEach(item=>item.classList.remove('active'));let targetEl=element||document.querySelector(`.sub-item[onclick*="${subId}"]`);if(targetEl){targetEl.classList.add('active');targetEl.classList.remove("tab-pulse");}if(subId==='sub-notice'){if($('globalFilterWrap'))$('globalFilterWrap').style.display='none';}else{if($('globalFilterWrap'))$('globalFilterWrap').style.display='inline-flex';}localStorage.setItem('wecoffee_sub_tab',subId);if(subId==='sub-res'||subId==='sub-trn-blk'||subId==='sub-ord'){window.fetchCenterData();}};
@@ -4366,8 +4366,8 @@ window.hideCalibration = async function() {
     } catch (e) {}
     var html = '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:2px 0 8px;">본인 평가</div>' +
       recs.map(function (r) { return beanCard(r, beanName[r.bean_id] || "원두", c.refMap[r.bean_id]); }).join("");
-    // ── 함께 참가한 다른 멤버 (확정된 컬럼 + window.globalMembers 로 이름 매핑) ──
-    var OCOLS = "participant_id,bean_id,cva_score,int_fragrance,int_aroma,int_flavor,int_aftertaste,int_acidity,int_sweetness,int_mouthfeel";
+    // ── 함께 참가한 다른 멤버 (이름은 members(name) 조인, 노트 컬럼까지 로드) ──
+    var OCOLS = "participant_id,bean_id,cva_score,form_type,basic_overall,int_fragrance,int_aroma,int_flavor,int_aftertaste,int_acidity,int_sweetness,int_mouthfeel,notes_fragrance,notes_aroma,notes_tasting,notes_custom,q_notes,extrinsic";
     try {
       if (sid) {
         var myPid = c.recs[0] && c.recs[0].participant_id;
@@ -4388,11 +4388,32 @@ window.hideCalibration = async function() {
           html += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:16px 0 8px;">함께 참가한 멤버</div>';
           recs.forEach(function (r) {
             var list = byBean[r.bean_id]; if (!list || !list.length) return;
+            var meVals = RV_KEYS.map(function (k) { return num(r[k]); });
+            var refB = c.refMap[r.bean_id];
+            var refVals = refB ? RV_KEYS.map(function (k) { return num(refB[k]); }) : null;
             html += '<div style="border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff;">';
             html += '<div style="font-size:12px;font-weight:800;color:#191f28;margin-bottom:8px;">' + esc(beanName[r.bean_id] || "원두") + ' <span style="color:#8b95a1;font-weight:600;">' + list.length + '명</span></div>';
             list.forEach(function (o) {
-              var cs = RV_LABS.map(function (lab, i) { var v = num(o[RV_KEYS[i]]); return '<span style="font-size:11px;color:#8b95a1;white-space:nowrap;">' + lab + ' <b style="color:#191f28;font-weight:700;">' + fx(v) + '</b></span>'; }).join(" ");
-              html += '<div style="border-top:1px solid #f4f5f7;padding:7px 0;"><div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:3px;"><span style="font-size:12.5px;font-weight:700;color:#191f28;">' + esc(nameMap[o.participant_id] || "참가자") + '</span><span style="font-size:12px;font-weight:700;color:#ea6f00;">' + fx(num(o.cva_score)) + '</span></div><div style="display:flex;flex-wrap:wrap;gap:8px;">' + cs + '</div></div>';
+              var oName = esc(nameMap[o.participant_id] || "참가자");
+              var oVals = RV_KEYS.map(function (k) { return num(o[k]); });
+              var cs = RV_LABS.map(function (lab, i) { var v = oVals[i]; return '<span style="font-size:11px;color:#8b95a1;white-space:nowrap;">' + lab + ' <b style="color:#191f28;font-weight:700;">' + fx(v) + '</b></span>'; }).join(" ");
+              var oNotes = notesBlock(o, o.form_type === "basic");
+              var cmpRadar = radarMini(meVals, refVals, RV_LABS, oVals);
+              var cmpLegend = '<div style="display:flex;gap:12px;justify-content:center;margin-top:2px;font-size:10px;font-weight:700;color:#4e5968;flex-wrap:wrap;">' +
+                '<span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:9px;height:9px;border-radius:2px;background:#ff7900;display:inline-block;"></i>본인</span>' +
+                '<span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:9px;height:9px;border-radius:2px;background:#12b886;display:inline-block;"></i>' + oName + '</span>' +
+                (refVals ? '<span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:9px;height:9px;border-radius:2px;background:#3182f6;display:inline-block;"></i>레퍼런스</span>' : '') +
+              '</div>';
+              html += '<div class="wcCmpRow" style="border-top:1px solid #f4f5f7;padding:7px 0;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px;">' +
+                  '<span style="font-size:12.5px;font-weight:700;color:#191f28;">' + oName + '</span>' +
+                  '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span style="font-size:12px;font-weight:700;color:#ea6f00;">' + fx(num(o.cva_score)) + '</span>' +
+                  '<button type="button" onclick="window.wcMemCmpToggle(this)" style="font-size:11px;font-weight:700;color:#12b886;border:1px solid #12b886;background:#fff;border-radius:6px;padding:2px 9px;cursor:pointer;font-family:inherit;">비교</button></span>' +
+                '</div>' +
+                '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + cs + '</div>' +
+                oNotes +
+                '<div class="wcMemCmpBox" style="display:none;margin-top:8px;padding-top:6px;border-top:1px dashed #eef0f3;">' + cmpRadar + cmpLegend + '</div>' +
+              '</div>';
             });
             html += '</div>';
           });
@@ -4401,7 +4422,7 @@ window.hideCalibration = async function() {
     } catch (e) { console.warn("[cupping] 다른 참가자 로드 실패", e); }
     area.innerHTML = html;
   };
-  function radarMini(me, ref, AX){
+  function radarMini(me, ref, AX, extra){
     AX = AX || []; var MAX=15, cx=130, cy=118, R=82, N=AX.length || 1;
     function pt(i,v){ var a=-Math.PI/2 + i*(2*Math.PI/N); var r=((v==null?0:v)/MAX)*R; return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; }
     function poly(vals){ return vals.map(function(v,i){ return pt(i,v).join(","); }).join(" "); }
@@ -4409,9 +4430,18 @@ window.hideCalibration = async function() {
     [5,10,15].forEach(function(rv){ h+='<polygon points="'+AX.map(function(_,i){ return pt(i,rv).join(","); }).join(" ")+'" fill="none" stroke="#eef0f3" stroke-width="1"/>'; });
     AX.forEach(function(lab,i){ var lp=pt(i,17.6); var anc=Math.abs(lp[0]-cx)<6?"middle":(lp[0]<cx?"end":"start"); h+='<text x="'+lp[0]+'" y="'+(lp[1]+3)+'" font-size="9" font-weight="700" fill="#8b95a1" text-anchor="'+anc+'">'+lab+'</text>'; });
     if(ref){ h+='<polygon points="'+poly(ref)+'" fill="rgba(49,130,246,0.12)" stroke="#3182f6" stroke-width="1.6"/>'; }
+    if(extra){ h+='<polygon points="'+poly(extra)+'" fill="rgba(18,182,134,0.13)" stroke="#12b886" stroke-width="1.6"/>'; }
     h+='<polygon points="'+poly(me)+'" fill="rgba(255,121,0,0.15)" stroke="#ff7900" stroke-width="1.8"/>';
     return '<svg width="260" height="236" viewBox="0 0 260 236" style="max-width:100%;height:auto;display:block;margin:0 auto;">'+h+'</svg>';
   }
+  // 함께 참가한 멤버 · 비교 레이더 토글
+  window.wcMemCmpToggle = function (btn) {
+    var row = btn.closest(".wcCmpRow"); if (!row) return;
+    var box = row.querySelector(".wcMemCmpBox"); if (!box) return;
+    var open = box.style.display === "none";
+    box.style.display = open ? "block" : "none";
+    btn.textContent = open ? "닫기" : "비교";
+  };
   function beanCard(r, bnName, ref) {
     var isBasic = r.form_type === "basic";
     var badge = '<span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:6px;' + (isBasic ? 'background:#eaf2fe;color:#3182f6;' : 'background:#fff2e6;color:#ea6f00;') + '">' + (isBasic ? "베이직" : "CVA") + '</span>';
