@@ -4322,7 +4322,7 @@ window.hideCalibration = async function() {
   }
   function cnKey(scope, sessionId, beanId, refId){ return (scope + "|" + (sessionId||"") + "|" + (beanId||"") + "|" + (refId||"")).replace(/[^A-Za-z0-9]/g, "_"); }
   function cnTime(s){ try { var d = new Date(s); if (isNaN(d)) return ""; return String(d.getFullYear()).slice(2) + "." + String(d.getMonth()+1).padStart(2,"0") + "." + String(d.getDate()).padStart(2,"0") + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); } catch (e) { return ""; } }
-  // ctx = {sessionId, beanId, refId} · opts = {ph, mb}
+  // ctx = {sessionId, beanId, refId} · opts = {ph, mb, label}
   function coachBlockHTML(scope, phone, name, ctx, title, sub, opts){
     ctx = ctx || {}; opts = opts || {};
     var key = cnKey(scope, ctx.sessionId, ctx.beanId, ctx.refId);
@@ -4330,13 +4330,14 @@ window.hideCalibration = async function() {
     var addArgs = "'" + scope + "','" + cq(phone) + "','" + cq(name) + "','" + cq(ctx.sessionId) + "','" + cq(ctx.beanId) + "','" + cq(ctx.refId) + "'";
     var ph = opts.ph || (scope === "member" ? "멤버 누적 코칭 로그 (성장 관점)" : "코멘트 입력");
     var mb = opts.mb || "0";
+    var labelAttr = opts.label ? ' data-label="' + esc(opts.label) + '"' : '';
     return '<div style="border:1px solid var(--border-strong,#e5e8eb);border-radius:12px;padding:12px 14px;margin-bottom:' + mb + ';background:#fbfcfd;">' +
       (title ? '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px;"><span style="font-size:13px;font-weight:800;color:#191f28;">' + title + '</span>' + (sub ? '<span style="font-size:11px;color:#8b95a1;">' + sub + '</span>' : '') + '</div>' : '') +
       '<div id="' + listId + '"><div style="color:#b0b8c1;font-size:12.5px;padding:2px 0;">불러오는 중…</div></div>' +
       '<div style="margin-top:10px;">' +
-        '<textarea id="' + taId + '" rows="2" placeholder="' + ph + '" style="width:100%;resize:vertical;min-height:38px;padding:8px 10px;border:1px solid var(--border-strong,#e5e8eb);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;box-sizing:border-box;"></textarea>' +
+        '<textarea id="' + taId + '"' + labelAttr + ' rows="2" placeholder="' + ph + '" style="width:100%;resize:vertical;min-height:38px;padding:8px 10px;border:1px solid var(--border-strong,#e5e8eb);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;box-sizing:border-box;"></textarea>' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;">' +
-          '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#4e5968;cursor:pointer;user-select:none;"><input type="checkbox" id="cnV_' + key + '" style="width:15px;height:15px;accent-color:#ff7900;cursor:pointer;">멤버에게 공개</label>' +
+          '<label style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#4e5968;cursor:pointer;user-select:none;line-height:1;margin:0;"><input type="checkbox" id="cnV_' + key + '" style="width:16px;height:16px;margin:0 !important;padding:0;flex:0 0 auto;accent-color:#ff7900;cursor:pointer;vertical-align:middle;"><span>멤버에게 공개</span></label>' +
           '<button type="button" style="height:36px;padding:0 16px;flex-shrink:0;border:none;border-radius:8px;background:var(--primary,#ff7900);color:#fff;font-size:13px;font-weight:700;cursor:pointer;" onclick="window.memCoachAdd(' + addArgs + ')">등록</button>' +
         '</div>' +
       '</div>' +
@@ -4375,6 +4376,7 @@ window.hideCalibration = async function() {
     if (!note) { if (typeof showToast === "function") showToast("내용을 입력하세요."); return; }
     var visEl = document.getElementById("cnV_" + key);
     var vis = !!(visEl && visEl.checked);
+    var refLabel = ta.getAttribute("data-label") || "";
     ta.disabled = true;
     try {
       var author = await cnAdminName();
@@ -4386,6 +4388,7 @@ window.hideCalibration = async function() {
         p_ref_id: (scope === "reservation" || scope === "training") ? refId : null,
         p_visible: vis,
         p_author_name: author || "",
+        p_ref_label: refLabel,
         p_note: note
       });
       if (res.error) throw res.error;
@@ -4413,7 +4416,8 @@ window.hideCalibration = async function() {
   // 리스트 항목(예약/콘텐츠/원두)에 접이식 코멘트 슬롯을 붙인 행
   function cmtItem(title, dateStr, scope, phone, name, ctx){
     var pj = cq(phone), nj = cq(name), sj = cq(ctx.sessionId), bj = cq(ctx.beanId), rj = cq(ctx.refId);
-    return '<div data-cmt-item="1" style="border:1px solid #eef0f3;border-radius:10px;margin-bottom:6px;overflow:hidden;">' +
+    var label = (dateStr ? dateStr + " · " : "") + String(title || "");
+    return '<div data-cmt-item="1" data-label="' + esc(label) + '" style="border:1px solid #eef0f3;border-radius:10px;margin-bottom:6px;overflow:hidden;">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;">' +
         '<div style="min-width:0;font-size:13px;font-weight:600;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(title) + '</div>' +
         '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + (dateStr ? '<span style="font-size:12px;color:#8b95a1;">' + esc(dateStr) + '</span>' : '') +
@@ -4428,7 +4432,8 @@ window.hideCalibration = async function() {
     var open = slot.style.display === "none" || !slot.style.display;
     if (open) {
       if (!slot.getAttribute("data-loaded")) {
-        slot.innerHTML = coachBlockHTML(scope, phone, name, { sessionId: sessionId, beanId: beanId, refId: refId }, "", "", { ph: "코멘트 입력" });
+        var label = root.getAttribute("data-label") || "";
+        slot.innerHTML = coachBlockHTML(scope, phone, name, { sessionId: sessionId, beanId: beanId, refId: refId }, "", "", { ph: "코멘트 입력", label: label });
         slot.setAttribute("data-loaded", "1");
         window.memCoachRefresh(scope, phone, sessionId, beanId, refId);
       }
@@ -4505,7 +4510,8 @@ window.hideCalibration = async function() {
         // 이 세션 한 건에 대한 세션 코멘트 (리뷰 아래)
         var scWrap = document.createElement("div");
         scWrap.style.cssText = "margin-top:16px;";
-        scWrap.innerHTML = coachBlockHTML("session", phone, name, { sessionId: sessionId }, "교육 매니저 코멘트", "이 커핑 한 건");
+        var sessLabel = [dstr(sess.scheduled_at), sess.title].filter(Boolean).join(" · ") || (sess.title || "커핑 세션");
+        scWrap.innerHTML = coachBlockHTML("session", phone, name, { sessionId: sessionId }, "교육 매니저 코멘트", "이 커핑 한 건", { label: sessLabel });
         area.appendChild(scWrap);
         if (window.memCoachRefresh) window.memCoachRefresh("session", phone, sessionId);
         // 원두별 코멘트 (이 세션의 원두 각각)
