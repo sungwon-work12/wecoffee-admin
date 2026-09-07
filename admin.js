@@ -4307,6 +4307,19 @@ window.hideCalibration = async function() {
        작성/삭제는 로그인 관리자(supabaseClient=인증 클라이언트)로만. RPC: coach_note_add / coach_note_delete */
   function cnDigits(p){ return String(p == null ? "" : p).replace(/\D/g, ""); }
   function cq(x){ return String(x == null ? "" : x).replace(/['"]/g, ""); }
+  // 로그인 관리자 성함 해석: adminNameMap[로그인 이메일] → 없으면 이메일. 1회 캐시.
+  var _cnName = null, _cnNameTried = false;
+  async function cnAdminName(){
+    if (_cnNameTried) return _cnName;
+    _cnNameTried = true;
+    try {
+      var map = (typeof adminNameMap !== "undefined") ? adminNameMap : (window.adminNameMap || {});
+      var u = await supabaseClient.auth.getUser();
+      var em = u && u.data && u.data.user ? u.data.user.email : "";
+      _cnName = (em && map[em]) || em || "";
+    } catch (e) { _cnName = ""; }
+    return _cnName;
+  }
   function cnKey(scope, sessionId, beanId, refId){ return (scope + "|" + (sessionId||"") + "|" + (beanId||"") + "|" + (refId||"")).replace(/[^A-Za-z0-9]/g, "_"); }
   function cnTime(s){ try { var d = new Date(s); if (isNaN(d)) return ""; return String(d.getFullYear()).slice(2) + "." + String(d.getMonth()+1).padStart(2,"0") + "." + String(d.getDate()).padStart(2,"0") + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); } catch (e) { return ""; } }
   // ctx = {sessionId, beanId, refId} · opts = {ph, mb}
@@ -4364,6 +4377,7 @@ window.hideCalibration = async function() {
     var vis = !!(visEl && visEl.checked);
     ta.disabled = true;
     try {
+      var author = await cnAdminName();
       var res = await supabaseClient.rpc("coach_note_add", {
         p_scope: scope, p_member_phone: phone,
         p_session_id: (scope === "session" || scope === "bean") ? sessionId : null,
@@ -4371,6 +4385,7 @@ window.hideCalibration = async function() {
         p_bean_id: scope === "bean" ? beanId : null,
         p_ref_id: (scope === "reservation" || scope === "training") ? refId : null,
         p_visible: vis,
+        p_author_name: author || "",
         p_note: note
       });
       if (res.error) throw res.error;
