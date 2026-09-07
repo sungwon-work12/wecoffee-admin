@@ -4232,7 +4232,7 @@ window.hideCalibration = async function() {
     var pj = String(phone || "").replace(/'/g, ""), nj = String(name || "").replace(/'/g, "");
     var h = '<div style="border-top:1px solid var(--border-strong,#e5e8eb);margin-top:8px;padding-top:18px;">';
     // 멤버 누적 코칭 로그 (성장 관점) — 상세 최상단
-    h += coachBlockHTML("member", phone, name, {}, "코칭 로그", "누적 · 성장 관점", { mb: "18px" });
+    h += coachBlockHTML("member", phone, name, {}, "피드백 작성하기", "멤버 활동 모니터링", { mb: "18px" });
     h += '<div style="display:flex;gap:8px;margin-bottom:20px;">' +
       stat("센터 예약", resCnt + "회") + stat("콘텐츠 참여", trnCnt + "회") + stat("커핑 세션", cupCnt + "회") + '</div>';
     // 센터 이용 비율
@@ -4330,7 +4330,7 @@ window.hideCalibration = async function() {
     '</div>';
   }
   function _cnFilter(scope, phone, sessionId, beanId, refId){
-    var q = supabaseClient.from("coach_notes").select("id,created_at,author_email,note,visible").eq("scope", scope).eq("member_phone", cnDigits(phone));
+    var q = supabaseClient.from("coach_notes").select("id,created_at,author_email,author_name,note,visible").eq("scope", scope).eq("member_phone", cnDigits(phone));
     if (scope === "session") q = q.eq("session_id", sessionId);
     else if (scope === "bean") q = q.eq("session_id", sessionId).eq("bean_id", beanId);
     else if (scope === "reservation" || scope === "training") q = q.eq("ref_id", refId);
@@ -4347,7 +4347,7 @@ window.hideCalibration = async function() {
         var vis = !!n.visible;
         var visBadge = '<button type="button" onclick="window.memCoachVis(' + n.id + ',' + vis + ',' + ctxArgs + ')" title="' + (vis ? "멤버에게 공개 중 · 클릭하면 비공개" : "비공개 · 클릭하면 멤버 공개") + '" style="border:1px solid ' + (vis ? "#c7ead7" : "#e5e8eb") + ';background:' + (vis ? "#eafbf1" : "#f4f5f7") + ';color:' + (vis ? "#00996b" : "#8b95a1") + ';border-radius:6px;font-size:10.5px;font-weight:700;padding:3px 8px;cursor:pointer;flex-shrink:0;">' + (vis ? "공개" : "비공개") + '</button>';
         return '<div style="border:1px solid #eef0f3;border-radius:9px;padding:9px 11px;margin-bottom:7px;background:#fff;">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;"><span style="font-size:11px;color:#8b95a1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(n.author_email || "관리자") + ' · ' + cnTime(n.created_at) + '</span>' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;"><span style="font-size:11px;color:#8b95a1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(n.author_name || n.author_email || "관리자") + ' · ' + cnTime(n.created_at) + '</span>' +
           '<span style="display:inline-flex;align-items:center;gap:8px;flex-shrink:0;">' + visBadge +
           '<button type="button" onclick="window.memCoachDelete(' + n.id + ',' + ctxArgs + ')" style="border:none;background:none;color:#c4ccd4;font-size:11px;cursor:pointer;padding:0;">삭제</button></span></div>' +
           '<div style="font-size:13.5px;color:#191f28;white-space:pre-wrap;line-height:1.55;">' + esc(n.note) + '</div>' +
@@ -4490,7 +4490,7 @@ window.hideCalibration = async function() {
         // 이 세션 한 건에 대한 세션 코멘트 (리뷰 아래)
         var scWrap = document.createElement("div");
         scWrap.style.cssText = "margin-top:16px;";
-        scWrap.innerHTML = coachBlockHTML("session", phone, name, { sessionId: sessionId }, "세션 코멘트", "이 커핑 한 건");
+        scWrap.innerHTML = coachBlockHTML("session", phone, name, { sessionId: sessionId }, "교육 매니저 코멘트", "이 커핑 한 건");
         area.appendChild(scWrap);
         if (window.memCoachRefresh) window.memCoachRefresh("session", phone, sessionId);
         // 원두별 코멘트 (이 세션의 원두 각각)
