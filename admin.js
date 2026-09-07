@@ -4184,9 +4184,9 @@ window.hideCalibration = async function() {
     var ress = [], trns = [];
     try {
       if (last4.length >= 3) {
-        var rq = await supabaseClient.from("reservations").select("phone,status,res_date,res_time,space_equip,center").ilike("phone", "%" + last4);
+        var rq = await supabaseClient.from("reservations").select("id,phone,status,res_date,res_time,space_equip,center").ilike("phone", "%" + last4);
         ress = (rq.data || []).filter(function (r) { return same(r.phone, phone) && !String(r.status||"").includes("취소"); });
-        var tq = await supabaseClient.from("trainings").select("phone,status,content,created_at,name").ilike("phone", "%" + last4);
+        var tq = await supabaseClient.from("trainings").select("id,phone,status,content,created_at,name").ilike("phone", "%" + last4);
         trns = (tq.data || []).filter(function (r) { return same(r.phone, phone) && !String(r.status||"").includes("취소"); });
       }
     } catch (e) { console.warn("[cupping] 이용 이력 조회 실패", e); }
@@ -4231,6 +4231,8 @@ window.hideCalibration = async function() {
     var resCnt = ress.length, trnCnt = trns.length, cupCnt = sessions.length;
     var pj = String(phone || "").replace(/'/g, ""), nj = String(name || "").replace(/'/g, "");
     var h = '<div style="border-top:1px solid var(--border-strong,#e5e8eb);margin-top:8px;padding-top:18px;">';
+    // 멤버 누적 코칭 로그 (성장 관점) — 상세 최상단
+    h += coachBlockHTML("member", phone, name, {}, "코칭 로그", "누적 · 성장 관점", { mb: "18px" });
     h += '<div style="display:flex;gap:8px;margin-bottom:20px;">' +
       stat("센터 예약", resCnt + "회") + stat("콘텐츠 참여", trnCnt + "회") + stat("커핑 세션", cupCnt + "회") + '</div>';
     // 센터 이용 비율
@@ -4285,14 +4287,139 @@ window.hideCalibration = async function() {
     // 콘텐츠 참여 이력
     h += sectionTitle("콘텐츠 참여 이력", "18px", "수업·훈련 스케줄");
     if (!trns.length) h += emptyBox("콘텐츠 참여 이력이 없습니다.");
-    else { trns.sort(function (a, b) { return new Date(trnDate(b)) - new Date(trnDate(a)); }); h += moreList("memTrnMore", trns, 5, function (t) { return listItem(trnTitle(t), dstr(trnDate(t))); }); }
+    else { trns.sort(function (a, b) { return new Date(trnDate(b)) - new Date(trnDate(a)); }); h += moreList("memTrnMore", trns, 5, function (t) { return cmtItem(trnTitle(t), dstr(trnDate(t)), "training", phone, name, { refId: t.id }); }); }
     // 센터 예약 이력
     h += sectionTitle("센터 예약 이력", "18px", "장비·공간");
     if (!ress.length) h += emptyBox("센터 예약 이력이 없습니다.");
-    else { ress.sort(function (a, b) { return new Date(b.res_date || 0) - new Date(a.res_date || 0); }); h += moreList("memResMore", ress, 5, function (r) { var t = [r.center, r.space_equip].filter(Boolean).join(" · ") || "센터 예약"; if (r.res_time) t += " · " + r.res_time; return listItem(t, dstr(r.res_date)); }); }
+    else { ress.sort(function (a, b) { return new Date(b.res_date || 0) - new Date(a.res_date || 0); }); h += moreList("memResMore", ress, 5, function (r) { var t = [r.center, r.space_equip].filter(Boolean).join(" · ") || "센터 예약"; if (r.res_time) t += " · " + r.res_time; return cmtItem(t, dstr(r.res_date), "reservation", phone, name, { refId: r.id }); }); }
     h += '</div>';
     host.innerHTML = h;
+    // 코칭 로그 로드(비동기)
+    if (window.memCoachRefresh) window.memCoachRefresh("member", phone, null);
   }
+
+  /* ── 코칭 코멘트(coach_notes) 공용: 로드 / 추가 / 삭제 · scope 5종 ──
+       member      → 멤버 누적 코칭 로그(멤버 상세 상단)          키: 전화
+       session     → 커핑 세션 통 코멘트(커핑 상세)               키: session_id
+       bean        → 세션 내 특정 원두(커핑 상세 · 원두별)         키: session_id + bean_id
+       reservation → 센터 예약건(예약 이력 항목)                  키: ref_id(=예약 id)
+       training    → 콘텐츠/훈련건(콘텐츠 이력 항목)              키: ref_id(=훈련 id)
+       작성/삭제는 로그인 관리자(supabaseClient=인증 클라이언트)로만. RPC: coach_note_add / coach_note_delete */
+  function cnDigits(p){ return String(p == null ? "" : p).replace(/\D/g, ""); }
+  function cq(x){ return String(x == null ? "" : x).replace(/['"]/g, ""); }
+  function cnKey(scope, sessionId, beanId, refId){ return (scope + "|" + (sessionId||"") + "|" + (beanId||"") + "|" + (refId||"")).replace(/[^A-Za-z0-9]/g, "_"); }
+  function cnTime(s){ try { var d = new Date(s); if (isNaN(d)) return ""; return String(d.getFullYear()).slice(2) + "." + String(d.getMonth()+1).padStart(2,"0") + "." + String(d.getDate()).padStart(2,"0") + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); } catch (e) { return ""; } }
+  // ctx = {sessionId, beanId, refId} · opts = {ph, mb}
+  function coachBlockHTML(scope, phone, name, ctx, title, sub, opts){
+    ctx = ctx || {}; opts = opts || {};
+    var key = cnKey(scope, ctx.sessionId, ctx.beanId, ctx.refId);
+    var listId = "cnL_" + key, taId = "cnT_" + key;
+    var addArgs = "'" + scope + "','" + cq(phone) + "','" + cq(name) + "','" + cq(ctx.sessionId) + "','" + cq(ctx.beanId) + "','" + cq(ctx.refId) + "'";
+    var ph = opts.ph || (scope === "member" ? "멤버 누적 코칭 로그 (성장 관점)" : "코멘트 입력");
+    var mb = opts.mb || "0";
+    return '<div style="border:1px solid var(--border-strong,#e5e8eb);border-radius:12px;padding:12px 14px;margin-bottom:' + mb + ';background:#fbfcfd;">' +
+      (title ? '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:10px;"><span style="font-size:13px;font-weight:800;color:#191f28;">' + title + '</span>' + (sub ? '<span style="font-size:11px;color:#8b95a1;">' + sub + '</span>' : '') + '</div>' : '') +
+      '<div id="' + listId + '"><div style="color:#b0b8c1;font-size:12.5px;padding:2px 0;">불러오는 중…</div></div>' +
+      '<div style="margin-top:10px;">' +
+        '<textarea id="' + taId + '" rows="2" placeholder="' + ph + '" style="width:100%;resize:vertical;min-height:38px;padding:8px 10px;border:1px solid var(--border-strong,#e5e8eb);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;box-sizing:border-box;"></textarea>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;">' +
+          '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#4e5968;cursor:pointer;user-select:none;"><input type="checkbox" id="cnV_' + key + '" style="width:15px;height:15px;accent-color:#ff7900;cursor:pointer;">멤버에게 공개</label>' +
+          '<button type="button" style="height:36px;padding:0 16px;flex-shrink:0;border:none;border-radius:8px;background:var(--primary,#ff7900);color:#fff;font-size:13px;font-weight:700;cursor:pointer;" onclick="window.memCoachAdd(' + addArgs + ')">등록</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+  function _cnFilter(scope, phone, sessionId, beanId, refId){
+    var q = supabaseClient.from("coach_notes").select("id,created_at,author_email,note,visible").eq("scope", scope).eq("member_phone", cnDigits(phone));
+    if (scope === "session") q = q.eq("session_id", sessionId);
+    else if (scope === "bean") q = q.eq("session_id", sessionId).eq("bean_id", beanId);
+    else if (scope === "reservation" || scope === "training") q = q.eq("ref_id", refId);
+    return q.order("created_at", { ascending: false });
+  }
+  window.memCoachRefresh = async function (scope, phone, sessionId, beanId, refId) {
+    var el = document.getElementById("cnL_" + cnKey(scope, sessionId, beanId, refId)); if (!el) return;
+    try {
+      var r = await _cnFilter(scope, phone, sessionId, beanId, refId); if (r.error) throw r.error;
+      var rows = r.data || [];
+      if (!rows.length) { el.innerHTML = '<div style="color:#b0b8c1;font-size:12.5px;padding:2px 0;">' + (scope === "member" ? "아직 코칭 로그가 없습니다." : "아직 코멘트가 없습니다.") + '</div>'; return; }
+      el.innerHTML = rows.map(function (n) {
+        var ctxArgs = "'" + scope + "','" + cq(phone) + "','" + cq(sessionId) + "','" + cq(beanId) + "','" + cq(refId) + "'";
+        var vis = !!n.visible;
+        var visBadge = '<button type="button" onclick="window.memCoachVis(' + n.id + ',' + vis + ',' + ctxArgs + ')" title="' + (vis ? "멤버에게 공개 중 · 클릭하면 비공개" : "비공개 · 클릭하면 멤버 공개") + '" style="border:1px solid ' + (vis ? "#c7ead7" : "#e5e8eb") + ';background:' + (vis ? "#eafbf1" : "#f4f5f7") + ';color:' + (vis ? "#00996b" : "#8b95a1") + ';border-radius:6px;font-size:10.5px;font-weight:700;padding:3px 8px;cursor:pointer;flex-shrink:0;">' + (vis ? "공개" : "비공개") + '</button>';
+        return '<div style="border:1px solid #eef0f3;border-radius:9px;padding:9px 11px;margin-bottom:7px;background:#fff;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;"><span style="font-size:11px;color:#8b95a1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(n.author_email || "관리자") + ' · ' + cnTime(n.created_at) + '</span>' +
+          '<span style="display:inline-flex;align-items:center;gap:8px;flex-shrink:0;">' + visBadge +
+          '<button type="button" onclick="window.memCoachDelete(' + n.id + ',' + ctxArgs + ')" style="border:none;background:none;color:#c4ccd4;font-size:11px;cursor:pointer;padding:0;">삭제</button></span></div>' +
+          '<div style="font-size:13.5px;color:#191f28;white-space:pre-wrap;line-height:1.55;">' + esc(n.note) + '</div>' +
+        '</div>';
+      }).join("");
+    } catch (e) { console.warn("[coach] 로드 실패", e); el.innerHTML = '<div style="color:#e5484d;font-size:12.5px;">코멘트를 불러오지 못했습니다.</div>'; }
+  };
+  window.memCoachAdd = async function (scope, phone, name, sessionId, beanId, refId) {
+    var key = cnKey(scope, sessionId, beanId, refId);
+    var ta = document.getElementById("cnT_" + key); if (!ta) return;
+    var note = String(ta.value || "").trim();
+    if (!note) { if (typeof showToast === "function") showToast("내용을 입력하세요."); return; }
+    var visEl = document.getElementById("cnV_" + key);
+    var vis = !!(visEl && visEl.checked);
+    ta.disabled = true;
+    try {
+      var res = await supabaseClient.rpc("coach_note_add", {
+        p_scope: scope, p_member_phone: phone,
+        p_session_id: (scope === "session" || scope === "bean") ? sessionId : null,
+        p_participant_id: null,
+        p_bean_id: scope === "bean" ? beanId : null,
+        p_ref_id: (scope === "reservation" || scope === "training") ? refId : null,
+        p_visible: vis,
+        p_note: note
+      });
+      if (res.error) throw res.error;
+      ta.value = ""; if (visEl) visEl.checked = false;
+      await window.memCoachRefresh(scope, phone, sessionId, beanId, refId);
+    } catch (e) {
+      console.warn("[coach] 등록 실패", e);
+      if (typeof showToast === "function") showToast(/unauthorized/i.test(e && e.message || "") ? "로그인 세션이 만료됐어요. 다시 로그인해 주세요." : "코멘트 등록에 실패했어요.");
+    } finally { ta.disabled = false; }
+  };
+  window.memCoachDelete = async function (id, scope, phone, sessionId, beanId, refId) {
+    try {
+      var res = await supabaseClient.rpc("coach_note_delete", { p_id: id });
+      if (res.error) throw res.error;
+      await window.memCoachRefresh(scope, phone, sessionId, beanId, refId);
+    } catch (e) { console.warn("[coach] 삭제 실패", e); if (typeof showToast === "function") showToast("삭제에 실패했어요."); }
+  };
+  window.memCoachVis = async function (id, cur, scope, phone, sessionId, beanId, refId) {
+    try {
+      var res = await supabaseClient.rpc("coach_note_set_visible", { p_id: id, p_visible: !cur });
+      if (res.error) throw res.error;
+      await window.memCoachRefresh(scope, phone, sessionId, beanId, refId);
+    } catch (e) { console.warn("[coach] 공개토글 실패", e); if (typeof showToast === "function") showToast(/unauthorized/i.test(e && e.message || "") ? "로그인 세션이 만료됐어요." : "공개 설정 변경에 실패했어요."); }
+  };
+  // 리스트 항목(예약/콘텐츠/원두)에 접이식 코멘트 슬롯을 붙인 행
+  function cmtItem(title, dateStr, scope, phone, name, ctx){
+    var pj = cq(phone), nj = cq(name), sj = cq(ctx.sessionId), bj = cq(ctx.beanId), rj = cq(ctx.refId);
+    return '<div data-cmt-item="1" style="border:1px solid #eef0f3;border-radius:10px;margin-bottom:6px;overflow:hidden;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;">' +
+        '<div style="min-width:0;font-size:13px;font-weight:600;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(title) + '</div>' +
+        '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">' + (dateStr ? '<span style="font-size:12px;color:#8b95a1;">' + esc(dateStr) + '</span>' : '') +
+        '<button type="button" onclick="window.memCoachToggle(this,\'' + scope + '\',\'' + pj + '\',\'' + nj + '\',\'' + sj + '\',\'' + bj + '\',\'' + rj + '\')" style="border:1px solid var(--border-strong,#e5e8eb);background:#fff;border-radius:7px;font-size:11px;font-weight:700;color:#4e5968;padding:4px 9px;cursor:pointer;flex-shrink:0;">코멘트</button></div>' +
+      '</div>' +
+      '<div class="cnSlot" style="display:none;padding:0 12px 12px;"></div>' +
+    '</div>';
+  }
+  window.memCoachToggle = function (btn, scope, phone, name, sessionId, beanId, refId) {
+    var root = btn.closest("[data-cmt-item]"); if (!root) return;
+    var slot = root.querySelector(".cnSlot"); if (!slot) return;
+    var open = slot.style.display === "none" || !slot.style.display;
+    if (open) {
+      if (!slot.getAttribute("data-loaded")) {
+        slot.innerHTML = coachBlockHTML(scope, phone, name, { sessionId: sessionId, beanId: beanId, refId: refId }, "", "", { ph: "코멘트 입력" });
+        slot.setAttribute("data-loaded", "1");
+        window.memCoachRefresh(scope, phone, sessionId, beanId, refId);
+      }
+      slot.style.display = "block"; btn.textContent = "닫기";
+    } else { slot.style.display = "none"; btn.textContent = "코멘트"; }
+  };
 
   /* ── 상세 진입: 멤버페이지 커핑 리뷰 모듈(window.wcOpenCupHistory)을 그 멤버 대상으로 조회해서
        내역 모달의 '상세' 자리(.memCupEval)에 인라인으로 렌더 (별도 오버레이 모달로 안 뜸) ── */
@@ -4360,6 +4487,24 @@ window.hideCalibration = async function() {
         oly.classList.add("wc-inline");
         area.innerHTML = "";
         area.appendChild(oly);
+        // 이 세션 한 건에 대한 세션 코멘트 (리뷰 아래)
+        var scWrap = document.createElement("div");
+        scWrap.style.cssText = "margin-top:16px;";
+        scWrap.innerHTML = coachBlockHTML("session", phone, name, { sessionId: sessionId }, "세션 코멘트", "이 커핑 한 건");
+        area.appendChild(scWrap);
+        if (window.memCoachRefresh) window.memCoachRefresh("session", phone, sessionId);
+        // 원두별 코멘트 (이 세션의 원두 각각)
+        try {
+          var bq2 = await supabaseClient.from("cupping_beans").select("id,name,sort_order").eq("session_id", sessionId).order("sort_order", { ascending: true });
+          var beans = bq2.data || [];
+          if (beans.length) {
+            var bWrap = document.createElement("div");
+            bWrap.style.cssText = "margin-top:16px;";
+            bWrap.innerHTML = '<div style="font-size:13px;font-weight:800;color:#191f28;margin-bottom:10px;">원두별 코멘트</div>' +
+              beans.map(function (bn) { return cmtItem(bn.name || "원두", "", "bean", phone, name, { sessionId: sessionId, beanId: bn.id }); }).join("");
+            area.appendChild(bWrap);
+          }
+        } catch (e) { console.warn("[coach] 원두 로드 실패", e); }
       } else {
         area.innerHTML = '<div style="padding:14px;text-align:center;color:#8b95a1;font-size:13px;">리뷰를 표시할 수 없습니다.</div>';
       }
