@@ -4352,75 +4352,57 @@ window.hideCalibration = async function() {
     title = String(title).trim();
     return title || "수업·훈련 참여";
   }
+  // 상세 = 커핑 세션 리뷰와 동일 컴포넌트(window.wcRenderReview · 커핑7) 재사용.
+  //   원두 선택 → 그 원두의 전체 참가자 리뷰(스탯·레이더·CVA폼·코칭·A/B 비교)를 그대로 렌더.
+  window.__memRev = window.__memRev || {};
   window.memCupDetail = async function (pid, btn) {
     var card = btn.closest(".memCupCard"), area = card ? card.querySelector(".memCupEval") : null; if (!area) return;
     if (area.style.display !== "none") { area.style.display = "none"; btn.textContent = "상세"; return; }
+    // 다른 상세는 닫음 (커핑7 리뷰 컴포넌트의 선택/비교 상태 충돌 방지)
+    var _body = document.getElementById("historyModalBody");
+    if (_body) _body.querySelectorAll(".memCupCard").forEach(function (mc) {
+      var ev = mc.querySelector(".memCupEval"), b2 = mc.querySelector('button[onclick*="memCupDetail"]');
+      if (ev && ev !== area && ev.style.display !== "none") { ev.style.display = "none"; if (b2) b2.textContent = "상세"; }
+    });
     area.style.display = "block"; btn.textContent = "닫기";
     var c = CACHE[pid]; if (!c || !c.recs) { area.innerHTML = '<div style="color:#8b95a1;font-size:13px;">상세 데이터가 없습니다.</div>'; return; }
-    var recs = c.recs.slice(), beanName = {};
     var sid = c.session && c.session.id;
+    if (!sid) { area.innerHTML = '<div style="color:#8b95a1;font-size:13px;">세션 정보가 없어 상세를 표시할 수 없습니다.</div>'; return; }
+    if (typeof window.wcRenderReview !== "function") { area.innerHTML = '<div style="color:#e5484d;font-size:13px;">리뷰 컴포넌트(커핑7)가 로드되지 않았습니다.</div>'; return; }
+    area.innerHTML = '<div style="color:#8b95a1;font-size:13px;padding:6px 0;">불러오는 중…</div>';
     try {
-      if (sid) { var bq = await supabaseClient.from("cupping_beans").select("id,name,sort_order").eq("session_id", sid).order("sort_order", { ascending: true });
-        var order = {}; (bq.data || []).forEach(function (b, i) { beanName[b.id] = b.name; order[b.id] = i; });
-        recs.sort(function (a, b) { return (order[a.bean_id] == null ? 99 : order[a.bean_id]) - (order[b.bean_id] == null ? 99 : order[b.bean_id]); }); }
-    } catch (e) {}
-    var html = '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:2px 0 8px;">본인 평가</div>' +
-      recs.map(function (r) { return beanCard(r, beanName[r.bean_id] || "원두", c.refMap[r.bean_id]); }).join("");
-    // ── 함께 참가한 다른 멤버 (이름은 members(name) 조인, 노트 컬럼까지 로드) ──
-    var OCOLS = "participant_id,bean_id,cva_score,form_type,basic_overall,int_fragrance,int_aroma,int_flavor,int_aftertaste,int_acidity,int_sweetness,int_mouthfeel,notes_fragrance,notes_aroma,notes_tasting,notes_custom,q_notes,extrinsic";
+      var bq = await supabaseClient.from("cupping_beans").select("id,name,sort_order").eq("session_id", sid).order("sort_order", { ascending: true });
+      var beans = bq.data || [];
+      var pr = await supabaseClient.from("cupping_participants").select("id,member_id,guest_name,members(name)").eq("session_id", sid);
+      var names = {}; (pr.data || []).forEach(function (p) { names[p.id] = (p.members && p.members.name) || p.guest_name || "게스트"; });
+      var meta = { names: names, beanName: {}, myPid: (c.recs[0] && c.recs[0].participant_id) || null };
+      beans.forEach(function (b) { meta.beanName[b.id] = b.name; });
+      window.__memRev[sid] = meta;
+      if (!beans.length) { area.innerHTML = '<div style="color:#8b95a1;font-size:13px;">이 세션에 원두가 없습니다.</div>'; return; }
+      var opts = beans.map(function (b, i) { return '<option value="' + b.id + '">' + (i + 1) + '. ' + esc(b.name) + '</option>'; }).join("");
+      area.innerHTML =
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">' +
+          '<span style="font-size:12px;font-weight:700;color:#8b95a1;flex-shrink:0;">원두</span>' +
+          '<select data-sid="' + sid + '" onchange="window.memCupPickBean(this)" style="flex:1;min-width:0;height:34px;font-size:12.5px;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;color:#191f28;">' + opts + '</select>' +
+        '</div>' +
+        '<div class="memRevArea"></div>';
+      window.memCupPickBean(area.querySelector("select"));
+    } catch (e) { console.warn("[cupping] 상세 로드 실패", e); area.innerHTML = '<div style="color:#e5484d;font-size:13px;">상세를 불러오지 못했습니다.</div>'; }
+  };
+  window.memCupPickBean = async function (sel) {
+    if (!sel) return;
+    var sid = sel.getAttribute("data-sid"), beanId = sel.value;
+    var evalBox = sel.closest(".memCupEval"), host = evalBox ? evalBox.querySelector(".memRevArea") : null;
+    if (!host) return;
+    host.innerHTML = '<div style="color:#8b95a1;font-size:13px;padding:6px 0;">불러오는 중…</div>';
     try {
-      if (sid) {
-        var myPid = c.recs[0] && c.recs[0].participant_id;
-        // 이름은 DB 조인(members(name))으로 직접 — id 매칭 약점 회피
-        var pr = await supabaseClient.from("cupping_participants").select("id,member_id,guest_name,members(name)").eq("session_id", sid);
-        var nameMap = {};
-        (pr.data || []).forEach(function (p) {
-          nameMap[p.id] = (p.members && p.members.name) || p.guest_name || "게스트";
-        });
-        var pids = (pr.data || []).map(function (p) { return p.id; });
-        var ar = pids.length ? await supabaseClient.from("cupping_records").select(OCOLS).in("participant_id", pids) : { data: [] };
-        var others = (ar.data || []).filter(function (x) {
-          return String(x.participant_id) !== String(myPid) && (RV_KEYS.some(function (k) { return x[k] != null; }) || x.cva_score != null);
-        });
-        if (others.length) {
-          var byBean = {};
-          others.forEach(function (x) { (byBean[x.bean_id] = byBean[x.bean_id] || []).push(x); });
-          html += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:16px 0 8px;">함께 참가한 멤버</div>';
-          recs.forEach(function (r) {
-            var list = byBean[r.bean_id]; if (!list || !list.length) return;
-            var meVals = RV_KEYS.map(function (k) { return num(r[k]); });
-            var refB = c.refMap[r.bean_id];
-            var refVals = refB ? RV_KEYS.map(function (k) { return num(refB[k]); }) : null;
-            html += '<div style="border:1px solid #eef0f3;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#fff;">';
-            html += '<div style="font-size:12px;font-weight:800;color:#191f28;margin-bottom:8px;">' + esc(beanName[r.bean_id] || "원두") + ' <span style="color:#8b95a1;font-weight:600;">' + list.length + '명</span></div>';
-            list.forEach(function (o) {
-              var oName = esc(nameMap[o.participant_id] || "참가자");
-              var oVals = RV_KEYS.map(function (k) { return num(o[k]); });
-              var cs = RV_LABS.map(function (lab, i) { var v = oVals[i]; return '<span style="font-size:11px;color:#8b95a1;white-space:nowrap;">' + lab + ' <b style="color:#191f28;font-weight:700;">' + fx(v) + '</b></span>'; }).join(" ");
-              var oNotes = notesBlock(o, o.form_type === "basic");
-              var cmpRadar = radarMini(meVals, refVals, RV_LABS, oVals);
-              var cmpLegend = '<div style="display:flex;gap:12px;justify-content:center;margin-top:2px;font-size:10px;font-weight:700;color:#4e5968;flex-wrap:wrap;">' +
-                '<span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:9px;height:9px;border-radius:2px;background:#ff7900;display:inline-block;"></i>본인</span>' +
-                '<span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:9px;height:9px;border-radius:2px;background:#12b886;display:inline-block;"></i>' + oName + '</span>' +
-                (refVals ? '<span style="display:inline-flex;align-items:center;gap:4px;"><i style="width:9px;height:9px;border-radius:2px;background:#3182f6;display:inline-block;"></i>레퍼런스</span>' : '') +
-              '</div>';
-              html += '<div class="wcCmpRow" style="border-top:1px solid #f4f5f7;padding:7px 0;">' +
-                '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px;">' +
-                  '<span style="font-size:12.5px;font-weight:700;color:#191f28;">' + oName + '</span>' +
-                  '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0;"><span style="font-size:12px;font-weight:700;color:#ea6f00;">' + fx(num(o.cva_score)) + '</span>' +
-                  '<button type="button" onclick="window.wcMemCmpToggle(this)" style="font-size:11px;font-weight:700;color:#12b886;border:1px solid #12b886;background:#fff;border-radius:6px;padding:2px 9px;cursor:pointer;font-family:inherit;">비교</button></span>' +
-                '</div>' +
-                '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + cs + '</div>' +
-                oNotes +
-                '<div class="wcMemCmpBox" style="display:none;margin-top:8px;padding-top:6px;border-top:1px dashed #eef0f3;">' + cmpRadar + cmpLegend + '</div>' +
-              '</div>';
-            });
-            html += '</div>';
-          });
-        }
-      }
-    } catch (e) { console.warn("[cupping] 다른 참가자 로드 실패", e); }
-    area.innerHTML = html;
+      var rr = await supabaseClient.from("cupping_records").select(STAR).eq("session_id", sid).eq("bean_id", beanId);
+      if (rr.error) throw new Error(rr.error.message);
+      var rf = await supabaseClient.from("cupping_references").select(STAR).eq("bean_id", beanId).maybeSingle();
+      var meta = window.__memRev[sid] || { names: {}, beanName: {} };
+      var beanNm = meta.beanName[beanId] || "원두";
+      host.innerHTML = window.wcRenderReview(rr.data || [], (rf && rf.data) || null, meta.names, beanNm);
+    } catch (e) { console.warn("[cupping] 원두 리뷰 로드 실패", e); host.innerHTML = '<div style="color:#e5484d;font-size:13px;">평가를 불러오지 못했습니다: ' + esc(e.message || "") + '</div>'; }
   };
   function radarMini(me, ref, AX, extra){
     AX = AX || []; var MAX=15, cx=130, cy=118, R=82, N=AX.length || 1;
