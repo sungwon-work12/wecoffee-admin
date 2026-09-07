@@ -4354,6 +4354,19 @@ window.hideCalibration = async function() {
   }
   // 상세 = 커핑 세션 리뷰와 동일 컴포넌트(window.wcRenderReview · 커핑7) 재사용.
   //   원두 선택 → 그 원두의 전체 참가자 리뷰(스탯·레이더·CVA폼·코칭·A/B 비교)를 그대로 렌더.
+  //   리뷰는 넓은 커핑모달용이라, 좁은 내역 모달에서 넘치지 않도록 폭을 가둠(멱등 스타일 주입).
+  function wcMemEnsureFitStyle() {
+    if (document.getElementById("wcMemFitStyle")) return;
+    var st = document.createElement("style"); st.id = "wcMemFitStyle";
+    st.textContent =
+      "#historyModalBody{max-width:100%;overflow-x:hidden;box-sizing:border-box;}" +
+      "#memActExtras{max-width:100%;box-sizing:border-box;}" +
+      "#memActExtras .memCupEval{max-width:100%;overflow-x:hidden;box-sizing:border-box;}" +
+      "#memActExtras .memRevArea{width:100%;max-width:100%;overflow-x:auto;box-sizing:border-box;}" +
+      "#memActExtras .memRevArea table{max-width:100%;}" +
+      "#memActExtras .memRevArea img,#memActExtras .memRevArea svg{max-width:100%;height:auto;}";
+    document.head.appendChild(st);
+  }
   window.__memRev = window.__memRev || {};
   window.memCupDetail = async function (pid, btn) {
     var card = btn.closest(".memCupCard"), area = card ? card.querySelector(".memCupEval") : null; if (!area) return;
@@ -4375,17 +4388,21 @@ window.hideCalibration = async function() {
       var beans = bq.data || [];
       var pr = await supabaseClient.from("cupping_participants").select("id,member_id,guest_name,members(name)").eq("session_id", sid);
       var names = {}; (pr.data || []).forEach(function (p) { names[p.id] = (p.members && p.members.name) || p.guest_name || "게스트"; });
-      var meta = { names: names, beanName: {}, myPid: (c.recs[0] && c.recs[0].participant_id) || null };
+      var meta = { names: names, beanName: {}, myPid: (c.recs[0] && c.recs[0].participant_id) || null, myRecs: c.recs || [] };
       beans.forEach(function (b) { meta.beanName[b.id] = b.name; });
       window.__memRev[sid] = meta;
       if (!beans.length) { area.innerHTML = '<div style="color:#8b95a1;font-size:13px;">이 세션에 원두가 없습니다.</div>'; return; }
+      wcMemEnsureFitStyle();
       var opts = beans.map(function (b, i) { return '<option value="' + b.id + '">' + (i + 1) + '. ' + esc(b.name) + '</option>'; }).join("");
       area.innerHTML =
-        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;max-width:100%;">' +
           '<span style="font-size:12px;font-weight:700;color:#8b95a1;flex-shrink:0;">원두</span>' +
-          '<select data-sid="' + sid + '" onchange="window.memCupPickBean(this)" style="flex:1;min-width:0;height:34px;font-size:12.5px;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;color:#191f28;">' + opts + '</select>' +
+          '<div style="position:relative;flex:1;min-width:0;">' +
+            '<select data-sid="' + sid + '" onchange="window.memCupPickBean(this)" style="width:100%;box-sizing:border-box;height:36px;font-size:13px;font-weight:600;border:1px solid #e5e8eb;border-radius:8px;padding:0 30px 0 12px;background:#fff;color:#191f28;-webkit-appearance:none;-moz-appearance:none;appearance:none;cursor:pointer;">' + opts + '</select>' +
+            '<span style="position:absolute;right:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:#8b95a1;font-size:10px;">▼</span>' +
+          '</div>' +
         '</div>' +
-        '<div class="memRevArea"></div>';
+        '<div class="memRevArea" style="width:100%;max-width:100%;overflow-x:auto;box-sizing:border-box;"></div>';
       window.memCupPickBean(area.querySelector("select"));
     } catch (e) { console.warn("[cupping] 상세 로드 실패", e); area.innerHTML = '<div style="color:#e5484d;font-size:13px;">상세를 불러오지 못했습니다.</div>'; }
   };
@@ -4399,9 +4416,18 @@ window.hideCalibration = async function() {
       var rr = await supabaseClient.from("cupping_records").select(STAR).eq("session_id", sid).eq("bean_id", beanId);
       if (rr.error) throw new Error(rr.error.message);
       var rf = await supabaseClient.from("cupping_references").select(STAR).eq("bean_id", beanId).maybeSingle();
-      var meta = window.__memRev[sid] || { names: {}, beanName: {} };
+      var meta = window.__memRev[sid] || { names: {}, beanName: {}, myRecs: [] };
       var beanNm = meta.beanName[beanId] || "원두";
-      host.innerHTML = window.wcRenderReview(rr.data || [], (rf && rf.data) || null, meta.names, beanNm);
+      var refRow = (rf && rf.data) || null;
+      // ── 본인 평가 (member-centric · 레이더/기준/편차/레퍼런스노트/본인 컵노트) ──
+      var myRec = (meta.myRecs || []).filter(function (r) { return String(r.bean_id) === String(beanId); })[0];
+      var myHtml = myRec
+        ? '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:2px 0 8px;">본인 평가</div>' + beanCard(myRec, beanNm, refRow)
+        : '<div style="padding:12px;text-align:center;color:#8b95a1;font-size:12.5px;background:#f9fafb;border-radius:10px;margin-bottom:4px;">이 원두에 대한 본인 평가 기록이 없습니다.</div>';
+      // ── 세션 전체 리뷰 (커핑 세션과 동일 컴포넌트) ──
+      var groupHtml = '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:20px 0 8px;padding-top:14px;border-top:1px solid #eef0f3;">세션 전체 리뷰</div>' +
+        window.wcRenderReview(rr.data || [], refRow, meta.names, beanNm);
+      host.innerHTML = myHtml + groupHtml;
     } catch (e) { console.warn("[cupping] 원두 리뷰 로드 실패", e); host.innerHTML = '<div style="color:#e5484d;font-size:13px;">평가를 불러오지 못했습니다: ' + esc(e.message || "") + '</div>'; }
   };
   function radarMini(me, ref, AX, extra){
