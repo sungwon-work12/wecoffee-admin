@@ -4371,13 +4371,11 @@ window.hideCalibration = async function() {
     try {
       if (sid) {
         var myPid = c.recs[0] && c.recs[0].participant_id;
-        var GM = window.globalMembers || [];
-        var pr = await supabaseClient.from("cupping_participants").select("id,member_id,guest_phone").eq("session_id", sid);
+        // 이름은 DB 조인(members(name))으로 직접 — id 매칭 약점 회피
+        var pr = await supabaseClient.from("cupping_participants").select("id,member_id,guest_name,members(name)").eq("session_id", sid);
         var nameMap = {};
         (pr.data || []).forEach(function (p) {
-          var nm = null;
-          if (p.member_id) { var mm = GM.find(function (x) { return String(x.id) === String(p.member_id); }); nm = mm ? mm.name : null; }
-          nameMap[p.id] = nm || (p.guest_phone ? "게스트" : "참가자");
+          nameMap[p.id] = (p.members && p.members.name) || p.guest_name || "게스트";
         });
         var pids = (pr.data || []).map(function (p) { return p.id; });
         var ar = pids.length ? await supabaseClient.from("cupping_records").select(OCOLS).in("participant_id", pids) : { data: [] };
