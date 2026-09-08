@@ -4287,11 +4287,11 @@ window.hideCalibration = async function() {
     // 콘텐츠 참여 이력
     h += sectionTitle("콘텐츠 참여 이력", "18px", "수업·훈련 스케줄");
     if (!trns.length) h += emptyBox("콘텐츠 참여 이력이 없습니다.");
-    else { trns.sort(function (a, b) { return new Date(trnDate(b)) - new Date(trnDate(a)); }); h += moreList("memTrnMore", trns, 5, function (t) { return cmtItem(trnTitle(t), dstr(trnDate(t)), "training", phone, name, { refId: t.id }); }); }
+    else { trns.sort(function (a, b) { return new Date(trnDate(b)) - new Date(trnDate(a)); }); h += moreList("memTrnMore", trns, 5, function (t) { return cmtItem(trnTitle(t), dstr(trnDate(t)), "training", phone, name, { refId: t.id }, cnJoin(cnFullD(trnDate(t)), trnTitle(t))); }); }
     // 센터 예약 이력
     h += sectionTitle("센터 예약 이력", "18px", "장비·공간");
     if (!ress.length) h += emptyBox("센터 예약 이력이 없습니다.");
-    else { ress.sort(function (a, b) { return new Date(b.res_date || 0) - new Date(a.res_date || 0); }); h += moreList("memResMore", ress, 5, function (r) { var t = [r.center, r.space_equip].filter(Boolean).join(" · ") || "센터 예약"; if (r.res_time) t += " · " + r.res_time; return cmtItem(t, dstr(r.res_date), "reservation", phone, name, { refId: r.id }); }); }
+    else { ress.sort(function (a, b) { return new Date(b.res_date || 0) - new Date(a.res_date || 0); }); h += moreList("memResMore", ress, 5, function (r) { var t = [r.center, r.space_equip].filter(Boolean).join(" · ") || "센터 예약"; if (r.res_time) t += " · " + r.res_time; return cmtItem(t, dstr(r.res_date), "reservation", phone, name, { refId: r.id }, cnJoin(cnFullD(r.res_date), cnCenter(r.center), cnEquip(r.space_equip))); }); }
     h += '</div>';
     host.innerHTML = h;
     // 코칭 로그 로드(비동기)
@@ -4321,6 +4321,11 @@ window.hideCalibration = async function() {
     return _cnName;
   }
   function cnKey(scope, sessionId, beanId, refId){ return (scope + "|" + (sessionId||"") + "|" + (beanId||"") + "|" + (refId||"")).replace(/[^A-Za-z0-9]/g, "_"); }
+  // 라벨 헬퍼 (멤버 노출용 ref_label · 정식 표기)
+  function cnFullD(s){ try{ var d=new Date(s); if(isNaN(d))return String(s||""); return d.getFullYear()+"년 "+(d.getMonth()+1)+"월 "+d.getDate()+"일 ("+["일","월","화","수","목","금","토"][d.getDay()]+")"; }catch(e){ return String(s||""); } }
+  function cnCenter(c){ c=String(c||""); return c.indexOf("광진")>=0?"광진 센터":(c.indexOf("마포")>=0?"마포 센터":c); }
+  function cnEquip(s){ var m=String(s||"").match(/\(([^)]*)\)/); return m?m[1].trim():String(s||"").trim(); }
+  function cnJoin(){ return Array.prototype.slice.call(arguments).filter(Boolean).join(" · "); }
   function cnTime(s){ try { var d = new Date(s); if (isNaN(d)) return ""; return String(d.getFullYear()).slice(2) + "." + String(d.getMonth()+1).padStart(2,"0") + "." + String(d.getDate()).padStart(2,"0") + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); } catch (e) { return ""; } }
   // ctx = {sessionId, beanId, refId} · opts = {ph, mb, label}
   function coachBlockHTML(scope, phone, name, ctx, title, sub, opts){
@@ -4414,9 +4419,9 @@ window.hideCalibration = async function() {
     } catch (e) { console.warn("[coach] 공개토글 실패", e); if (typeof showToast === "function") showToast(/unauthorized/i.test(e && e.message || "") ? "로그인 세션이 만료됐어요." : "공개 설정 변경에 실패했어요."); }
   };
   // 리스트 항목(예약/콘텐츠/원두)에 접이식 코멘트 슬롯을 붙인 행
-  function cmtItem(title, dateStr, scope, phone, name, ctx){
+  function cmtItem(title, dateStr, scope, phone, name, ctx, lbl){
     var pj = cq(phone), nj = cq(name), sj = cq(ctx.sessionId), bj = cq(ctx.beanId), rj = cq(ctx.refId);
-    var label = (dateStr ? dateStr + " · " : "") + String(title || "");
+    var label = (lbl != null) ? String(lbl) : ((dateStr ? dateStr + " · " : "") + String(title || ""));
     return '<div data-cmt-item="1" data-label="' + esc(label) + '" style="border:1px solid #eef0f3;border-radius:10px;margin-bottom:6px;overflow:hidden;">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;">' +
         '<div style="min-width:0;font-size:13px;font-weight:600;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(title) + '</div>' +
@@ -4510,7 +4515,7 @@ window.hideCalibration = async function() {
         // 이 세션 한 건에 대한 세션 코멘트 (리뷰 아래)
         var scWrap = document.createElement("div");
         scWrap.style.cssText = "margin-top:16px;";
-        var sessLabel = [dstr(sess.scheduled_at), sess.title].filter(Boolean).join(" · ") || (sess.title || "커핑 세션");
+        var sessLabel = cnJoin(cnFullD(sess.scheduled_at), sess.title) || (sess.title || "커핑 세션");
         scWrap.innerHTML = coachBlockHTML("session", phone, name, { sessionId: sessionId }, "교육 매니저 코멘트", "이 커핑 한 건", { label: sessLabel });
         area.appendChild(scWrap);
         if (window.memCoachRefresh) window.memCoachRefresh("session", phone, sessionId);
