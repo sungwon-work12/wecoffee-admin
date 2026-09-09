@@ -4342,7 +4342,10 @@ window.hideCalibration = async function() {
       '<div style="margin-top:10px;">' +
         '<textarea id="' + taId + '"' + labelAttr + ' rows="2" placeholder="' + ph + '" style="width:100%;resize:vertical;min-height:38px;padding:8px 10px;border:1px solid var(--border-strong,#e5e8eb);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;box-sizing:border-box;"></textarea>' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;">' +
-          '<label style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#4e5968;cursor:pointer;user-select:none;line-height:1;margin:0;"><input type="checkbox" id="cnV_' + key + '" style="width:20px !important;height:20px !important;min-width:20px !important;min-height:20px !important;max-width:20px !important;max-height:20px !important;margin:0 !important;padding:0 !important;flex:0 0 20px !important;accent-color:#ff7900;cursor:pointer;vertical-align:middle;appearance:auto !important;-webkit-appearance:checkbox !important;background:none !important;"><span>멤버에게 공개</span></label>' +
+          '<label onclick="window.memCoachTogglePub(this.querySelector(&quot;.cnPub&quot;))" style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#4e5968;cursor:pointer;user-select:none;line-height:1;margin:0;">' +
+            '<span class="cnPub" id="cnV_' + key + '" data-on="0" style="width:20px;height:20px;border-radius:6px;border:1.5px solid #d0d5dd;background:#fff;display:inline-flex;align-items:center;justify-content:center;flex:0 0 20px;box-sizing:border-box;transition:.12s;">' +
+              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+            '</span>멤버에게 공개</label>' +
           '<button type="button" style="height:36px;padding:0 16px;flex-shrink:0;border:none;border-radius:8px;background:var(--primary,#ff7900);color:#fff;font-size:13px;font-weight:700;cursor:pointer;" onclick="window.memCoachAdd(' + addArgs + ')">등록</button>' +
         '</div>' +
       '</div>' +
@@ -4380,7 +4383,7 @@ window.hideCalibration = async function() {
     var note = String(ta.value || "").trim();
     if (!note) { if (typeof showToast === "function") showToast("내용을 입력하세요."); return; }
     var visEl = document.getElementById("cnV_" + key);
-    var vis = !!(visEl && visEl.checked);
+    var vis = !!(visEl && visEl.getAttribute("data-on") === "1");
     var refLabel = ta.getAttribute("data-label") || "";
     ta.disabled = true;
     try {
@@ -4397,7 +4400,7 @@ window.hideCalibration = async function() {
         p_note: note
       });
       if (res.error) throw res.error;
-      ta.value = ""; if (visEl) visEl.checked = false;
+      ta.value = ""; if (visEl) window.memCoachTogglePub(visEl, false);
       await window.memCoachRefresh(scope, phone, sessionId, beanId, refId);
     } catch (e) {
       console.warn("[coach] 등록 실패", e);
@@ -4410,6 +4413,15 @@ window.hideCalibration = async function() {
       if (res.error) throw res.error;
       await window.memCoachRefresh(scope, phone, sessionId, beanId, refId);
     } catch (e) { console.warn("[coach] 삭제 실패", e); if (typeof showToast === "function") showToast("삭제에 실패했어요."); }
+  };
+  // 커스텀 공개 토글(관리자 전역 체크박스 CSS 회피)
+  window.memCoachTogglePub = function (el, force) {
+    if (!el) return;
+    var on = (typeof force === "boolean") ? force : (el.getAttribute("data-on") !== "1");
+    el.setAttribute("data-on", on ? "1" : "0");
+    el.style.background = on ? "#ff7900" : "#fff";
+    el.style.borderColor = on ? "#ff7900" : "#d0d5dd";
+    var sv = el.querySelector("svg"); if (sv) sv.style.display = on ? "block" : "none";
   };
   window.memCoachVis = async function (id, cur, scope, phone, sessionId, beanId, refId) {
     try {
