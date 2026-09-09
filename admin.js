@@ -4233,8 +4233,53 @@ window.hideCalibration = async function() {
     var h = '<div style="border-top:1px solid var(--border-strong,#e5e8eb);margin-top:8px;padding-top:18px;">';
     // 멤버 누적 코칭 로그 (성장 관점) — 상세 최상단
     h += coachBlockHTML("member", phone, name, {}, "코멘트 작성하기", "멤버 활동 모니터링", { mb: "18px" });
+    // ── 콘텐츠 3분류: 수업(기본 수업·1회차 → 이수 종수) / 훈련(정기 훈련·스페셜 코칭·반복 → 참여 빈도) / 이벤트(세미나·대회·일회성 → 참여 건수) ──
+    var classSet = {}, trainList = [], eventList = [];
+    trns.forEach(function (t) {
+      var seg = String(t.content || "").split(" || ")[4] || "";
+      var m = seg.match(/^\[(.*?)\]/); var cat = m ? m[1] : "";
+      if (cat === "기본 수업") { classSet[trnTitle(t)] = 1; }
+      else if (cat === "세미나" || cat === "대회") { eventList.push(t); }
+      else { trainList.push(t); } // 정기 훈련 · 스페셜 코칭 · 기타
+    });
+    var classCnt = Object.keys(classSet).length, trainCnt = trainList.length, eventCnt = eventList.length;
     h += '<div style="display:flex;gap:8px;margin-bottom:20px;">' +
-      stat("센터 예약", resCnt + "회") + stat("콘텐츠 참여", trnCnt + "회") + stat("커핑 세션", cupCnt + "회") + '</div>';
+      stat("센터 예약", resCnt + "회") + stat("수업 이수", classCnt + "종") + stat("훈련 참여", trainCnt + "회") + '</div>';
+    // ── 활동 지표: 자발적 방문율(예약·주단위) + 훈련 참여(정기 훈련 등·주단위) ──
+    (function () {
+      function wkB(d) { var t = new Date(d); if (isNaN(t)) return null; t.setHours(0,0,0,0); return Math.floor(t.getTime() / 604800000); }
+      var resDates = ress.map(function (r) { return r.res_date ? String(r.res_date).split("T")[0] : null; }).filter(Boolean);
+      var trainDates = trainList.map(function (t) { return String(t.content || "").split(" || ")[0]; }).filter(function (x) { return x && /\d{4}-\d{2}-\d{2}/.test(x); });
+      var allTimes = resDates.concat(trainDates).map(function (x) { return new Date(x).getTime(); }).filter(function (x) { return !isNaN(x); });
+      h += sectionTitle("활동 지표", "20px", "방문 · 훈련 참여");
+      if (!allTimes.length) { h += emptyBox("활동 데이터가 없습니다."); return; }
+      var startB = wkB(new Date(Math.min.apply(null, allTimes))), todayB = wkB(new Date());
+      var activeWeeks = Math.max(1, todayB - startB + 1);
+      var resWk = {}; resDates.forEach(function (d) { var b = wkB(d); if (b != null) resWk[b] = 1; });
+      var resWeeks = Object.keys(resWk).length;
+      var visitRate = Math.round(resWeeks / activeWeeks * 100);
+      var resPerWk = (resCnt / activeWeeks).toFixed(1), trainPerWk = (trainCnt / activeWeeks).toFixed(1);
+      var lastTrain = trainDates.length ? trainDates.slice().sort().slice(-1)[0] : null;
+      var rateColor = visitRate >= 60 ? "#00b386" : (visitRate >= 30 ? "#ea6f00" : "#8b95a1");
+      h += '<div style="background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:14px 16px;margin-bottom:10px;">' +
+        '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:8px;"><span style="font-size:13px;font-weight:700;color:#191f28;">자발적 방문율 <span style="font-size:11px;color:#8b95a1;font-weight:600;">센터 예약 · 주 단위</span></span><span style="font-size:20px;font-weight:800;color:' + rateColor + ';">' + visitRate + '<span style="font-size:12px;font-weight:700;">%</span></span></div>' +
+        '<div style="height:8px;background:#eef0f3;border-radius:5px;overflow:hidden;margin-bottom:8px;"><div style="height:100%;width:' + Math.min(100, visitRate) + '%;background:' + rateColor + ';border-radius:5px;"></div></div>' +
+        '<div style="font-size:12px;color:#8b95a1;">활동 ' + activeWeeks + '주 중 <b style="color:#4e5968;font-weight:700;">' + resWeeks + '주</b> 방문 · 주 평균 ' + resPerWk + '회</div>' +
+      '</div>';
+      h += '<div style="background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:14px 16px;margin-bottom:20px;">' +
+        '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px;"><span style="font-size:13px;font-weight:700;color:#191f28;">훈련 참여 <span style="font-size:11px;color:#8b95a1;font-weight:600;">정기 훈련 · 스페셜 코칭</span></span><span style="font-size:20px;font-weight:800;color:#191f28;">' + trainCnt + '<span style="font-size:12px;color:#8b95a1;font-weight:700;"> 회</span></span></div>' +
+        '<div style="font-size:12px;color:#8b95a1;">주 평균 ' + trainPerWk + '회' + (lastTrain ? ' · 최근 참여 ' + dstr(lastTrain) : '') + '</div>' +
+      '</div>';
+      // 세미나·대회 — 일회성 이벤트라 주 평균에서 제외, 참여 건수만 별도 표기
+      if (eventCnt) {
+        var evDates = eventList.map(function (t) { return String(t.content || "").split(" || ")[0]; }).filter(function (x) { return x && /\d{4}-\d{2}-\d{2}/.test(x); });
+        var lastEv = evDates.length ? evDates.slice().sort().slice(-1)[0] : null;
+        h += '<div style="background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:14px 16px;margin-bottom:20px;">' +
+          '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:' + (lastEv ? '6px' : '0') + ';"><span style="font-size:13px;font-weight:700;color:#191f28;">세미나 · 대회 <span style="font-size:11px;color:#8b95a1;font-weight:600;">일회성 참여</span></span><span style="font-size:20px;font-weight:800;color:#191f28;">' + eventCnt + '<span style="font-size:12px;color:#8b95a1;font-weight:700;"> 회</span></span></div>' +
+          (lastEv ? '<div style="font-size:12px;color:#8b95a1;">최근 참여 ' + dstr(lastEv) + '</div>' : '') +
+        '</div>';
+      }
+    })();
     // 센터 이용 비율
     var cKeys = Object.keys(centerCnt), cTot = cKeys.reduce(function (a, k) { return a + centerCnt[k]; }, 0);
     h += sectionTitle("센터 이용 비율");
@@ -4341,18 +4386,38 @@ window.hideCalibration = async function() {
       '<div id="' + listId + '"><div style="color:#b0b8c1;font-size:12.5px;padding:2px 0;">불러오는 중…</div></div>' +
       '<div style="margin-top:10px;">' +
         '<textarea id="' + taId + '"' + labelAttr + ' rows="2" placeholder="' + ph + '" style="width:100%;resize:vertical;min-height:38px;padding:8px 10px;border:1px solid var(--border-strong,#e5e8eb);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;box-sizing:border-box;"></textarea>' +
+        // 성장 평가(선택): 도메인 + 0~10점. 접이식.
+        '<div id="cnEvalWrap_' + key + '" data-dom="" style="display:none;margin-top:8px;padding:10px 11px;border:1px solid #eef0f3;border-radius:8px;background:#fff;">' +
+          '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">' +
+            cnDomPill(key, "센서리") + cnDomPill(key, "로스팅") + cnDomPill(key, "추출") +
+            '<span style="flex:1 0 auto;"></span>' +
+            '<select id="cnScore_' + key + '" style="height:32px;border:1px solid #e5e8eb;border-radius:8px;font-size:13px;padding:0 8px;background:#fff;color:#191f28;font-family:inherit;">' + cnScoreOpts() + '</select>' +
+            '<span style="font-size:12px;color:#8b95a1;font-weight:600;">/ 10</span>' +
+          '</div>' +
+        '</div>' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;">' +
-          '<label onclick="window.memCoachTogglePub(this.querySelector(&quot;.cnPub&quot;))" style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#4e5968;cursor:pointer;user-select:none;line-height:1;margin:0;">' +
-            '<span class="cnPub" id="cnV_' + key + '" data-on="0" style="width:20px;height:20px;border-radius:6px;border:1.5px solid #d0d5dd;background:#fff;display:inline-flex;align-items:center;justify-content:center;flex:0 0 20px;box-sizing:border-box;transition:.12s;">' +
-              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
-            '</span>멤버에게 공개</label>' +
+          '<span style="display:inline-flex;align-items:center;gap:14px;min-width:0;">' +
+            '<label onclick="window.memCoachTogglePub(this.querySelector(&quot;.cnPub&quot;))" style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#4e5968;cursor:pointer;user-select:none;line-height:1;margin:0;">' +
+              '<span class="cnPub" id="cnV_' + key + '" data-on="0" style="width:20px;height:20px;border-radius:6px;border:1.5px solid #d0d5dd;background:#fff;display:inline-flex;align-items:center;justify-content:center;flex:0 0 20px;box-sizing:border-box;transition:.12s;">' +
+                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+              '</span>멤버에게 공개</label>' +
+            '<button type="button" id="cnEvalBtn_' + key + '" onclick="window.memCoachToggleEval(&quot;' + key + '&quot;)" style="border:none;background:none;color:#ff7900;font-size:12px;font-weight:700;cursor:pointer;padding:0;line-height:1;white-space:nowrap;">성장 평가 추가</button>' +
+          '</span>' +
           '<button type="button" style="height:36px;padding:0 16px;flex-shrink:0;border:none;border-radius:8px;background:var(--primary,#ff7900);color:#fff;font-size:13px;font-weight:700;cursor:pointer;" onclick="window.memCoachAdd(' + addArgs + ')">등록</button>' +
         '</div>' +
       '</div>' +
     '</div>';
   }
+  function cnDomPill(key, dom){
+    return '<span class="cnDomPill" data-dom="' + dom + '" onclick="window.memCoachPickDomain(&quot;' + key + '&quot;,this)" style="cursor:pointer;font-size:12px;font-weight:600;color:#8b95a1;background:#fff;border:1px solid #e5e8eb;border-radius:7px;padding:5px 11px;user-select:none;line-height:1;">' + dom + '</span>';
+  }
+  function cnScoreOpts(){
+    var o = '<option value="">점수</option>';
+    for (var i = 0; i <= 10; i++) o += '<option value="' + i + '">' + i + '</option>';
+    return o;
+  }
   function _cnFilter(scope, phone, sessionId, beanId, refId){
-    var q = supabaseClient.from("coach_notes").select("id,created_at,author_email,author_name,note,visible").eq("scope", scope).eq("member_phone", cnDigits(phone));
+    var q = supabaseClient.from("coach_notes").select("id,created_at,author_email,author_name,note,visible,eval_domain,score").eq("scope", scope).eq("member_phone", cnDigits(phone));
     if (scope === "session") q = q.eq("session_id", sessionId);
     else if (scope === "bean") q = q.eq("session_id", sessionId).eq("bean_id", beanId);
     else if (scope === "reservation" || scope === "training") q = q.eq("ref_id", refId);
@@ -4368,8 +4433,9 @@ window.hideCalibration = async function() {
         var ctxArgs = "'" + scope + "','" + cq(phone) + "','" + cq(sessionId) + "','" + cq(beanId) + "','" + cq(refId) + "'";
         var vis = !!n.visible;
         var visBadge = '<button type="button" onclick="window.memCoachVis(' + n.id + ',' + vis + ',' + ctxArgs + ')" title="' + (vis ? "멤버에게 공개 중 · 클릭하면 비공개" : "비공개 · 클릭하면 멤버 공개") + '" style="border:1px solid ' + (vis ? "#c7ead7" : "#e5e8eb") + ';background:' + (vis ? "#eafbf1" : "#f4f5f7") + ';color:' + (vis ? "#00996b" : "#8b95a1") + ';border-radius:6px;font-size:10.5px;font-weight:700;padding:3px 8px;cursor:pointer;flex-shrink:0;">' + (vis ? "공개" : "비공개") + '</button>';
+        var scoreBadge = (n.score != null && n.eval_domain) ? '<span style="flex-shrink:0;font-size:10.5px;font-weight:800;color:#ff7900;background:#fff3e9;border-radius:6px;padding:3px 7px;letter-spacing:-.2px;line-height:1.4;">' + esc(n.eval_domain) + ' ' + n.score + '/10</span>' : '';
         return '<div style="border:1px solid #eef0f3;border-radius:9px;padding:9px 11px;margin-bottom:7px;background:#fff;">' +
-          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;"><span style="font-size:11px;color:#8b95a1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(n.author_name || n.author_email || "관리자") + ' · ' + cnTime(n.created_at) + '</span>' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;"><span style="display:inline-flex;align-items:center;gap:6px;min-width:0;">' + scoreBadge + '<span style="font-size:11px;color:#8b95a1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(n.author_name || n.author_email || "관리자") + ' · ' + cnTime(n.created_at) + '</span></span>' +
           '<span style="display:inline-flex;align-items:center;gap:8px;flex-shrink:0;">' + visBadge +
           '<button type="button" onclick="window.memCoachDelete(' + n.id + ',' + ctxArgs + ')" style="border:none;background:none;color:#c4ccd4;font-size:11px;cursor:pointer;padding:0;">삭제</button></span></div>' +
           '<div style="font-size:13.5px;color:#191f28;white-space:pre-wrap;line-height:1.55;">' + esc(n.note) + '</div>' +
@@ -4385,6 +4451,16 @@ window.hideCalibration = async function() {
     var visEl = document.getElementById("cnV_" + key);
     var vis = !!(visEl && visEl.getAttribute("data-on") === "1");
     var refLabel = ta.getAttribute("data-label") || "";
+    // 성장 평가(선택) — 패널이 열려 있을 때만 반영. 도메인·점수는 세트.
+    var evW = document.getElementById("cnEvalWrap_" + key);
+    var scEl = document.getElementById("cnScore_" + key);
+    var evalDomain = null, evalScore = null;
+    if (evW && evW.style.display !== "none") {
+      var dom = evW.getAttribute("data-dom") || "";
+      var scRaw = scEl ? String(scEl.value) : "";
+      if (dom && scRaw !== "") { evalDomain = dom; evalScore = parseInt(scRaw, 10); }
+      else if (dom || scRaw !== "") { if (typeof showToast === "function") showToast("역량과 점수를 모두 선택하세요."); return; }
+    }
     ta.disabled = true;
     try {
       var author = await cnAdminName();
@@ -4397,10 +4473,13 @@ window.hideCalibration = async function() {
         p_visible: vis,
         p_author_name: author || "",
         p_ref_label: refLabel,
+        p_eval_domain: evalDomain,
+        p_score: evalScore,
         p_note: note
       });
       if (res.error) throw res.error;
       ta.value = ""; if (visEl) window.memCoachTogglePub(visEl, false);
+      window.memCoachResetEval(key);
       await window.memCoachRefresh(scope, phone, sessionId, beanId, refId);
     } catch (e) {
       console.warn("[coach] 등록 실패", e);
@@ -4422,6 +4501,41 @@ window.hideCalibration = async function() {
     el.style.background = on ? "#ff7900" : "#fff";
     el.style.borderColor = on ? "#ff7900" : "#d0d5dd";
     var sv = el.querySelector("svg"); if (sv) sv.style.display = on ? "block" : "none";
+  };
+  // 성장 평가(도메인+점수) 패널 토글
+  window.memCoachToggleEval = function (key) {
+    var w = document.getElementById("cnEvalWrap_" + key); if (!w) return;
+    var open = (w.style.display === "none" || !w.style.display);
+    w.style.display = open ? "block" : "none";
+    var btn = document.getElementById("cnEvalBtn_" + key);
+    if (btn) btn.textContent = open ? "평가 접기" : "성장 평가 추가";
+    if (!open) window.memCoachResetEval(key);
+  };
+  // 도메인 단일 선택(같은 걸 다시 누르면 해제)
+  window.memCoachPickDomain = function (key, el) {
+    var w = document.getElementById("cnEvalWrap_" + key); if (!w || !el) return;
+    var cur = w.getAttribute("data-dom") || "";
+    var next = (cur === el.getAttribute("data-dom")) ? "" : el.getAttribute("data-dom");
+    w.setAttribute("data-dom", next);
+    var pills = w.querySelectorAll(".cnDomPill");
+    for (var i = 0; i < pills.length; i++) {
+      var on = pills[i].getAttribute("data-dom") === next && next !== "";
+      pills[i].style.background = on ? "#fff3e9" : "#fff";
+      pills[i].style.borderColor = on ? "#ff7900" : "#e5e8eb";
+      pills[i].style.color = on ? "#ff7900" : "#8b95a1";
+      pills[i].style.fontWeight = on ? "700" : "600";
+    }
+  };
+  window.memCoachResetEval = function (key) {
+    var w = document.getElementById("cnEvalWrap_" + key);
+    if (w) {
+      w.setAttribute("data-dom", "");
+      w.style.display = "none";
+      var pills = w.querySelectorAll(".cnDomPill");
+      for (var i = 0; i < pills.length; i++) { pills[i].style.background = "#fff"; pills[i].style.borderColor = "#e5e8eb"; pills[i].style.color = "#8b95a1"; pills[i].style.fontWeight = "600"; }
+    }
+    var s = document.getElementById("cnScore_" + key); if (s) s.value = "";
+    var btn = document.getElementById("cnEvalBtn_" + key); if (btn) btn.textContent = "성장 평가 추가";
   };
   window.memCoachVis = async function (id, cur, scope, phone, sessionId, beanId, refId) {
     try {
