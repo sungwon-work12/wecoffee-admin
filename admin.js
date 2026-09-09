@@ -1136,8 +1136,10 @@ window.handleStatusChange = async function(id, newStatus, currentCallTime, curre
     const { error } = await supabaseClient.from('applications').update({ status: newStatus }).eq('id', id);
     if (error) { showToast("상태 변경 실패"); return; }
     if (app) app.status = newStatus;
-    if (newStatus === '상담 일정 확정' || newStatus === '설문 완료') { window.openScheduleModal(id, currentCallTime, currentCounselor); }
-    else { showToast("상태가 변경되었습니다."); window.applyFilterApp(); }
+    // ★ 담당자 필수 단계: 조율 연락 시작(조율 중)부터 담당자를 반드시 기록 → 이후 이탈해도 '미지정' 안 남음
+    if (newStatus === '상담 일정 조율 중' || newStatus === '상담 일정 확정' || newStatus === '설문 완료') {
+        window.openScheduleModal(id, currentCallTime, currentCounselor);
+    } else { showToast("상태가 변경되었습니다."); window.applyFilterApp(); }
 };
 function _korDateToInput(str) { const m=String(str||'').match(/(\d+)월\s*(\d+)일/); if(!m)return ''; const y=new Date().getFullYear(),mo=String(parseInt(m[1])).padStart(2,'0'),d=String(parseInt(m[2])).padStart(2,'0'); return `${y}-${mo}-${d}`; }
 function _korTimeToInput(str) { const m=String(str||'').match(/(오전|오후)\s*(\d+)[시:]\s*(\d+)?/); if(!m)return ''; let h=parseInt(m[2]),min=m[3]?parseInt(m[3]):0; if(m[1]==='오후'&&h!==12)h+=12; if(m[1]==='오전'&&h===12)h=0; return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`; }
@@ -1163,7 +1165,37 @@ window.openScheduleModal = function(id, currentCallTime, currentCounselor) {
     modal.classList.add('show'); modal.style.display = 'flex';
 };
 window.closeScheduleModal = function() { const modal = document.getElementById('scheduleModal'); if (modal) { modal.classList.remove('show'); modal.style.display = 'none'; } };
-window.saveSchedule = async function() { const modal = document.getElementById('scheduleModal'); if (!modal || !modal._targetId) return; const id = modal._targetId; const dateVal = (document.getElementById('schedDateInput')?.value || '').trim(); const timeVal = (document.getElementById('schedTimeInput')?.value || '').trim(); const counselorVal = (document.getElementById('schedCounselorInput')?.value || '').trim(); const callTime = [dateVal?window.formatBlockDate(dateVal):'', timeVal?window.formatBlockTime(timeVal):''].filter(Boolean).join(' '); const { error } = await supabaseClient.from('applications').update({ call_time: callTime || null, counselor_name: counselorVal || null }).eq('id', id); if (error) { showToast("저장 실패"); return; } const app = globalApps.find(a => String(a.id) === String(id)); if (app) { app.call_time = callTime; app.counselor_name = counselorVal; } window.closeScheduleModal(); window.applyFilterApp(); const surveyUrl=await window.wcSurveyLink(id);let _ct=callTime.split(' ');let _dateNice='',_timeNice='';if(_ct[0]){let _dp=_ct[0].split('-');let _dObj=new Date(parseInt(_dp[0]),parseInt(_dp[1])-1,parseInt(_dp[2]));let _dow=['일','월','화','수','목','금','토'][_dObj.getDay()];_dateNice=`${parseInt(_dp[1])}월 ${parseInt(_dp[2])}일(${_dow})`;}if(_ct[1]){let _tp=_ct[1].split(':');let _h=parseInt(_tp[0]),_m=_tp[1]||'00';let _ap=_h>=12?'오후':'오전';let _h12=_h%12||12;_timeNice=`${_ap} ${_h12}:${_m}`;}let _scheduleStr=_dateNice&&_timeNice?`${_dateNice}, ${_timeNice}`:callTime;let _msgTemplate=`안녕하세요 ${app?.name||''}님, 통화했던 위커피 운영팀입니다 :)\n상담일정은 ${_scheduleStr} 입니다.\n\n오시기 전에 아래 링크의 설문을 작성해주시길 부탁드립니다.\n\n[Wecoffee 주소]\n마포 센터: 서울 마포구 월드컵북로 41 301호\n광진 센터: 서울 광진구 능동로36길 18 3층\n\n*센터 내 지정 주차 공간은 마련되어 있지 않습니다.\n차량으로 방문하실 경우 인근의 공영 주차장 이용을 부탁드립니다.\n\n[상담 전 작성설문]\n${surveyUrl}\n\n[상담 전 홈페이지 내용을 꼼꼼히 숙지해주세요]\nwww.wecoffee.co.kr`;window.openCustomConfirm("상담 안내 메시지",null,`<div style="text-align:center;font-size:14px;color:var(--text-secondary);line-height:1.7;">상담 일정이 저장되었습니다.<br><strong style="color:var(--text-display);font-size:15px;">${window.escapeHtml(app?.name||'')}님</strong>께 상담 안내 메시지를 전달하시겠어요?</div>`,_msgTemplate,"복사하기"); };
+window.saveSchedule = async function() {
+    const modal = document.getElementById('scheduleModal'); if (!modal || !modal._targetId) return;
+    const id = modal._targetId;
+    const dateVal = (document.getElementById('schedDateInput')?.value || '').trim();
+    const timeVal = (document.getElementById('schedTimeInput')?.value || '').trim();
+    const counselorVal = (document.getElementById('schedCounselorInput')?.value || '').trim();
+    // ★ 담당자 필수 — 비어 있으면 저장 차단 (조율 연락 시작부터 담당자 기록 → '미지정' 방지)
+    if (!counselorVal) {
+        showToast("담당자(상담 예정자)를 입력해주세요.");
+        const ci = document.getElementById('schedCounselorInput');
+        if (ci) { ci.focus(); ci.style.borderColor = 'var(--error)'; setTimeout(function(){ ci.style.borderColor = 'var(--border-strong)'; }, 1500); }
+        return;
+    }
+    const callTime = [dateVal ? window.formatBlockDate(dateVal) : '', timeVal ? window.formatBlockTime(timeVal) : ''].filter(Boolean).join(' ');
+    const { error } = await supabaseClient.from('applications').update({ call_time: callTime || null, counselor_name: counselorVal }).eq('id', id);
+    if (error) { showToast("저장 실패"); return; }
+    const app = globalApps.find(a => String(a.id) === String(id));
+    if (app) { app.call_time = callTime; app.counselor_name = counselorVal; }
+    window.closeScheduleModal();
+    window.applyFilterApp();
+    // 조율 단계(일정 미정) → 담당자만 저장하고 안내 메시지 팝업은 생략
+    if (!callTime) { showToast("담당자가 지정되었습니다."); return; }
+    const surveyUrl = await window.wcSurveyLink(id);
+    let _ct = callTime.split(' ');
+    let _dateNice = '', _timeNice = '';
+    if (_ct[0]) { let _dp = _ct[0].split('-'); let _dObj = new Date(parseInt(_dp[0]), parseInt(_dp[1]) - 1, parseInt(_dp[2])); let _dow = ['일','월','화','수','목','금','토'][_dObj.getDay()]; _dateNice = `${parseInt(_dp[1])}월 ${parseInt(_dp[2])}일(${_dow})`; }
+    if (_ct[1]) { let _tp = _ct[1].split(':'); let _h = parseInt(_tp[0]), _m = _tp[1] || '00'; let _ap = _h >= 12 ? '오후' : '오전'; let _h12 = _h % 12 || 12; _timeNice = `${_ap} ${_h12}:${_m}`; }
+    let _scheduleStr = _dateNice && _timeNice ? `${_dateNice}, ${_timeNice}` : callTime;
+    let _msgTemplate = `안녕하세요 ${app?.name || ''}님, 통화했던 위커피 운영팀입니다 :)\n상담일정은 ${_scheduleStr} 입니다.\n\n오시기 전에 아래 링크의 설문을 작성해주시길 부탁드립니다.\n\n[Wecoffee 주소]\n마포 센터: 서울 마포구 월드컵북로 41 301호\n광진 센터: 서울 광진구 능동로36길 18 3층\n\n*센터 내 지정 주차 공간은 마련되어 있지 않습니다.\n차량으로 방문하실 경우 인근의 공영 주차장 이용을 부탁드립니다.\n\n[상담 전 작성설문]\n${surveyUrl}\n\n[상담 전 홈페이지 내용을 꼼꼼히 숙지해주세요]\nwww.wecoffee.co.kr`;
+    window.openCustomConfirm("상담 안내 메시지", null, `<div style="text-align:center;font-size:14px;color:var(--text-secondary);line-height:1.7;">상담 일정이 저장되었습니다.<br><strong style="color:var(--text-display);font-size:15px;">${window.escapeHtml(app?.name || '')}님</strong>께 상담 안내 메시지를 전달하시겠어요?</div>`, _msgTemplate, "복사하기");
+};
 window.renderAppTable = function(data) {
     let tableWrap=document.querySelector('#app-table-area .table-wrap');
     if(!tableWrap)return;
@@ -1256,7 +1288,7 @@ window.renderAppTable = function(data) {
         if(_rawTime){
             if(_isScheduled){let _cp=_rawTime.split(' ');let _dn='',_tn='';if(_cp[0]){let _dp=_cp[0].split('-');let _dObj=new Date(parseInt(_dp[0]),parseInt(_dp[1])-1,parseInt(_dp[2]));let _dow=['일','월','화','수','목','금','토'][_dObj.getDay()];_dn=`${parseInt(_dp[1])}/${parseInt(_dp[2])}(${_dow})`;}if(_cp[1]){let _tp=_cp[1].split(':');let _h=parseInt(_tp[0]),_m=_tp[1]||'00';let _ap=_h>=12?'오후':'오전';let _h12=_h%12||12;_tn=` ${_ap} ${_h12}:${_m}`;}timeDisplay=(_dn+_tn).trim();}else{timeDisplay=_rawTime;}
         }
-        let timeBadgeHtml=(row.status==='상담 일정 확정'||row.status==='설문 완료')?`<div class="edit-schedule-link" onclick="event.stopPropagation();window.openScheduleModal('${row.id}','${row.call_time}','${row.counselor_name}')">일정 수정</div>`:'';
+        let timeBadgeHtml=(row.status==='상담 일정 조율 중'||row.status==='상담 일정 확정'||row.status==='설문 완료')?`<div class="edit-schedule-link" onclick="event.stopPropagation();window.openScheduleModal('${row.id}','${row.call_time}','${row.counselor_name}')">${row.status==='상담 일정 조율 중'?'담당자/일정 수정':'일정 수정'}</div>`:'';
         let _preferredTime=(!_isScheduled&&_rawTime)?_rawTime:'';
         let _scheduledTime=(_isScheduled&&timeDisplay)?timeDisplay:'';
         let _interestTags=(row.interest_area||'').split(',').map(s=>s.trim()).filter(Boolean).slice(0,3);
@@ -1270,6 +1302,7 @@ window.renderAppTable = function(data) {
         if(row.desired_center)_metaParts.push(`${_lbl}희망 센터</span><span class="wc-meta-val">${window.escapeHtml(row.desired_center)}</span>`);
         if(_scheduledTime)_metaParts.push(`${_lbl}상담 예정일</span><span class="wc-meta-val" style="color:var(--success);font-weight:700;">${window.escapeHtml(_scheduledTime)}${_counselor?` <span style="color:var(--text-tertiary);">${window.escapeHtml(_counselor)}</span>`:''}</span>`);
         else if(_preferredTime)_metaParts.push(`${_lbl}통화 선호 시간</span><span class="wc-meta-val">${window.escapeHtml(_preferredTime)}</span>`);
+        else if(_counselor)_metaParts.push(`${_lbl}담당자</span><span class="wc-meta-val" style="font-weight:700;">${window.escapeHtml(_counselor)}</span>`);
         let _mSumParts=[];
         if(_scheduledTime)_mSumParts.push(_scheduledTime);
         else if(_preferredTime)_mSumParts.push('선호: '+_preferredTime);
