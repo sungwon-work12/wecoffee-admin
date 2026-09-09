@@ -4232,7 +4232,7 @@ window.hideCalibration = async function() {
     var pj = String(phone || "").replace(/'/g, ""), nj = String(name || "").replace(/'/g, "");
     var h = '<div style="border-top:1px solid var(--border-strong,#e5e8eb);margin-top:8px;padding-top:18px;">';
     // 멤버 누적 코칭 로그 (성장 관점) — 상세 최상단
-    h += coachBlockHTML("member", phone, name, {}, "피드백 작성하기", "멤버 활동 모니터링", { mb: "18px" });
+    h += coachBlockHTML("member", phone, name, {}, "코멘트 작성하기", "멤버 활동 모니터링", { mb: "18px" });
     h += '<div style="display:flex;gap:8px;margin-bottom:20px;">' +
       stat("센터 예약", resCnt + "회") + stat("콘텐츠 참여", trnCnt + "회") + stat("커핑 세션", cupCnt + "회") + '</div>';
     // 센터 이용 비율
@@ -4360,7 +4360,7 @@ window.hideCalibration = async function() {
     try {
       var r = await _cnFilter(scope, phone, sessionId, beanId, refId); if (r.error) throw r.error;
       var rows = r.data || [];
-      if (!rows.length) { el.innerHTML = '<div style="color:#b0b8c1;font-size:12.5px;padding:2px 0;">' + (scope === "member" ? "아직 코칭 로그가 없습니다." : "아직 코멘트가 없습니다.") + '</div>'; return; }
+      if (!rows.length) { el.innerHTML = '<div style="color:#b0b8c1;font-size:12.5px;padding:2px 0;">' + (scope === "member" ? "아직 코칭 로그가 없습니다." : "아직 코멘트이 없습니다.") + '</div>'; return; }
       el.innerHTML = rows.map(function (n) {
         var ctxArgs = "'" + scope + "','" + cq(phone) + "','" + cq(sessionId) + "','" + cq(beanId) + "','" + cq(refId) + "'";
         var vis = !!n.visible;
@@ -4372,7 +4372,7 @@ window.hideCalibration = async function() {
           '<div style="font-size:13.5px;color:#191f28;white-space:pre-wrap;line-height:1.55;">' + esc(n.note) + '</div>' +
         '</div>';
       }).join("");
-    } catch (e) { console.warn("[coach] 로드 실패", e); el.innerHTML = '<div style="color:#e5484d;font-size:12.5px;">코멘트를 불러오지 못했습니다.</div>'; }
+    } catch (e) { console.warn("[coach] 로드 실패", e); el.innerHTML = '<div style="color:#e5484d;font-size:12.5px;">코멘트을 불러오지 못했습니다.</div>'; }
   };
   window.memCoachAdd = async function (scope, phone, name, sessionId, beanId, refId) {
     var key = cnKey(scope, sessionId, beanId, refId);
