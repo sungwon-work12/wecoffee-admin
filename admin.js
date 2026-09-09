@@ -1628,17 +1628,20 @@ window.renderStatistics = function(data) {
         let rawChannel = String(d.survey_channel || d.acquisition_channel || '기타');
         let rawDuration = String(d.survey_duration || d.known_duration || '');
         // ③ '기타 + 직접입력 사유'는 사유를 채널 자체로 승격(블랙워터이슈 등 각각 자기 줄) / 사유 없으면 '기타'
+        let isEtc = rawChannel.indexOf('기타') === 0;
         let ch;
-        if (rawChannel.indexOf('기타') === 0) {
-            let reason = String(d.survey_channel_etc || d.channel_etc || d.acquisition_channel_etc || '').trim();
-            if (!reason) reason = rawChannel.replace(/^기타\s*[:\-(（]?\s*/, '').replace(/[)）]\s*$/, '').trim();
+        if (isEtc) {
+            let reason = String(d.survey_channel_etc || d.channel_etc || d.acquisition_channel_etc || d.survey_channel_other || d.etc_channel || '').trim();
+            if (!reason) reason = rawChannel.replace(/^기타\s*[:\-(（·]?\s*/, '').replace(/[)）]\s*$/, '').trim();
             ch = reason || '기타';
         } else { ch = rawChannel; }
         ch = normChannel(ch);   // ② 띄어쓰기·중점 정규화 → 중복 병합
         if (!channelMap[ch]) channelMap[ch] = { total: 0, details: {} };
         channelMap[ch].total++;
         let det = '';
-        if (ch === '인스타그램') {
+        if (isEtc && ch === '기타') {
+            det = '';   // 사유 미입력 '기타' → 기간(6개월 등) 표시 안 함 (사유 입력분은 이미 자기 채널로 승격됨)
+        } else if (ch === '인스타그램') {
             if (d.survey_channel) { // 신규 폼
                 det = durLabel(rawDuration);
             } else { // 구버전 폼
@@ -1662,9 +1665,10 @@ window.renderStatistics = function(data) {
         let rawInterest = d.survey_goal || d.interest_area || '';
         if (rawInterest) {
             String(rawInterest).split(',').map(s => s.trim()).filter(Boolean).forEach(v => {
-                if (v.startsWith('기타')) {
-                    let ci = v.indexOf('(');
-                    interestAll.push(ci > -1 ? '기타' : v);
+                if (v.indexOf('기타') === 0) {
+                    // 기타는 입력 필수 → '기타(내용)' / '기타: 내용' 에서 입력값을 뽑아 그대로 표기
+                    let r = v.replace(/^기타\s*[:\-(（·]?\s*/, '').replace(/[)）]\s*$/, '').trim();
+                    interestAll.push(r || '기타');
                 }
                 else interestAll.push(v);
             });
@@ -1722,7 +1726,7 @@ ${funnelSteps.map((st, i) => `<div class="ins-funnel-step">
 <div class="ins-dropout-cell"><div class="ins-label">연락 두절</div><div style="font-size:32px;font-weight:900;color:var(--text-tertiary);line-height:1;">${ghostCount}<span style="font-size:16px;">명</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">이탈률에 미포함</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${total > 0 ? Math.round(ghostCount/total*100) : 0}%;background:#b4b2a9;animation-delay:0.6s;"></div></div></div>
 </div>
 <div style="margin-top:18px;">
-<div class="ins-label" style="margin-bottom:2px;">상담자별 이탈 단계 <span style="font-weight:500;color:var(--text-tertiary);">· 어느 단계에서 놓쳤나</span></div>
+<div class="ins-label" style="margin-bottom:2px;">상담자별 이탈 단계 <span style="font-weight:500;color:var(--text-tertiary);">· 단계별 이탈 인원</span></div>
 ${dropStageHtml}
 </div>
 </div>`;
