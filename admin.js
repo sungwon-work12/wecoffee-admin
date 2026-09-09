@@ -4152,8 +4152,11 @@ window.hideCalibration = async function() {
       var notes = [];
       if (isBasic) { if (r.extrinsic) notes.push(r.extrinsic); }
       else {
-        var an = [].concat(r.notes_fragrance || [], r.notes_aroma || [], r.notes_tasting || [], r.notes_custom || []);
-        if (an.length) notes.push("향미: " + an.join(", "));
+        var _dedup = function (a) { var s = []; a.forEach(function (x) { x = (x == null ? "" : String(x)).trim(); if (x && s.indexOf(x) < 0) s.push(x); }); return s; };
+        var _av = _dedup([].concat(r.notes_fragrance || [], r.notes_aroma || [], r.notes_custom || []));
+      var _fv = _dedup([].concat(r.notes_tasting || []));
+      if (_av.length) notes.push("향: " + _av.join(", "));
+      if (_fv.length) notes.push("맛: " + _fv.join(", "));
         var qn = r.q_notes || {};
         ["aroma","flavor","acidity","sweetness","mouthfeel","overall"].forEach(function (k) { if (qn[k]) notes.push(qn[k]); });
         if (r.extrinsic) notes.push("외재: " + r.extrinsic);
