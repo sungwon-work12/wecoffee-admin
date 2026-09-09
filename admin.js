@@ -1449,7 +1449,7 @@ window.updateMemberEndDate=async function(id,dateStr){const{error}=await supabas
 window.deleteHistory=async function(id,phone,name,action_detail){window.openCustomConfirm("내역 삭제",null,`해당 내역을 완전히 삭제하시겠습니까?<br><span style='font-size:12px;color:var(--text-secondary);'>(삭제 시, 늘어난 종료일이 자동으로 계산되어 복구됩니다.)</span>`,async()=>{await supabaseClient.from('member_history').delete().eq('id',id);const m=globalMembers.find(x=>window.samePhone(x.phone,phone));if(m&&m.end_date){let d=new Date(m.end_date);let isChanged=false;function _subM(dt,n){let orig=dt.getDate();dt.setMonth(dt.getMonth()-n);if(dt.getDate()!==orig)dt.setDate(0);}if(action_detail.includes('1개월 연장')||action_detail.includes('보너스 1개월')){_subM(d,1);isChanged=true;}else if(action_detail.includes('3개월 연장')){_subM(d,3);isChanged=true;}else if(action_detail.includes('6개월 연장')){_subM(d,6);isChanged=true;}else if(action_detail.includes('당일권 추가')){d.setDate(d.getDate()-1);isChanged=true;}if(isChanged){let newEndDate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;m.end_date=newEndDate;await supabaseClient.from('members').update({end_date:newEndDate}).eq('id',m.id);}}showToast("내역이 삭제되고 종료일이 복구되었습니다.");window.searchMembers();window.openHistoryModal(phone,name);});};
 window.openHistoryModal=async function(phone,name){if(!$("historyModalTitle"))return;$("historyModalTitle").innerText=`${name} 님의 내역`;const modal=$("historyModal");modal.classList.add('show');const body=$("historyModalBody");body.innerHTML='<div class="empty-state">내역을 불러오는 중입니다.</div>';const{data,error}=await supabaseClient.from('member_history').select('*').eq('member_phone',phone).order('created_at',{ascending:false});if(error||!data||data.length===0){body.innerHTML='<div class="empty-state" style="color:var(--text-tertiary);">결제/연장 내역이 없습니다.</div>';return;}body.innerHTML='<div style="display:flex;flex-direction:column;gap:12px;padding:24px 0;">'+data.map(item=>`<div class="wc-hist-item"><div><div style="font-weight:700;margin-bottom:4px;color:var(--text-display);">${item.action_detail}</div><div style="font-size:13px;color:var(--text-secondary);">${formatDt(item.created_at)}${item.performed_by?` · ${window.getAdminName(item.performed_by)}`:''}</div></div><div class="wc-hist-side"><div class="wc-hist-amount">${item.amount||''}</div><button class="btn-outline btn-sm" style="color:var(--error);border-color:var(--border-strong);" onclick="event.stopPropagation();window.deleteHistory('${item.id}','${phone}','${name}','${item.action_detail}')">삭제</button></div></div>`).join('')+'</div>';}
 window.closeHistoryModal=function(){if($("historyModal"))$("historyModal").classList.remove('show');}
-window.downloadAttendanceExcel=function(){if(!window.currentFilteredTrn||window.currentFilteredTrn.length===0){showToast('출력할 데이터가 없습니다.');return;}let csv="\uFEFF기수,성함,연락처,참여 회차,상태,수업 정보\n";window.currentFilteredTrn.forEach(t=>{let cInfo=String(t.content||'').split(' || ');let classInfo=cInfo.length>=5?`[${cInfo[0]}] ${cInfo[2]} ${cInfo[4]}`:t.content;csv+=`"${t.batch||'-'}","${String(t.name).replace(/"/g,'""')}","${String(t.phone).replace(/"/g,'""')}","${t._attendCount||1}회차","${t.status}","${String(classInfo).replace(/"/g,'""')}"\n`;});const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_참가자리스트_${new Date().toISOString().slice(0,10)}.csv`;link.click();};
+window.downloadAttendanceExcel=function(){if(!window.currentFilteredTrn||window.currentFilteredTrn.length===0){showToast('출력할 데이터가 없습니다.');return;}let csv="﻿기수,성함,연락처,참여 회차,상태,수업 정보\n";window.currentFilteredTrn.forEach(t=>{let cInfo=String(t.content||'').split(' || ');let classInfo=cInfo.length>=5?`[${cInfo[0]}] ${cInfo[2]} ${cInfo[4]}`:t.content;csv+=`"${t.batch||'-'}","${String(t.name).replace(/"/g,'""')}","${String(t.phone).replace(/"/g,'""')}","${t._attendCount||1}회차","${t.status}","${String(classInfo).replace(/"/g,'""')}"\n`;});const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_참가자리스트_${new Date().toISOString().slice(0,10)}.csv`;link.click();};
 window.copySurveyTemplate=async function(appId){let app=globalApps.find(a=>String(a.id)===String(appId));if(!app)return showToast('신청 정보를 찾을 수 없습니다.');let surveyUrl=await window.wcSurveyLink(app.id);let scheduleStr='미정';if(app.call_time&&app.call_time!=='null'){let ct=String(app.call_time).split(' ');let dateNice='',timeNice='';if(ct[0]&&ct[0].includes('-')){let dp=ct[0].split('-');let dObj=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));let dow=['일','월','화','수','목','금','토'][dObj.getDay()];dateNice=`${parseInt(dp[1])}월 ${parseInt(dp[2])}일(${dow})`;}if(ct[1]&&ct[1].includes(':')){let tp=ct[1].split(':');let h=parseInt(tp[0]),m=tp[1]||'00';let ap=h>=12?'오후':'오전';let h12=h%12||12;timeNice=`${ap} ${h12}:${m}`;}if(dateNice&&timeNice)scheduleStr=`${dateNice}, ${timeNice}`;else if(dateNice)scheduleStr=dateNice;else scheduleStr=app.call_time;}let msg=`안녕하세요 ${app?.name||''}님, 통화했던 위커피 운영팀입니다 :)\n상담일정은 ${scheduleStr} 입니다.\n\n오시기 전에 아래 링크의 설문을 작성해주시길 부탁드립니다.\n\n[Wecoffee 주소]\n마포 센터: 서울 마포구 월드컵북로 41 301호\n광진 센터: 서울 광진구 능동로36길 18 3층\n\n*센터 내 지정 주차 공간은 마련되어 있지 않습니다.\n차량으로 방문하실 경우 인근의 공영 주차장 이용을 부탁드립니다.\n\n[상담 전 작성설문]\n${surveyUrl}\n\n[상담 전 홈페이지 내용을 꼼꼼히 숙지해주세요]\nwww.wecoffee.co.kr`;window.copyTxt(msg,'상담 안내 메시지가 복사되었습니다.');};
 window.saveAdminNote=async function(){if(!$("crmAppId"))return;const id=$("crmAppId").value;const app=globalApps.find(a=>String(a.id)===String(id));if(!app){showToast("신청 정보를 찾을 수 없습니다.");return;}const content=$("crmNoteInput")?$("crmNoteInput").value.trim():"";if(!content)return showToast("내용을 입력해주세요.");let now=new Date();let h=now.getHours(),mi=now.getMinutes();let ap=h>=12?'오후':'오전';let h12=h%12||12;let dateLabel=`${now.getMonth()+1}/${now.getDate()} ${ap} ${h12}:${String(mi).padStart(2,'0')}`;const newNote=`${dateLabel}:::${content}`;let updatedMemo=app.admin_memo?app.admin_memo+'|||'+newNote:newNote;const originalMemo=app.admin_memo;app.admin_memo=updatedMemo;window.renderCrmInner(id,isCrmReadOnly);const{error}=await supabaseClient.from('applications').update({admin_memo:updatedMemo}).eq('id',id);if(error){app.admin_memo=originalMemo;window.renderCrmInner(id,isCrmReadOnly);showToast("기록 추가에 실패했습니다.");console.error(error);}else{showToast("상담 기록이 추가되었습니다.");}}
 window.openCrmModalFromPhone=async function(phone){if(!phone||phone==='-')return showToast("연락처 정보가 없어 설문 내역을 찾을 수 없습니다.");const targetDigits=String(phone).replace(/\D/g,'');let app=globalApps.find(a=>window.samePhone(a.phone,phone));if(app){window.openCrmModal(app.id,true);}else{showToast("내역을 불러오는 중입니다...");const last4=targetDigits.slice(-4);if(last4.length<4){showToast("연락처 정보가 충분하지 않아 검색할 수 없습니다.");return;}const{data,error}=await supabaseClient.from('applications').select('*').ilike('phone',`%${last4}`).limit(50);if(!error&&data){let matched=data.find(a=>window.samePhone(a.phone,phone));if(matched){if(!globalApps.find(a=>String(a.id)===String(matched.id)))globalApps.push(matched);window.openCrmModal(matched.id,true);return;}}showToast("해당 멤버의 가입 신청/설문 내역을 찾을 수 없습니다.");}};
@@ -1518,6 +1518,9 @@ window.showInvoiceLogs=async function(){let body=document.getElementById('invoic
 window.restoreInvoiceMain=function(){let body=document.getElementById('invoiceModalBody');let footer=document.getElementById('invoiceModalFooter');if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;if(footer)footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;};
 window.ensureInvoiceButton=function(){if(document.getElementById('invoiceBtn'))return;let btns=document.querySelectorAll('button,.btn');let summaryBtn=Array.from(btns).find(b=>b.textContent.includes('발주 요약'));if(summaryBtn&&summaryBtn.parentNode){let wrapper=document.createElement('div');wrapper.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';summaryBtn.parentNode.insertBefore(wrapper,summaryBtn);wrapper.appendChild(summaryBtn);let invoiceBtn=document.createElement('button');invoiceBtn.id='invoiceBtn';invoiceBtn.style.cssText='padding:10px 16px;font-size:14px;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;transition:0.15s;white-space:nowrap;height:38px;display:inline-flex;align-items:center;justify-content:center;';invoiceBtn.textContent='명세서';invoiceBtn.onmouseover=function(){this.style.opacity='0.9';};invoiceBtn.onmouseout=function(){this.style.opacity='1';};invoiceBtn.onclick=function(){window.showInvoiceModal();};wrapper.appendChild(invoiceBtn);}};
 // ★ 신/구 데이터 통합 인사이트 로직 (문자열 파싱 없이 컬럼 직접 추출)
+//   변경점: ① 유입경로 하위 기간 + 인지 기간 시간순 정렬  ② 기간 라벨/유입경로 띄어쓰기 정규화(중복 병합)
+//           ③ '기타 + 직접입력 사유' → 사유를 채널 자체로 승격(블랙워터이슈 등 각각 자기 줄), 사유 없으면 '기타'
+//           ④ 이탈 분석 카드에 '상담자별 이탈 단계'(연락 후/상담 후/연락 두절) 추가
 window.renderStatistics = function(data) {
     if (!$("statsContainer")) return;
     const container = $("statsContainer");
@@ -1528,6 +1531,23 @@ window.renderStatistics = function(data) {
         if ($("insightSummaryText")) $("insightSummaryText").innerHTML = "<div style='padding:16px;'>데이터가 부족합니다.</div>";
         return;
     }
+    // ── 기간·채널 정규화 헬퍼 ──
+    function durRank(s){
+        var t = String(s||'').replace(/\s+/g,'');
+        if(/(일주일|1주|한주)/.test(t)) return 1;
+        if(/(1개월|한달|1달)/.test(t)) return 2;
+        if(/3개월/.test(t)) return 3;
+        if(/6개월/.test(t)) return 4;
+        if(/1년이내/.test(t)) return 5;
+        if(/(1년이상|1년\+|1년넘)/.test(t)) return 6;
+        return 99;
+    }
+    function durLabel(s){
+        var r = durRank(s);
+        var map = {1:'일주일 이내',2:'1개월 이내',3:'3개월 이내',4:'6개월 이내',5:'1년 이내',6:'1년 이상'};
+        return map[r] || String(s||'').trim();
+    }
+    function normChannel(s){ return String(s||'').trim().replace(/\s+/g,' ').replace(/\s*·\s*/g,'·'); }
     if (!document.getElementById('wc-insight-anim')) {
         const s = document.createElement('style');
         s.id = 'wc-insight-anim';
@@ -1560,6 +1580,8 @@ window.renderStatistics = function(data) {
 .ins-section-title{font-size:11px;font-weight:700;color:var(--text-tertiary);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px;}
 .ins-counselor-item{margin-bottom:14px;}
 .ins-counselor-item:last-child{margin-bottom:0;}
+.ins-stage-row{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:7px;}
+.ins-stage-chip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:7px;white-space:nowrap;}
 @media(max-width:900px){
   .ins-num-row{grid-template-columns:repeat(2,1fr);}
   .ins-2col{grid-template-columns:1fr;}
@@ -1583,6 +1605,8 @@ window.renderStatistics = function(data) {
     const preCounselRate = contacted > 0 ? Math.round((stage1 / contacted) * 100) : 0;
     const postCounselRate = counseled > 0 ? Math.round((stage2 / counseled) * 100) : 0;
     const counselorMap = {};
+    // ④ 상담자별 이탈 '단계' 집계 (연락 후 미가입 / 상담 후 미가입 / 연락 두절)
+    const counselorStageMap = {};
     data.forEach(d => {
         const cn = (d.counselor_name && d.counselor_name !== 'null' && d.counselor_name.trim()) ? d.counselor_name.trim() : '미지정';
         if (!counselorMap[cn]) counselorMap[cn] = { total: 0, joined: 0, dropout: 0, pending: 0 };
@@ -1590,40 +1614,46 @@ window.renderStatistics = function(data) {
         if (d.join_status === '가입 완료') counselorMap[cn].joined++;
         else if (['연락 후 미가입', '상담 후 미가입', '연락 두절'].includes(d.join_status)) counselorMap[cn].dropout++;
         else counselorMap[cn].pending++;
+        if (!counselorStageMap[cn]) counselorStageMap[cn] = { pre: 0, post: 0, ghost: 0 };
+        if (d.join_status === '연락 후 미가입') counselorStageMap[cn].pre++;
+        else if (d.join_status === '상담 후 미가입') counselorStageMap[cn].post++;
+        else if (d.join_status === '연락 두절' || d.status === '연락 두절') counselorStageMap[cn].ghost++;
     });
     const counselorList = Object.entries(counselorMap).filter(([k]) => k !== '미지정').sort((a, b) => (b[1].joined / (b[1].total||1)) - (a[1].joined / (a[1].total||1)));
     let channelMap = {};
     let safeData = { instaFollow: 0, instaNonFollow: 0, adNow: 0, leadTime3M: 0 };
-    
+
     data.forEach(d => {
         // ★ 신규 컬럼에서 읽고, 없으면 구 컬럼에서 읽기
         let rawChannel = String(d.survey_channel || d.acquisition_channel || '기타');
         let rawDuration = String(d.survey_duration || d.known_duration || '');
-        let ch = rawChannel.startsWith('기타') ? '기타' : rawChannel;
-        let etc = '';
-        if (rawChannel.startsWith('기타')) { 
-            let ci = rawChannel.indexOf(':'); 
-            if (ci > -1) { ch = '기타'; etc = rawChannel.substring(ci + 1).trim(); } 
-        }
+        // ③ '기타 + 직접입력 사유'는 사유를 채널 자체로 승격(블랙워터이슈 등 각각 자기 줄) / 사유 없으면 '기타'
+        let ch;
+        if (rawChannel.indexOf('기타') === 0) {
+            let reason = String(d.survey_channel_etc || d.channel_etc || d.acquisition_channel_etc || '').trim();
+            if (!reason) reason = rawChannel.replace(/^기타\s*[:\-(（]?\s*/, '').replace(/[)）]\s*$/, '').trim();
+            ch = reason || '기타';
+        } else { ch = rawChannel; }
+        ch = normChannel(ch);   // ② 띄어쓰기·중점 정규화 → 중복 병합
         if (!channelMap[ch]) channelMap[ch] = { total: 0, details: {} };
         channelMap[ch].total++;
         let det = '';
         if (ch === '인스타그램') {
             if (d.survey_channel) { // 신규 폼
-                det = rawDuration;
+                det = durLabel(rawDuration);
             } else { // 구버전 폼
-                if (d.is_follow === '네, 팔로우하고 있어요') safeData.instaFollow++; 
+                if (d.is_follow === '네, 팔로우하고 있어요') safeData.instaFollow++;
                 else if (d.is_follow) safeData.instaNonFollow++;
                 det = d.follow_duration || d.is_follow || '';
             }
         } else if (ch === '광고') {
             det = rawDuration || d.ad_duration || '';
-            if (det === '최근 일주일 이내' || det === '한 달 이내' || det === '1개월 이내') safeData.adNow++;
-            else if (det === '3개월 이내' || det === '6개월 이내' || det === '1년 이내' || det === '1년 이상') safeData.leadTime3M++;
-        } else if (ch === '기타') {
-            det = etc || rawDuration;
+            let dr = durRank(det);
+            if (dr === 1 || dr === 2) safeData.adNow++;
+            else if (dr >= 3 && dr <= 6) safeData.leadTime3M++;
+            det = durLabel(det);
         } else {
-            det = rawDuration; 
+            det = durLabel(rawDuration);
         }
         if (det) channelMap[ch].details[det] = (channelMap[ch].details[det] || 0) + 1;
     });
@@ -1632,9 +1662,9 @@ window.renderStatistics = function(data) {
         let rawInterest = d.survey_goal || d.interest_area || '';
         if (rawInterest) {
             String(rawInterest).split(',').map(s => s.trim()).filter(Boolean).forEach(v => {
-                if (v.startsWith('기타')) { 
-                    let ci = v.indexOf('('); 
-                    interestAll.push(ci > -1 ? '기타' : v); 
+                if (v.startsWith('기타')) {
+                    let ci = v.indexOf('(');
+                    interestAll.push(ci > -1 ? '기타' : v);
                 }
                 else interestAll.push(v);
             });
@@ -1642,8 +1672,8 @@ window.renderStatistics = function(data) {
     });
     function getFrequency(arr) { return Object.entries(arr.reduce((acc, val) => { if (val) acc[val] = (acc[val] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1]); }
     const interestData = getFrequency(interestAll);
-    // ★ 인지 기간 통합 추출
-    const knownDurData = getFrequency(data.map(d => d.survey_duration || d.known_duration || '').filter(Boolean));
+    // ★ 인지 기간 통합 추출 + 정규화 + 시간순 정렬
+    const knownDurData = getFrequency(data.map(d => (d.survey_duration || d.known_duration || '')).filter(Boolean).map(durLabel)).sort((a, b) => durRank(a[0]) - durRank(b[0]));
     const instaCount = channelMap['인스타그램'] ? channelMap['인스타그램'].total : 0;
     const adCount = channelMap['광고'] ? channelMap['광고'].total : 0;
     const instaTotal = safeData.instaFollow + safeData.instaNonFollow;
@@ -1669,6 +1699,21 @@ ${funnelSteps.map((st, i) => `<div class="ins-funnel-step">
 </div>`;
     const preColor = preCounselRate >= 20 ? 'var(--error)' : (preCounselRate >= 10 ? '#f59e0b' : 'var(--text-display)');
     const postColor = postCounselRate >= 30 ? 'var(--error)' : (postCounselRate >= 15 ? '#f59e0b' : 'var(--text-display)');
+    // ④ 상담자별 이탈 단계 (이탈 분석 안 · 어느 단계에서 놓쳤나)
+    const stageRows = Object.entries(counselorStageMap)
+        .map(([nm, s]) => ({ nm, pre: s.pre, post: s.post, ghost: s.ghost, tot: s.pre + s.post + s.ghost }))
+        .filter(x => x.tot > 0)
+        .sort((a, b) => b.tot - a.tot);
+    const stageChipsHtml = (x) => {
+        const c = [];
+        if (x.post) c.push('<span class="ins-stage-chip" style="color:#d63b40;background:#fef1f1;">상담 후 ' + x.post + '</span>');
+        if (x.pre) c.push('<span class="ins-stage-chip" style="color:#c2410c;background:#fff2e6;">연락 후 ' + x.pre + '</span>');
+        if (x.ghost) c.push('<span class="ins-stage-chip" style="color:#8b95a1;background:#f2f4f6;">연락 두절 ' + x.ghost + '</span>');
+        return c.join('');
+    };
+    const dropStageHtml = stageRows.length
+        ? stageRows.map(x => '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #f2f4f6;"><span style="font-size:13px;font-weight:700;color:var(--text-display);flex-shrink:0;">' + window.escapeHtml(x.nm) + '</span><span class="ins-stage-row" style="justify-content:flex-end;margin-top:0;">' + stageChipsHtml(x) + '</span></div>').join('')
+        : '<div style="padding:12px 0;text-align:center;color:var(--text-tertiary);font-size:12.5px;">이탈 건이 없습니다.</div>';
     const zoneDropout = `<div class="ins-card wc-fade" style="animation-delay:0.1s;">
 <div class="ins-section-title">이탈 분석</div>
 <div class="ins-dropout-grid">
@@ -1676,7 +1721,11 @@ ${funnelSteps.map((st, i) => `<div class="ins-funnel-step">
 <div class="ins-dropout-cell"><div class="ins-label">상담 후 이탈률</div><div style="font-size:32px;font-weight:900;color:${postColor};line-height:1;">${postCounselRate}<span style="font-size:16px;">%</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">상담 완료자 ${counseled}명 기준</div><div style="font-size:12px;color:var(--text-secondary);">상담 후 미가입 ${stage2}명</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${postCounselRate}%;background:${postColor};animation-delay:0.5s;"></div></div></div>
 <div class="ins-dropout-cell"><div class="ins-label">연락 두절</div><div style="font-size:32px;font-weight:900;color:var(--text-tertiary);line-height:1;">${ghostCount}<span style="font-size:16px;">명</span></div><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">이탈률에 미포함</div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${total > 0 ? Math.round(ghostCount/total*100) : 0}%;background:#b4b2a9;animation-delay:0.6s;"></div></div></div>
 </div>
-</div></div>`;
+<div style="margin-top:18px;">
+<div class="ins-label" style="margin-bottom:2px;">상담자별 이탈 단계 <span style="font-weight:500;color:var(--text-tertiary);">· 어느 단계에서 놓쳤나</span></div>
+${dropStageHtml}
+</div>
+</div>`;
     const counselorHtml = counselorList.length > 0 ? counselorList.map(([name, stats], i) => {
         const jp = stats.total > 0 ? Math.round((stats.joined / stats.total) * 100) : 0;
         const dp = stats.total > 0 ? Math.round((stats.dropout / stats.total) * 100) : 0;
@@ -1692,8 +1741,9 @@ ${counselorHtml}
         const ch = item[0], ct = item[1].total;
         const pct = total > 0 ? Math.round((ct / total) * 100) : 0;
         const opacity = i === 0 ? 1 : i === 1 ? 0.75 : 0.5;
-        const dets = Object.entries(item[1].details).sort((a, b) => b[1] - a[1]);
-        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">${ch}</span><span style="color:var(--text-secondary);">${ct}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:rgba(255,121,0,${opacity});animation-delay:${0.3+i*0.07}s;"></div></div>${dets.slice(0,4).map(det=>`<div class="ins-sub-item"><div class="ins-sub-label"><span>ㄴ ${window.escapeHtml(det[0])}</span><span>${det[1]}건</span></div></div>`).join('')}</div>`;
+        // ① 하위 기간 시간순 정렬
+        const dets = Object.entries(item[1].details).sort((a, b) => { var ra = durRank(a[0]), rb = durRank(b[0]); if (ra !== rb) return ra - rb; return b[1] - a[1]; });
+        return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">${ch}</span><span style="color:var(--text-secondary);">${ct}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:rgba(255,121,0,${opacity});animation-delay:${0.3+i*0.07}s;"></div></div>${dets.slice(0,5).map(det=>`<div class="ins-sub-item"><div class="ins-sub-label"><span>ㄴ ${window.escapeHtml(det[0])}</span><span>${det[1]}건</span></div></div>`).join('')}</div>`;
     }).join('');
     const interestHtml = interestData.slice(0, 6).map((item, i) => {
         const pct = total > 0 ? Math.round((item[1] / total) * 100) : 0;
@@ -1730,7 +1780,7 @@ ${knownHtml.length > 0 ? knownHtml : '<div style="font-size:13px;color:var(--tex
         instaCount, adCount,
         instaFollow: safeData.instaFollow, instaNonFollow: safeData.instaNonFollow,
         leadTime1M: safeData.adNow, leadTime3M: safeData.leadTime3M,
-        channelMap, counselorMap, knownDurData
+        channelMap, counselorMap, counselorStageMap, knownDurData
     };
 };
 // ★ 신규 폼 데이터 추출 로직을 반영한 엑셀 다운로드
@@ -1738,10 +1788,11 @@ window.downloadExcel = function(type) {
     try {
         if(type === 'applications' && typeof isInsightView !== 'undefined' && isInsightView) {
             const d = window.currentInsightData || {};
-            let csv = "\uFEFF카테고리,세부 항목,수치,비고\n";
+            let csv = "﻿카테고리,세부 항목,수치,비고\n";
             csv += `전체 요약,총 신청 건수,${d.total||0}건,-\n`;csv += `전체 요약,최종 가입 완료,${d.joined||0}건,(전환율 ${d.total>0?Math.round(d.joined/d.total*100):0}%)\n`;csv += `전체 요약,실질 이탈률,${d.realDropoutRate||0}%,(이탈자 ${d.dropoutCount||0}명)\n`;csv += `유입 채널,인스타그램 총 유입,${d.instaCount||0}건,-\n`;csv += `인스타 상세,팔로워 유입,${d.instaFollow||0}건,-\n`;csv += `인스타 상세,비팔로워 유입,${d.instaNonFollow||0}건,-\n`;csv += `유입 채널,모집 광고/스폰서드 유입,${d.adCount||0}건,-\n`;csv += `광고 리드타임,단기 유입 (1개월 이내),${d.leadTime1M||0}건,-\n`;csv += `광고 리드타임,장기 유입 (3개월 이상),${d.leadTime3M||0}건,-\n`;
             if(d.knownDurData&&d.knownDurData.length>0){csv+=`\n인지 기간 분포,기간,건수,비고\n`;d.knownDurData.forEach(k=>{csv+=`인지 기간,${k[0]},${k[1]}건,-\n`;});}
             if(d.counselorMap){csv+=`\n상담자별 가입/이탈,상담자,건수,비고\n`;for(let cn in d.counselorMap){let cd=d.counselorMap[cn];if(cn==='미지정')continue;let rate=cd.total>0?Math.round(cd.joined/cd.total*100):0;csv+=`[${cn}],담당 총 ${cd.total}명,${cd.joined}명 가입 / ${cd.dropout}명 이탈,(가입률 ${rate}%)\n`;}}
+            if(d.counselorStageMap){csv+=`\n상담자별 이탈 단계,상담자,단계,건수\n`;for(let cn in d.counselorStageMap){let sm=d.counselorStageMap[cn];if((sm.pre+sm.post+sm.ghost)===0)continue;if(sm.post)csv+=`[${cn}],상담 후 미가입,${sm.post}건,\n`;if(sm.pre)csv+=`[${cn}],연락 후 미가입,${sm.pre}건,\n`;if(sm.ghost)csv+=`[${cn}],연락 두절,${sm.ghost}건,\n`;}}
             if(d.channelMap){csv+=`\n상세 채널별 트래킹,상세 내역,건수,비고\n`;for(let ch in d.channelMap){let chData=d.channelMap[ch];csv+=`[${ch}],(총 ${chData.total}건),-,-\n`;for(let det in chData.details){let detSafe=String(det).replace(/"/g,'""');csv+=`ㄴ,${detSafe},${chData.details[det]}건,-\n`;}}}
             const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=`위커피_인사이트_마케팅_보고서_${new Date().toISOString().slice(0,10)}.csv`;link.click();return;
         }
@@ -1756,14 +1807,14 @@ window.downloadExcel = function(type) {
         else if(type==='trainings'){data=Array.isArray(window.currentFilteredTrn)?window.currentFilteredTrn:gTrn;filename="수업훈련";headers=['신청일','기수','성함','연락처','콘텐츠','상태','취소사유'];}
         else if(type==='orders'){const now=new Date();const qOrd=($("searchOrd")?.value||"").toLowerCase();const vOrd=$("ordVendorFilter")?.value||"전체";const isOrdFilter=$("filterPendingOrd")?.checked;data=gOrd.filter(o=>{const matchCenter=(currentGlobalCenter==='전체'||o.center===currentGlobalCenter);const matchQ=`${o.name} ${o.phone} ${o.vendor} ${o.item_name} ${o.center||''}`.toLowerCase().includes(qOrd);const matchV=(vOrd==='전체')?true:o.vendor===vOrd;const matchS=isOrdFilter?(o.status==='주문 접수'):true;const notExpired=isOrdFilter?true:(typeof window.isOrderExpired==='function'?!window.isOrderExpired(o,now):true);return matchCenter&&matchQ&&matchV&&matchS&&notExpired;});filename="생두주문";headers=['주문일','주문번호','기수','성함','연락처','생두사','상품명','수량','총금액','상태'];}
         if(!data||data.length===0){if(typeof showToast==='function')showToast('다운로드할 데이터가 없습니다.');return;}
-        let csvContent='\uFEFF'+headers.join(',')+'\n';
+        let csvContent='﻿'+headers.join(',')+'\n';
         data.forEach(d=>{
             let row=[];const phoneOut=window.normalizePhone(d.phone)||d.phone||'';
             if(type==='applications'){
                 let parsedChannel = d.survey_channel || d.acquisition_channel || '';
                 let parsedDuration = d.survey_duration || d.known_duration || '';
                 let parsedInterest = d.survey_goal || d.interest_area || '';
-                
+
                 row=[formatDt(d.created_at),d.desired_batch,d.name,phoneOut,parsedInterest,window.mapInterestLevel(d.interest_level),parsedChannel,parsedDuration,d.status,d.join_status,d.call_time,d.counselor_name];
             }
             else if(type==='members')row=[formatDt(d.created_at),d.status,d.batch,d.name,phoneOut,d.end_date];
