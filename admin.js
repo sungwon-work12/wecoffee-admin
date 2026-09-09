@@ -4378,7 +4378,7 @@ window.hideCalibration = async function() {
     var key = cnKey(scope, ctx.sessionId, ctx.beanId, ctx.refId);
     var listId = "cnL_" + key, taId = "cnT_" + key;
     var addArgs = "'" + scope + "','" + cq(phone) + "','" + cq(name) + "','" + cq(ctx.sessionId) + "','" + cq(ctx.beanId) + "','" + cq(ctx.refId) + "'";
-    var ph = opts.ph || (scope === "member" ? "멤버 누적 코칭 로그 (성장 관점)" : "코멘트 입력");
+    var ph = opts.ph || (scope === "member" ? "이 멤버의 성장 과정과 코칭 포인트를 기록하세요" : "코멘트 입력");
     var mb = opts.mb || "0";
     var labelAttr = opts.label ? ' data-label="' + esc(opts.label) + '"' : '';
     return '<div style="border:1px solid var(--border-strong,#e5e8eb);border-radius:12px;padding:12px 14px;margin-bottom:' + mb + ';background:#fbfcfd;">' +
@@ -4428,7 +4428,7 @@ window.hideCalibration = async function() {
     try {
       var r = await _cnFilter(scope, phone, sessionId, beanId, refId); if (r.error) throw r.error;
       var rows = r.data || [];
-      if (!rows.length) { el.innerHTML = '<div style="color:#b0b8c1;font-size:12.5px;padding:2px 0;">' + (scope === "member" ? "아직 코칭 로그가 없습니다." : "아직 코멘트이 없습니다.") + '</div>'; return; }
+      if (!rows.length) { el.innerHTML = '<div style="color:#b0b8c1;font-size:12.5px;padding:2px 0;">' + (scope === "member" ? "아직 코칭 로그가 없습니다." : "아직 코멘트가 없습니다.") + '</div>'; return; }
       el.innerHTML = rows.map(function (n) {
         var ctxArgs = "'" + scope + "','" + cq(phone) + "','" + cq(sessionId) + "','" + cq(beanId) + "','" + cq(refId) + "'";
         var vis = !!n.visible;
@@ -4441,7 +4441,7 @@ window.hideCalibration = async function() {
           '<div style="font-size:13.5px;color:#191f28;white-space:pre-wrap;line-height:1.55;">' + esc(n.note) + '</div>' +
         '</div>';
       }).join("");
-    } catch (e) { console.warn("[coach] 로드 실패", e); el.innerHTML = '<div style="color:#e5484d;font-size:12.5px;">코멘트을 불러오지 못했습니다.</div>'; }
+    } catch (e) { console.warn("[coach] 로드 실패", e); el.innerHTML = '<div style="color:#e5484d;font-size:12.5px;">코멘트를 불러오지 못했습니다.</div>'; }
   };
   window.memCoachAdd = async function (scope, phone, name, sessionId, beanId, refId) {
     var key = cnKey(scope, sessionId, beanId, refId);
