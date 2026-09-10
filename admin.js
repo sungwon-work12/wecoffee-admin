@@ -5022,12 +5022,13 @@ window.hideCalibration = async function() {
 /* ═══ 커핑 11 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
-   WeCoffee Admin · 커핑 12 — 멤버 성장 랭킹 (②)   ※ 기존 커핑9(평가 모드 설정)와 별개 · 새 블록으로 추가
+   WeCoffee Admin · 커핑 12 — 멤버 성장 현황 (②)   ※ 기존 커핑9(평가 모드 설정)와 별개 · 새 블록으로 추가
    coach_notes(역량+점수) + 센서리 객관 편차(member_sensory_series RPC)를
    멤버별로 모아 역량(센서리·로스팅·추출) 개선폭 → 종합 성장 스코어로 랭킹.
    · 개선폭(주) + 현재수준(보조) + 활동 꾸준함(아주 작게)
    · 각 역량 최소 3포인트 있어야 반영(한 방 고득점 방지)
-   · 진입: 멤버 영역에 '성장 랭킹' 버튼 주입 + window.wcGrowthRankOpen()
+   · 진입: 멤버 리스트 툴바에 '성장 현황' 버튼 주입 → #page-members 안에서
+     리스트↔성장 현황 인페이지 전환('← 멤버 리스트'로 복귀). window.wcGrowthRankOpen()도 가능
    의존: supabaseClient. 서버: coach_notes(v7) + member_sensory_series RPC.
    ═══════════════════════════════════════════════════════════ */
 (function () {
@@ -5296,7 +5297,7 @@ window.hideCalibration = async function() {
     var opts = '<option value="all">전체 기수</option>' + _batchList.map(function (b) {
       return '<option value="' + esc(b) + '"' + (_batchFilter === b ? ' selected' : '') + '>' + esc(batchLabel(b)) + '</option>';
     }).join("");
-    var seg = [["all", "전체"], ["센서리", "센서리"], ["로스팅", "로스팅"], ["추출", "추출"]].map(function (o) {
+    var seg = [["all", "종합"], ["센서리", "센서리"], ["로스팅", "로스팅"], ["추출", "추출"]].map(function (o) {
       var on = _skillFilter === o[0];
       return '<button type="button" data-skill="' + o[0] + '" style="border:none;background:' + (on ? "#fff" : "transparent") + ';color:' + (on ? "#191f28" : "#8b95a1") + ';padding:6px 12px;font-size:12.5px;font-weight:800;border-radius:7px;cursor:pointer;' + (on ? "box-shadow:0 1px 3px rgba(0,0,0,.08);" : "") + '">' + o[1] + '</button>';
     }).join("");
@@ -5328,25 +5329,36 @@ window.hideCalibration = async function() {
   };
   function repaint() { var body = _$("wcGrowthBody"); if (body) body.innerHTML = window.wcGrowthRankRender(); }
 
-  function overlay() {
-    var ov = _$("wcGrowthOv");
-    if (ov) return ov;
-    ov = document.createElement("div");
-    ov.id = "wcGrowthOv";
-    ov.style.cssText = "position:fixed;inset:0;z-index:2147482000;background:rgba(25,31,40,.5);display:none;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto;-webkit-overflow-scrolling:touch;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;";
-    ov.addEventListener("click", function (e) { if (e.target === ov) window.wcGrowthRankClose(); });
-    ov.innerHTML =
-      '<div style="width:100%;max-width:560px;background:#fff;border-radius:20px;box-shadow:0 20px 60px rgba(25,31,40,.24);overflow:hidden;margin:auto 0;">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:20px 20px 16px;border-bottom:1px solid #f0f1f3;">' +
-          '<div><div style="font-size:11.5px;font-weight:700;color:#ff7900;">멤버 성장</div>' +
-            '<div style="font-size:19px;font-weight:800;color:#191f28;">성장 랭킹</div></div>' +
-          '<button type="button" onclick="window.wcGrowthRankClose()" style="width:34px;height:34px;border-radius:10px;border:none;background:#f2f4f6;color:#4e5968;font-size:17px;cursor:pointer;">×</button>' +
-        '</div>' +
-        '<div id="wcGrowthBody" style="padding:18px 18px 24px;max-height:calc(100vh - 200px);overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>' +
-      '</div>';
-    document.body.appendChild(ov);
+  /* ═══ 인페이지 뷰 — 멤버 페이지(#page-members) 안에서 리스트 ↔ 성장 현황 전환 ═══ */
+  function ensureStyle() {
+    if (_$("wcGrowthStyle")) return;
+    var st = document.createElement("style");
+    st.id = "wcGrowthStyle";
+    // 성장 뷰 켜지면 #page-members 의 원래 자식(리스트/필터/페이지네이션)은 감추고 성장 페이지만 표시
+    st.textContent =
+      "#page-members.wc-gv > :not(#wcGrowthPage){display:none!important;}" +
+      "#wcGrowthPage{display:none;}" +
+      "#page-members.wc-gv #wcGrowthPage{display:block;}";
+    document.head.appendChild(st);
+  }
+  function pageEl() {
+    var p = _$("wcGrowthPage");
+    if (p) return p;
+    var host = document.getElementById("page-members");
+    if (!host) return null;
+    p = document.createElement("div");
+    p.id = "wcGrowthPage";
+    p.style.cssText = "font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;";
+    p.innerHTML =
+      '<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">' +
+        '<button type="button" onclick="window.wcGrowthRankClose()" style="height:36px;padding:0 14px;border:1px solid #e5e8eb;border-radius:10px;background:#fff;color:#4e5968;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;">← 멤버 리스트</button>' +
+        '<div><div style="font-size:11.5px;font-weight:700;color:#ff7900;">멤버 성장</div>' +
+          '<div style="font-size:20px;font-weight:800;color:#191f28;">성장 현황</div></div>' +
+      '</div>' +
+      '<div id="wcGrowthBody"></div>';
+    host.appendChild(p);
     // 역량 필터(세그먼트) · 카드 펼침 위임
-    ov.addEventListener("click", function (e) {
+    p.addEventListener("click", function (e) {
       var seg = e.target.closest && e.target.closest("[data-skill]");
       if (seg) { _skillFilter = seg.getAttribute("data-skill"); repaint(); return; }
       var head = e.target.closest && e.target.closest(".wcgr-head"); if (!head) return;
@@ -5357,14 +5369,22 @@ window.hideCalibration = async function() {
       var chev = card.querySelector(".wcgr-chev"); if (chev) chev.style.transform = open ? "rotate(180deg)" : "";
     });
     // 기수 필터
-    ov.addEventListener("change", function (e) {
+    p.addEventListener("change", function (e) {
       if (e.target && e.target.id === "wcGrowthBatch") { _batchFilter = e.target.value; repaint(); }
     });
-    return ov;
+    return p;
   }
-  window.wcGrowthRankClose = function () { var ov = _$("wcGrowthOv"); if (ov) ov.style.display = "none"; };
+  window.wcGrowthRankClose = function () {
+    var host = document.getElementById("page-members");
+    if (host) host.classList.remove("wc-gv");
+  };
   window.wcGrowthRankOpen = async function () {
-    var ov = overlay(); ov.style.display = "flex";
+    ensureStyle();
+    var host = document.getElementById("page-members");
+    var p = pageEl();
+    if (!host || !p) { console.warn("[growth] #page-members 없음 — 멤버 페이지에서 열어주세요"); return; }
+    host.classList.add("wc-gv");
+    try { window.scrollTo(0, 0); } catch (e) {}
     var body = _$("wcGrowthBody"); if (body) body.innerHTML = '<div style="padding:40px 0;text-align:center;color:#8b95a1;font-size:13px;">성장 데이터 불러오는 중…</div>';
     try {
       var d = await loadData();
@@ -5383,29 +5403,46 @@ window.hideCalibration = async function() {
     }
   };
 
-  /* ═══ 진입 버튼 주입 (멤버 영역 · 최선노력, 실패해도 window.wcGrowthRankOpen()로 호출 가능) ═══ */
+  /* ═══ 진입 버튼 주입(멤버 리스트 툴바) + 리스트 복귀 훅 ═══ */
   function injectTrigger() {
     if (_$("wcGrowthBtn")) return true;
-    // 후보: 멤버 리스트 툴바/헤더 근처. data-tab="members" 또는 '멤버' 텍스트 헤딩.
-    var anchor = document.querySelector('[data-growth-anchor]')
-      || document.querySelector('#membersToolbar, .members-toolbar, #memberListHead');
-    if (!anchor) {
-      var heads = document.querySelectorAll("h1,h2,h3,.section-title,.page-title");
-      for (var i = 0; i < heads.length; i++) { if (/멤버/.test(heads[i].textContent || "")) { anchor = heads[i].parentElement || heads[i]; break; } }
-    }
-    if (!anchor) return false;
+    var host = document.getElementById("page-members");
+    if (!host) return false;
+    var anchor = host.querySelector(".filter-wrap") || host.querySelector(".page-header") || host;
     var btn = document.createElement("button");
     btn.id = "wcGrowthBtn";
     btn.type = "button";
-    btn.textContent = "성장 랭킹";
-    btn.style.cssText = "margin:8px 0;height:38px;padding:0 16px;border:1px solid #ff7900;border-radius:10px;background:#fff;color:#ff7900;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;";
+    btn.textContent = "성장 현황";
+    btn.style.cssText = "height:38px;padding:0 16px;border:1px solid #ff7900;border-radius:10px;background:#fff;color:#ff7900;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;";
     btn.onclick = window.wcGrowthRankOpen;
     anchor.appendChild(btn);
     return true;
   }
+  // 멤버 페이지 재진입·리렌더 시 리스트 뷰로 복귀 + 버튼 재주입(리렌더로 지워질 수 있음)
+  function hookNav() {
+    if (typeof window.fetchMembers === "function" && !window.fetchMembers.__wcgWrapped) {
+      var _fm = window.fetchMembers;
+      window.fetchMembers = function () {
+        var r = _fm.apply(this, arguments);
+        window.wcGrowthRankClose();
+        setTimeout(injectTrigger, 0);
+        return r;
+      };
+      window.fetchMembers.__wcgWrapped = true;
+    }
+    if (typeof window.switchMainTab === "function" && !window.switchMainTab.__wcgWrapped) {
+      var _sm = window.switchMainTab;
+      window.switchMainTab = function () { window.wcGrowthRankClose(); return _sm.apply(this, arguments); };
+      window.switchMainTab.__wcgWrapped = true;
+    }
+  }
   function boot() {
-    if (injectTrigger()) return;
-    var tries = 0, iv = setInterval(function () { if (injectTrigger() || ++tries > 20) clearInterval(iv); }, 500);
+    ensureStyle(); hookNav(); injectTrigger();
+    var tries = 0, iv = setInterval(function () {
+      hookNav();
+      var ok = injectTrigger();
+      if ((ok && window.fetchMembers && window.fetchMembers.__wcgWrapped) || ++tries > 40) clearInterval(iv);
+    }, 400);
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
