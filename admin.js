@@ -5336,8 +5336,7 @@ window.hideCalibration = async function() {
     p.innerHTML =
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">' +
         '<button type="button" onclick="window.wcGrowthRankClose()" style="height:36px;padding:0 14px;border:1px solid var(--border-strong,#e5e8eb);border-radius:10px;background:#fff;color:#4e5968;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;">← 멤버 리스트</button>' +
-        '<div><div style="font-size:11.5px;font-weight:700;color:#ff7900;">멤버 성장</div>' +
-          '<div style="font-size:20px;font-weight:800;color:var(--text-display,#191f28);">성장 현황</div></div>' +
+        '<div style="font-size:20px;font-weight:800;color:var(--text-display,#191f28);">멤버 성장 현황</div>' +
       '</div>' +
       '<div style="background:#fff;border:1px solid var(--border-strong,#e5e8eb);border-radius:16px;padding:20px;box-sizing:border-box;">' +
         '<div id="wcGrowthBody"></div>' +
