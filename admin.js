@@ -5086,7 +5086,7 @@ window.hideCalibration = async function() {
         if (pts.length >= MIN_PTS) {
           var vals = pts.map(function (x) { return Number(x.score); });
           var t2 = trend(vals);
-          if (t2) doms[dom] = { improve: t2.improve, level: t2.recent, early: t2.early, recent: t2.recent, n: t2.n, src: "코치",
+          if (t2) doms[dom] = { improve: t2.improve, level: t2.recent, early: t2.early, recent: t2.recent, n: t2.n, src: "매니저",
             series: pts.map(function (x) { return { v: Number(x.score), at: x.at }; }) };
         }
       });
@@ -5232,7 +5232,10 @@ window.hideCalibration = async function() {
         '<span style="font-size:11px;color:#b0b8c1;font-weight:600;">3회 미만 · 추이 미집계</span></div>';
     }
     var comments = entries.length ? entries.map(cnLine).join("")
-      : '<div style="padding:7px 0 0;font-size:11.5px;color:#c4ccd4;font-weight:600;">코치 코멘트 없음' + (dom === "센서리" && d && d.src === "객관" ? ' · 점수는 커핑 정확도 기반' : '') + '</div>';
+      : '<div style="padding:7px 0 0;font-size:11.5px;color:#c4ccd4;font-weight:600;line-height:1.5;">' +
+        ((dom === "센서리" && d && d.src === "객관")
+          ? '점수는 커핑 정확도로 자동 집계돼요. 교육 매니저 코멘트는 아직 없어요.'
+          : '아직 교육 매니저 코멘트가 없어요.') + '</div>';
     return '<div style="padding:11px 0;border-top:1px solid #f2f4f6;">' + head +
       '<div style="margin-top:6px;padding-left:0;">' + comments + '</div></div>';
   }
@@ -5267,7 +5270,7 @@ window.hideCalibration = async function() {
       '</div>' +
       '<div class="wcgr-detail" style="display:none;padding:0 4px 16px;">' +
         detail +
-        '<div style="margin-top:10px;font-size:10.5px;color:#c4ccd4;line-height:1.5;">개선폭 = 최근 − 초기 구간 평균 · 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span> 커핑 편차 · <span style="color:#ff7900;font-weight:700;">코치</span> 평가 점수</div>' +
+        '<div style="margin-top:10px;font-size:10.5px;color:#c4ccd4;line-height:1.5;">개선폭 = 최근 − 초기 구간 평균 · 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span> 커핑 편차 · <span style="color:#ff7900;font-weight:700;">매니저</span> 평가 점수</div>' +
       '</div></div>';
   }
   function skillQualifies(m) { return _skillFilter === "all" ? m.enough : !!(m.doms && m.doms[_skillFilter]); }
@@ -5297,7 +5300,7 @@ window.hideCalibration = async function() {
       : ('<b style="color:#ff7900;">' + _skillFilter + '</b> 개선폭 순으로 정렬했어요.');
     var h = filterBarHTML() +
       '<div style="font-size:14px;font-weight:700;color:#4e5968;margin-bottom:5px;line-height:1.5;">' + intro + '</div>' +
-      '<div style="font-size:12px;color:#adb5bd;margin-bottom:16px;line-height:1.5;">역량별 3회 이상 평가된 멤버만 · 센서리는 커핑 편차(정확도), 로스팅·추출은 코치 점수</div>';
+      '<div style="font-size:12px;color:#adb5bd;margin-bottom:16px;line-height:1.5;">역량별 3회 이상 평가된 멤버만 · 센서리는 커핑 편차(정확도), 로스팅·추출은 교육 매니저 점수</div>';
     if (!qual.length) h += '<div style="padding:26px 0;text-align:center;color:#8b95a1;font-size:13px;">여기 조건에 맞는 멤버가 아직 없어요. 세션마다 역량·점수를 남기면 3회부터 잡혀요.</div>';
     else { var r = 0; h += qual.map(function (m) { r++; return memberCard(m, r); }).join(""); }
     // 데이터 부족 멤버: 풀카드 대신 접이식 이름 칩(무한 스크롤 방지). 기본 접힘.
