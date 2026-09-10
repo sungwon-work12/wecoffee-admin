@@ -5178,44 +5178,44 @@ window.hideCalibration = async function() {
   }
   // 접힌 행 인라인 역량 델타 (회색 타일 블럭 대신 한 줄 텍스트)
   function domDelta(dom, d) {
-    if (!d) return '<span style="color:#c4ccd4;font-weight:600;">' + dom + '</span>';
-    return '<span style="color:#8b95a1;font-weight:600;">' + dom + ' <b style="color:' + impColor(d.improve) + ';font-weight:800;">' + signed(d.improve) + '</b></span>';
+    if (!d) return '<span style="color:#9aa4b0;font-weight:600;">' + dom + '</span>';
+    return '<span style="color:#5e6b7a;font-weight:700;">' + dom + ' <b style="color:' + impColor(d.improve) + ';font-weight:800;">' + signed(d.improve) + '</b></span>';
   }
   function mmdd(s) { var d = new Date(s); return isNaN(d) ? "" : (String(d.getMonth() + 1).padStart(2, "0") + "." + String(d.getDate()).padStart(2, "0")); }
   function scoreBadge(v) { return '<span style="flex-shrink:0;font-size:10.5px;font-weight:800;color:#ff7900;background:#fff3e9;border-radius:6px;padding:2px 6px;line-height:1.4;">' + v + '/10</span>'; }
   // 코멘트 한 줄: 날짜 · 점수 · 코멘트
   function cnLine(e) {
-    var note = e.note ? esc(e.note) : '<span style="color:#c4ccd4;">코멘트 없음</span>';
+    var note = e.note ? esc(e.note) : '<span style="color:#8b95a1;">코멘트 없음</span>';
     return '<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0 0;">' +
-      '<span style="flex-shrink:0;width:34px;font-size:11px;color:#b0b8c1;font-weight:600;padding-top:2px;">' + mmdd(e.at) + '</span>' +
+      '<span style="flex-shrink:0;width:34px;font-size:11.5px;color:#8b95a1;font-weight:600;padding-top:2px;">' + mmdd(e.at) + '</span>' +
       (e.score != null ? scoreBadge(e.score) : '') +
-      '<span style="flex:1;min-width:0;font-size:12.5px;color:#4e5968;line-height:1.5;word-break:break-word;">' + note + '</span></div>';
+      '<span style="flex:1;min-width:0;font-size:13px;color:#4e5968;line-height:1.55;word-break:break-word;">' + note + '</span></div>';
   }
   // 펼침용 역량 추이 행 (추이 + 코멘트 타임라인)
   function domRow(dom, d, entries) {
     entries = entries || [];
     if (!d && !entries.length) return '<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #f2f4f6;">' +
-      '<span style="width:48px;flex-shrink:0;font-size:12.5px;font-weight:700;color:#b0b8c1;">' + dom + '</span>' +
-      '<span style="font-size:11.5px;color:#c4ccd4;font-weight:600;">평가 없음</span></div>';
+      '<span style="width:48px;flex-shrink:0;font-size:13px;font-weight:700;color:#6b7684;">' + dom + '</span>' +
+      '<span style="font-size:12.5px;color:#8b95a1;font-weight:600;">평가 없음</span></div>';
     var head;
     if (d) {
       var srcColor = d.src === "객관" ? "#3182f6" : "#ff7900";
       head = '<div style="display:flex;align-items:center;gap:12px;">' +
         '<div style="width:48px;flex-shrink:0;"><div style="font-size:12.5px;font-weight:800;color:#191f28;">' + dom + '</div>' +
-          '<div style="font-size:9px;font-weight:700;color:' + srcColor + ';margin-top:2px;">' + d.src + '</div></div>' +
+          '<div style="font-size:10px;font-weight:800;color:' + srcColor + ';margin-top:2px;">' + d.src + '</div></div>' +
         '<span style="flex-shrink:0;">' + spark(d.series, 120, 36) + '</span>' +
         '<span style="flex:1;min-width:0;"></span>' +
         '<span style="flex-shrink:0;text-align:right;">' +
-          '<div style="font-size:12px;color:#8b95a1;font-weight:600;white-space:nowrap;">' + round1(d.early) + ' <span style="color:#c4ccd4;">→</span> <b style="color:#191f28;font-size:13.5px;">' + round1(d.recent) + '</b></div>' +
-          '<div style="font-size:12.5px;font-weight:800;color:' + impColor(d.improve) + ';margin-top:1px;">' + impArrow(d.improve) + ' ' + signed(d.improve) + ' <span style="font-size:10px;color:#b0b8c1;font-weight:600;">· ' + d.n + '회</span></div>' +
+          '<div style="font-size:12.5px;color:#6b7684;font-weight:600;white-space:nowrap;">' + round1(d.early) + ' <span style="color:#b0b8c1;">→</span> <b style="color:#191f28;font-size:13.5px;">' + round1(d.recent) + '</b></div>' +
+          '<div style="font-size:12.5px;font-weight:800;color:' + impColor(d.improve) + ';margin-top:1px;">' + impArrow(d.improve) + ' ' + signed(d.improve) + ' <span style="font-size:11px;color:#8b95a1;font-weight:600;">· ' + d.n + '회</span></div>' +
         '</span></div>';
     } else {
       head = '<div style="display:flex;align-items:center;gap:10px;">' +
         '<span style="width:48px;flex-shrink:0;font-size:12.5px;font-weight:800;color:#191f28;">' + dom + '</span>' +
-        '<span style="font-size:11px;color:#b0b8c1;font-weight:600;">3회 미만 · 추이 미집계</span></div>';
+        '<span style="font-size:12px;color:#8b95a1;font-weight:600;">3회 미만 · 추이 미집계</span></div>';
     }
     var comments = entries.length ? entries.map(cnLine).join("")
-      : '<div style="padding:7px 0 0;font-size:11.5px;color:#c4ccd4;font-weight:600;line-height:1.5;">' +
+      : '<div style="padding:7px 0 0;font-size:12.5px;color:#8b95a1;font-weight:600;line-height:1.55;">' +
         ((dom === "센서리" && d && d.src === "객관")
           ? '점수는 커핑 정확도로 자동 집계돼요. 교육 매니저 코멘트는 아직 없어요.'
           : '아직 교육 매니저 코멘트가 없어요.') + '</div>';
@@ -5229,31 +5229,30 @@ window.hideCalibration = async function() {
     var headLabel = bySkill ? (_skillFilter + " 성장") : "종합 성장";
     var scoreCol = hv == null ? "#b0b8c1" : impColor(hv);
     var scoreTxt = hv == null ? "—" : (hv > 0 ? "+" : "") + (Math.round(hv * 100) / 100);
-    var batchTag = m.batch ? '<span style="font-size:12px;font-weight:600;color:#b0b8c1;margin-right:6px;">' + esc(batchLabel(m.batch)) + '</span>' : '';
+    var batchTag = m.batch ? '<span style="font-size:12px;font-weight:600;color:#8b95a1;margin-right:6px;">' + esc(batchLabel(m.batch)) + '</span>' : '';
     var rankCol = rank === 1 ? "#ff7900" : (rank <= 3 ? "#191f28" : "#c4ccd4");
     var rankHtml = m.enough
       ? '<span style="width:20px;flex-shrink:0;text-align:center;font-size:15px;font-weight:800;color:' + rankCol + ';">' + rank + '</span>'
       : '<span style="width:20px;flex-shrink:0;"></span>';
-    var deltaLine = DOMAINS.map(function (dom) { return domDelta(dom, doms[dom]); }).join('<span style="color:#e5e8eb;margin:0 7px;">·</span>');
+    var deltaLine = DOMAINS.map(function (dom) { return domDelta(dom, doms[dom]); }).join('<span style="color:#cbd2d9;margin:0 7px;">·</span>');
     var ent = m.entries || {};
     var detail = DOMAINS.map(function (dom) { return domRow(dom, doms[dom], ent[dom]); }).join("");
-    // 토스/쏘카식 플랫 리스트 행: 카드 박스·회색 타일 없이 얇은 구분선 + 인라인 텍스트
     return '<div class="wcgr-card" data-phone="' + esc(m.phone) + '" style="border-bottom:1px solid #f2f4f6;">' +
       '<div class="wcgr-head" style="display:flex;align-items:center;gap:13px;padding:15px 4px;cursor:pointer;">' +
         rankHtml +
         '<div style="min-width:0;flex:1;">' +
           '<div style="font-size:15.5px;font-weight:800;color:#191f28;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + batchTag + esc(m.name) + '</div>' +
-          '<div style="font-size:12px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + deltaLine + '</div>' +
+          '<div style="font-size:13px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + deltaLine + '</div>' +
         '</div>' +
         '<div style="text-align:right;flex-shrink:0;">' +
-          '<div style="font-size:10.5px;color:#b0b8c1;font-weight:600;">' + headLabel + '</div>' +
+          '<div style="font-size:11.5px;color:#8b95a1;font-weight:700;">' + headLabel + '</div>' +
           '<div style="font-size:19px;font-weight:800;color:' + scoreCol + ';letter-spacing:-.03em;line-height:1.2;white-space:nowrap;">' + (hv != null ? impArrow(hv) + ' ' : '') + scoreTxt + '</div>' +
         '</div>' +
         '<svg class="wcgr-chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c4ccd4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;transition:transform .18s;"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
       '</div>' +
       '<div class="wcgr-detail" style="display:none;padding:0 4px 16px;">' +
         detail +
-        '<div style="margin-top:10px;font-size:10.5px;color:#c4ccd4;line-height:1.5;">개선폭 = 최근 − 초기 구간 평균 · 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span> 커핑 편차 · <span style="color:#ff7900;font-weight:700;">매니저</span> 평가 점수</div>' +
+        '<div style="margin-top:12px;font-size:11.5px;color:#8b95a1;line-height:1.6;">개선폭 = 최근 − 초기 구간 평균 · 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span> 커핑 편차 · <span style="color:#ff7900;font-weight:700;">매니저</span> 평가 점수</div>' +
       '</div></div>';
   }
   function skillQualifies(m) { return _skillFilter === "all" ? m.enough : !!(m.doms && m.doms[_skillFilter]); }
@@ -5283,7 +5282,7 @@ window.hideCalibration = async function() {
       : ('<b style="color:#ff7900;">' + _skillFilter + '</b> 개선폭 순으로 정렬했어요.');
     var h = filterBarHTML() +
       '<div style="font-size:14px;font-weight:700;color:#4e5968;margin-bottom:5px;line-height:1.5;">' + intro + '</div>' +
-      '<div style="font-size:12px;color:#adb5bd;margin-bottom:16px;line-height:1.5;">역량별 3회 이상 평가된 멤버만 · 센서리는 커핑 편차(정확도), 로스팅·추출은 교육 매니저 점수</div>';
+      '<div style="font-size:13px;color:#6b7684;margin-bottom:16px;line-height:1.6;">역량별 3회 이상 평가된 멤버만 · 센서리는 커핑 편차(정확도), 로스팅·추출은 교육 매니저 점수</div>';
     if (!qual.length) h += '<div style="padding:26px 0;text-align:center;color:#8b95a1;font-size:13px;">여기 조건에 맞는 멤버가 아직 없어요. 세션마다 역량·점수를 남기면 3회부터 잡혀요.</div>';
     else { var r = 0; h += qual.map(function (m) { r++; return memberCard(m, r); }).join(""); }
     // 데이터 부족 멤버: 풀카드 대신 접이식 이름 칩(무한 스크롤 방지). 기본 접힘.
@@ -5295,10 +5294,10 @@ window.hideCalibration = async function() {
       }).join('');
       h += '<div style="margin-top:22px;border-top:1px solid #eef0f3;padding-top:16px;">' +
         '<button type="button" id="wcGrowthFewToggle" onclick="window.wcGrowthToggleFew()" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:none;border:none;cursor:pointer;font-family:inherit;padding:0;">' +
-          '<span style="font-size:13px;font-weight:800;color:#4e5968;">데이터 부족 <span style="font-weight:600;color:#b0b8c1;">· ' + fewLabel + ' ' + few.length + '명</span></span>' +
+          '<span style="font-size:13px;font-weight:800;color:#4e5968;">데이터 부족 <span style="font-weight:600;color:#8b95a1;">· ' + fewLabel + ' ' + few.length + '명</span></span>' +
           '<svg id="wcGrowthFewChev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b0b8c1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;transition:transform .18s;"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
         '</button>' +
-        '<div style="font-size:11.5px;color:#c4ccd4;margin-top:4px;">역량별 평가가 3회 미만이라 추이 집계 전이에요.</div>' +
+        '<div style="font-size:12.5px;color:#8b95a1;margin-top:5px;">역량별 평가가 3회 미만이라 추이 집계 전이에요.</div>' +
         '<div id="wcGrowthFewBody" style="display:none;flex-wrap:wrap;gap:6px;margin-top:12px;">' + chips + '</div>' +
       '</div>';
     }
