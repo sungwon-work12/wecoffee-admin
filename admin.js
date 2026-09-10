@@ -2775,8 +2775,8 @@ function wcEnsureFullCvaInputs(flags) {
         wcScoreCell("ref_nonuniform", "불균일", 0, null, "0", "wc-qinp") +
         wcScoreCell("ref_defective", "결점", 0, null, "0", "wc-qinp") +
       '</div>' +
-      // CVA 점수 미리보기(자동계산)
-      '<div id="refCvaPreview" data-sec="qual" style="margin-top:14px;padding:14px 16px;border:1px solid #ffe0c2;border-radius:13px;background:#fff8f1;display:flex;align-items:center;justify-content:space-between;gap:4px 14px;flex-wrap:wrap;">' +
+      // CVA 점수 미리보기(자동계산) — width:100% 로 space-between 벌어지게(라벨↔점수 여백 확보)
+      '<div id="refCvaPreview" data-sec="qual" style="margin-top:14px;padding:14px 16px;border:1px solid #ffe0c2;border-radius:13px;background:#fff8f1;display:flex;align-items:center;justify-content:space-between;gap:6px 16px;flex-wrap:wrap;width:100%;box-sizing:border-box;">' +
         '<span style="font-size:12.5px;font-weight:700;color:#c85f00;white-space:nowrap;flex-shrink:0;">CVA 커핑 점수</span>' +
         '<span id="refCvaRight" style="text-align:right;line-height:1.15;margin-left:auto;"></span></div>' +
       // 외재적 속성(선택)
@@ -5043,7 +5043,6 @@ window.hideCalibration = async function() {
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function avg(a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : null; }
   function round1(v) { return v == null ? null : Math.round(v * 10) / 10; }
-
   /* ── 개선폭: 시간순 포인트를 초기 구간 / 최근 구간으로 나눠 평균차 ──
      values: 시간 오름차순 숫자 배열. 반환 {improve, early, recent, n} 또는 null(3개 미만) */
   function trend(values) {
@@ -5054,10 +5053,8 @@ window.hideCalibration = async function() {
     var recent = avg(values.slice(n - w));
     return { improve: recent - early, early: early, recent: recent, n: n };
   }
-
   // 센서리 편차(0~15, 낮을수록 정확) → 정확도 점수 0~10
   function devToAcc(dev) { return clamp(10 - Number(dev) * 1.5, 0, 10); }
-
   /* ── 멤버별 성장 계산 ──
      coachPts: {phone:{역량:[{score,at}]}}  · sens: {phone:[{dev,at}]}
      names: {phone:name}  · 반환 정렬된 배열 */
@@ -5121,11 +5118,9 @@ window.hideCalibration = async function() {
   }
   function byAt(a, b) { return new Date(a.at) - new Date(b.at); }
   function ym(s) { var d = new Date(s); return isNaN(d) ? "?" : d.getFullYear() + "-" + (d.getMonth() + 1); }
-
   // 순수 로직 노출(검증·재사용)
   window.wcGrowthCompute = computeGrowth;
   window.wcGrowthTrend = trend;
-
   /* ═══ 데이터 로드 ═══ */
   async function loadData() {
     var coachPts = {}, sens = {}, names = {}, batches = {};
@@ -5169,7 +5164,6 @@ window.hideCalibration = async function() {
     } catch (e) { console.warn("[growth] 센서리 RPC 실패(코치 점수로 대체)", e); }
     return { coachPts: coachPts, sens: sens, names: names, batches: batches };
   }
-
   /* ═══ 렌더 ═══ */
   function impColor(v) { return v > 0.3 ? "#00b386" : (v < -0.3 ? "#e5484d" : "#8b95a1"); }
   function impArrow(v) {
@@ -5288,11 +5282,9 @@ window.hideCalibration = async function() {
         '<div style="margin-top:10px;font-size:10.5px;color:#b0b8c1;line-height:1.5;">개선폭 = 최근 구간 평균 − 초기 구간 평균 · 각 역량 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span>=커핑 레퍼런스 편차(정확도), <span style="color:#ff7900;font-weight:700;">코치</span>=평가 점수</div>' +
       '</div></div>';
   }
-
   function skillQualifies(m) { return _skillFilter === "all" ? m.enough : !!(m.doms && m.doms[_skillFilter]); }
   function sortVal(m) { return _skillFilter === "all" ? (m.score == null ? -1e9 : m.score) : (m.doms[_skillFilter] ? m.doms[_skillFilter].improve : -1e9); }
   function batchLabel(b) { return /^\d+$/.test(b) ? b + "기" : b; }
-
   function filterBarHTML() {
     var opts = '<option value="all">전체 기수</option>' + _batchList.map(function (b) {
       return '<option value="' + esc(b) + '"' + (_batchFilter === b ? ' selected' : '') + '>' + esc(batchLabel(b)) + '</option>';
@@ -5307,7 +5299,6 @@ window.hideCalibration = async function() {
       '<div style="display:inline-flex;background:#f2f4f6;border-radius:10px;padding:3px;">' + seg + '</div>' +
     '</div>';
   }
-
   // 필터·정렬 적용 후 전체 본문(필터바+안내+리스트) 반환
   window.wcGrowthRankRender = function () {
     var pool = _people.filter(function (m) { return _batchFilter === "all" || String(m.batch || "") === _batchFilter; });
@@ -5315,10 +5306,11 @@ window.hideCalibration = async function() {
     pool.forEach(function (m) { (skillQualifies(m) ? qual : few).push(m); });
     qual.sort(function (a, b) { return sortVal(b) - sortVal(a); });
     var intro = _skillFilter === "all"
-      ? '종합 성장(개선폭) 기준 정렬. 각 역량 3회 이상 평가된 멤버만 랭킹에 들어가요.'
-      : ('<b style="color:#191f28;">' + _skillFilter + '</b> 개선폭 기준 정렬. ' + _skillFilter + ' 3회 이상 평가된 멤버만요.');
+      ? '개선폭이 큰 순으로 정렬했어요.'
+      : ('<b style="color:#ff7900;">' + _skillFilter + '</b> 개선폭 순으로 정렬했어요.');
     var h = filterBarHTML() +
-      '<div style="font-size:12px;color:#8b95a1;margin-bottom:14px;line-height:1.5;">' + intro + ' 센서리는 커핑 레퍼런스 편차(정확도) 우선, 로스팅·추출은 코치 점수예요.</div>';
+      '<div style="font-size:14px;font-weight:700;color:#4e5968;margin-bottom:5px;line-height:1.5;">' + intro + '</div>' +
+      '<div style="font-size:12px;color:#adb5bd;margin-bottom:16px;line-height:1.5;">역량별 3회 이상 평가된 멤버만 · 센서리는 커핑 편차(정확도), 로스팅·추출은 코치 점수</div>';
     if (!qual.length) h += '<div style="padding:26px 0;text-align:center;color:#8b95a1;font-size:13px;">여기 조건에 맞는 멤버가 아직 없어요. 세션마다 역량·점수를 남기면 3회부터 잡혀요.</div>';
     else { var r = 0; h += qual.map(function (m) { r++; return memberCard(m, r); }).join(""); }
     if (few.length) {
@@ -5328,7 +5320,6 @@ window.hideCalibration = async function() {
     return h;
   };
   function repaint() { var body = _$("wcGrowthBody"); if (body) body.innerHTML = window.wcGrowthRankRender(); }
-
   /* ═══ 인페이지 뷰 — 멤버 페이지(#page-members) 안에서 리스트 ↔ 성장 현황 전환 ═══ */
   function ensureStyle() {
     if (_$("wcGrowthStyle")) return;
@@ -5402,7 +5393,6 @@ window.hideCalibration = async function() {
       if (body) body.innerHTML = '<div style="padding:30px 0;text-align:center;color:#e5484d;font-size:13px;">불러오지 못했어요. 새로고침 후 다시 시도해 주세요.</div>';
     }
   };
-
   /* ═══ 진입 버튼 주입(멤버 리스트 툴바) + 리스트 복귀 훅 ═══ */
   function injectTrigger() {
     if (_$("wcGrowthBtn")) return true;
