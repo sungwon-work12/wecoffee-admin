@@ -5020,3 +5020,394 @@ window.hideCalibration = async function() {
 !function(){"use strict";function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function chips(a,c,b){return a.map(function(x){return '<span style="font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;background:'+b+';color:'+c+';">'+esc(x)+"</span>"}).join("")}document.addEventListener("click",function(ev){var box=document.getElementById("wcChNoteCmp");if(box)box.innerHTML="";var card=ev.target.closest?ev.target.closest("#wcCupHistBody .wc-ch-pcard"):null;if(!card||!box||card.getAttribute("data-sel")!=="1")return;var mine=(window._wcChMyNotes||[]).slice(),theirs=[];card.querySelectorAll(".wc-ch-chip").forEach(function(c){var t=(c.textContent||"").trim();t&&theirs.push(t)});var ms={},ts={};mine.forEach(function(x){ms[x]=1});theirs.forEach(function(x){ts[x]=1});var both=mine.filter(function(x){return ts[x]}),om=mine.filter(function(x){return !ts[x]}),ot=theirs.filter(function(x){return !ms[x]});var nm=(card.getAttribute("data-nm")||"참가자").trim();var cc=chips(both,"#0a8f68","#e6f7f0")+chips(om,"#c85f00","#fff2e6")+chips(ot,"#4e5968","#f2f4f6");var h='<div class="wc-ch-notecmp" style="border-top:1px dashed #d1d6db;margin-top:6px;padding-top:12px;"><div style="font-size:12px;font-weight:700;color:#12b886;margin-bottom:8px;">컵노트 비교 · '+esc(nm)+'</div>';h+=cc?'<div style="display:flex;flex-wrap:wrap;gap:5px;">'+cc+"</div>":'<div style="font-size:11.5px;color:#b0b8c1;">비교할 향미 노트가 없어요 (이 세션은 강도만 기록됨)</div>';h+="</div>";box.innerHTML=h;},false);}();
 (function(){if(document.getElementById("wcCupHistAdminTone"))return;var st=document.createElement("style");st.id="wcCupHistAdminTone";st.textContent="#wcCupHistOly{display:none !important;}#wcCupHistOly.wc-inline{display:block !important;position:static !important;inset:auto !important;top:auto !important;left:auto !important;right:auto !important;bottom:auto !important;width:100% !important;height:auto !important;max-width:100% !important;margin:0 !important;padding:0 !important;background:transparent !important;z-index:auto !important;overflow:visible !important;}#wcCupHistOly.wc-inline .wc-ch-wrap{max-width:100% !important;width:100% !important;max-height:none !important;height:auto !important;box-shadow:none !important;border-radius:0 !important;background:transparent !important;}#wcCupHistOly.wc-inline .wc-ch-head{display:none !important;}#wcCupHistOly.wc-inline .wc-ch-body{padding:0 !important;overflow:visible !important;height:auto !important;max-height:none !important;}#wcCupHistOly .wc-ch-wrap{width:100% !important;max-width:760px !important;height:auto !important;max-height:88vh !important;border-radius:18px !important;overflow:hidden !important;box-shadow:0 24px 70px rgba(0,0,0,.30) !important;margin:0 !important;}#wcCupHistOly .wc-ch-head{border-radius:18px 18px 0 0 !important;}#wcCupHistOly .wc-ch-wrap{background:#eef0f3 !important;}#wcCupHistOly .wc-ch-head{border-bottom:1px solid #f0f1f3 !important;}#wcCupHistOly .wc-ch-body{padding:20px 16px 44px !important;}#wcCupHistOly .wc-ch-card{border:1px solid #f0f1f3 !important;border-radius:18px !important;padding:18px 20px !important;box-shadow:none !important;margin-bottom:12px !important;}#wcCupHistOly .wc-ch-tab{border:1px solid #e8eaed !important;border-radius:10px !important;font-weight:500 !important;color:#8b95a1 !important;padding:8px 14px !important;}#wcCupHistOly .wc-ch-tab.on{background:#191f28 !important;border-color:#191f28 !important;color:#fff !important;font-weight:600 !important;}#wcCupHistOly .wc-ch-seg{background:#f2f4f6 !important;border-radius:12px !important;}#wcCupHistOly .wc-ch-seg button{font-weight:600 !important;color:#8b95a1 !important;}#wcCupHistOly .wc-ch-seg button.on{background:#fff !important;color:#191f28 !important;}#wcCupHistOly .wc-ch-scorerow{gap:10px !important;}#wcCupHistOly .wc-ch-sc{background:#f8f9fb !important;border:none !important;border-radius:16px !important;padding:16px 12px !important;}#wcCupHistOly .wc-ch-sc .l{font-size:12px !important;font-weight:500 !important;color:#8b95a1 !important;}#wcCupHistOly .wc-ch-sc .v{font-size:23px !important;font-weight:700 !important;letter-spacing:-0.03em;}#wcCupHistOly .wc-ch-radar{background:#fbfcfd;border:1px solid #f2f4f6;border-radius:16px;padding:14px 6px 10px;}#wcCupHistOly .wc-ch-legend{gap:10px !important;}#wcCupHistOly .wc-ch-legend span{background:#f8f9fb;border:1px solid #e8eaed;padding:6px 12px;border-radius:999px;font-weight:500 !important;}#wcCupHistOly .wc-ch-banner{background:#f8f9fb !important;border:none !important;color:#4e5968 !important;border-radius:14px !important;font-weight:500 !important;}#wcCupHistOly .wc-ch-cmp{background:#f8f9fb;border-radius:14px;overflow:hidden;}#wcCupHistOly .wc-ch-cmp th{font-weight:500 !important;color:#8b95a1 !important;border-bottom:none !important;padding:12px 6px 8px !important;}#wcCupHistOly .wc-ch-cmp td{border-bottom:1px solid #f0f1f3 !important;padding:11px 6px !important;}#wcCupHistOly .wc-ch-cmp tr:last-child td{border-bottom:none !important;}#wcCupHistOly .wc-ch-cmp td.lab{font-weight:500 !important;color:#8b95a1 !important;}#wcCupHistOly .wc-ch-chip{border-radius:8px !important;font-weight:500 !important;padding:5px 10px !important;}#wcCupHistOly .wc-ch-pcard{transition:border-color .12s, box-shadow .12s;}";document.head.appendChild(st);})();
 /* ═══ 커핑 11 끝 ═══ */
+
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 커핑 12 — 멤버 성장 랭킹 (②)   ※ 기존 커핑9(평가 모드 설정)와 별개 · 새 블록으로 추가
+   coach_notes(역량+점수) + 센서리 객관 편차(member_sensory_series RPC)를
+   멤버별로 모아 역량(센서리·로스팅·추출) 개선폭 → 종합 성장 스코어로 랭킹.
+   · 개선폭(주) + 현재수준(보조) + 활동 꾸준함(아주 작게)
+   · 각 역량 최소 3포인트 있어야 반영(한 방 고득점 방지)
+   · 진입: 멤버 영역에 '성장 랭킹' 버튼 주입 + window.wcGrowthRankOpen()
+   의존: supabaseClient. 서버: coach_notes(v7) + member_sensory_series RPC.
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  var DOMAINS = ["센서리", "로스팅", "추출"];
+  var MIN_PTS = 3;               // 역량별 최소 평가 포인트
+  var W_IMPROVE = 1.0, W_LEVEL = 0.2, W_CONSIST = 0.05;
+  var _people = [], _batchFilter = "all", _skillFilter = "all", _batchList = [];
+  function _$(id) { return document.getElementById(id); }
+  function esc(t) { return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function digits(s) { return String(s == null ? "" : s).replace(/[^0-9]/g, ""); }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function avg(a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : null; }
+  function round1(v) { return v == null ? null : Math.round(v * 10) / 10; }
+
+  /* ── 개선폭: 시간순 포인트를 초기 구간 / 최근 구간으로 나눠 평균차 ──
+     values: 시간 오름차순 숫자 배열. 반환 {improve, early, recent, n} 또는 null(3개 미만) */
+  function trend(values) {
+    var n = values.length;
+    if (n < MIN_PTS) return null;
+    var w = Math.max(1, Math.floor(n / 3));      // 앞/뒤 구간 크기
+    var early = avg(values.slice(0, w));
+    var recent = avg(values.slice(n - w));
+    return { improve: recent - early, early: early, recent: recent, n: n };
+  }
+
+  // 센서리 편차(0~15, 낮을수록 정확) → 정확도 점수 0~10
+  function devToAcc(dev) { return clamp(10 - Number(dev) * 1.5, 0, 10); }
+
+  /* ── 멤버별 성장 계산 ──
+     coachPts: {phone:{역량:[{score,at}]}}  · sens: {phone:[{dev,at}]}
+     names: {phone:name}  · 반환 정렬된 배열 */
+  function computeGrowth(coachPts, sens, names, batches) {
+    batches = batches || {};
+    var phones = {};
+    Object.keys(coachPts || {}).forEach(function (p) { phones[p] = 1; });
+    Object.keys(sens || {}).forEach(function (p) { phones[p] = 1; });
+    var out = [];
+    Object.keys(phones).forEach(function (phone) {
+      var doms = {};   // domain -> {improve, level, n, series:[{v,at}]}
+      // 역량별 코치 코멘트 타임라인(점수+코멘트) — 개선폭 산출과 무관하게 항상 수집
+      var ent = {};
+      DOMAINS.forEach(function (dom) {
+        ent[dom] = ((coachPts[phone] && coachPts[phone][dom]) ? coachPts[phone][dom].slice() : []).sort(byAt);
+      });
+      // 센서리: 객관 우선(편차 시계열), 없으면 코치 '센서리' 점수
+      var sObj = (sens && sens[phone]) ? sens[phone].slice().sort(byAt) : [];
+      if (sObj.length >= MIN_PTS) {
+        var accSeries = sObj.map(function (r) { return devToAcc(r.dev); });
+        var t = trend(accSeries);
+        if (t) doms["센서리"] = { improve: t.improve, level: t.recent, early: t.early, recent: t.recent, n: t.n, src: "객관",
+          series: sObj.map(function (r) { return { v: round1(devToAcc(r.dev)), at: r.at, raw: r.dev }; }) };
+      }
+      // 코치 점수 역량들 (센서리는 객관 없을 때만)
+      DOMAINS.forEach(function (dom) {
+        if (doms[dom]) return;                       // 이미 객관으로 채움
+        var pts = (coachPts[phone] && coachPts[phone][dom]) ? coachPts[phone][dom].slice().sort(byAt) : [];
+        if (pts.length >= MIN_PTS) {
+          var vals = pts.map(function (x) { return Number(x.score); });
+          var t2 = trend(vals);
+          if (t2) doms[dom] = { improve: t2.improve, level: t2.recent, early: t2.early, recent: t2.recent, n: t2.n, src: "코치",
+            series: pts.map(function (x) { return { v: Number(x.score), at: x.at }; }) };
+        }
+      });
+      var contrib = Object.keys(doms);
+      // 활동 꾸준함: 활동이 있었던 '월' 수(작게)
+      var months = {};
+      (sObj || []).forEach(function (r) { months[ym(r.at)] = 1; });
+      DOMAINS.forEach(function (dom) {
+        var pts = (coachPts[phone] && coachPts[phone][dom]) || [];
+        pts.forEach(function (x) { months[ym(x.at)] = 1; });
+      });
+      var consistency = Object.keys(months).length;   // 활동한 개월 수
+      if (!contrib.length) {
+        out.push({ phone: phone, name: names[phone] || phone, batch: batches[phone] || "", doms: doms, entries: ent, score: null, contrib: 0, consistency: consistency, enough: false });
+        return;
+      }
+      var impAvg = avg(contrib.map(function (d) { return doms[d].improve; }));
+      var lvlAvg = avg(contrib.map(function (d) { return doms[d].level; }));
+      var score = W_IMPROVE * impAvg + W_LEVEL * lvlAvg + W_CONSIST * Math.min(consistency, 6);
+      out.push({ phone: phone, name: names[phone] || phone, batch: batches[phone] || "", doms: doms, entries: ent, score: score, contrib: contrib.length, consistency: consistency, enough: true });
+    });
+    // 정렬: 데이터충분 우선 → 종합 스코어 desc → 개선폭 큰 순
+    out.sort(function (a, b) {
+      if (a.enough !== b.enough) return a.enough ? -1 : 1;
+      if (a.enough) return b.score - a.score;
+      return b.contrib - a.contrib;
+    });
+    return out;
+  }
+  function byAt(a, b) { return new Date(a.at) - new Date(b.at); }
+  function ym(s) { var d = new Date(s); return isNaN(d) ? "?" : d.getFullYear() + "-" + (d.getMonth() + 1); }
+
+  // 순수 로직 노출(검증·재사용)
+  window.wcGrowthCompute = computeGrowth;
+  window.wcGrowthTrend = trend;
+
+  /* ═══ 데이터 로드 ═══ */
+  async function loadData() {
+    var coachPts = {}, sens = {}, names = {}, batches = {};
+    if (typeof supabaseClient === "undefined") return { coachPts: coachPts, sens: sens, names: names, batches: batches, err: "supabase 없음" };
+    // 멤버 이름·기수 — admin이 이미 들고 있으면 재활용, 없으면 조회
+    var mem = (typeof window.globalMembers !== "undefined" && window.globalMembers && window.globalMembers.length) ? window.globalMembers : null;
+    if (mem) {
+      mem.forEach(function (m) { var p = digits(m.phone); if (p) { names[p] = m.name || p; batches[p] = m.batch || ""; } });
+    } else {
+      try {
+        var mr = await supabaseClient.from("members").select("phone,name,batch");
+        if (mr.error) throw mr.error;
+        (mr.data || []).forEach(function (m) { var p = digits(m.phone); if (p) { names[p] = m.name || p; batches[p] = m.batch || ""; } });
+      } catch (e1) {
+        try {
+          var mr2 = await supabaseClient.from("members").select("phone,name");
+          (mr2.data || []).forEach(function (m) { var p = digits(m.phone); if (p) names[p] = m.name || p; });
+        } catch (e2) { console.warn("[growth] 멤버 조회 실패", e2); }
+      }
+    }
+    // 코치 점수 포인트
+    try {
+      var cr = await supabaseClient.from("coach_notes")
+        .select("member_phone,eval_domain,score,created_at,note,author_name,visible")
+        .not("score", "is", null).not("eval_domain", "is", null)
+        .order("created_at", { ascending: true });
+      (cr.data || []).forEach(function (n) {
+        var p = digits(n.member_phone); if (!p || !n.eval_domain) return;
+        (coachPts[p] = coachPts[p] || {});
+        (coachPts[p][n.eval_domain] = coachPts[p][n.eval_domain] || []).push({ score: n.score, at: n.created_at, note: n.note || "", author: n.author_name || "", visible: !!n.visible });
+      });
+    } catch (e) { console.warn("[growth] 코치 점수 조회 실패", e); }
+    // 센서리 객관 편차 (RPC — 없거나 실패 시 코치 센서리로 자동 대체)
+    try {
+      var sr = await supabaseClient.rpc("member_sensory_series");
+      if (!sr.error) (sr.data || []).forEach(function (r) {
+        var p = digits(r.member_phone); if (!p || r.deviation == null) return;
+        (sens[p] = sens[p] || []).push({ dev: Number(r.deviation), at: r.session_date, cva: r.cva });
+      });
+      else console.warn("[growth] 센서리 RPC:", sr.error.message);
+    } catch (e) { console.warn("[growth] 센서리 RPC 실패(코치 점수로 대체)", e); }
+    return { coachPts: coachPts, sens: sens, names: names, batches: batches };
+  }
+
+  /* ═══ 렌더 ═══ */
+  function impColor(v) { return v > 0.3 ? "#00b386" : (v < -0.3 ? "#e5484d" : "#8b95a1"); }
+  function impArrow(v) {
+    if (v > 0.3) return '<svg width="9" height="9" viewBox="0 0 12 12" style="vertical-align:-1px;"><path d="M6 2 L10 8 L2 8 Z" fill="#00b386"/></svg>';
+    if (v < -0.3) return '<svg width="9" height="9" viewBox="0 0 12 12" style="vertical-align:-1px;"><path d="M6 10 L10 4 L2 4 Z" fill="#e5484d"/></svg>';
+    return '<span style="color:#c4ccd4;font-weight:800;">·</span>';
+  }
+  function signed(v) { return (v > 0 ? "+" : "") + (Math.round(v * 10) / 10); }
+  // 영역 채운 스파크라인
+  function spark(series, w, h) {
+    if (!series || series.length < 2) return "";
+    var vs = series.map(function (p) { return p.v; });
+    var mn = Math.min.apply(null, vs), mx = Math.max.apply(null, vs), rng = (mx - mn) || 1;
+    var W = w || 150, H = h || 40, n = vs.length, pad = 4;
+    function X(i) { return (i / (n - 1)) * (W - pad * 2) + pad; }
+    function Y(v) { return H - pad - ((v - mn) / rng) * (H - pad * 2); }
+    var line = vs.map(function (v, i) { return X(i).toFixed(1) + "," + Y(v).toFixed(1); }).join(" ");
+    var area = pad + "," + (H - pad) + " " + line + " " + (W - pad) + "," + (H - pad);
+    var up = vs[n - 1] >= vs[0], col = up ? "#00b386" : "#e5484d";
+    var gid = "wcgrg" + Math.random().toString(36).slice(2, 7);
+    var lx = X(n - 1).toFixed(1), ly = Y(vs[n - 1]).toFixed(1);
+    return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" style="display:block;">' +
+      '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="' + col + '" stop-opacity="0.16"/><stop offset="1" stop-color="' + col + '" stop-opacity="0"/></linearGradient></defs>' +
+      '<polygon points="' + area + '" fill="url(#' + gid + ')"/>' +
+      '<polyline points="' + line + '" fill="none" stroke="' + col + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<circle cx="' + lx + '" cy="' + ly + '" r="3" fill="#fff" stroke="' + col + '" stroke-width="2"/>' +
+      '</svg>';
+  }
+  // 접힌 카드용 역량 스탯 타일 (hl: 선택된 역량 강조)
+  function statTile(dom, d, hl) {
+    var box = hl ? "background:#fff7ef;border:1.5px solid #ffd9b3;" : "background:#f8f9fb;border:1.5px solid transparent;";
+    if (!d) return '<div style="' + box + 'border-radius:12px;padding:9px 8px;text-align:center;">' +
+      '<div style="font-size:10.5px;font-weight:600;color:#b0b8c1;margin-bottom:4px;">' + dom + '</div>' +
+      '<div style="font-size:15px;font-weight:800;color:#c4ccd4;line-height:1.1;">—</div>' +
+      '<div style="font-size:9.5px;color:#c4ccd4;font-weight:600;margin-top:3px;">3회 미만</div></div>';
+    return '<div style="' + box + 'border-radius:12px;padding:9px 8px;text-align:center;">' +
+      '<div style="font-size:10.5px;font-weight:600;color:#8b95a1;margin-bottom:4px;">' + dom + '</div>' +
+      '<div style="font-size:15px;font-weight:800;color:' + impColor(d.improve) + ';line-height:1.1;white-space:nowrap;letter-spacing:-.02em;">' + impArrow(d.improve) + ' ' + signed(d.improve) + '</div>' +
+      '<div style="font-size:9.5px;color:#8b95a1;font-weight:600;margin-top:3px;">현재 ' + round1(d.recent) + '</div></div>';
+  }
+  function mmdd(s) { var d = new Date(s); return isNaN(d) ? "" : (String(d.getMonth() + 1).padStart(2, "0") + "." + String(d.getDate()).padStart(2, "0")); }
+  function scoreBadge(v) { return '<span style="flex-shrink:0;font-size:10.5px;font-weight:800;color:#ff7900;background:#fff3e9;border-radius:6px;padding:2px 6px;line-height:1.4;">' + v + '/10</span>'; }
+  // 코멘트 한 줄: 날짜 · 점수 · 코멘트
+  function cnLine(e) {
+    var note = e.note ? esc(e.note) : '<span style="color:#c4ccd4;">코멘트 없음</span>';
+    return '<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0 0;">' +
+      '<span style="flex-shrink:0;width:34px;font-size:11px;color:#b0b8c1;font-weight:600;padding-top:2px;">' + mmdd(e.at) + '</span>' +
+      (e.score != null ? scoreBadge(e.score) : '') +
+      '<span style="flex:1;min-width:0;font-size:12.5px;color:#4e5968;line-height:1.5;word-break:break-word;">' + note + '</span></div>';
+  }
+  // 펼침용 역량 추이 행 (추이 + 코멘트 타임라인)
+  function domRow(dom, d, entries) {
+    entries = entries || [];
+    if (!d && !entries.length) return '<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #f2f4f6;">' +
+      '<span style="width:48px;flex-shrink:0;font-size:12.5px;font-weight:700;color:#b0b8c1;">' + dom + '</span>' +
+      '<span style="font-size:11.5px;color:#c4ccd4;font-weight:600;">평가 없음</span></div>';
+    var head;
+    if (d) {
+      var srcColor = d.src === "객관" ? "#3182f6" : "#ff7900";
+      head = '<div style="display:flex;align-items:center;gap:12px;">' +
+        '<div style="width:48px;flex-shrink:0;"><div style="font-size:12.5px;font-weight:800;color:#191f28;">' + dom + '</div>' +
+          '<div style="font-size:9px;font-weight:700;color:' + srcColor + ';margin-top:2px;">' + d.src + '</div></div>' +
+        '<span style="flex-shrink:0;">' + spark(d.series, 120, 36) + '</span>' +
+        '<span style="flex:1;min-width:0;"></span>' +
+        '<span style="flex-shrink:0;text-align:right;">' +
+          '<div style="font-size:12px;color:#8b95a1;font-weight:600;white-space:nowrap;">' + round1(d.early) + ' <span style="color:#c4ccd4;">→</span> <b style="color:#191f28;font-size:13.5px;">' + round1(d.recent) + '</b></div>' +
+          '<div style="font-size:12.5px;font-weight:800;color:' + impColor(d.improve) + ';margin-top:1px;">' + impArrow(d.improve) + ' ' + signed(d.improve) + ' <span style="font-size:10px;color:#b0b8c1;font-weight:600;">· ' + d.n + '회</span></div>' +
+        '</span></div>';
+    } else {
+      head = '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<span style="width:48px;flex-shrink:0;font-size:12.5px;font-weight:800;color:#191f28;">' + dom + '</span>' +
+        '<span style="font-size:11px;color:#b0b8c1;font-weight:600;">3회 미만 · 추이 미집계</span></div>';
+    }
+    var comments = entries.length ? entries.map(cnLine).join("")
+      : '<div style="padding:7px 0 0;font-size:11.5px;color:#c4ccd4;font-weight:600;">코치 코멘트 없음' + (dom === "센서리" && d && d.src === "객관" ? ' · 점수는 커핑 정확도 기반' : '') + '</div>';
+    return '<div style="padding:11px 0;border-top:1px solid #f2f4f6;">' + head +
+      '<div style="margin-top:6px;padding-left:0;">' + comments + '</div></div>';
+  }
+  function rankBadgeHTML(rank, enough) {
+    if (!enough) return '<span style="width:30px;flex-shrink:0;"></span>';
+    if (rank <= 3) {
+      var bg = rank === 1 ? "#ff7900" : (rank === 2 ? "#ff9a4d" : "#ffbe85");
+      return '<span style="width:30px;height:30px;flex-shrink:0;border-radius:50%;background:' + bg + ';color:#fff;font-size:14px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;">' + rank + '</span>';
+    }
+    return '<span style="width:30px;flex-shrink:0;text-align:center;font-size:14px;font-weight:800;color:#b0b8c1;">' + rank + '</span>';
+  }
+  function memberCard(m, rank) {
+    var doms = m.doms || {};
+    var bySkill = _skillFilter !== "all";
+    var hv = bySkill ? (doms[_skillFilter] ? doms[_skillFilter].improve : null) : m.score;
+    var headLabel = bySkill ? (_skillFilter + " 성장") : "종합 성장";
+    var scoreCol = hv == null ? "#b0b8c1" : impColor(hv);
+    var scoreTxt = hv == null ? "—" : (hv > 0 ? "+" : "") + (Math.round(hv * 100) / 100);
+    var batchTag = m.batch ? '<span style="font-size:11px;font-weight:700;color:#8b95a1;background:#f2f4f6;border-radius:6px;padding:2px 7px;margin-right:6px;">' + esc(m.batch) + '</span>' : '';
+    var meta = m.enough ? (m.contrib + '개 역량 · 활동 ' + m.consistency + '개월') : '';
+    var ent = m.entries || {};
+    var tiles = DOMAINS.map(function (dom) { return statTile(dom, doms[dom], bySkill && dom === _skillFilter); }).join("");
+    var detail = DOMAINS.map(function (dom) { return domRow(dom, doms[dom], ent[dom]); }).join("");
+    return '<div class="wcgr-card" data-phone="' + esc(m.phone) + '" style="border:1px solid #eef0f3;border-radius:16px;margin-bottom:9px;background:#fff;overflow:hidden;' + (rank === 1 && m.enough ? 'box-shadow:0 2px 12px rgba(255,121,0,.10);border-color:#ffe0bf;' : '') + '">' +
+      '<div class="wcgr-head" style="display:flex;align-items:center;gap:11px;padding:15px 15px 13px;cursor:pointer;">' +
+        rankBadgeHTML(rank, m.enough) +
+        '<div style="min-width:0;flex:1;">' +
+          '<div style="font-size:15px;font-weight:800;color:#191f28;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + batchTag + esc(m.name) + '</div>' +
+          (meta ? '<div style="font-size:11px;color:#b0b8c1;font-weight:500;margin-top:2px;">' + meta + '</div>' : '') +
+        '</div>' +
+        '<div style="text-align:right;flex-shrink:0;">' +
+          '<div style="font-size:10px;color:#8b95a1;font-weight:600;">' + headLabel + '</div>' +
+          '<div style="font-size:20px;font-weight:800;color:' + scoreCol + ';letter-spacing:-.03em;line-height:1.1;white-space:nowrap;">' + (hv != null ? impArrow(hv) + ' ' : '') + scoreTxt + '</div>' +
+        '</div>' +
+        '<svg class="wcgr-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4ccd4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;transition:transform .18s;"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 15px 15px;">' + tiles + '</div>' +
+      '<div class="wcgr-detail" style="display:none;padding:0 15px 15px;">' +
+        '<div style="border-top:1px solid #f0f1f3;">' + detail + '</div>' +
+        '<div style="margin-top:10px;font-size:10.5px;color:#b0b8c1;line-height:1.5;">개선폭 = 최근 구간 평균 − 초기 구간 평균 · 각 역량 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span>=커핑 레퍼런스 편차(정확도), <span style="color:#ff7900;font-weight:700;">코치</span>=평가 점수</div>' +
+      '</div></div>';
+  }
+
+  function skillQualifies(m) { return _skillFilter === "all" ? m.enough : !!(m.doms && m.doms[_skillFilter]); }
+  function sortVal(m) { return _skillFilter === "all" ? (m.score == null ? -1e9 : m.score) : (m.doms[_skillFilter] ? m.doms[_skillFilter].improve : -1e9); }
+  function batchLabel(b) { return /^\d+$/.test(b) ? b + "기" : b; }
+
+  function filterBarHTML() {
+    var opts = '<option value="all">전체 기수</option>' + _batchList.map(function (b) {
+      return '<option value="' + esc(b) + '"' + (_batchFilter === b ? ' selected' : '') + '>' + esc(batchLabel(b)) + '</option>';
+    }).join("");
+    var seg = [["all", "전체"], ["센서리", "센서리"], ["로스팅", "로스팅"], ["추출", "추출"]].map(function (o) {
+      var on = _skillFilter === o[0];
+      return '<button type="button" data-skill="' + o[0] + '" style="border:none;background:' + (on ? "#fff" : "transparent") + ';color:' + (on ? "#191f28" : "#8b95a1") + ';padding:6px 12px;font-size:12.5px;font-weight:800;border-radius:7px;cursor:pointer;' + (on ? "box-shadow:0 1px 3px rgba(0,0,0,.08);" : "") + '">' + o[1] + '</button>';
+    }).join("");
+    return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">' +
+      '<select id="wcGrowthBatch" style="height:34px;border:1px solid #e5e8eb;border-radius:9px;font-size:12.5px;font-weight:700;padding:0 10px;background:#fff;color:#191f28;font-family:inherit;cursor:pointer;">' + opts + '</select>' +
+      '<span style="flex:1 0 auto;"></span>' +
+      '<div style="display:inline-flex;background:#f2f4f6;border-radius:10px;padding:3px;">' + seg + '</div>' +
+    '</div>';
+  }
+
+  // 필터·정렬 적용 후 전체 본문(필터바+안내+리스트) 반환
+  window.wcGrowthRankRender = function () {
+    var pool = _people.filter(function (m) { return _batchFilter === "all" || String(m.batch || "") === _batchFilter; });
+    var qual = [], few = [];
+    pool.forEach(function (m) { (skillQualifies(m) ? qual : few).push(m); });
+    qual.sort(function (a, b) { return sortVal(b) - sortVal(a); });
+    var intro = _skillFilter === "all"
+      ? '종합 성장(개선폭) 기준 정렬. 각 역량 3회 이상 평가된 멤버만 랭킹에 들어가요.'
+      : ('<b style="color:#191f28;">' + _skillFilter + '</b> 개선폭 기준 정렬. ' + _skillFilter + ' 3회 이상 평가된 멤버만요.');
+    var h = filterBarHTML() +
+      '<div style="font-size:12px;color:#8b95a1;margin-bottom:14px;line-height:1.5;">' + intro + ' 센서리는 커핑 레퍼런스 편차(정확도) 우선, 로스팅·추출은 코치 점수예요.</div>';
+    if (!qual.length) h += '<div style="padding:26px 0;text-align:center;color:#8b95a1;font-size:13px;">여기 조건에 맞는 멤버가 아직 없어요. 세션마다 역량·점수를 남기면 3회부터 잡혀요.</div>';
+    else { var r = 0; h += qual.map(function (m) { r++; return memberCard(m, r); }).join(""); }
+    if (few.length) {
+      h += '<div style="font-size:12px;font-weight:800;color:#8b95a1;margin:18px 0 8px;">데이터 부족 <span style="font-weight:600;color:#b0b8c1;">· ' + (_skillFilter === "all" ? "3회 미만" : _skillFilter + " 3회 미만") + ' (' + few.length + '명)</span></div>';
+      h += few.map(function (m) { return memberCard(m, 0); }).join("");
+    }
+    return h;
+  };
+  function repaint() { var body = _$("wcGrowthBody"); if (body) body.innerHTML = window.wcGrowthRankRender(); }
+
+  function overlay() {
+    var ov = _$("wcGrowthOv");
+    if (ov) return ov;
+    ov = document.createElement("div");
+    ov.id = "wcGrowthOv";
+    ov.style.cssText = "position:fixed;inset:0;z-index:2147482000;background:rgba(25,31,40,.5);display:none;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto;-webkit-overflow-scrolling:touch;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;";
+    ov.addEventListener("click", function (e) { if (e.target === ov) window.wcGrowthRankClose(); });
+    ov.innerHTML =
+      '<div style="width:100%;max-width:560px;background:#fff;border-radius:20px;box-shadow:0 20px 60px rgba(25,31,40,.24);overflow:hidden;margin:auto 0;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:20px 20px 16px;border-bottom:1px solid #f0f1f3;">' +
+          '<div><div style="font-size:11.5px;font-weight:700;color:#ff7900;">멤버 성장</div>' +
+            '<div style="font-size:19px;font-weight:800;color:#191f28;">성장 랭킹</div></div>' +
+          '<button type="button" onclick="window.wcGrowthRankClose()" style="width:34px;height:34px;border-radius:10px;border:none;background:#f2f4f6;color:#4e5968;font-size:17px;cursor:pointer;">×</button>' +
+        '</div>' +
+        '<div id="wcGrowthBody" style="padding:18px 18px 24px;max-height:calc(100vh - 200px);overflow-y:auto;-webkit-overflow-scrolling:touch;"></div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    // 역량 필터(세그먼트) · 카드 펼침 위임
+    ov.addEventListener("click", function (e) {
+      var seg = e.target.closest && e.target.closest("[data-skill]");
+      if (seg) { _skillFilter = seg.getAttribute("data-skill"); repaint(); return; }
+      var head = e.target.closest && e.target.closest(".wcgr-head"); if (!head) return;
+      var card = head.closest(".wcgr-card"); if (!card) return;
+      var det = card.querySelector(".wcgr-detail"); if (!det) return;
+      var open = det.style.display === "none";
+      det.style.display = open ? "block" : "none";
+      var chev = card.querySelector(".wcgr-chev"); if (chev) chev.style.transform = open ? "rotate(180deg)" : "";
+    });
+    // 기수 필터
+    ov.addEventListener("change", function (e) {
+      if (e.target && e.target.id === "wcGrowthBatch") { _batchFilter = e.target.value; repaint(); }
+    });
+    return ov;
+  }
+  window.wcGrowthRankClose = function () { var ov = _$("wcGrowthOv"); if (ov) ov.style.display = "none"; };
+  window.wcGrowthRankOpen = async function () {
+    var ov = overlay(); ov.style.display = "flex";
+    var body = _$("wcGrowthBody"); if (body) body.innerHTML = '<div style="padding:40px 0;text-align:center;color:#8b95a1;font-size:13px;">성장 데이터 불러오는 중…</div>';
+    try {
+      var d = await loadData();
+      _people = computeGrowth(d.coachPts, d.sens, d.names, d.batches);
+      var bl = {}; _people.forEach(function (m) { if (m.batch) bl[m.batch] = 1; });
+      _batchList = Object.keys(bl).sort(function (a, b) {
+        var na = parseInt(String(a).replace(/[^0-9]/g, ""), 10), nb = parseInt(String(b).replace(/[^0-9]/g, ""), 10);
+        if (!isNaN(na) && !isNaN(nb)) return nb - na;      // 최신 기수 먼저
+        return String(a).localeCompare(String(b), "ko");
+      });
+      if (_batchFilter !== "all" && _batchList.indexOf(_batchFilter) < 0) _batchFilter = "all";
+      repaint();
+    } catch (e) {
+      console.error("[growth] 열기 실패", e);
+      if (body) body.innerHTML = '<div style="padding:30px 0;text-align:center;color:#e5484d;font-size:13px;">불러오지 못했어요. 새로고침 후 다시 시도해 주세요.</div>';
+    }
+  };
+
+  /* ═══ 진입 버튼 주입 (멤버 영역 · 최선노력, 실패해도 window.wcGrowthRankOpen()로 호출 가능) ═══ */
+  function injectTrigger() {
+    if (_$("wcGrowthBtn")) return true;
+    // 후보: 멤버 리스트 툴바/헤더 근처. data-tab="members" 또는 '멤버' 텍스트 헤딩.
+    var anchor = document.querySelector('[data-growth-anchor]')
+      || document.querySelector('#membersToolbar, .members-toolbar, #memberListHead');
+    if (!anchor) {
+      var heads = document.querySelectorAll("h1,h2,h3,.section-title,.page-title");
+      for (var i = 0; i < heads.length; i++) { if (/멤버/.test(heads[i].textContent || "")) { anchor = heads[i].parentElement || heads[i]; break; } }
+    }
+    if (!anchor) return false;
+    var btn = document.createElement("button");
+    btn.id = "wcGrowthBtn";
+    btn.type = "button";
+    btn.textContent = "성장 랭킹";
+    btn.style.cssText = "margin:8px 0;height:38px;padding:0 16px;border:1px solid #ff7900;border-radius:10px;background:#fff;color:#ff7900;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;";
+    btn.onclick = window.wcGrowthRankOpen;
+    anchor.appendChild(btn);
+    return true;
+  }
+  function boot() {
+    if (injectTrigger()) return;
+    var tries = 0, iv = setInterval(function () { if (injectTrigger() || ++tries > 20) clearInterval(iv); }, 500);
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();
+/* ═══ 커핑 12 끝 ═══ */
