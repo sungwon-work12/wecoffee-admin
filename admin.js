@@ -5193,17 +5193,10 @@ window.hideCalibration = async function() {
       '<circle cx="' + lx + '" cy="' + ly + '" r="3" fill="#fff" stroke="' + col + '" stroke-width="2"/>' +
       '</svg>';
   }
-  // 접힌 카드용 역량 스탯 타일 (hl: 선택된 역량 강조)
-  function statTile(dom, d, hl) {
-    var box = hl ? "background:#fff7ef;border:1.5px solid #ffd9b3;" : "background:#f8f9fb;border:1.5px solid transparent;";
-    if (!d) return '<div style="' + box + 'border-radius:12px;padding:9px 8px;text-align:center;">' +
-      '<div style="font-size:10.5px;font-weight:600;color:#b0b8c1;margin-bottom:4px;">' + dom + '</div>' +
-      '<div style="font-size:15px;font-weight:800;color:#c4ccd4;line-height:1.1;">—</div>' +
-      '<div style="font-size:9.5px;color:#c4ccd4;font-weight:600;margin-top:3px;">3회 미만</div></div>';
-    return '<div style="' + box + 'border-radius:12px;padding:9px 8px;text-align:center;">' +
-      '<div style="font-size:10.5px;font-weight:600;color:#8b95a1;margin-bottom:4px;">' + dom + '</div>' +
-      '<div style="font-size:15px;font-weight:800;color:' + impColor(d.improve) + ';line-height:1.1;white-space:nowrap;letter-spacing:-.02em;">' + impArrow(d.improve) + ' ' + signed(d.improve) + '</div>' +
-      '<div style="font-size:9.5px;color:#8b95a1;font-weight:600;margin-top:3px;">현재 ' + round1(d.recent) + '</div></div>';
+  // 접힌 행 인라인 역량 델타 (회색 타일 블럭 대신 한 줄 텍스트)
+  function domDelta(dom, d) {
+    if (!d) return '<span style="color:#c4ccd4;font-weight:600;">' + dom + '</span>';
+    return '<span style="color:#8b95a1;font-weight:600;">' + dom + ' <b style="color:' + impColor(d.improve) + ';font-weight:800;">' + signed(d.improve) + '</b></span>';
   }
   function mmdd(s) { var d = new Date(s); return isNaN(d) ? "" : (String(d.getMonth() + 1).padStart(2, "0") + "." + String(d.getDate()).padStart(2, "0")); }
   function scoreBadge(v) { return '<span style="flex-shrink:0;font-size:10.5px;font-weight:800;color:#ff7900;background:#fff3e9;border-radius:6px;padding:2px 6px;line-height:1.4;">' + v + '/10</span>'; }
@@ -5243,14 +5236,6 @@ window.hideCalibration = async function() {
     return '<div style="padding:11px 0;border-top:1px solid #f2f4f6;">' + head +
       '<div style="margin-top:6px;padding-left:0;">' + comments + '</div></div>';
   }
-  function rankBadgeHTML(rank, enough) {
-    if (!enough) return '<span style="width:30px;flex-shrink:0;"></span>';
-    if (rank <= 3) {
-      var bg = rank === 1 ? "#ff7900" : (rank === 2 ? "#ff9a4d" : "#ffbe85");
-      return '<span style="width:30px;height:30px;flex-shrink:0;border-radius:50%;background:' + bg + ';color:#fff;font-size:14px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;">' + rank + '</span>';
-    }
-    return '<span style="width:30px;flex-shrink:0;text-align:center;font-size:14px;font-weight:800;color:#b0b8c1;">' + rank + '</span>';
-  }
   function memberCard(m, rank) {
     var doms = m.doms || {};
     var bySkill = _skillFilter !== "all";
@@ -5258,28 +5243,31 @@ window.hideCalibration = async function() {
     var headLabel = bySkill ? (_skillFilter + " 성장") : "종합 성장";
     var scoreCol = hv == null ? "#b0b8c1" : impColor(hv);
     var scoreTxt = hv == null ? "—" : (hv > 0 ? "+" : "") + (Math.round(hv * 100) / 100);
-    var batchTag = m.batch ? '<span style="font-size:11px;font-weight:700;color:#8b95a1;background:#f2f4f6;border-radius:6px;padding:2px 7px;margin-right:6px;">' + esc(m.batch) + '</span>' : '';
-    var meta = m.enough ? (m.contrib + '개 역량 · 활동 ' + m.consistency + '개월') : '';
+    var batchTag = m.batch ? '<span style="font-size:12px;font-weight:600;color:#b0b8c1;margin-right:6px;">' + esc(batchLabel(m.batch)) + '</span>' : '';
+    var rankCol = rank === 1 ? "#ff7900" : (rank <= 3 ? "#191f28" : "#c4ccd4");
+    var rankHtml = m.enough
+      ? '<span style="width:20px;flex-shrink:0;text-align:center;font-size:15px;font-weight:800;color:' + rankCol + ';">' + rank + '</span>'
+      : '<span style="width:20px;flex-shrink:0;"></span>';
+    var deltaLine = DOMAINS.map(function (dom) { return domDelta(dom, doms[dom]); }).join('<span style="color:#e5e8eb;margin:0 7px;">·</span>');
     var ent = m.entries || {};
-    var tiles = DOMAINS.map(function (dom) { return statTile(dom, doms[dom], bySkill && dom === _skillFilter); }).join("");
     var detail = DOMAINS.map(function (dom) { return domRow(dom, doms[dom], ent[dom]); }).join("");
-    return '<div class="wcgr-card" data-phone="' + esc(m.phone) + '" style="border:1px solid #eef0f3;border-radius:16px;margin-bottom:9px;background:#fff;overflow:hidden;' + (rank === 1 && m.enough ? 'box-shadow:0 2px 12px rgba(255,121,0,.10);border-color:#ffe0bf;' : '') + '">' +
-      '<div class="wcgr-head" style="display:flex;align-items:center;gap:11px;padding:15px 15px 13px;cursor:pointer;">' +
-        rankBadgeHTML(rank, m.enough) +
+    // 토스/쏘카식 플랫 리스트 행: 카드 박스·회색 타일 없이 얇은 구분선 + 인라인 텍스트
+    return '<div class="wcgr-card" data-phone="' + esc(m.phone) + '" style="border-bottom:1px solid #f2f4f6;">' +
+      '<div class="wcgr-head" style="display:flex;align-items:center;gap:13px;padding:15px 4px;cursor:pointer;">' +
+        rankHtml +
         '<div style="min-width:0;flex:1;">' +
-          '<div style="font-size:15px;font-weight:800;color:#191f28;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + batchTag + esc(m.name) + '</div>' +
-          (meta ? '<div style="font-size:11px;color:#b0b8c1;font-weight:500;margin-top:2px;">' + meta + '</div>' : '') +
+          '<div style="font-size:15.5px;font-weight:800;color:#191f28;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + batchTag + esc(m.name) + '</div>' +
+          '<div style="font-size:12px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + deltaLine + '</div>' +
         '</div>' +
         '<div style="text-align:right;flex-shrink:0;">' +
-          '<div style="font-size:10px;color:#8b95a1;font-weight:600;">' + headLabel + '</div>' +
-          '<div style="font-size:20px;font-weight:800;color:' + scoreCol + ';letter-spacing:-.03em;line-height:1.1;white-space:nowrap;">' + (hv != null ? impArrow(hv) + ' ' : '') + scoreTxt + '</div>' +
+          '<div style="font-size:10.5px;color:#b0b8c1;font-weight:600;">' + headLabel + '</div>' +
+          '<div style="font-size:19px;font-weight:800;color:' + scoreCol + ';letter-spacing:-.03em;line-height:1.2;white-space:nowrap;">' + (hv != null ? impArrow(hv) + ' ' : '') + scoreTxt + '</div>' +
         '</div>' +
-        '<svg class="wcgr-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c4ccd4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;transition:transform .18s;"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+        '<svg class="wcgr-chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c4ccd4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;transition:transform .18s;"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
       '</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 15px 15px;">' + tiles + '</div>' +
-      '<div class="wcgr-detail" style="display:none;padding:0 15px 15px;">' +
-        '<div style="border-top:1px solid #f0f1f3;">' + detail + '</div>' +
-        '<div style="margin-top:10px;font-size:10.5px;color:#b0b8c1;line-height:1.5;">개선폭 = 최근 구간 평균 − 초기 구간 평균 · 각 역량 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span>=커핑 레퍼런스 편차(정확도), <span style="color:#ff7900;font-weight:700;">코치</span>=평가 점수</div>' +
+      '<div class="wcgr-detail" style="display:none;padding:0 4px 16px;">' +
+        detail +
+        '<div style="margin-top:10px;font-size:10.5px;color:#c4ccd4;line-height:1.5;">개선폭 = 최근 − 초기 구간 평균 · 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span> 커핑 편차 · <span style="color:#ff7900;font-weight:700;">코치</span> 평가 점수</div>' +
       '</div></div>';
   }
   function skillQualifies(m) { return _skillFilter === "all" ? m.enough : !!(m.doms && m.doms[_skillFilter]); }
@@ -5293,9 +5281,8 @@ window.hideCalibration = async function() {
       var on = _skillFilter === o[0];
       return '<button type="button" data-skill="' + o[0] + '" style="border:none;background:' + (on ? "#fff" : "transparent") + ';color:' + (on ? "#191f28" : "#8b95a1") + ';padding:6px 12px;font-size:12.5px;font-weight:800;border-radius:7px;cursor:pointer;' + (on ? "box-shadow:0 1px 3px rgba(0,0,0,.08);" : "") + '">' + o[1] + '</button>';
     }).join("");
-    return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;">' +
-      '<select id="wcGrowthBatch" style="height:34px;border:1px solid #e5e8eb;border-radius:9px;font-size:12.5px;font-weight:700;padding:0 10px;background:#fff;color:#191f28;font-family:inherit;cursor:pointer;">' + opts + '</select>' +
-      '<span style="flex:1 0 auto;"></span>' +
+    return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;">' +
+      '<select id="wcGrowthBatch" style="height:34px;border:1px solid #e5e8eb;border-radius:9px;font-size:12.5px;font-weight:700;padding:0 30px 0 12px;background:#fff url(data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2212%22%20height=%2212%22%20viewBox=%220%200%2024%2024%22%20fill=%22none%22%20stroke=%22%238b95a1%22%20stroke-width=%222.4%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22%3E%3Cpolyline%20points=%226%209%2012%2015%2018%209%22/%3E%3C/svg%3E) no-repeat right 10px center;background-size:12px;color:#191f28;font-family:inherit;cursor:pointer;appearance:none;-webkit-appearance:none;-moz-appearance:none;">' + opts + '</select>' +
       '<div style="display:inline-flex;background:#f2f4f6;border-radius:10px;padding:3px;">' + seg + '</div>' +
     '</div>';
   }
@@ -5313,11 +5300,30 @@ window.hideCalibration = async function() {
       '<div style="font-size:12px;color:#adb5bd;margin-bottom:16px;line-height:1.5;">역량별 3회 이상 평가된 멤버만 · 센서리는 커핑 편차(정확도), 로스팅·추출은 코치 점수</div>';
     if (!qual.length) h += '<div style="padding:26px 0;text-align:center;color:#8b95a1;font-size:13px;">여기 조건에 맞는 멤버가 아직 없어요. 세션마다 역량·점수를 남기면 3회부터 잡혀요.</div>';
     else { var r = 0; h += qual.map(function (m) { r++; return memberCard(m, r); }).join(""); }
+    // 데이터 부족 멤버: 풀카드 대신 접이식 이름 칩(무한 스크롤 방지). 기본 접힘.
     if (few.length) {
-      h += '<div style="font-size:12px;font-weight:800;color:#8b95a1;margin:18px 0 8px;">데이터 부족 <span style="font-weight:600;color:#b0b8c1;">· ' + (_skillFilter === "all" ? "3회 미만" : _skillFilter + " 3회 미만") + ' (' + few.length + '명)</span></div>';
-      h += few.map(function (m) { return memberCard(m, 0); }).join("");
+      var fewLabel = _skillFilter === "all" ? "3회 미만" : _skillFilter + " 3회 미만";
+      var chips = few.map(function (m) {
+        var bt = m.batch ? '<span style="color:#b0b8c1;font-weight:600;margin-right:5px;">' + esc(batchLabel(m.batch)) + '</span>' : '';
+        return '<span style="display:inline-flex;align-items:center;font-size:12.5px;font-weight:700;color:#8b95a1;background:#f7f8fa;border:1px solid #eef0f3;border-radius:8px;padding:5px 10px;">' + bt + esc(m.name) + '</span>';
+      }).join('');
+      h += '<div style="margin-top:22px;border-top:1px solid #eef0f3;padding-top:16px;">' +
+        '<button type="button" id="wcGrowthFewToggle" onclick="window.wcGrowthToggleFew()" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:none;border:none;cursor:pointer;font-family:inherit;padding:0;">' +
+          '<span style="font-size:13px;font-weight:800;color:#4e5968;">데이터 부족 <span style="font-weight:600;color:#b0b8c1;">· ' + fewLabel + ' ' + few.length + '명</span></span>' +
+          '<svg id="wcGrowthFewChev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b0b8c1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;transition:transform .18s;"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
+        '</button>' +
+        '<div style="font-size:11.5px;color:#c4ccd4;margin-top:4px;">역량별 평가가 3회 미만이라 추이 집계 전이에요.</div>' +
+        '<div id="wcGrowthFewBody" style="display:none;flex-wrap:wrap;gap:6px;margin-top:12px;">' + chips + '</div>' +
+      '</div>';
     }
     return h;
+  };
+  window.wcGrowthToggleFew = function () {
+    var body = _$("wcGrowthFewBody"), chev = _$("wcGrowthFewChev");
+    if (!body) return;
+    var open = body.style.display === "none";
+    body.style.display = open ? "flex" : "none";
+    if (chev) chev.style.transform = open ? "rotate(180deg)" : "";
   };
   function repaint() { var body = _$("wcGrowthBody"); if (body) body.innerHTML = window.wcGrowthRankRender(); }
   /* ═══ 인페이지 뷰 — 멤버 페이지(#page-members) 안에서 리스트 ↔ 성장 현황 전환 ═══ */
@@ -5340,13 +5346,16 @@ window.hideCalibration = async function() {
     p = document.createElement("div");
     p.id = "wcGrowthPage";
     p.style.cssText = "font-family:'Pretendard',-apple-system,BlinkMacSystemFont,sans-serif;";
+    // 관리자 공통 카드 시스템(회색 배경 + 흰 카드)과 통일: 헤더는 페이지 헤더처럼 밖, 본문은 흰 카드 안
     p.innerHTML =
       '<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;">' +
-        '<button type="button" onclick="window.wcGrowthRankClose()" style="height:36px;padding:0 14px;border:1px solid #e5e8eb;border-radius:10px;background:#fff;color:#4e5968;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;">← 멤버 리스트</button>' +
+        '<button type="button" onclick="window.wcGrowthRankClose()" style="height:36px;padding:0 14px;border:1px solid var(--border-strong,#e5e8eb);border-radius:10px;background:#fff;color:#4e5968;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;">← 멤버 리스트</button>' +
         '<div><div style="font-size:11.5px;font-weight:700;color:#ff7900;">멤버 성장</div>' +
-          '<div style="font-size:20px;font-weight:800;color:#191f28;">성장 현황</div></div>' +
+          '<div style="font-size:20px;font-weight:800;color:var(--text-display,#191f28);">성장 현황</div></div>' +
       '</div>' +
-      '<div id="wcGrowthBody"></div>';
+      '<div style="background:#fff;border:1px solid var(--border-strong,#e5e8eb);border-radius:16px;padding:20px;box-sizing:border-box;">' +
+        '<div id="wcGrowthBody"></div>' +
+      '</div>';
     host.appendChild(p);
     // 역량 필터(세그먼트) · 카드 펼침 위임
     p.addEventListener("click", function (e) {
