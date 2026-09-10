@@ -4243,7 +4243,6 @@ window.hideCalibration = async function() {
     if(/스터디/.test(s)) return key==="광진 센터" ? "스터디룸" : "스터디존";
     return "기타";
   }
-
   /* ── 멤버페이지 커핑 리뷰 모듈 연동용 shim ──
      · 그 모듈은 window.supabaseClient(익명 클라이언트) + window.uDat(로그인 멤버)를 씀.
      · 관리자 페이지엔 둘 다 없으므로 여기서 만들어줌.
@@ -4258,7 +4257,6 @@ window.hideCalibration = async function() {
   if (typeof window.cAl !== "function") window.cAl = function (t, m) { if (typeof showToast === "function") showToast(String(t || "") + (m ? " · " + m : "")); };
   if (typeof window.shw !== "function") window.shw = function () {};
   if (typeof window.hid !== "function") window.hid = function () {};
-
   var _orig = window.openHistoryModal;
   window.openHistoryModal = async function (phone, name) {
     if (_orig) await _orig(phone, name);
@@ -4433,7 +4431,6 @@ window.hideCalibration = async function() {
     // 코칭 로그 로드(비동기)
     if (window.memCoachRefresh) window.memCoachRefresh("member", phone, null);
   }
-
   /* ── 코칭 코멘트(coach_notes) 공용: 로드 / 추가 / 삭제 · scope 5종 ──
        member      → 멤버 누적 코칭 로그(멤버 상세 상단)          키: 전화
        session     → 커핑 세션 통 코멘트(커핑 상세)               키: session_id
@@ -4477,8 +4474,9 @@ window.hideCalibration = async function() {
       '<div id="' + listId + '"><div style="color:#b0b8c1;font-size:12.5px;padding:2px 0;">불러오는 중…</div></div>' +
       '<div style="margin-top:10px;">' +
         '<textarea id="' + taId + '"' + labelAttr + ' rows="2" placeholder="' + ph + '" style="width:100%;resize:vertical;min-height:38px;padding:8px 10px;border:1px solid var(--border-strong,#e5e8eb);border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;box-sizing:border-box;"></textarea>' +
-        // 성장 평가(선택): 도메인 + 0~10점. 접이식.
-        '<div id="cnEvalWrap_' + key + '" data-dom="" style="display:none;margin-top:8px;padding:10px 11px;border:1px solid #eef0f3;border-radius:8px;background:#fff;">' +
+        // 성장 평가 = 코멘트와 한 세트(항상 표시). 라벨 + 역량 pills + 점수(선택 입력)
+        '<div id="cnEvalWrap_' + key + '" data-dom="" style="margin-top:8px;padding:11px 12px;border:1px solid #eef0f3;border-radius:8px;background:#fff;">' +
+          '<div style="font-size:11.5px;font-weight:700;color:#8b95a1;margin-bottom:8px;">성장 평가 <span style="font-weight:500;color:#b0b8c1;">· 선택</span></div>' +
           '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">' +
             cnDomPill(key, "센서리") + cnDomPill(key, "로스팅") + cnDomPill(key, "추출") +
             '<span style="flex:1 0 auto;"></span>' +
@@ -4486,14 +4484,11 @@ window.hideCalibration = async function() {
             '<span style="font-size:12px;color:#8b95a1;font-weight:600;">/ 10</span>' +
           '</div>' +
         '</div>' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;">' +
-          '<span style="display:inline-flex;align-items:center;gap:14px;min-width:0;">' +
-            '<label onclick="window.memCoachTogglePub(this.querySelector(&quot;.cnPub&quot;))" style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#4e5968;cursor:pointer;user-select:none;line-height:1;margin:0;">' +
-              '<span class="cnPub" id="cnV_' + key + '" data-on="0" style="width:20px;height:20px;border-radius:6px;border:1.5px solid #d0d5dd;background:#fff;display:inline-flex;align-items:center;justify-content:center;flex:0 0 20px;box-sizing:border-box;transition:.12s;">' +
-                '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
-              '</span>멤버에게 공개</label>' +
-            '<button type="button" id="cnEvalBtn_' + key + '" onclick="window.memCoachToggleEval(&quot;' + key + '&quot;)" style="border:none;background:none;color:#ff7900;font-size:12px;font-weight:700;cursor:pointer;padding:0;line-height:1;white-space:nowrap;">성장 평가 추가</button>' +
-          '</span>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;">' +
+          '<label onclick="window.memCoachTogglePub(this.querySelector(&quot;.cnPub&quot;))" style="display:inline-flex;align-items:center;gap:7px;font-size:12px;color:#4e5968;cursor:pointer;user-select:none;line-height:1;margin:0;">' +
+            '<span class="cnPub" id="cnV_' + key + '" data-on="0" style="width:20px;height:20px;border-radius:6px;border:1.5px solid #d0d5dd;background:#fff;display:inline-flex;align-items:center;justify-content:center;flex:0 0 20px;box-sizing:border-box;transition:.12s;">' +
+              '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+            '</span>멤버에게 공개</label>' +
           '<button type="button" style="height:36px;padding:0 16px;flex-shrink:0;border:none;border-radius:8px;background:var(--primary,#ff7900);color:#fff;font-size:13px;font-weight:700;cursor:pointer;" onclick="window.memCoachAdd(' + addArgs + ')">등록</button>' +
         '</div>' +
       '</div>' +
@@ -4542,11 +4537,11 @@ window.hideCalibration = async function() {
     var visEl = document.getElementById("cnV_" + key);
     var vis = !!(visEl && visEl.getAttribute("data-on") === "1");
     var refLabel = ta.getAttribute("data-label") || "";
-    // 성장 평가(선택) — 패널이 열려 있을 때만 반영. 도메인·점수는 세트.
+    // 성장 평가(선택) — 항상 표시(코멘트와 세트). 역량·점수는 둘 다 있어야 저장.
     var evW = document.getElementById("cnEvalWrap_" + key);
     var scEl = document.getElementById("cnScore_" + key);
     var evalDomain = null, evalScore = null;
-    if (evW && evW.style.display !== "none") {
+    if (evW) {
       var dom = evW.getAttribute("data-dom") || "";
       var scRaw = scEl ? String(scEl.value) : "";
       if (dom && scRaw !== "") { evalDomain = dom; evalScore = parseInt(scRaw, 10); }
@@ -4593,15 +4588,6 @@ window.hideCalibration = async function() {
     el.style.borderColor = on ? "#ff7900" : "#d0d5dd";
     var sv = el.querySelector("svg"); if (sv) sv.style.display = on ? "block" : "none";
   };
-  // 성장 평가(도메인+점수) 패널 토글
-  window.memCoachToggleEval = function (key) {
-    var w = document.getElementById("cnEvalWrap_" + key); if (!w) return;
-    var open = (w.style.display === "none" || !w.style.display);
-    w.style.display = open ? "block" : "none";
-    var btn = document.getElementById("cnEvalBtn_" + key);
-    if (btn) btn.textContent = open ? "평가 접기" : "성장 평가 추가";
-    if (!open) window.memCoachResetEval(key);
-  };
   // 도메인 단일 선택(같은 걸 다시 누르면 해제)
   window.memCoachPickDomain = function (key, el) {
     var w = document.getElementById("cnEvalWrap_" + key); if (!w || !el) return;
@@ -4621,12 +4607,10 @@ window.hideCalibration = async function() {
     var w = document.getElementById("cnEvalWrap_" + key);
     if (w) {
       w.setAttribute("data-dom", "");
-      w.style.display = "none";
       var pills = w.querySelectorAll(".cnDomPill");
       for (var i = 0; i < pills.length; i++) { pills[i].style.background = "#fff"; pills[i].style.borderColor = "#e5e8eb"; pills[i].style.color = "#8b95a1"; pills[i].style.fontWeight = "600"; }
     }
     var s = document.getElementById("cnScore_" + key); if (s) s.value = "";
-    var btn = document.getElementById("cnEvalBtn_" + key); if (btn) btn.textContent = "성장 평가 추가";
   };
   window.memCoachVis = async function (id, cur, scope, phone, sessionId, beanId, refId) {
     try {
@@ -4662,7 +4646,6 @@ window.hideCalibration = async function() {
       slot.style.display = "block"; btn.textContent = "닫기";
     } else { slot.style.display = "none"; btn.textContent = "코멘트"; }
   };
-
   /* ── 상세 진입: 멤버페이지 커핑 리뷰 모듈(window.wcOpenCupHistory)을 그 멤버 대상으로 조회해서
        내역 모달의 '상세' 자리(.memCupEval)에 인라인으로 렌더 (별도 오버레이 모달로 안 뜸) ── */
   function _wcReturnOly() {
@@ -4757,7 +4740,6 @@ window.hideCalibration = async function() {
       area.innerHTML = '<div style="padding:14px;text-align:center;color:#e5484d;font-size:13px;">리뷰를 여는 중 오류가 발생했어요.</div>';
     }
   };
-
   /* ── 렌더 헬퍼 ── */
   function sectionTitle(t, mt, sub) {
     return '<div style="font-size:13px;font-weight:800;color:var(--text-display,#191f28);margin:' + (mt || "2px") + ' 0 12px;">' + t + (sub ? ' <span style="font-size:11px;font-weight:600;color:var(--text-tertiary,#8b95a1);">· ' + sub + '</span>' : "") + '</div>';
@@ -4806,6 +4788,7 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 8 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 9 — 평가 모드 설정 (호스트)
    커핑 설정 모달에 '평가 모드' 셀렉터 주입 → cupping_sessions.assess_mode 저장.
