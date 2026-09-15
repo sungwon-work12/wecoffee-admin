@@ -1000,24 +1000,56 @@ window.updateAppStatus = async function(id, field, value, selectEl) {
     }
     showToast("변경되었습니다.");
 };
-// ★ 신규: 멤버 등록 실행 함수
+// ★ 수정: 멤버 등록 실행 — 더블클릭/이벤트 중복 + check→insert 레이스로 인한 "중복 등록" 방지
+window._wcRegLock = window._wcRegLock || {};
 window._doRegisterMember = async function(app, endDate) {
-    console.log(`[멤버등록] 최종 실행 — ${app.name}(${app.desired_batch}), 종료일=${endDate}`);
-    const { error: memErr } = await supabaseClient.from('members').insert([{
-        name: app.name,
-        phone: app.phone,
-        batch: app.desired_batch,
-        end_date: endDate,
-        status: '활동 중'
-    }]);
-    if (memErr) {
-        console.error('멤버 등록 실패:', memErr);
-        showToast("가입 완료 처리됨 (멤버 자동 등록 실패 — 수동 확인 필요)");
-    } else {
-        showToast(`${app.name} 님이 멤버로 등록되었습니다. (종료일: ${endDate})`);
-        window.fetchMembers();
+    const phoneKey = String(app.phone || '').replace(/\D/g, '');
+    const lockKey  = phoneKey || ('n:' + (app.name || '') + '|' + (app.desired_batch || ''));
+
+    // 1) 인플라이트 락: 같은 멤버 등록이 진행 중이면 두 번째 호출은 즉시 종료
+    if (window._wcRegLock[lockKey]) { console.warn('[멤버등록] 진행 중 — 중복 호출 무시', lockKey); return; }
+    window._wcRegLock[lockKey] = true;
+
+    try {
+        // 2) 삽입 직전 재확인: 방금 다른 요청이 이미 만들었으면 중단(하이픈 유무까지 흡수)
+        let exists = false;
+        try {
+            const { data: exact } = await supabaseClient.from('members').select('id,phone').eq('phone', app.phone);
+            exists = (exact || []).some(m => String(m.phone || '').replace(/\D/g, '') === phoneKey);
+            if (!exists && phoneKey.length >= 8) {
+                const { data: byTail } = await supabaseClient.from('members').select('id,phone').ilike('phone', '%' + phoneKey.slice(-8));
+                exists = (byTail || []).some(m => String(m.phone || '').replace(/\D/g, '') === phoneKey);
+            }
+        } catch (e) { console.warn('[멤버등록] 사전 확인 실패(계속 진행)', e); }
+
+        if (exists) {
+            console.warn('[멤버등록] 이미 등록됨 — 삽입 생략', phoneKey);
+            showToast(app.name + ' 님은 이미 멤버로 등록되어 있어 추가 등록을 건너뛰었습니다.');
+            window.fetchMembers();
+            window.applyFilterApp();
+            return;
+        }
+
+        console.log(`[멤버등록] 최종 실행 — ${app.name}(${app.desired_batch}), 종료일=${endDate}`);
+        const { error: memErr } = await supabaseClient.from('members').insert([{
+            name: app.name,
+            phone: app.phone,
+            batch: app.desired_batch,
+            end_date: endDate,
+            status: '활동 중'
+        }]);
+        if (memErr) {
+            console.error('멤버 등록 실패:', memErr);
+            showToast("가입 완료 처리됨 (멤버 자동 등록 실패 — 수동 확인 필요)");
+        } else {
+            showToast(`${app.name} 님이 멤버로 등록되었습니다. (종료일: ${endDate})`);
+            window.fetchMembers();
+        }
+        window.applyFilterApp();
+    } finally {
+        // 3) 락 해제 — 연달아 들어오는 중복 이벤트까지 흡수하도록 살짝 지연
+        setTimeout(function(){ delete window._wcRegLock[lockKey]; }, 4000);
     }
-    window.applyFilterApp();
 };
 // ★ 신규: 기수 시작일 설정 모달 (첫 가입완료 시 자동 + 상단 버튼으로 재열람)
 window.openBatchConfigModal = async function(batchName, onSave) {
