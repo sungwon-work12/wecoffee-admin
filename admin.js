@@ -1531,14 +1531,10 @@ window.closeBlockModal=function(){if($("blockModal"))$("blockModal").classList.r
 window.isSavingBlock=false;
 window.saveBlockData=async function(){if(window.isSavingBlock)return;window.isSavingBlock=true;let id=$("blockId")?$("blockId").value:($("blkId")?$("blkId").value:"");let capVal=$("blkCapacity")?$("blkCapacity").value.trim():"";let batchVal=$("blkBatch")?$("blkBatch").value.trim():"";if(batchVal&&/^\d+$/.test(batchVal))batchVal=batchVal+'기';let isCuppingChecked=($("blkIsCupping")&&$("blkIsCupping").checked)?true:false;let spaceVal=$("blkSpace")?$("blkSpace").value.trim():"전체";let baseDateStr=$("blkDate")?$("blkDate").value:"";let startTime=$("blkStart")?$("blkStart").value:"";let endTime=$("blkEnd")?$("blkEnd").value:"";let category=$("blkCategory")?$("blkCategory").value:"수업";let center=$("blkCenter")?$("blkCenter").value:"마포 센터";let reason=$("blkReason")?$("blkReason").value:"";let capacity=capVal===""?null:parseInt(capVal);if(!baseDateStr||!startTime||!endTime||!reason){window.isSavingBlock=false;return showToast("필수 항목을 모두 입력해주세요.");}let repeatType='none';let repeatCount=1;if(!id||id===""){let repTypeEl=document.getElementById('blkRepeatType');let repCountEl=document.getElementById('blkRepeatCount');if(repTypeEl)repeatType=repTypeEl.value||'none';if(repeatType!=='none'&&repCountEl){let parsed=parseInt(repCountEl.value);if(!isNaN(parsed)&&parsed>=1)repeatCount=parsed;}}let payloads=[];let baseDate=new Date(baseDateStr+'T00:00:00');for(let i=0;i<repeatCount;i++){let targetDate=new Date(baseDate);if(repeatType==='weekly')targetDate.setDate(baseDate.getDate()+i*7);else if(repeatType==='monthly')targetDate.setMonth(baseDate.getMonth()+i);let yyyy=targetDate.getFullYear();let mm=String(targetDate.getMonth()+1).padStart(2,'0');let dd=String(targetDate.getDate()).padStart(2,'0');payloads.push({block_date:`${yyyy}-${mm}-${dd}`,start_time:startTime,end_time:endTime,category:category,center:center,space_equip:spaceVal||"전체",reason:reason,capacity:capacity,target_batch:batchVal||null,is_cupping:isCuppingChecked});}let error;let syncResult={updated:0,notified:0};if(id&&id!==""){const oldBlock=gBlk.find(b=>String(b.id)===String(id));const newPayload=payloads[0];const res=await supabaseClient.from('blocks').update(newPayload).eq('id',id);error=res.error;if(!error&&oldBlock){try{const oldContentKey=`[${oldBlock.category}] ${oldBlock.reason}`;const oldTimeRange=`${oldBlock.start_time}~${oldBlock.end_time}`;const newContentKey=`[${newPayload.category}] ${newPayload.reason}`;const newTimeRange=`${newPayload.start_time}~${newPayload.end_time}`;const{data:freshTrn}=await supabaseClient.from('trainings').select('*').like('content',`${oldBlock.block_date} ||%`);const affected=(freshTrn||[]).filter(t=>{if(String(t.status||'').includes('취소'))return false;const cInfo=String(t.content||'').split('||').map(s=>s.trim());if(cInfo.length<5)return false;return cInfo[0]===oldBlock.block_date&&cInfo[2]===oldTimeRange&&cInfo[3]===oldBlock.center&&cInfo[4]===oldContentKey;});for(const t of affected){const cInfo=String(t.content||'').split('||').map(s=>s.trim());cInfo[0]=newPayload.block_date;cInfo[2]=newTimeRange;cInfo[3]=newPayload.center;cInfo[4]=newContentKey;const newContent=cInfo.join(' || ');await supabaseClient.from('trainings').update({content:newContent}).eq('id',t.id);}syncResult.updated=affected.length;const changes=[];if(oldBlock.block_date!==newPayload.block_date)changes.push(`날짜: ${oldBlock.block_date} → ${newPayload.block_date}`);if(oldTimeRange!==newTimeRange)changes.push(`시간: ${oldTimeRange} → ${newTimeRange}`);if(oldBlock.center!==newPayload.center)changes.push(`센터: ${oldBlock.center} → ${newPayload.center}`);if((oldBlock.space_equip||'전체')!==(newPayload.space_equip||'전체'))changes.push(`공간/장비: ${oldBlock.space_equip||'전체'} → ${newPayload.space_equip||'전체'}`);if(oldBlock.reason!==newPayload.reason)changes.push(`상세 내용: ${oldBlock.reason} → ${newPayload.reason}`);const activeAffected=affected.filter(t=>!String(t.status||'').includes('취소'));if(activeAffected.length>0&&changes.length>0){const changeText=changes.join('\n');const notifications=activeAffected.map(t=>({member_phone:t.phone,member_name:t.name,title:'신청하신 수업/훈련 정보가 변경되었습니다',message:`${t.name}님이 신청하신 [${oldBlock.reason}]의 정보가 다음과 같이 변경되었습니다.\n\n${changeText}\n\n일정 확인 후 참여가 어려울 경우 취소 요청드립니다.`,related_type:'training_change',related_id:String(id)}));const notifRes=await supabaseClient.from('member_notifications').insert(notifications);if(!notifRes.error)syncResult.notified=activeAffected.length;}}catch(syncErr){console.warn('Sync error:',syncErr);}}}else{const res=await supabaseClient.from('blocks').insert(payloads);error=res.error;}window.isSavingBlock=false;if(error){showToast("저장 실패");console.error(error);}else{let msg=payloads.length>1?`${payloads.length}개의 스케줄이 등록되었습니다.`:"저장되었습니다.";if(syncResult.updated>0){msg=`저장 완료. 신청자 ${syncResult.updated}명의 정보가 함께 업데이트되었습니다${syncResult.notified>0?` (${syncResult.notified}명에게 알림 발송)`:''}.`;}showToast(msg);window.closeBlockModal();window.fetchCenterData({force:true});}};
 window.deleteBlock=function(id){window.openCustomConfirm("스케줄 삭제",null,"이 스케줄을 삭제하시겠습니까?",async()=>{const{error}=await supabaseClient.from('blocks').delete().eq('id',id);if(error)showToast("삭제 실패");else{showToast("삭제되었습니다.");window.fetchCenterData({force:true});}});};
-/* ── 공지 에디터(Quill) 초기화 — admin.js 자체 정의(Webflow 임베드 의존 제거) ──
-   컨테이너 #editor-container 에 Quill 'snow' 에디터를 붙임. 이미 초기화돼 있으면 재사용.
-   Quill 라이브러리는 페이지에 로드돼 있고(typeof Quill === 'function'), 스타일이 없으면 CDN에서 보강. */
 window.initQuill = function initQuill() {
   if (typeof Quill === "undefined") { console.warn("[notice] Quill 라이브러리가 로드되지 않았습니다."); return; }
   var el = document.getElementById("editor-container");
   if (!el) { console.warn("[notice] #editor-container 를 찾을 수 없습니다."); return; }
-  // Quill 스타일이 없으면(툴바 안 보임 방지) 로드된 Quill 버전에 맞춰 CDN에서 주입
   if (!document.querySelector('link[href*="quill"]') && !document.getElementById("wcQuillCss")) {
     var ver = (window.Quill && Quill.version) ? Quill.version : "1.3.7";
     var lnk = document.createElement("link");
@@ -1546,9 +1542,7 @@ window.initQuill = function initQuill() {
     lnk.href = "https://cdnjs.cloudflare.com/ajax/libs/quill/" + ver + "/quill.snow.css";
     document.head.appendChild(lnk);
   }
-  // 이미 이 컨테이너에 에디터가 살아있으면 재사용(중복 툴바 방지)
   if (quillEditor && el.querySelector(".ql-editor")) return;
-  // 이전 잔재(툴바/컨테이너) 정리 후 재생성
   var host = el.parentNode;
   if (host) { var oldTb = host.querySelector(".ql-toolbar"); if (oldTb) oldTb.remove(); }
   el.classList.remove("ql-container");
@@ -1573,6 +1567,7 @@ window.editNotice=function(id){let n=gNotice.find(x=>String(x.id)===String(id));
 window.closeNoticeModal=function(){if($("noticeModal"))$("noticeModal").classList.remove('show');}
 window.saveNoticeData=async function(){let id=$("noticeId")?$("noticeId").value:"";let htmlContent=quillEditor?quillEditor.root.innerHTML:'';let targetBatchVal=$("noticeTargetBatch")?$("noticeTargetBatch").value.trim():"";let payload={title:$("noticeTitle")?$("noticeTitle").value.trim():"",content:htmlContent,is_pinned:$("noticePinned")?$("noticePinned").checked:false,status:$("noticeStatus")?$("noticeStatus").value:"발행",target_batch:targetBatchVal===""?null:targetBatchVal};if(!payload.title)return showToast("제목을 입력해주세요.");if(!payload.content||payload.content==='<p><br></p>')return showToast("내용을 입력해주세요.");let error;if(id){const res=await supabaseClient.from('notices').update(payload).eq('id',id);error=res.error;}else{const res=await supabaseClient.from('notices').insert([payload]);error=res.error;}if(error){showToast("저장 실패: "+(error.message||error.details||"알 수 없는 오류"));console.error("Notice Save Error:",error);}else{showToast("저장되었습니다.");window.closeNoticeModal();window.fetchCenterData({force:true});}}
 window.deleteNotice=function(id){window.openCustomConfirm("공지사항 삭제",null,`이 공지사항을 완전히 삭제하시겠습니까?`,async()=>{const{error}=await supabaseClient.from('notices').delete().eq('id',id);if(error)showToast("삭제 실패");else{showToast("삭제되었습니다.");window.fetchCenterData({force:true});}});}
+window.handleNoticeMediaUpload=async function(arg){var BUCKET="notice-media";var input=null;if(arg&&arg.tagName==="INPUT")input=arg;else if(arg&&arg.target&&arg.target.tagName==="INPUT")input=arg.target;if(!input)input=document.querySelector('#noticeModal input[type="file"]')||document.querySelector('input[type="file"][accept*="image"]');var file=input&&input.files&&input.files[0];if(!file)return;var isVideo=/^video\//.test(file.type);var maxMB=isVideo?50:10;if(file.size>maxMB*1024*1024){showToast((isVideo?"영상은 ":"이미지는 ")+maxMB+"MB 이하만 올릴 수 있어요.");if(input)input.value="";return;}showToast((isVideo?"영상":"이미지")+" 업로드 중…");try{var ext=(String(file.name).split(".").pop()||(isVideo?"mp4":"jpg")).toLowerCase();var path="notices/"+Date.now()+"_"+Math.random().toString(36).slice(2,8)+"."+ext;var up=await supabaseClient.storage.from(BUCKET).upload(path,file,{cacheControl:"3600",upsert:false,contentType:file.type});if(up.error)throw up.error;var url=supabaseClient.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;if(quillEditor){var range=quillEditor.getSelection(true)||{index:quillEditor.getLength()};quillEditor.insertEmbed(range.index,isVideo?"video":"image",url,"user");quillEditor.setSelection(range.index+1);}else{showToast("에디터가 준비되지 않았어요. 다시 시도해줘.");}showToast((isVideo?"영상":"이미지")+"이 첨부되었습니다.");}catch(e){console.error("[notice] 업로드 실패",e);showToast("업로드 실패: "+(e.message||"스토리지 설정 확인 필요"));}finally{if(input)input.value="";}};
 window.renderMCalCenter=function(selDate){$$$("#m-cal-strip-center .m-cal-date").forEach(el=>el.classList.remove('active'));let target=document.getElementById(`m-date-center-${selDate}`);if(target){target.classList.add('active');try{target.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}catch(e){ console.warn("[wc] 무시된 오류", e); }}let evts=window.centerCalEvts&&window.centerCalEvts[selDate]?window.centerCalEvts[selDate]:[];evts.sort((a,b)=>String(a.start||'').localeCompare(String(b.start||'')));let html='';if(evts.length===0){html=`<div class="empty-state" style="padding:40px 0;">예정된 스케줄이 없습니다.</div>`;}else{evts.forEach(e=>{let timeStr=e.time||'종일';html+=`<div class="m-cal-card" style="align-items:flex-start;text-align:left;width:100%;box-sizing:border-box;"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:4px;"><div class="m-cal-card-title" style="margin:0;">${window.escapeHtml(e.text)||''}</div><div class="m-cal-card-time" style="color:var(--primary);font-weight:800;font-size:13px;">${timeStr}</div></div><div class="m-cal-card-desc" style="font-size:13px;color:var(--text-secondary);margin-top:0;width:100%;">${window.escapeHtml(e.tooltip||'')}</div></div>`;});}let listWrap=$("m-cal-list-center");if(listWrap)listWrap.innerHTML=html;};
 window.saveCrmStatus=async function(){if(!$("crmAppId"))return;const id=$("crmAppId").value;const newStatus=$("crmStatusSelect")?$("crmStatusSelect").value:'';if(!newStatus){showToast("상태를 선택해주세요.");return;}const app=globalApps.find(a=>String(a.id)===String(id));if(!app){showToast("신청 정보를 찾을 수 없습니다.");return;}const prevStatus=app.join_status||'';if(prevStatus===newStatus){showToast("동일한 상태입니다.");return;}await window.updateAppStatus(id,'join_status',newStatus,$("crmStatusSelect"));window.renderCrmInner(id,isCrmReadOnly);};
 window.closeInvoiceModal=function(){let modal=document.getElementById('invoiceModal');if(modal)modal.style.display='none';};
@@ -1582,10 +1577,6 @@ window.handleInvoicePriceInput=async function(orderId,val,inputEl){let numOnly=S
 window.showInvoiceLogs=async function(){let body=document.getElementById('invoiceModalBody');let footer=document.getElementById('invoiceModalFooter');if(!body)return;body.innerHTML='<div style="text-align:center;padding:60px 0;color:#aaa;">이력을 불러오는 중...</div>';footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;" onclick="window.restoreInvoiceMain()">← 명세서로 돌아가기</button>`;try{const{data,error}=await supabaseClient.from('invoice_logs').select('*').in('action',['price_changed','status_changed']).order('created_at',{ascending:false}).limit(500);if(error||!data||data.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}let activeIds=new Set(gOrd.map(o=>String(o.id)));let filtered=data.filter(log=>activeIds.has(String(log.order_id)));if(filtered.length===0){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#bbb;font-size:15px;">변경 이력이 없습니다.</div>';return;}let cards=filtered.map(log=>{let isPrice=log.action==='price_changed';let badgeColor=isPrice?'#ff7900':'#2563eb';let badgeBg=isPrice?'#fff7f0':'#eff6ff';let badgeText=isPrice?'금액':'결제';let order=gOrd.find(o=>String(o.id)===String(log.order_id));let vendor=order?order.vendor||'':'';let itemName=order?(order.item_name||'').replace(/\s*\[.*?\]\s*$/,''):'';let qty=order?order.quantity||'':'';return `<div style="padding:16px 20px;background:#fff;border:1px solid #eee;border-radius:14px;margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:700;color:${badgeColor};background:${badgeBg};padding:3px 10px;border-radius:6px;">${badgeText}</span><span style="font-weight:800;font-size:16px;color:#111;">${window.escapeHtml(log.target_member||'-')}</span></div><span style="font-size:12px;color:#999;">${formatDt(log.created_at)}</span></div>${itemName?`<div style="font-size:14px;margin-bottom:10px;line-height:1.4;"><span style="color:#999;">${window.escapeHtml(vendor)}</span> <span style="color:#ccc;">|</span> <span style="color:#333;font-weight:600;">${window.escapeHtml(itemName)}</span>${qty?` <span style="color:#999;">${qty}</span>`:''}</div>`:''}<div style="background:#f9fafb;padding:10px 14px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;"><div style="font-size:14px;"><span style="color:#aaa;">${window.escapeHtml(log.old_value||'—')}</span> <span style="color:#ccc;font-weight:600;">→</span> <span style="font-weight:800;color:#111;font-size:15px;">${window.escapeHtml(log.new_value||'—')}</span></div><span style="font-size:11px;color:#aaa;">${window.escapeHtml(window.getAdminName(log.performed_by)||'-')}</span></div></div>`;}).join('');body.innerHTML=`<div style="margin-bottom:16px;"><span style="font-size:18px;font-weight:900;color:#111;">전체 변경 이력</span></div>${cards}`;}catch(e){body.innerHTML='<div style="text-align:center;padding:60px 0;color:#ef4444;">이력 조회 실패</div>';console.error(e);}};
 window.restoreInvoiceMain=function(){let body=document.getElementById('invoiceModalBody');let footer=document.getElementById('invoiceModalFooter');if(body&&window._invoiceMainHtml)body.innerHTML=window._invoiceMainHtml;if(footer)footer.innerHTML=`<button style="width:100%;padding:14px;font-size:14px;font-weight:700;background:#111;color:#fff;border:none;border-radius:12px;cursor:pointer;transition:0.15s;" onmouseover="this.style.background='#333'" onmouseout="this.style.background='#111'" onclick="window.showInvoiceLogs()">전체 변경 이력</button>`;};
 window.ensureInvoiceButton=function(){if(document.getElementById('invoiceBtn'))return;let btns=document.querySelectorAll('button,.btn');let summaryBtn=Array.from(btns).find(b=>b.textContent.includes('발주 요약'));if(summaryBtn&&summaryBtn.parentNode){let wrapper=document.createElement('div');wrapper.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';summaryBtn.parentNode.insertBefore(wrapper,summaryBtn);wrapper.appendChild(summaryBtn);let invoiceBtn=document.createElement('button');invoiceBtn.id='invoiceBtn';invoiceBtn.style.cssText='padding:10px 16px;font-size:14px;font-weight:600;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;transition:0.15s;white-space:nowrap;height:38px;display:inline-flex;align-items:center;justify-content:center;';invoiceBtn.textContent='명세서';invoiceBtn.onmouseover=function(){this.style.opacity='0.9';};invoiceBtn.onmouseout=function(){this.style.opacity='1';};invoiceBtn.onclick=function(){window.showInvoiceModal();};wrapper.appendChild(invoiceBtn);}};
-// ★ 신/구 데이터 통합 인사이트 로직 (문자열 파싱 없이 컬럼 직접 추출)
-//   변경점: ① 유입경로 하위 기간 + 인지 기간 시간순 정렬  ② 기간 라벨/유입경로 띄어쓰기 정규화(중복 병합)
-//           ③ '기타 + 직접입력 사유' → 사유를 채널 자체로 승격(블랙워터이슈 등 각각 자기 줄), 사유 없으면 '기타'
-//           ④ 이탈 분석 카드에 '상담자별 이탈 단계'(연락 후/상담 후/연락 두절) 추가
 window.renderStatistics = function(data) {
     if (!$("statsContainer")) return;
     const container = $("statsContainer");
@@ -1596,7 +1587,6 @@ window.renderStatistics = function(data) {
         if ($("insightSummaryText")) $("insightSummaryText").innerHTML = "<div style='padding:16px;'>데이터가 부족합니다.</div>";
         return;
     }
-    // ── 기간·채널 정규화 헬퍼 ──
     function durRank(s){
         var t = String(s||'').replace(/\s+/g,'');
         if(/(일주일|1주|한주)/.test(t)) return 1;
@@ -1670,7 +1660,6 @@ window.renderStatistics = function(data) {
     const preCounselRate = contacted > 0 ? Math.round((stage1 / contacted) * 100) : 0;
     const postCounselRate = counseled > 0 ? Math.round((stage2 / counseled) * 100) : 0;
     const counselorMap = {};
-    // ④ 상담자별 이탈 '단계' 집계 (연락 후 미가입 / 상담 후 미가입 / 연락 두절)
     const counselorStageMap = {};
     data.forEach(d => {
         const cn = (d.counselor_name && d.counselor_name !== 'null' && d.counselor_name.trim()) ? d.counselor_name.trim() : '미지정';
@@ -1689,10 +1678,8 @@ window.renderStatistics = function(data) {
     let safeData = { instaFollow: 0, instaNonFollow: 0, adNow: 0, leadTime3M: 0 };
 
     data.forEach(d => {
-        // ★ 신규 컬럼에서 읽고, 없으면 구 컬럼에서 읽기
         let rawChannel = String(d.survey_channel || d.acquisition_channel || '기타');
         let rawDuration = String(d.survey_duration || d.known_duration || '');
-        // ③ '기타 + 직접입력 사유'는 사유를 채널 자체로 승격(블랙워터이슈 등 각각 자기 줄) / 사유 없으면 '기타'
         let isEtc = rawChannel.indexOf('기타') === 0;
         let ch;
         if (isEtc) {
@@ -1700,16 +1687,16 @@ window.renderStatistics = function(data) {
             if (!reason) reason = rawChannel.replace(/^기타\s*[:\-(（·]?\s*/, '').replace(/[)）]\s*$/, '').trim();
             ch = reason || '기타';
         } else { ch = rawChannel; }
-        ch = normChannel(ch);   // ② 띄어쓰기·중점 정규화 → 중복 병합
+        ch = normChannel(ch);
         if (!channelMap[ch]) channelMap[ch] = { total: 0, details: {} };
         channelMap[ch].total++;
         let det = '';
         if (isEtc && ch === '기타') {
-            det = '';   // 사유 미입력 '기타' → 기간(6개월 등) 표시 안 함 (사유 입력분은 이미 자기 채널로 승격됨)
+            det = '';
         } else if (ch === '인스타그램') {
-            if (d.survey_channel) { // 신규 폼
+            if (d.survey_channel) {
                 det = durLabel(rawDuration);
-            } else { // 구버전 폼
+            } else {
                 if (d.is_follow === '네, 팔로우하고 있어요') safeData.instaFollow++;
                 else if (d.is_follow) safeData.instaNonFollow++;
                 det = d.follow_duration || d.is_follow || '';
@@ -1731,7 +1718,6 @@ window.renderStatistics = function(data) {
         if (rawInterest) {
             String(rawInterest).split(',').map(s => s.trim()).filter(Boolean).forEach(v => {
                 if (v.indexOf('기타') === 0) {
-                    // 기타는 입력 필수 → '기타(내용)' / '기타: 내용' 에서 입력값을 뽑아 그대로 표기
                     let r = v.replace(/^기타\s*[:\-(（·]?\s*/, '').replace(/[)）]\s*$/, '').trim();
                     interestAll.push(r || '기타');
                 }
@@ -1741,7 +1727,6 @@ window.renderStatistics = function(data) {
     });
     function getFrequency(arr) { return Object.entries(arr.reduce((acc, val) => { if (val) acc[val] = (acc[val] || 0) + 1; return acc; }, {})).sort((a, b) => b[1] - a[1]); }
     const interestData = getFrequency(interestAll);
-    // ★ 인지 기간 통합 추출 + 정규화 + 시간순 정렬
     const knownDurData = getFrequency(data.map(d => (d.survey_duration || d.known_duration || '')).filter(Boolean).map(durLabel)).sort((a, b) => durRank(a[0]) - durRank(b[0]));
     const instaCount = channelMap['인스타그램'] ? channelMap['인스타그램'].total : 0;
     const adCount = channelMap['광고'] ? channelMap['광고'].total : 0;
@@ -1768,7 +1753,6 @@ ${funnelSteps.map((st, i) => `<div class="ins-funnel-step">
 </div>`;
     const preColor = preCounselRate >= 20 ? 'var(--error)' : (preCounselRate >= 10 ? '#f59e0b' : 'var(--text-display)');
     const postColor = postCounselRate >= 30 ? 'var(--error)' : (postCounselRate >= 15 ? '#f59e0b' : 'var(--text-display)');
-    // ④ 상담자별 이탈 단계 (이탈 분석 안 · 어느 단계에서 놓쳤나)
     const stageRows = Object.entries(counselorStageMap)
         .map(([nm, s]) => ({ nm, pre: s.pre, post: s.post, ghost: s.ghost, tot: s.pre + s.post + s.ghost }))
         .filter(x => x.tot > 0)
@@ -1810,7 +1794,6 @@ ${counselorHtml}
         const ch = item[0], ct = item[1].total;
         const pct = total > 0 ? Math.round((ct / total) * 100) : 0;
         const opacity = i === 0 ? 1 : i === 1 ? 0.75 : 0.5;
-        // ① 하위 기간 시간순 정렬
         const dets = Object.entries(item[1].details).sort((a, b) => { var ra = durRank(a[0]), rb = durRank(b[0]); if (ra !== rb) return ra - rb; return b[1] - a[1]; });
         return `<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">${ch}</span><span style="color:var(--text-secondary);">${ct}건 (${pct}%)</span></div><div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:${pct}%;background:rgba(255,121,0,${opacity});animation-delay:${0.3+i*0.07}s;"></div></div>${dets.slice(0,5).map(det=>`<div class="ins-sub-item"><div class="ins-sub-label"><span>ㄴ ${window.escapeHtml(det[0])}</span><span>${det[1]}건</span></div></div>`).join('')}</div>`;
     }).join('');
@@ -1852,7 +1835,6 @@ ${knownHtml.length > 0 ? knownHtml : '<div style="font-size:13px;color:var(--tex
         channelMap, counselorMap, counselorStageMap, knownDurData
     };
 };
-// ★ 신규 폼 데이터 추출 로직을 반영한 엑셀 다운로드
 window.downloadExcel = function(type) {
     try {
         if(type === 'applications' && typeof isInsightView !== 'undefined' && isInsightView) {
