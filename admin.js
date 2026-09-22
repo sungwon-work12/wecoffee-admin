@@ -4423,6 +4423,40 @@ window.hideCalibration = async function() {
       content.insertBefore(rail, content.firstChild);
       content.appendChild(pane);
     }
+    /* admin이 모달 열 때 content에 인라인 display를 박아 클래스 규칙(display:flex)을 이김 →
+       레이아웃 필수 속성을 인라인 !important로 강제해 확실히 2단 구성이 되게 함. */
+    try{
+      var isNarrow = (window.innerWidth||1200) <= 820;
+      content.style.setProperty("display","flex","important");
+      content.style.setProperty("flex-direction", isNarrow?"column":"row", "important");
+      content.style.setProperty("width", isNarrow?"96vw":"960px", "important");
+      content.style.setProperty("max-width","96vw","important");
+      content.style.setProperty("height", isNarrow?"92vh":"86vh", "important");
+      content.style.setProperty("max-height","880px","important");
+      content.style.setProperty("padding","0","important");
+      content.style.setProperty("overflow","hidden","important");
+      content.style.setProperty("border-radius","20px","important");
+      var railS=content.querySelector(".wcMD-rail");
+      if(railS){
+        railS.style.setProperty("flex","0 0 auto","important");
+        railS.style.setProperty("width", isNarrow?"100%":"300px", "important");
+        railS.style.setProperty("overflow-y","auto","important");
+      }
+      var paneS=content.querySelector(".wcMD-pane");
+      if(paneS){
+        paneS.style.setProperty("display","flex","important");
+        paneS.style.setProperty("flex-direction","column","important");
+        paneS.style.setProperty("flex","1 1 auto","important");
+        paneS.style.setProperty("min-width","0","important");
+        paneS.style.setProperty("min-height","0","important");
+      }
+      var bodyS=content.querySelector("#historyModalBody");
+      if(bodyS){
+        bodyS.style.setProperty("flex","1 1 auto","important");
+        bodyS.style.setProperty("overflow-y","auto","important");
+        bodyS.style.setProperty("min-height","0","important");
+      }
+    }catch(_e){}
     var railEl=document.getElementById("wcMDrail");
     if(railEl) railEl.innerHTML=__wcRailHTML(name,m);
   }
