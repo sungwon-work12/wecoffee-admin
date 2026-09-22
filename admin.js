@@ -4319,6 +4319,113 @@ window.hideCalibration = async function() {
     return host;
   }
   window.wcMergeToggle=function(btn){ var f=btn.parentNode.querySelector(".wcmg-full"); if(!f) return; var o=f.style.display!=="block"; f.style.display=o?"block":"none"; btn.textContent=o?"설문·상담 접기":"전체 설문 응답 · 상담 기록 보기"; };
+  /* ══════════════════════════════════════════════════════════
+     [B] 마스터-디테일 셸: #historyModal 을 좌측 레일 + 우측 패널로 재구성
+     ══════════════════════════════════════════════════════════ */
+  function __wcMDStyle(){
+    if(document.getElementById("wcMDStyle")) return;
+    var st=document.createElement("style"); st.id="wcMDStyle";
+    st.textContent=
+      "#historyModal .modal-content.wcMD{width:960px;max-width:96vw;height:86vh;max-height:880px;padding:0!important;display:flex;overflow:hidden;border-radius:20px;box-sizing:border-box;}"+
+      "#historyModal .modal-content.wcMD .wcMD-rail{width:300px;flex-shrink:0;background:#f9fafb;border-right:1px solid #e5e8eb;padding:24px 22px;overflow-y:auto;box-sizing:border-box;}"+
+      "#historyModal .modal-content.wcMD .wcMD-pane{flex:1;min-width:0;display:flex;flex-direction:column;}"+
+      "#historyModal .modal-content.wcMD .wcMD-pane .modal-header{flex-shrink:0;display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid #e5e8eb;}"+
+      "#historyModal .modal-content.wcMD .wcMD-pane .modal-header .modal-title{font-size:16px;font-weight:800;margin:0;}"+
+      "#historyModal .modal-content.wcMD .wcMD-pane .modal-header .btn-close{margin-left:8px;}"+
+      "#historyModal .modal-content.wcMD .wcMD-pane #historyModalBody{flex:1;overflow-y:auto;padding:20px 22px;background:#fff;}"+
+      ".wcMD-seg{margin-left:auto;display:flex;gap:3px;background:#f2f4f6;border-radius:11px;padding:3px;}"+
+      ".wcMD-seg a{font-size:12.5px;font-weight:700;color:#8b95a1;padding:7px 14px;border-radius:9px;cursor:pointer;text-decoration:none;}"+
+      ".wcMD-seg a.on{background:#fff;color:#191f28;box-shadow:0 1px 3px rgba(0,0,0,.08);}"+
+      ".wcMD-ava{width:56px;height:56px;border-radius:17px;background:linear-gradient(140deg,#3a4149,#191f28);color:#fff;font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:-.5px;}"+
+      ".wcMD-nm{margin-top:14px;font-size:21px;font-weight:800;letter-spacing:-.6px;display:flex;align-items:center;gap:8px;}"+
+      ".wcMD-nm .pill{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:7px;background:#f2f4f6;color:#8b95a1;}"+
+      ".wcMD-nm .pill.on{background:rgba(18,184,134,.12);color:#0ca678;}"+
+      ".wcMD-gi{margin-top:7px;font-size:12.5px;font-weight:500;color:#8b95a1;letter-spacing:-.2px;line-height:1.65;}"+
+      ".wcMD-div{height:1px;background:#e5e8eb;margin:18px 0;}"+
+      ".wcMD-hero{display:flex;align-items:center;gap:16px;margin-bottom:16px;}"+
+      ".wcMD-hero .ring{position:relative;width:82px;height:82px;flex-shrink:0;}"+
+      ".wcMD-hero .ring .cap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}"+
+      ".wcMD-hero .ring .cap .v{font-size:20px;font-weight:800;letter-spacing:-.6px;line-height:1;}"+
+      ".wcMD-hero .ring .cap .l{font-size:10px;font-weight:600;color:#8b95a1;margin-top:2px;}"+
+      ".wcMD-hero .hx .ht{font-size:13px;font-weight:700;letter-spacing:-.3px;}"+
+      ".wcMD-hero .hx .hs{margin-top:5px;font-size:11.5px;color:#8b95a1;font-weight:500;line-height:1.55;letter-spacing:-.2px;}"+
+      ".wcMD-kpi{display:flex;gap:9px;}"+
+      ".wcMD-kpi .k{flex:1;background:#fff;border:1px solid #e5e8eb;border-radius:13px;padding:13px 6px;text-align:center;box-shadow:0 1px 2px rgba(23,31,40,.05);}"+
+      ".wcMD-kpi .n{font-size:18px;font-weight:800;letter-spacing:-.5px;}"+
+      ".wcMD-kpi .n.hl{color:#ff7900;}"+
+      ".wcMD-kpi .l{font-size:11px;font-weight:600;color:#8b95a1;margin-top:3px;}"+
+      ".wcMD-trend{margin-top:12px;display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e5e8eb;border-radius:13px;padding:12px 14px;box-shadow:0 1px 2px rgba(23,31,40,.05);}"+
+      ".wcMD-trend .tl{font-size:11.5px;font-weight:600;color:#8b95a1;}"+
+      ".wcMD-trend .tv{font-size:14px;font-weight:800;margin-top:3px;letter-spacing:-.4px;}"+
+      ".wcMD-trend .tv .dl{font-size:11px;font-weight:700;color:#f04452;margin-left:4px;}"+
+      ".wcMD-foot{margin-top:18px;background:#fff;border:1px solid #e5e8eb;border-radius:14px;padding:6px 14px;box-shadow:0 1px 2px rgba(23,31,40,.05);}"+
+      ".wcMD-foot .fr{display:flex;justify-content:space-between;font-size:12px;padding:8px 0;letter-spacing:-.2px;}"+
+      ".wcMD-foot .fr + .fr{border-top:1px solid #f0f2f5;}"+
+      ".wcMD-foot .fk{color:#8b95a1;font-weight:500;}"+
+      ".wcMD-foot .fv{color:#191f28;font-weight:600;}"+
+      "@media(max-width:820px){#historyModal .modal-content.wcMD{flex-direction:column;height:92vh;}#historyModal .modal-content.wcMD .wcMD-rail{width:100%;border-right:none;border-bottom:1px solid #e5e8eb;}}";
+    document.head.appendChild(st);
+  }
+  function __wcRing(rate){
+    rate=(rate==null?0:rate); var C=213.6, off=C*(1-Math.min(100,Math.max(0,rate))/100);
+    return '<svg width="82" height="82" viewBox="0 0 82 82"><circle cx="41" cy="41" r="34" fill="none" stroke="#e9edf1" stroke-width="8"/><circle cx="41" cy="41" r="34" fill="none" stroke="#12b886" stroke-width="8" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 41 41)"/></svg>';
+  }
+  function __wcRailHTML(name, m){
+    m=m||{}; var mem=m.member||{}, app=m.app||{};
+    var initial=(String(name||"·").trim().charAt(0))||"·";
+    var status=mem.status||"활동 중";
+    var statusOn=/활동|연장|단일/.test(status);
+    var line1=[mem.batch, app.desired_center].filter(Boolean).join(" · ");
+    var line2=[app.survey_job].filter(Boolean).join(" · ");
+    var phone=mem.phone||app.phone||"";
+    var rate=m.visitRate;
+    var kpi='<div class="wcMD-kpi"><div class="k"><div class="n">'+(m.resCnt||0)+'</div><div class="l">예약</div></div>'+
+      '<div class="k"><div class="n">'+(m.classCnt||0)+'</div><div class="l">수강</div></div>'+
+      '<div class="k"><div class="n hl">'+(m.trainCnt||0)+'</div><div class="l">훈련</div></div></div>';
+    var ring = rate==null ? '' :
+      '<div class="wcMD-hero"><div class="ring">'+__wcRing(rate)+'<div class="cap"><div class="v">'+rate+'%</div><div class="l">방문율</div></div></div><div class="hx"><div class="ht">자발적 방문율</div><div class="hs">'+esc(m.weeksTxt||"")+'</div></div></div>';
+    var trend = m.devTxt ? '<div class="wcMD-trend"><div><div class="tl">센서리 정확도 편차</div><div class="tv">'+esc(m.devTxt)+' <span class="dl">'+esc(m.devDelta||"")+'</span></div></div></div>' : '';
+    function frow(k,v){ return '<div class="fr"><span class="fk">'+k+'</span><span class="fv">'+v+'</span></div>'; }
+    var joinTxt=[mem.batch, mem.created_at?String(mem.created_at).slice(0,10).replace(/-/g,"."):""].filter(Boolean).join(" · ")||"—";
+    var payTxt=m.payTotal?((typeof comma==="function"?comma(String(m.payTotal)):Number(m.payTotal).toLocaleString())+"원"):"—";
+    var visitTxt=m.lastVisit? String(m.lastVisit).slice(5).replace("-",".") : "—";
+    var consultTxt=app.call_time? (function(){ var c=String(app.call_time).split(" ")[0]; return /\d{4}-\d{2}-\d{2}/.test(c)? c.slice(5).replace("-",".")+" 완료" : "완료"; })() : "—";
+    var footer='<div class="wcMD-foot">'+frow("가입",esc(joinTxt))+frow("결제",'<b style="color:#ff7900;">'+payTxt+'</b>')+frow("최근 방문",visitTxt)+frow("상담",consultTxt)+'</div>';
+    var ph=phone?(window.normalizePhone?window.normalizePhone(phone):phone):"";
+    return '<div class="wcMD-ava">'+esc(initial)+'</div>'+
+      '<div class="wcMD-nm">'+esc(name||"")+' <span class="pill '+(statusOn?"on":"")+'">'+esc(status)+'</span></div>'+
+      '<div class="wcMD-gi">'+esc(line1)+(line2?"<br>"+esc(line2):"")+(ph?'<br>'+esc(ph):"")+'</div>'+
+      '<div class="wcMD-div"></div>'+ring+kpi+trend+footer;
+  }
+  function __wcBuildShell(phone, name, m){
+    __wcMDStyle();
+    var modal=document.getElementById("historyModal");
+    var content=modal?modal.querySelector(".modal-content"):null;
+    if(!content) return;
+    if(!content.querySelector(".wcMD-pane")){
+      var header=content.querySelector(".modal-header");
+      var bodyEl=content.querySelector("#historyModalBody");
+      content.classList.add("wcMD");
+      var rail=document.createElement("aside"); rail.className="wcMD-rail"; rail.id="wcMDrail";
+      var pane=document.createElement("section"); pane.className="wcMD-pane";
+      if(header){
+        pane.appendChild(header);
+        var t=header.querySelector("#historyModalTitle"); if(t) t.textContent="회원 상세";
+        if(!header.querySelector(".wcMD-seg")){
+          var seg=document.createElement("nav"); seg.className="wcMD-seg";
+          seg.innerHTML='<a class="on" data-tgt="top">코칭 · 활동</a><a data-tgt="survey">상담 · 설문</a>';
+          var close=header.querySelector(".btn-close");
+          header.insertBefore(seg, close||null);
+          seg.addEventListener("click",function(e){ var a=e.target.closest("a"); if(!a)return; seg.querySelectorAll("a").forEach(function(x){x.classList.toggle("on",x===a);}); var b=document.getElementById("historyModalBody"); if(!b)return; if(a.getAttribute("data-tgt")==="survey"){ var s=document.getElementById("wcMergeSurvey"); if(s) b.scrollTop=Math.max(0,s.offsetTop-8);} else { b.scrollTop=0; } });
+        }
+      }
+      if(bodyEl) pane.appendChild(bodyEl);
+      content.insertBefore(rail, content.firstChild);
+      content.appendChild(pane);
+    }
+    var railEl=document.getElementById("wcMDrail");
+    if(railEl) railEl.innerHTML=__wcRailHTML(name,m);
+  }
   /* ── 멤버페이지 커핑 리뷰 모듈 연동용 shim ──
      · 그 모듈은 window.supabaseClient(익명 클라이언트) + window.uDat(로그인 멤버)를 씀.
      · 관리자 페이지엔 둘 다 없으므로 여기서 만들어줌.
@@ -4504,15 +4611,53 @@ window.hideCalibration = async function() {
     else { ress.sort(function (a, b) { return new Date(b.res_date || 0) - new Date(a.res_date || 0); }); h += moreList("memResMore", ress, 5, function (r) { var t = [r.center, r.space_equip].filter(Boolean).join(" · ") || "센터 예약"; if (r.res_time) t += " · " + r.res_time; return cmtItem(t, dstr(r.res_date), "reservation", phone, name, { refId: r.id }, cnJoin(cnFullD(r.res_date), cnCenter(r.center), cnEquip(r.space_equip))); }); }
     h += '</div>';
     host.innerHTML = h;
-    // ── [통합] 상단: 가입 배경·학습 목표 + 전체 설문/상담 ──
+    // ── [B] 마스터-디테일 셸 + 좌측 레일 + 우측 패널(설문 최상단) ──
     try {
-      var __oldSurvey = document.getElementById("wcMergeSurvey"); if (__oldSurvey) __oldSurvey.remove();
       var __app = await __wcFindApp(phone);
+      var __mem = (window.globalMembers || []).find(function (mm) { return same(mm.phone, phone); }) || null;
+      // 결제 합계(member_history amount)
+      var __payTotal = 0;
+      try {
+        var __hh = await supabaseClient.from("member_history").select("amount").eq("member_phone", phone);
+        (__hh.data || []).forEach(function (x) { __payTotal += (parseInt(String(x.amount || "").replace(/[^0-9]/g, "")) || 0); });
+      } catch (e) { /* noop */ }
+      // 방문율 · 주
+      function __wk(d) { var t = new Date(d); if (isNaN(t)) return null; t.setHours(0,0,0,0); return Math.floor(t.getTime() / 604800000); }
+      var __resDates = ress.map(function (r) { return r.res_date ? String(r.res_date).split("T")[0] : null; }).filter(Boolean);
+      var __trainDates = trainList.map(function (t) { return String(t.content || "").split(" || ")[0]; }).filter(function (x) { return x && /\d{4}-\d{2}-\d{2}/.test(x); });
+      var __allT = __resDates.concat(__trainDates).map(function (x) { return new Date(x).getTime(); }).filter(function (x) { return !isNaN(x); });
+      var __visitRate = null, __weeksTxt = "";
+      if (__allT.length) {
+        var __sB = __wk(new Date(Math.min.apply(null, __allT))), __tB = __wk(new Date());
+        var __aw = Math.max(1, __tB - __sB + 1);
+        var __rw = {}; __resDates.forEach(function (d) { var b = __wk(d); if (b != null) __rw[b] = 1; });
+        var __rwn = Object.keys(__rw).length;
+        __visitRate = Math.round(__rwn / __aw * 100);
+        __weeksTxt = __aw + "주 중 " + __rwn + "주 방문 · 주 평균 " + (resCnt / __aw).toFixed(1) + "회";
+      }
+      // 센서리 편차
+      var __withAcc = sessions.filter(function (s) { return s.acc != null; });
+      var __devTxt = "", __devDelta = "";
+      if (__withAcc.length >= 2) {
+        var __f = __withAcc[0].acc, __l = __withAcc[__withAcc.length - 1].acc, __d = __l - __f;
+        __devTxt = __f.toFixed(1) + " → " + __l.toFixed(1);
+        __devDelta = (__d > 0 ? "▲ " : (__d < 0 ? "▼ " : "· ")) + Math.abs(__d).toFixed(1);
+      }
+      var __lastVisit = __resDates.length ? __resDates.slice().sort().slice(-1)[0] : "";
+      // 셸 + 레일
+      __wcBuildShell(phone, name, {
+        member: __mem, app: __app,
+        resCnt: resCnt, classCnt: classCnt, trainCnt: trainCnt,
+        visitRate: __visitRate, weeksTxt: __weeksTxt,
+        devTxt: __devTxt, devDelta: __devDelta,
+        payTotal: __payTotal, lastVisit: __lastVisit
+      });
+      // 우측 패널: 가입 배경·학습 목표 최상단 → 활동(host) → 결제·연장
+      var __oldSurvey = document.getElementById("wcMergeSurvey"); if (__oldSurvey) __oldSurvey.remove();
       var __blk = __wcSurveyBlock(__app);
-      body.insertBefore(__blk, body.firstChild);      // 설문 최상단
-      body.insertBefore(host, __blk.nextSibling);      // 활동을 설문 바로 뒤로(결제·연장은 그 아래)
-      var __tt = document.getElementById("historyModalTitle"); if (__tt) __tt.textContent = (name || (__app && __app.name) || "") + " 님 정보";
-    } catch (e) { console.warn("[통합] 설문 주입 오류", e); }
+      body.insertBefore(__blk, body.firstChild);
+      body.insertBefore(host, __blk.nextSibling);
+    } catch (e) { console.warn("[B] 셸/레일 오류", e); }
     // 코칭 로그 로드(비동기)
     if (window.memCoachRefresh) window.memCoachRefresh("member", phone, null);
   }
