@@ -1494,11 +1494,11 @@ window.renderMemberTablePage=function(){
     let getCancelCount=(memberPhone)=>{let count=0;gRes.forEach(r=>{if(window.samePhone(r.phone,memberPhone)&&r.status==='당일 취소'&&String(r.res_date||r.created_at).startsWith(monthPrefix))count++;});gTrn.forEach(t=>{if(window.samePhone(t.phone,memberPhone)&&t.status==='당일 취소'){let dStr=String(t.content||'').split(' || ')[0]||String(t.created_at);if(dStr.startsWith(monthPrefix))count++;}});return count;};
     pageData.forEach(row=>{let yy='',mm='',dd='';let isExpired=true;let isPaused=row.status==='활동 일시정지';if(row.end_date&&row.end_date.length===10){[yy,mm,dd]=row.end_date.split('-');let endD=new Date(row.end_date);endD.setHours(0,0,0,0);if(endD>=today)isExpired=false;}if(isExpired&&!isPaused&&row.status!=='패널티 정지'){yy='';mm='';dd='';}let currentStat=row.status||'활동 중';let statusBadge="";if(currentStat==='패널티 정지')statusBadge=`<span class="status-badge badge-red">패널티 정지</span>`;else if(isPaused)statusBadge=`<span class="status-badge badge-gray">일시정지</span>`;else if(isExpired)statusBadge=`<span class="status-badge badge-ended" style="background:#fff0f0;color:var(--error);">활동 종료</span>`;else statusBadge=`<span class="status-badge badge-active" style="background:#e8f5e9;color:var(--success);">${currentStat}</span>`;
 let yearOpts='<option value="">년도</option>';for(let i=2024;i<=2030;i++)yearOpts+=`<option value="${i}" ${yy==i?'selected':''}>${i}년</option>`;let monthOpts='<option value="">월</option>';for(let i=1;i<=12;i++){let val=String(i).padStart(2,'0');monthOpts+=`<option value="${val}" ${mm==val?'selected':''}>${i}월</option>`;}let dayOpts='<option value="">일</option>';for(let i=1;i<=31;i++){let val=String(i).padStart(2,'0');dayOpts+=`<option value="${val}" ${dd==val?'selected':''}>${i}일</option>`;}
-let optionHtml=`<div class="action-btns mem-action-row"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}','${row.batch||'미정'}','${window.escapeHtml(row.name)}','${window.escapeHtml(row.phone)}','${row.end_date||''}',this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select><button class="btn-outline btn-sm" style="flex-shrink:0;height:32px;" onclick="event.stopPropagation();window.openHistoryModal('${window.escapeHtml(row.phone)}','${window.escapeHtml(row.name)}')">내역</button></div>`;
+let optionHtml=`<div class="action-btns mem-action-row"><select class="date-sel option-btn" onchange="window.handleMemberOption('${row.id}','${row.batch||'미정'}','${window.escapeHtml(row.name)}','${window.escapeHtml(row.phone)}','${row.end_date||''}',this)"><option value="">옵션 선택</option><option value="1">1개월 연장</option><option value="3">3개월 연장</option><option value="6">6개월 연장</option><option value="bonus">보너스 1개월</option><option value="day">당일권 추가</option><option value="pause">활동 일시정지</option><option value="resume">활동 재개 (자동 연장)</option><option value="release">패널티 적용/해제</option></select></div>`;
 let dateActionHtml=`<div class="date-inputs mem-action-row"><select class="date-sel year">${yearOpts}</select><select class="date-sel month">${monthOpts}</select><select class="date-sel day">${dayOpts}</select><button class="btn-outline btn-sm apply-date-btn" style="flex-shrink:0;height:32px;padding:0 12px;border-color:var(--primary);color:var(--primary);font-weight:700;" onclick="window.applyMemberDate('${row.id}',this)">적용</button></div>`;
 let cCount=getCancelCount(row.phone);let warnHtml=cCount>=4?`<span style="background:var(--error);color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;margin-left:6px;font-weight:700;vertical-align:middle;">경고</span>`:'';
 let displayPhone = window.normalizePhone(row.phone) || row.phone || '-';
-let nameHtml=`<strong style="color:var(--text-display);cursor:pointer;" onclick="window.openCrmModalFromPhone('${row.phone}')" title="이전 설문/상담 내역 보기">${window.escapeHtml(row.name)||'-'}</strong>${warnHtml}`;
+let nameHtml=`<span style="display:inline-flex;align-items:center;gap:8px;flex-wrap:nowrap;"><strong style="color:var(--text-display);cursor:pointer;" onclick="event.stopPropagation();window.openHistoryModal('${window.escapeHtml(row.phone)}','${window.escapeHtml(row.name)}')" title="회원 정보 보기">${window.escapeHtml(row.name)||'-'}</strong>${warnHtml}<button class="btn-outline btn-sm" style="height:26px;padding:0 10px;flex-shrink:0;" onclick="event.stopPropagation();window.openHistoryModal('${window.escapeHtml(row.phone)}','${window.escapeHtml(row.name)}')">내역</button></span>`;
 let mPreview=`<td class="m-preview has-checkbox" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDtWithDow(row.created_at)}</span>${statusBadge}</div><div class="m-prev-title" style="font-size:16px;">[${row.batch||'-'}] ${window.escapeHtml(row.name)||'-'} <span style="font-size:13px;font-weight:500;color:var(--text-secondary);margin-left:4px;">(${window.escapeHtml(displayPhone)})</span></div><span class="m-toggle-hint">상세 정보 보기 ▼</span></td>`;
 const tr=document.createElement('tr');tr.innerHTML=`${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-mem" value="${row.id}"></td><td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch||'-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(displayPhone)}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group mem-action-wrap" data-id="${row.id}">${optionHtml}${dateActionHtml}</div></td>`;tbody.appendChild(tr);});
     updatePaginationUI(data.length);
@@ -4212,6 +4212,7 @@ window.hideCalibration = async function() {
    멤버 '내역' 모달 확장: 이용 통계, 센서리 성장 추이, 이력.
    ★ 상세 = 멤버 페이지의 커핑 리뷰 모듈(window.wcOpenCupHistory)을 그대로 띄움.
      (관리자 페이지엔 그 모듈을 별도 임베드로 추가해야 함 — 안내 참고)
+   ★ [통합] 내역 모달 최상단에 가입 배경·학습 목표 + 전체 설문/상담 주입(설문 필드 직접 매핑, AI 없음)
    의존: 파트 1~7 + [멤버페이지 커핑 리뷰 모듈 임베드]
    ═══════════════════════════════════════════════════════════ */
 (function () {
@@ -4257,6 +4258,67 @@ window.hideCalibration = async function() {
     if(/스터디/.test(s)) return key==="광진 센터" ? "스터디룸" : "스터디존";
     return "기타";
   }
+  /* ══════════════════════════════════════════════════════════
+     [통합] 가입 배경·학습 목표 + 전체 설문/상담 (설문 필드 직접 매핑 · AI 없음)
+     — 파트3 renderCrmInner과 동일 필드/‘.crm-box’ 스타일. openHistoryModal 최상단 주입.
+     ══════════════════════════════════════════════════════════ */
+  function __wcEnsureStyle(){
+    if(document.getElementById("wcMergeStyle")) return;
+    var st=document.createElement("style"); st.id="wcMergeStyle";
+    st.textContent=
+      "#wcMergeSurvey .wcmg-sum{background:#fff;border:1px solid var(--border-strong,#e5e8eb);border-radius:14px;padding:18px 20px;margin-bottom:12px;box-shadow:0 1px 2px rgba(23,31,40,.04);}"+
+      "#wcMergeSurvey .wcmg-h{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:800;color:var(--text-display,#191f28);letter-spacing:-.3px;margin-bottom:14px;}"+
+      "#wcMergeSurvey .wcmg-badge{font-size:11px;font-weight:700;color:var(--text-secondary,#4e5968);background:var(--bg,#f2f4f6);padding:4px 9px;border-radius:7px;}"+
+      "#wcMergeSurvey .wcmg-row{display:flex;gap:14px;padding:9px 0;font-size:13.5px;letter-spacing:-.3px;}"+
+      "#wcMergeSurvey .wcmg-row + .wcmg-row{border-top:1px solid #f0f2f5;}"+
+      "#wcMergeSurvey .wcmg-row .k{flex:0 0 62px;color:var(--text-tertiary,#8b95a1);font-weight:600;}"+
+      "#wcMergeSurvey .wcmg-row .v{flex:1;color:var(--text-display,#191f28);font-weight:500;line-height:1.55;word-break:keep-all;}"+
+      "#wcMergeSurvey .wcmg-row .v.em{color:var(--primary,#ff7900);font-weight:600;}"+
+      "#wcMergeSurvey .wcmg-tag{display:inline-block;font-size:12.5px;font-weight:600;color:var(--text-secondary,#4e5968);background:var(--subtle,#f9fafb);border:1px solid var(--border-strong,#e5e8eb);padding:5px 10px;border-radius:8px;margin:0 5px 5px 0;}"+
+      "#wcMergeSurvey .wcmg-tag.hl{color:#e56e00;background:rgba(255,121,0,.07);border-color:rgba(255,121,0,.25);}"+
+      "#wcMergeSurvey .wcmg-toggle{width:100%;padding:11px;border:1px solid var(--border-strong,#e5e8eb);border-radius:11px;background:#fff;font-family:inherit;font-size:12.5px;font-weight:700;color:var(--text-secondary,#4e5968);cursor:pointer;}"+
+      "#wcMergeSurvey .wcmg-full{display:none;margin-top:10px;}"+
+      "#wcMergeSurvey .crm-box{background:#fff;border:1px solid var(--border-strong,#e5e8eb);border-radius:10px;padding:13px 15px;margin-bottom:8px;}"+
+      "#wcMergeSurvey .crm-label{font-size:12px;font-weight:600;color:var(--text-tertiary,#8b95a1);margin-bottom:5px;}"+
+      "#wcMergeSurvey .crm-answer{font-size:14px;font-weight:500;color:var(--text-display,#191f28);line-height:1.55;word-break:keep-all;}"+
+      "#wcMergeSurvey .crm-empty{color:var(--text-tertiary,#b0b8c1);font-style:italic;font-weight:400;}"+
+      "#wcMergeSurvey .wcmg-sec{font-size:12.5px;font-weight:800;color:var(--text-secondary,#4e5968);margin:16px 2px 10px;}";
+    document.head.appendChild(st);
+  }
+  async function __wcFindApp(phone){
+    if(!phone) return null;
+    var app=(window.globalApps||[]).find(function(a){return same(a.phone,phone);});
+    if(app) return app;
+    if(typeof supabaseClient==="undefined") return null;
+    var last4=String(phone).replace(/\D/g,"").slice(-4); if(last4.length<4) return null;
+    try{ var r=await supabaseClient.from("applications").select("*").ilike("phone","%"+last4).limit(50);
+      if(r.data){ var m=r.data.find(function(a){return same(a.phone,phone);});
+        if(m){ if(!(window.globalApps||[]).find(function(a){return String(a.id)===String(m.id);})) (window.globalApps=window.globalApps||[]).push(m); return m; } } }
+    catch(e){ console.warn("[통합] application 조회 실패",e); }
+    return null;
+  }
+  function __wcLatestMemo(memo){ if(!memo) return ""; var ns=String(memo).split("|||").map(function(s){return s.trim();}).filter(Boolean); var hu=ns.filter(function(n){return n.indexOf("[자동]")<0;}); var p=hu.length?hu[hu.length-1]:ns[ns.length-1]; var pt=p.split(":::"); return pt.length===2?pt[1].trim():p; }
+  function __wcGoalTags(goal){ if(!goal) return '<span class="crm-empty">미작성</span>'; var a=String(goal).split(/[,·]/).map(function(s){return s.trim();}).filter(Boolean); return a.map(function(t,i){return '<span class="wcmg-tag'+(i===a.length-1?" hl":"")+'">'+esc(t)+'</span>';}).join(""); }
+  function __wcSurveyList(app){ var ch=app.survey_channel||app.acquisition_channel||""; var dur=app.survey_duration||app.known_duration||""; var q=function(l,v){return '<div class="crm-box"><div class="crm-label">'+l+'</div><div class="crm-answer">'+(v?esc(v):'<span class="crm-empty">미작성</span>')+'</div></div>';}; return q("1. 거주 지역",app.survey_region)+q("2. 연령대",app.survey_age_group)+q("3. 직업 / 연차",app.survey_job)+q("4. 유입 경로",ch)+q("5. 인지 기간",dur)+q("6. 수료하신 커피 교육",app.survey_edu)+q("7. 이전 교육 아쉬운 점",app.survey_edu_feedback)+q("8. 커피 지식 궁금한 점",app.survey_curious)+q("9. 달성 목표 (니즈)",app.survey_goal)+q("10. 기대/바라는 점",app.survey_expectations); }
+  function __wcMemoList(app){ if(!app.admin_memo) return '<div class="crm-box"><div class="crm-answer"><span class="crm-empty">등록된 상담 기록이 없습니다.</span></div></div>'; return String(app.admin_memo).split("|||").map(function(note){ var p=note.split(":::"); if(p.length===2) return '<div class="crm-box"><div class="crm-label">'+esc(p[0])+'</div><div class="crm-answer">'+esc(p[1]).replace(/\n/g,"<br>")+'</div></div>'; if(note.trim()) return '<div class="crm-box"><div class="crm-answer">'+esc(note.trim()).replace(/\n/g,"<br>")+'</div></div>'; return ""; }).join(""); }
+  function __wcSurveyBlock(app){
+    __wcEnsureStyle();
+    var host=document.createElement("div"); host.id="wcMergeSurvey"; host.style.cssText="margin-bottom:8px;";
+    if(!app){ host.innerHTML='<div class="wcmg-sum"><div class="wcmg-h">가입 배경 · 학습 목표</div><div style="font-size:13px;color:var(--text-tertiary,#8b95a1);">연결된 가입 신청·설문 내역이 없습니다. (사전 신청 없이 등록된 멤버)</div></div>'; return host; }
+    var interest=[app.interest_area,app.survey_curious].filter(Boolean).map(esc).join(" · ")||'<span class="crm-empty">미작성</span>';
+    var memo=__wcLatestMemo(app.admin_memo);
+    var level=app.interest_level?esc(window.mapInterestLevel?window.mapInterestLevel(app.interest_level):app.interest_level):"";
+    var rows='<div class="wcmg-row"><span class="k">학습 목표</span><span class="v">'+__wcGoalTags(app.survey_goal)+'</span></div>';
+    rows+='<div class="wcmg-row"><span class="k">관심 분야</span><span class="v">'+interest+'</span></div>';
+    if(level) rows+='<div class="wcmg-row"><span class="k">관심도</span><span class="v em">'+level+'</span></div>';
+    if(app.desired_center) rows+='<div class="wcmg-row"><span class="k">희망 센터</span><span class="v">'+esc(app.desired_center)+'</span></div>';
+    if(memo) rows+='<div class="wcmg-row"><span class="k">상담 메모</span><span class="v">'+esc(memo)+'</span></div>';
+    host.innerHTML='<div class="wcmg-sum"><div class="wcmg-h">가입 배경 · 학습 목표 <span class="wcmg-badge">설문 응답 기반</span></div>'+rows+'</div>'+
+      '<button type="button" class="wcmg-toggle" onclick="window.wcMergeToggle(this)">전체 설문 응답 · 상담 기록 보기</button>'+
+      '<div class="wcmg-full"><div class="wcmg-sec">사전 설문 응답</div>'+__wcSurveyList(app)+'<div class="wcmg-sec">추가 상담 기록</div>'+__wcMemoList(app)+'</div>';
+    return host;
+  }
+  window.wcMergeToggle=function(btn){ var f=btn.parentNode.querySelector(".wcmg-full"); if(!f) return; var o=f.style.display!=="block"; f.style.display=o?"block":"none"; btn.textContent=o?"설문·상담 접기":"전체 설문 응답 · 상담 기록 보기"; };
   /* ── 멤버페이지 커핑 리뷰 모듈 연동용 shim ──
      · 그 모듈은 window.supabaseClient(익명 클라이언트) + window.uDat(로그인 멤버)를 씀.
      · 관리자 페이지엔 둘 다 없으므로 여기서 만들어줌.
@@ -4442,6 +4504,15 @@ window.hideCalibration = async function() {
     else { ress.sort(function (a, b) { return new Date(b.res_date || 0) - new Date(a.res_date || 0); }); h += moreList("memResMore", ress, 5, function (r) { var t = [r.center, r.space_equip].filter(Boolean).join(" · ") || "센터 예약"; if (r.res_time) t += " · " + r.res_time; return cmtItem(t, dstr(r.res_date), "reservation", phone, name, { refId: r.id }, cnJoin(cnFullD(r.res_date), cnCenter(r.center), cnEquip(r.space_equip))); }); }
     h += '</div>';
     host.innerHTML = h;
+    // ── [통합] 상단: 가입 배경·학습 목표 + 전체 설문/상담 ──
+    try {
+      var __oldSurvey = document.getElementById("wcMergeSurvey"); if (__oldSurvey) __oldSurvey.remove();
+      var __app = await __wcFindApp(phone);
+      var __blk = __wcSurveyBlock(__app);
+      body.insertBefore(__blk, body.firstChild);      // 설문 최상단
+      body.insertBefore(host, __blk.nextSibling);      // 활동을 설문 바로 뒤로(결제·연장은 그 아래)
+      var __tt = document.getElementById("historyModalTitle"); if (__tt) __tt.textContent = (name || (__app && __app.name) || "") + " 님 정보";
+    } catch (e) { console.warn("[통합] 설문 주입 오류", e); }
     // 코칭 로그 로드(비동기)
     if (window.memCoachRefresh) window.memCoachRefresh("member", phone, null);
   }
