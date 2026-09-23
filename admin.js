@@ -4467,22 +4467,18 @@ window.hideCalibration = async function() {
         var t=header.querySelector("#historyModalTitle"); if(t) t.textContent="멤버 상세";
         if(!header.querySelector(".wcMD-seg")){
           var seg=document.createElement("nav"); seg.className="wcMD-seg";
-          seg.innerHTML='<a class="on" data-tgt="activity">코칭 · 활동</a><a data-tgt="survey">상담 · 설문</a>';
+          seg.innerHTML='<a class="on" data-tgt="activity">코칭 · 활동</a><a data-tgt="survey">상담 · 설문</a><a data-tgt="payment">결제 · 연장</a>';
           var close=header.querySelector(".btn-close");
           header.insertBefore(seg, close||null);
           seg.addEventListener("click",function(e){
             var a=e.target.closest("a"); if(!a)return;
             seg.querySelectorAll("a").forEach(function(x){x.classList.toggle("on",x===a);});
             var b=document.getElementById("historyModalBody"); if(!b)return;
-            var isSurvey=a.getAttribute("data-tgt")==="survey";
-            var actP=document.getElementById("wcPaneActivity");
-            var surP=document.getElementById("wcPaneSurvey");
-            if(actP) actP.style.display=isSurvey?"none":"";
-            if(surP){
-              surP.style.display=isSurvey?"":"none";
-              // 상담·설문 진입 시 전체 설문·상담 기록 자동 펼침
-              if(isSurvey){ var full=surP.querySelector(".wcmg-full"); var tgl=surP.querySelector(".wcmg-toggle"); if(full&&getComputedStyle(full).display==="none"&&tgl){ tgl.click(); } }
-            }
+            var tgt=a.getAttribute("data-tgt");
+            var map={activity:"wcPaneActivity", survey:"wcPaneSurvey", payment:"wcPanePayment"};
+            Object.keys(map).forEach(function(k){ var el=document.getElementById(map[k]); if(el) el.style.display=(k===tgt)?"":"none"; });
+            // 상담·설문 진입 시 전체 설문·상담 기록 자동 펼침
+            if(tgt==="survey"){ var surP=document.getElementById("wcPaneSurvey"); if(surP){ var full=surP.querySelector(".wcmg-full"); var tgl=surP.querySelector(".wcmg-toggle"); if(full&&getComputedStyle(full).display==="none"&&tgl){ tgl.click(); } } }
             b.scrollTop=0;
           });
         }
@@ -4814,9 +4810,10 @@ window.hideCalibration = async function() {
         devTxt: __devTxt, devDelta: __devDelta,
         payTotal: __payTotal, lastVisit: __lastVisit
       });
-      // ── 우측 패널 2분할 ──
-      //   코칭·활동 : host(코칭 로그 + 활동 지표·센터·센서리·이력)
-      //   상담·설문 : 가입 배경 요약 + 전체 설문·상담 기록 + 결제·연장 내역(멤버 등록 행정)
+      // ── 우측 패널 3분할(탭 라벨이 내용을 그대로 말해주게) ──
+      //   코칭·활동 : host(코칭 로그 + 역량 성장 + 활동 지표·센터·커핑·이력)
+      //   상담·설문 : 가입 배경 요약 + 전체 설문·상담 기록
+      //   결제·연장 : 결제/연장 내역(멤버 등록 행정)
       var __oldSurvey = document.getElementById("wcMergeSurvey"); if (__oldSurvey) __oldSurvey.remove();
       var __blk = __wcSurveyBlock(__app);
       // _orig가 그린 결제·연장 내역 노드(= body의 host 외 자식)를 분리
@@ -4825,18 +4822,17 @@ window.hideCalibration = async function() {
       // 활동 pane: host만
       var actPane = document.createElement("div"); actPane.id = "wcPaneActivity";
       actPane.appendChild(host);
-      // 설문 pane: 가입 배경/설문 + 결제·연장 내역
+      // 설문 pane: 가입 배경/설문
       var surPane = document.createElement("div"); surPane.id = "wcPaneSurvey"; surPane.style.display = "none";
       surPane.appendChild(__blk);
-      if (__payNodes.length) {
-        var payWrap = document.createElement("div");
-        payWrap.style.cssText = "margin-top:18px;border-top:1px solid var(--border-strong,#e5e8eb);padding-top:16px;";
-        payWrap.innerHTML = '<div style="font-size:13px;font-weight:800;color:var(--text-secondary,#4e5968);margin:0 2px 10px;letter-spacing:-.3px;">결제 · 연장 내역</div>';
-        __payNodes.forEach(function (n) { payWrap.appendChild(n); });
-        surPane.appendChild(payWrap);
-      }
+      // 결제 pane: 결제·연장 내역
+      var payPane = document.createElement("div"); payPane.id = "wcPanePayment"; payPane.style.display = "none";
+      payPane.innerHTML = '<div style="font-size:13px;font-weight:800;color:var(--text-secondary,#4e5968);margin:2px 2px 12px;letter-spacing:-.3px;">결제 · 연장 내역</div>';
+      if (__payNodes.length) { __payNodes.forEach(function (n) { payPane.appendChild(n); }); }
+      else { payPane.innerHTML += emptyBox("결제 · 연장 내역이 없습니다."); }
       body.appendChild(actPane);
       body.appendChild(surPane);
+      body.appendChild(payPane);
       // 세그먼트 상태 초기화(코칭·활동 활성)
       var __seg = document.querySelector("#historyModal .wcMD-seg");
       if (__seg) { var __as = __seg.querySelectorAll("a"); __as.forEach(function (x) { x.classList.toggle("on", x.getAttribute("data-tgt") === "activity"); }); }
@@ -4845,8 +4841,9 @@ window.hideCalibration = async function() {
     // ── 역량 성장(센서리·로스팅·추출) 비동기 주입 — 커핑12(성장 랭킹)와 동일 계산 재사용 ──
     try {
       var __g = await __wcLoadGrowth(phone);
+      window.__wcGrowthM = __g;
       var __ge = document.getElementById("wcMemGrowth");
-      if (__ge) __ge.innerHTML = __wcGrowthSectionHTML(__g);
+      if (__ge) __ge.innerHTML = __wcGrowthSectionHTML(__g, "all");
     } catch (e) {
       console.warn("[B] 역량 성장 로드 실패", e);
       var __ge2 = document.getElementById("wcMemGrowth");
@@ -5274,7 +5271,7 @@ window.hideCalibration = async function() {
       '<span style="flex-shrink:0;width:34px;font-size:11.5px;color:#8b95a1;font-weight:600;padding-top:2px;">' + __wcGMMDD(e.at) + '</span>' +
       scoreBadge + '<span style="flex:1;min-width:0;font-size:13px;color:#4e5968;line-height:1.55;word-break:break-word;">' + note + '</span></div>';
   }
-  function __wcGDomRow(dom, d, entries) {
+  function __wcGDomRow(dom, d, entries, compact) {
     entries = entries || [];
     var head;
     if (d) {
@@ -5293,26 +5290,48 @@ window.hideCalibration = async function() {
         '<span style="width:48px;flex-shrink:0;font-size:12.5px;font-weight:800;color:#191f28;">' + dom + '</span>' +
         '<span style="font-size:12px;color:#8b95a1;font-weight:600;">3회 미만 · 추이 미집계</span></div>';
     }
+    if (compact) return '<div style="padding:11px 0;border-top:1px solid #f2f4f6;">' + head + '</div>';
     var comments = entries.length ? entries.map(__wcGCnLine).join("")
       : '<div style="padding:7px 0 0;font-size:12.5px;color:#8b95a1;font-weight:600;line-height:1.55;">' +
         ((dom === "센서리" && d && d.src === "객관") ? '점수는 커핑 정확도로 자동 집계돼요. 교육 매니저 코멘트는 아직 없어요.' : '아직 교육 매니저 코멘트가 없어요.') + '</div>';
     return '<div style="padding:11px 0;border-top:1px solid #f2f4f6;">' + head + '<div style="margin-top:6px;">' + comments + '</div></div>';
   }
-  function __wcGrowthSectionHTML(m) {
-    if (!m) return emptyBox("성장 데이터가 아직 없어요. 커핑 세션·코칭 평가가 3회 이상 쌓이면 표시됩니다.");
-    var doms = m.doms || {}, ent = m.entries || {};
-    var hv = m.score;
-    var scoreCol = hv == null ? "#b0b8c1" : __wcGImpColor(hv);
-    var scoreTxt = hv == null ? "—" : (hv > 0 ? "+" : "") + (Math.round(hv * 100) / 100);
-    var summary = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:14px 16px;margin-bottom:10px;">' +
-      '<div><div style="font-size:12px;color:#8b95a1;font-weight:700;">종합 성장</div>' +
-      '<div style="font-size:11.5px;color:#b0b8c1;margin-top:2px;">개선폭 = 최근 − 초기 구간 · 3회↑ 반영</div></div>' +
-      '<div style="font-size:22px;font-weight:800;color:' + scoreCol + ';letter-spacing:-.03em;white-space:nowrap;">' + (hv != null ? __wcGArrow(hv) + ' ' : '') + scoreTxt + '</div></div>';
-    var rows = __WC_GDOMAINS.map(function (dom) { return __wcGDomRow(dom, doms[dom], ent[dom]); }).join("");
-    return summary +
-      '<div style="border:1px solid #f0f1f3;border-radius:12px;padding:2px 14px 8px;background:#fff;">' + rows + '</div>' +
-      '<div style="margin-top:10px;font-size:11.5px;color:#8b95a1;line-height:1.6;">센서리는 <span style="color:#3182f6;font-weight:700;">커핑 편차(정확도)</span>, 로스팅·추출은 <span style="color:#ff7900;font-weight:700;">교육 매니저 점수</span> 기준 · 성장 랭킹과 동일 계산.</div>';
+  // 성장 필터 칩(성장 랭킹과 동일한 세그먼트: 종합·센서리·로스팅·추출)
+  function __wcGChips(cur) {
+    var items = [["all", "종합"]].concat(__WC_GDOMAINS.map(function (d) { return [d, d]; }));
+    return '<div style="display:inline-flex;background:#f2f4f6;border-radius:10px;padding:3px;margin-bottom:12px;">' +
+      items.map(function (o) {
+        var on = cur === o[0];
+        return '<a data-gf="' + o[0] + '" onclick="window.wcGrowthFilter(this,\'' + o[0] + '\')" style="font-size:12.5px;font-weight:800;padding:6px 13px;border-radius:7px;cursor:pointer;text-decoration:none;' +
+          (on ? 'background:#fff;color:#191f28;box-shadow:0 1px 3px rgba(0,0,0,.08);' : 'color:#8b95a1;') + '">' + o[1] + '</a>';
+      }).join("") + '</div>';
   }
+  function __wcGrowthSectionHTML(m, filter) {
+    if (!m) return emptyBox("성장 데이터가 아직 없어요. 커핑 세션·코칭 평가가 3회 이상 쌓이면 표시됩니다.");
+    filter = filter || "all";
+    var doms = m.doms || {}, ent = m.entries || {};
+    var chips = __wcGChips(filter);
+    var note = '<div style="margin-top:10px;font-size:11.5px;color:#8b95a1;line-height:1.6;">센서리는 <span style="color:#3182f6;font-weight:700;">커핑 편차(정확도)</span>, 로스팅·추출은 <span style="color:#ff7900;font-weight:700;">교육 매니저 점수</span> 기준 · 성장 랭킹과 동일 계산.</div>';
+    if (filter === "all") {
+      var hv = m.score;
+      var scoreCol = hv == null ? "#b0b8c1" : __wcGImpColor(hv);
+      var scoreTxt = hv == null ? "—" : (hv > 0 ? "+" : "") + (Math.round(hv * 100) / 100);
+      var summary = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;border:1px solid #eef0f3;border-radius:12px;padding:14px 16px;margin-bottom:10px;">' +
+        '<div><div style="font-size:12px;color:#8b95a1;font-weight:700;">종합 성장</div>' +
+        '<div style="font-size:11.5px;color:#b0b8c1;margin-top:2px;">개선폭 = 최근 − 초기 구간 · 3회↑ 반영 · 축 클릭 시 코멘트</div></div>' +
+        '<div style="font-size:22px;font-weight:800;color:' + scoreCol + ';letter-spacing:-.03em;white-space:nowrap;">' + (hv != null ? __wcGArrow(hv) + ' ' : '') + scoreTxt + '</div></div>';
+      var rows = __WC_GDOMAINS.map(function (dom) { return __wcGDomRow(dom, doms[dom], ent[dom], true); }).join("");
+      return chips + summary + '<div style="border:1px solid #f0f1f3;border-radius:12px;padding:2px 14px 8px;background:#fff;">' + rows + '</div>' + note;
+    }
+    // 단일 역량: 그 축만 코멘트 타임라인까지 펼침
+    var one = __wcGDomRow(filter, doms[filter], ent[filter], false);
+    return chips + '<div style="border:1px solid #f0f1f3;border-radius:12px;padding:2px 14px 10px;background:#fff;">' + one + '</div>' + note;
+  }
+  // 성장 필터 전환(전역) — 저장해둔 멤버 성장 객체로 재렌더
+  window.wcGrowthFilter = function (el, f) {
+    var host = document.getElementById("wcMemGrowth"); if (!host || !window.__wcGrowthM) return;
+    host.innerHTML = __wcGrowthSectionHTML(window.__wcGrowthM, f);
+  };
 })();
 /* ═══ 커핑 8 끝 ═══ */
 /* ═══════════════════════════════════════════════════════════
