@@ -4298,7 +4298,7 @@ window.hideCalibration = async function() {
     return null;
   }
   function __wcLatestMemo(memo){ if(!memo) return ""; var ns=String(memo).split("|||").map(function(s){return s.trim();}).filter(Boolean); var hu=ns.filter(function(n){return n.indexOf("[자동]")<0;}); var p=hu.length?hu[hu.length-1]:ns[ns.length-1]; var pt=p.split(":::"); return pt.length===2?pt[1].trim():p; }
-  function __wcGoalTags(goal){ if(!goal) return '<span class="crm-empty">미작성</span>'; var a=String(goal).split(/[,·]/).map(function(s){return s.trim();}).filter(Boolean); return a.map(function(t,i){return '<span class="wcmg-tag'+(i===a.length-1?" hl":"")+'">'+esc(t)+'</span>';}).join(""); }
+  function __wcGoalTags(goal){ if(!goal) return '<span class="crm-empty">미작성</span>'; var a=String(goal).split(/[,·]/).map(function(s){return s.trim();}).filter(Boolean); return a.map(function(t){return '<span class="wcmg-tag">'+esc(t)+'</span>';}).join(""); }
   function __wcSurveyList(app){ var ch=app.survey_channel||app.acquisition_channel||""; var dur=app.survey_duration||app.known_duration||""; var q=function(l,v){return '<div class="crm-box"><div class="crm-label">'+l+'</div><div class="crm-answer">'+(v?esc(v):'<span class="crm-empty">미작성</span>')+'</div></div>';}; return q("1. 거주 지역",app.survey_region)+q("2. 연령대",app.survey_age_group)+q("3. 직업 / 연차",app.survey_job)+q("4. 유입 경로",ch)+q("5. 인지 기간",dur)+q("6. 수료하신 커피 교육",app.survey_edu)+q("7. 이전 교육 아쉬운 점",app.survey_edu_feedback)+q("8. 커피 지식 궁금한 점",app.survey_curious)+q("9. 달성 목표 (니즈)",app.survey_goal)+q("10. 기대/바라는 점",app.survey_expectations); }
   function __wcMemoList(app){ if(!app.admin_memo) return '<div class="crm-box"><div class="crm-answer"><span class="crm-empty">등록된 상담 기록이 없습니다.</span></div></div>'; return String(app.admin_memo).split("|||").map(function(note){ var p=note.split(":::"); if(p.length===2) return '<div class="crm-box"><div class="crm-label">'+esc(p[0])+'</div><div class="crm-answer">'+esc(p[1]).replace(/\n/g,"<br>")+'</div></div>'; if(note.trim()) return '<div class="crm-box"><div class="crm-answer">'+esc(note.trim()).replace(/\n/g,"<br>")+'</div></div>'; return ""; }).join(""); }
   function __wcSurveyBlock(app){
@@ -4354,7 +4354,8 @@ window.hideCalibration = async function() {
       ".wcMD-jobbtn.cancel{background:#eef0f3;color:#4e5968;}"+
       ".wcMD-div{height:1px;background:#e5e8eb;margin:18px 0;}"+
       ".wcMD-hero{display:flex;align-items:center;gap:16px;margin-bottom:16px;}"+
-      ".wcMD-hero .ring{position:relative;width:82px;height:82px;flex-shrink:0;}"+
+      ".wcMD-hero .ring{position:relative;width:82px;height:82px;flex:none;}"+
+      ".wcMD-hero .ring svg{display:block;width:82px;height:82px;}"+
       ".wcMD-hero .ring .cap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}"+
       ".wcMD-hero .ring .cap .v{font-size:20px;font-weight:800;letter-spacing:-.6px;line-height:1;}"+
       ".wcMD-hero .ring .cap .l{font-size:10px;font-weight:600;color:#8b95a1;margin-top:2px;}"+
@@ -4378,8 +4379,15 @@ window.hideCalibration = async function() {
     document.head.appendChild(st);
   }
   function __wcRing(rate){
-    rate=(rate==null?0:rate); var C=213.6, off=C*(1-Math.min(100,Math.max(0,rate))/100);
-    return '<svg width="82" height="82" viewBox="0 0 82 82"><circle cx="41" cy="41" r="34" fill="none" stroke="#e9edf1" stroke-width="8"/><circle cx="41" cy="41" r="34" fill="none" stroke="#12b886" stroke-width="8" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 41 41)"/></svg>';
+    rate=(rate==null?0:Math.min(100,Math.max(0,rate))); var C=213.6;
+    // 인라인 크기 고정: 관리자 전역 svg CSS(예: svg{width:100%})가 링을 늘리지 못하게 방어
+    var head='<svg width="82" height="82" viewBox="0 0 82 82" style="display:block;width:82px;height:82px;min-width:82px;flex:none;">';
+    var track='<circle cx="41" cy="41" r="34" fill="none" stroke="#e9edf1" stroke-width="8"/>';
+    if(rate>=100){ // 100%는 이음매(둥근 캡 겹침) 없이 완전한 원으로
+      return head+track+'<circle cx="41" cy="41" r="34" fill="none" stroke="#12b886" stroke-width="8"/></svg>';
+    }
+    var off=C*(1-rate/100);
+    return head+track+'<circle cx="41" cy="41" r="34" fill="none" stroke="#12b886" stroke-width="8" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 41 41)"/></svg>';
   }
   // 날짜 → "MM.DD (요일)"
   function __wcDateDow(iso){
@@ -5204,7 +5212,6 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 8 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 9 — 평가 모드 설정 (호스트)
    커핑 설정 모달에 '평가 모드' 셀렉터 주입 → cupping_sessions.assess_mode 저장.
