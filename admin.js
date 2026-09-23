@@ -4338,11 +4338,20 @@ window.hideCalibration = async function() {
       ".wcMD-seg a.on{background:#fff;color:#191f28;box-shadow:0 1px 3px rgba(0,0,0,.08);}"+
       ".wcMD-ava{width:56px;height:56px;border-radius:17px;background:linear-gradient(140deg,#3a4149,#191f28);color:#fff;font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:-.5px;}"+
       ".wcMD-nm{margin-top:14px;font-size:21px;font-weight:800;letter-spacing:-.6px;display:flex;align-items:center;gap:8px;}"+
+      ".wcMD-nm.wcMD-nm-top{margin-top:2px;}"+
       ".wcMD-nm .pill{font-size:11.5px;font-weight:700;padding:3px 8px;border-radius:7px;background:#f2f4f6;color:#8b95a1;}"+
       ".wcMD-nm .pill.on{background:rgba(18,184,134,.12);color:#0ca678;}"+
-      ".wcMD-gi{margin-top:8px;font-size:12.5px;font-weight:600;color:#4e5968;letter-spacing:-.2px;line-height:1.55;}"+
+      ".wcMD-gi{margin-top:8px;font-size:12.5px;font-weight:600;color:#4e5968;letter-spacing:-.2px;line-height:1.7;}"+
       ".wcMD-gi .sep{color:#d1d6db;font-weight:400;}"+
       ".wcMD-kpi .l{white-space:nowrap;}"+
+      ".wcMD-job.editable{cursor:text;border-bottom:1px dashed #cdd3da;padding-bottom:1px;transition:background .12s,border-color .12s;border-radius:3px 3px 0 0;}"+
+      ".wcMD-job.editable:hover{border-bottom-color:#ff7900;background:rgba(255,121,0,.06);}"+
+      ".wcMD-job.editable.ph{color:#b0b8c1;font-weight:500;}"+
+      ".wcMD-jobedit-wrap{display:inline-flex;align-items:center;gap:5px;vertical-align:middle;}"+
+      ".wcMD-jobinput{font-family:inherit;font-size:12.5px;font-weight:600;color:#191f28;border:1px solid #ff7900;border-radius:7px;padding:3px 8px;width:118px;outline:none;box-shadow:0 0 0 3px rgba(255,121,0,.12);}"+
+      ".wcMD-jobbtn{font-family:inherit;font-size:11px;font-weight:700;border:none;border-radius:7px;padding:5px 9px;cursor:pointer;}"+
+      ".wcMD-jobbtn.save{background:#ff7900;color:#fff;}"+
+      ".wcMD-jobbtn.cancel{background:#eef0f3;color:#4e5968;}"+
       ".wcMD-div{height:1px;background:#e5e8eb;margin:18px 0;}"+
       ".wcMD-hero{display:flex;align-items:center;gap:16px;margin-bottom:16px;}"+
       ".wcMD-hero .ring{position:relative;width:82px;height:82px;flex-shrink:0;}"+
@@ -4372,16 +4381,40 @@ window.hideCalibration = async function() {
     rate=(rate==null?0:rate); var C=213.6, off=C*(1-Math.min(100,Math.max(0,rate))/100);
     return '<svg width="82" height="82" viewBox="0 0 82 82"><circle cx="41" cy="41" r="34" fill="none" stroke="#e9edf1" stroke-width="8"/><circle cx="41" cy="41" r="34" fill="none" stroke="#12b886" stroke-width="8" stroke-linecap="round" stroke-dasharray="'+C+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 41 41)"/></svg>';
   }
+  // 날짜 → "MM.DD (요일)"
+  function __wcDateDow(iso){
+    if(!iso) return "";
+    var s=String(iso).slice(0,10); var d=new Date(s);
+    if(isNaN(d)) return s.slice(5).replace(/-/g,".");
+    var w=["일","월","화","수","목","금","토"][d.getDay()];
+    return s.slice(5).replace(/-/g,".")+" ("+w+")";
+  }
+  // 센터명 표기 통일(마포/광진 → ~센터)
+  function __wcCenterName(c){
+    c=String(c||"").trim(); if(!c) return "";
+    if(c.indexOf("광진")>=0) return "광진센터";
+    if(c.indexOf("마포")>=0) return "마포센터";
+    return c;
+  }
   function __wcRailHTML(name, m){
     m=m||{}; var mem=m.member||{}, app=m.app||{};
-    var initial=(String(name||"·").trim().charAt(0))||"·";
     var status=mem.status||"활동 중";
     var statusOn=/활동|연장|단일/.test(status);
-    // 기수 · 센터 · 직업(연차) — 여러 소스 폴백
+    // 기수 · 직업(연차) — 센터는 하단 '주 이용 센터' 행으로 분리
     var batch=mem.batch||app.desired_batch||"";
-    var center=mem.center||mem.branch||app.desired_center||"";
     var job=app.survey_job||mem.job||"";
-    var giParts=[batch?esc(batch):"", center?esc(center):"", job?esc(job):""].filter(Boolean);
+    // 주 이용 센터: 예약·훈련 최다 이용 센터 → 없으면 등록/희망 센터
+    var mainCenter=__wcCenterName(m.mainCenter || mem.center || mem.branch || app.desired_center || "");
+    // 직업 인라인 수정: 값 클릭 → 편집(신청서 있는 멤버만 저장 → applications.survey_job)
+    var appid=(app&&app.id)?String(app.id):"";
+    var jobSlot;
+    if(appid){
+      var jobText=job?esc(job):"직업 입력";
+      jobSlot='<span class="wcMD-job editable'+(job?"":" ph")+'" data-appid="'+esc(appid)+'" data-job="'+esc(job||"")+'" onclick="window.wcEditJob(this)" title="클릭하여 수정">'+jobText+'</span>';
+    } else if(job){
+      jobSlot='<span class="wcMD-job">'+esc(job)+'</span>';
+    } else { jobSlot=""; }
+    var giParts=[]; if(batch) giParts.push(esc(batch)); if(jobSlot) giParts.push(jobSlot);
     var giHTML=giParts.length? giParts.join('<span class="sep"> · </span>') : '<span style="color:#b0b8c1;">정보 미등록</span>';
     var phone=mem.phone||app.phone||"";
     var ph=phone?(window.normalizePhone?window.normalizePhone(phone):phone):"";
@@ -4393,21 +4426,20 @@ window.hideCalibration = async function() {
       '<div class="wcMD-hero"><div class="ring">'+__wcRing(rate)+'<div class="cap"><div class="v">'+rate+'%</div><div class="l">방문율</div></div></div><div class="hx"><div class="ht">자발적 방문율</div><div class="hs">'+esc(m.weeksTxt||"")+'</div></div></div>';
     var trend = m.devTxt ? '<div class="wcMD-trend"><div><div class="tl">센서리 정확도 편차</div><div class="tv">'+esc(m.devTxt)+' <span class="dl">'+esc(m.devDelta||"")+'</span></div></div></div>' : '';
     function frow(k,v){ return '<div class="fr"><span class="fk">'+k+'</span><span class="fv">'+v+'</span></div>'; }
-    // 가입일: 명시 joinDate → 회원 created_at → 폴백
+    // 가입일: 명시 joinDate → 멤버 created_at
     var jdRaw=m.joinDate||(mem.created_at?String(mem.created_at).slice(0,10):"")||"";
-    var jdTxt=jdRaw? jdRaw.replace(/-/g,".") : "";
-    var joinTxt=[batch?esc(batch):"", jdTxt].filter(Boolean).join(" · ")||"—";
+    var joinTxt=[batch?esc(batch):"", jdRaw?__wcDateDow(jdRaw):""].filter(Boolean).join(" · ")||"—";
     var payTxt=m.payTotal?((typeof comma==="function"?comma(String(m.payTotal)):Number(m.payTotal).toLocaleString())+"원"):"—";
-    var visitTxt=m.lastVisit? String(m.lastVisit).slice(5).replace("-",".") : "—";
-    var consultTxt=app.call_time? (function(){ var c=String(app.call_time).split(" ")[0]; return /\d{4}-\d{2}-\d{2}/.test(c)? c.slice(5).replace("-",".")+" 완료" : "완료"; })() : "—";
+    var visitTxt=m.lastVisit? __wcDateDow(m.lastVisit) : "—";
+    var consultTxt=app.call_time? (function(){ var c=String(app.call_time).slice(0,10); return /\d{4}-\d{2}-\d{2}/.test(c)? __wcDateDow(c)+" 완료" : "완료"; })() : "—";
     var footer='<div class="wcMD-foot">'+
       frow("가입",esc(joinTxt))+
+      frow("주 이용 센터",mainCenter?esc(mainCenter):"—")+
       (ph?frow("연락처",esc(ph)):"")+
-      frow("결제",'<b style="color:#ff7900;">'+payTxt+'</b>')+
+      frow("총 결제 금액",'<b style="color:#ff7900;">'+payTxt+'</b>')+
       frow("최근 방문",visitTxt)+
       frow("상담",consultTxt)+'</div>';
-    return '<div class="wcMD-ava">'+esc(initial)+'</div>'+
-      '<div class="wcMD-nm">'+esc(name||"")+' <span class="pill '+(statusOn?"on":"")+'">'+esc(status)+'</span></div>'+
+    return '<div class="wcMD-nm wcMD-nm-top">'+esc(name||"")+' <span class="pill '+(statusOn?"on":"")+'">'+esc(status)+'</span></div>'+
       '<div class="wcMD-gi">'+giHTML+'</div>'+
       '<div class="wcMD-div"></div>'+ring+kpi+trend+footer;
   }
@@ -4424,7 +4456,7 @@ window.hideCalibration = async function() {
       var pane=document.createElement("section"); pane.className="wcMD-pane";
       if(header){
         pane.appendChild(header);
-        var t=header.querySelector("#historyModalTitle"); if(t) t.textContent="회원 상세";
+        var t=header.querySelector("#historyModalTitle"); if(t) t.textContent="멤버 상세";
         if(!header.querySelector(".wcMD-seg")){
           var seg=document.createElement("nav"); seg.className="wcMD-seg";
           seg.innerHTML='<a class="on" data-tgt="activity">코칭 · 활동</a><a data-tgt="survey">상담 · 설문</a>';
@@ -4486,8 +4518,42 @@ window.hideCalibration = async function() {
       }
     }catch(_e){}
     var railEl=document.getElementById("wcMDrail");
-    if(railEl) railEl.innerHTML=__wcRailHTML(name,m);
+    if(railEl){ window.__wcRailCtx={name:name, m:m}; railEl.innerHTML=__wcRailHTML(name,m); }
   }
+  // 레일 재렌더(직업 수정 저장/취소 후)
+  window.wcRerenderRail=function(){ var r=document.getElementById("wcMDrail"); if(r&&window.__wcRailCtx) r.innerHTML=__wcRailHTML(window.__wcRailCtx.name, window.__wcRailCtx.m); };
+  function __wcToast(msg){ if(typeof showToast==="function") showToast(msg); else if(window.showToast) window.showToast(msg); }
+  // 직업 인라인 편집 시작(값 span 클릭 → 입력 폼으로 교체)
+  window.wcEditJob=function(el){
+    var appid=el.getAttribute("data-appid")||""; if(!appid) return;
+    var cur=el.getAttribute("data-job")||"";
+    var safe=String(cur).replace(/"/g,"&quot;");
+    var wrap=document.createElement("span"); wrap.className="wcMD-jobedit-wrap";
+    wrap.innerHTML='<input id="wcMDjobinput" class="wcMD-jobinput" value="'+safe+'" placeholder="직업 / 연차" maxlength="40">'+
+      '<button type="button" class="wcMD-jobbtn save" onclick="window.wcJobSave(this,\''+appid+'\')">저장</button>'+
+      '<button type="button" class="wcMD-jobbtn cancel" onclick="window.wcJobCancel()">취소</button>';
+    el.replaceWith(wrap);
+    var inp=document.getElementById("wcMDjobinput");
+    if(inp){ inp.focus(); try{ inp.setSelectionRange(inp.value.length,inp.value.length); }catch(e){}
+      inp.addEventListener("keydown",function(e){ if(e.key==="Enter"){ e.preventDefault(); window.wcJobSave(inp,appid); } else if(e.key==="Escape"){ e.preventDefault(); window.wcJobCancel(); } }); }
+  };
+  window.wcJobCancel=function(){ window.wcRerenderRail(); };
+  window.wcJobSave=async function(el, appid){
+    var inp=document.getElementById("wcMDjobinput"); if(!inp) return;
+    var val=String(inp.value||"").trim();
+    if(!appid){ __wcToast("가입 신청 내역이 없어 직업을 저장할 수 없습니다."); return; }
+    if(typeof supabaseClient==="undefined"){ __wcToast("저장에 실패했습니다."); return; }
+    inp.disabled=true;
+    try{
+      var up=await supabaseClient.from("applications").update({survey_job: val||null}).eq("id", appid);
+      if(up.error) throw up.error;
+      // 캐시 갱신: 레일 컨텍스트 + globalApps
+      if(window.__wcRailCtx && window.__wcRailCtx.m && window.__wcRailCtx.m.app) window.__wcRailCtx.m.app.survey_job=val;
+      var ga=(window.globalApps||[]).find(function(a){ return String(a.id)===String(appid); }); if(ga) ga.survey_job=val;
+      __wcToast("직업이 수정되었습니다.");
+      window.wcRerenderRail();
+    }catch(e){ console.error("[직업 저장 실패]", e); inp.disabled=false; __wcToast("직업 저장에 실패했습니다."); }
+  };
   /* ── 멤버페이지 커핑 리뷰 모듈 연동용 shim ──
      · 그 모듈은 window.supabaseClient(익명 클라이언트) + window.uDat(로그인 멤버)를 씀.
      · 관리자 페이지엔 둘 다 없으므로 여기서 만들어줌.
@@ -4695,7 +4761,7 @@ window.hideCalibration = async function() {
     // ── [B] 마스터-디테일 셸 + 좌측 레일 + 우측 패널(설문 최상단) ──
     try {
       var __app = await __wcFindApp(phone);
-      // 회원 매칭: globalMembers → currentFilteredMembers → 직접 조회 폴백
+      // 멤버 매칭: globalMembers → currentFilteredMembers → 직접 조회 폴백
       var __mem = (window.globalMembers || []).find(function (mm) { return same(mm.phone, phone); })
                || (window.currentFilteredMembers || []).find(function (mm) { return same(mm.phone, phone); }) || null;
       if (!__mem) {
@@ -4712,7 +4778,7 @@ window.hideCalibration = async function() {
           if (d && (!__firstHist || d < __firstHist)) __firstHist = d;
         });
       } catch (e) { /* noop */ }
-      // 가입일: 회원 created_at → 최초 결제/연장 기록일 → 신청서 created_at
+      // 가입일: 멤버 created_at → 최초 결제/연장 기록일 → 신청서 created_at
       var __joinDate = (__mem && __mem.created_at ? String(__mem.created_at).slice(0, 10) : "")
                     || __firstHist
                     || (__app && __app.created_at ? String(__app.created_at).slice(0, 10) : "");
@@ -4739,9 +4805,12 @@ window.hideCalibration = async function() {
         __devDelta = (__d > 0 ? "▲ " : (__d < 0 ? "▼ " : "· ")) + Math.abs(__d).toFixed(1);
       }
       var __lastVisit = __resDates.length ? __resDates.slice().sort().slice(-1)[0] : "";
+      // 주 이용 센터: 예약·훈련 최다 이용 센터(centerCnt)
+      var __mainCenter = "";
+      try { var __ck = Object.keys(centerCnt); if (__ck.length) __mainCenter = __ck.sort(function (a, b) { return centerCnt[b] - centerCnt[a]; })[0]; } catch (e) { /* noop */ }
       // 셸 + 레일
       __wcBuildShell(phone, name, {
-        member: __mem, app: __app, joinDate: __joinDate,
+        member: __mem, app: __app, joinDate: __joinDate, mainCenter: __mainCenter,
         resCnt: resCnt, classCnt: classCnt, trainCnt: trainCnt,
         visitRate: __visitRate, weeksTxt: __weeksTxt,
         devTxt: __devTxt, devDelta: __devDelta,
@@ -4749,7 +4818,7 @@ window.hideCalibration = async function() {
       });
       // ── 우측 패널 2분할 ──
       //   코칭·활동 : host(코칭 로그 + 활동 지표·센터·센서리·이력)
-      //   상담·설문 : 가입 배경 요약 + 전체 설문·상담 기록 + 결제·연장 내역(회원 등록 행정)
+      //   상담·설문 : 가입 배경 요약 + 전체 설문·상담 기록 + 결제·연장 내역(멤버 등록 행정)
       var __oldSurvey = document.getElementById("wcMergeSurvey"); if (__oldSurvey) __oldSurvey.remove();
       var __blk = __wcSurveyBlock(__app);
       // _orig가 그린 결제·연장 내역 노드(= body의 host 외 자식)를 분리
