@@ -1129,7 +1129,13 @@ window.openBatchConfigModal = async function(batchName, onSave) {
                 <input id="batchConfigStartDate" type="date" data-auto="0" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;" onfocus="this.style.borderColor='var(--primary)'" onblur="window.wcBatchPaintAuto();window.updateBatchEndPreview();" oninput="window.wcBatchManualStart();window.updateBatchEndPreview();">
                 <div id="batchStartHint" style="display:none;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:#e56e00;margin-top:6px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 L3 14 h9 l-1 8 L21 10 h-9 z"/></svg>규칙 기준 자동 입력 · 직접 수정 가능</div>
             </div>
-            <div style="display:flex;gap:9px;align-items:flex-start;padding:12px 14px;background:#f7f8fa;border:1px solid #eef0f3;border-radius:10px;font-size:12px;color:var(--text-secondary);line-height:1.6;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8b95a1" stroke-width="2" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg><span><span style="display:block;font-size:12.5px;font-weight:800;color:var(--text-display);margin-bottom:5px;">기수 순환 규칙으로 자동 계산돼요</span>2개월마다 새 기수가 홀수 달 1일에 시작하고, 6개월간 활동해요. 모집은 시작일부터 2주 뒤(15일)에 마감돼요.<span style="display:block;font-size:11px;color:var(--text-tertiary);margin-top:6px;">34기(2026.05.01)를 기준으로 계산합니다</span></span></div>
+            <div style="background:#f7f8fa;border:1px solid #eef0f3;border-radius:11px;padding:14px 16px;">
+                <div style="font-size:11px;font-weight:800;color:#98a1ac;letter-spacing:.02em;margin-bottom:10px;">자동 계산 기준</div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12.5px;padding:7px 0;"><span style="color:var(--text-tertiary);font-weight:600;flex-shrink:0;">활동 시작</span><span style="color:var(--text-display);font-weight:700;text-align:right;">홀수 달 1일 · 2개월 간격</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12.5px;padding:7px 0;border-top:1px solid #eceff2;"><span style="color:var(--text-tertiary);font-weight:600;flex-shrink:0;">활동 기간</span><span style="color:var(--text-display);font-weight:700;text-align:right;">6개월</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12.5px;padding:7px 0;border-top:1px solid #eceff2;"><span style="color:var(--text-tertiary);font-weight:600;flex-shrink:0;">모집 마감</span><span style="color:var(--text-display);font-weight:700;text-align:right;">시작일 + 2주 (15일)</span></div>
+                <div style="font-size:11px;color:#adb4bd;margin-top:9px;padding-top:9px;border-top:1px solid #eceff2;">34기 2026.05.01 시작을 기준으로 계산</div>
+            </div>
             <div id="batchEndPreview" style="display:none;padding:14px 15px;background:#f0f9f4;border-radius:8px;border:1px solid #c3e6d0;"></div>
         </div>
         <div style="padding:16px 24px;border-top:1px solid var(--border-strong);display:flex;justify-content:flex-end;gap:8px;">
@@ -1194,8 +1200,37 @@ window.closeBatchConfigModal = function() {
     const modal = document.getElementById('batchConfigModal');
     if (modal) modal.style.display = 'none';
 };
+// 기수 활동기간 스트립 스타일(1회 주입) — 데스크톱 인라인 / 모바일 세로 스택
+window.wcEnsureBatchStripStyle = function() {
+    if (document.getElementById('wcBatchStripStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'wcBatchStripStyle';
+    st.textContent =
+        ".wcBP{display:flex;align-items:center;gap:12px;padding:14px 20px;background:#fafafa;border-left:3px solid var(--primary);border-radius:0 10px 10px 0;box-shadow:0 1px 3px rgba(0,0,0,.04);}" +
+        ".wcBP.off{border-left-color:var(--border-strong);}" +
+        ".wcBP-bt{order:1;font-size:14px;font-weight:800;color:var(--text-display);flex-shrink:0;}" +
+        ".wcBP-dates{order:2;flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}" +
+        ".wcBP-sep{display:inline-block;width:1px;height:11px;background:#d7dbe0;flex-shrink:0;}" +
+        ".wcBP-line{display:inline-flex;align-items:baseline;gap:8px;}" +
+        ".wcBP-lab{font-size:13px;font-weight:600;color:var(--text-tertiary);}" +
+        ".wcBP-valP{font-size:14px;font-weight:800;color:var(--primary);letter-spacing:-.3px;}" +
+        ".wcBP-valN{font-size:14px;font-weight:700;color:var(--text-display);letter-spacing:-.3px;}" +
+        ".wcBP-edit{order:3;flex-shrink:0;white-space:nowrap;font-size:12px;font-weight:700;color:var(--text-secondary);background:#fff;border:1px solid var(--border-strong);border-radius:8px;padding:6px 12px;cursor:pointer;font-family:inherit;transition:border-color .12s,color .12s;}" +
+        ".wcBP-edit:hover{border-color:var(--primary);color:var(--primary);}" +
+        ".wcBP-edit.go{color:var(--primary);border-color:var(--primary);}" +
+        "@media(max-width:768px){" +
+            ".wcBP{flex-wrap:wrap;gap:11px;padding:15px 16px;}" +
+            ".wcBP-edit{order:2;margin-left:auto;}" +
+            ".wcBP-dates{order:3;flex-basis:100%;flex-direction:column;align-items:flex-start;gap:6px;}" +
+            ".wcBP-sep{display:none;}" +
+            ".wcBP-line{width:100%;}" +
+            ".wcBP-lab{width:56px;flex-shrink:0;}" +
+        "}";
+    document.head.appendChild(st);
+};
 // ★ 기수 활동기간: 헤더 아래 인포 스트립 (토스 패턴)
 window.renderBatchInfoBadge = async function() {
+    window.wcEnsureBatchStripStyle();
     const selected = $("batchFilterApp") ? $("batchFilterApp").value : 'all';
     let strip = document.getElementById('batchPeriodStrip');
     if (!strip) {
@@ -1213,8 +1248,9 @@ window.renderBatchInfoBadge = async function() {
         strip.style.maxHeight = '0'; strip.style.opacity = '0'; strip.style.marginTop = '0'; strip.style.marginBottom = '0';
         return;
     }
-    strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#fafafa;border-left:3px solid var(--primary);border-radius:0 10px 10px 0;"><span style="color:var(--text-tertiary);font-size:13px;font-weight:600;">불러오는 중...</span><span></span></div>`;
-    strip.style.maxHeight = '120px'; strip.style.opacity = '1'; strip.style.marginTop = '24px'; strip.style.marginBottom = '28px';
+    const editAttr = `onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})"`;
+    strip.innerHTML = `<div class="wcBP"><span class="wcBP-bt">${window.escapeHtml(selected)}</span><div class="wcBP-dates"><span class="wcBP-lab">불러오는 중…</span></div></div>`;
+    strip.style.maxHeight = '200px'; strip.style.opacity = '1'; strip.style.marginTop = '24px'; strip.style.marginBottom = '28px';
     try {
         const { data: conf } = await supabaseClient.from('batch_config').select('start_date').eq('batch', selected).maybeSingle();
         if (conf && conf.start_date) {
@@ -1223,11 +1259,10 @@ window.renderBatchInfoBadge = async function() {
             ed.setMonth(ed.getMonth() + 6); ed.setDate(ed.getDate() - 1);
             let cd = new Date(conf.start_date + 'T00:00:00'); cd.setDate(cd.getDate() + 14); // 모집마감 = 시작+14일
             let fmt = d => `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-            let fmtMd = d => `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-            let closeBadge = `<span style="font-size:12px;font-weight:700;color:var(--text-tertiary);background:#fff;border:1px solid var(--border-strong);border-radius:7px;padding:3px 9px;white-space:nowrap;">모집마감 ${fmtMd(cd)}</span>`;
-            strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#fafafa;border-left:3px solid var(--primary);border-radius:0 10px 10px 0;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span style="font-size:14px;font-weight:800;color:var(--text-display);">${window.escapeHtml(selected)}</span><span style="font-size:13px;font-weight:600;color:var(--text-tertiary);">활동기간</span><span style="font-size:14px;font-weight:800;color:var(--primary);letter-spacing:-0.3px;">${fmt(sd)} – ${fmt(ed)}</span>${closeBadge}</div><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="font-size:13px;font-weight:600;color:var(--text-tertiary);cursor:pointer;transition:color 0.15s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-tertiary)'">수정</span></div>`;
+            // 활동기간·모집마감 동일 형식(라벨+텍스트) · 중요도는 색/굵기로만 구분
+            strip.innerHTML = `<div class="wcBP"><span class="wcBP-bt">${window.escapeHtml(selected)}</span><div class="wcBP-dates"><span class="wcBP-sep"></span><span class="wcBP-line"><span class="wcBP-lab">활동기간</span><span class="wcBP-valP">${fmt(sd)} – ${fmt(ed)}</span></span><span class="wcBP-sep"></span><span class="wcBP-line"><span class="wcBP-lab">모집마감</span><span class="wcBP-valN">${fmt(cd)}</span></span></div><button type="button" class="wcBP-edit" ${editAttr}>수정</button></div>`;
         } else {
-            strip.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:#fafafa;border-left:3px solid var(--border-strong);border-radius:0 10px 10px 0;"><div style="display:flex;align-items:center;gap:10px;"><span style="font-size:14px;font-weight:800;color:var(--text-display);">${window.escapeHtml(selected)}</span><span style="font-size:13px;font-weight:600;color:var(--text-tertiary);">활동기간 미설정</span></div><span onclick="window.openBatchConfigModal('${window.escapeHtml(selected)}',function(){window.renderBatchInfoBadge();window.applyFilterApp();})" style="font-size:13px;font-weight:700;color:var(--primary);cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">설정하기</span></div>`;
+            strip.innerHTML = `<div class="wcBP off"><span class="wcBP-bt">${window.escapeHtml(selected)}</span><div class="wcBP-dates"><span class="wcBP-sep"></span><span class="wcBP-line"><span class="wcBP-lab">활동기간</span><span class="wcBP-valN" style="color:var(--text-tertiary);font-weight:600;">미설정</span></span></div><button type="button" class="wcBP-edit go" ${editAttr}>설정하기</button></div>`;
         }
     } catch(e) { strip.style.maxHeight = '0'; strip.style.opacity = '0'; }
 };
