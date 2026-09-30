@@ -3830,6 +3830,17 @@ window.hideCalibration = async function() {
   }
   /* 참가자별 상세(레이더·CVA폼) 상태 · 렌더 */
   var _rvRows = [], _rvRef = null, _rvNames = {}, _rvView = {}, _rvBeanName = "";
+  /* ── 비교 상태(다중 겹쳐보기) ── */
+  var _rvCmpSel = {};       // 참가자 인덱스 → true (겹침 선택)
+  var _rvCmpRef = true;     // 레퍼런스 기본 ON
+  var _rvCmpAvg = false;    // 참가자 평균 기본 OFF
+  var _rvMxMode = "val";    // 매트릭스: "val"(강도값) | "dev"(레퍼런스 편차)
+  // 참가자 겹침용 팔레트(레퍼런스 파랑·평균 회색과 겹치지 않게)
+  var RV_PAL = ["#ff7900","#12b886","#7048e8","#e64980","#0ca678","#f76707","#d6336c","#ae3ec9","#e8590c","#087f5b"];
+  function rvColor(i){ return RV_PAL[i % RV_PAL.length]; }
+  function rvVals(r){ return RV_KEYS.map(function (k) { return num(r[k]); }); }
+  function rvRefVals(){ return _rvRef ? RV_KEYS.map(function (k) { return num(_rvRef[k]); }) : null; }
+  function rvAvgVals(){ return RV_KEYS.map(function (k, i) { var vs = _rvRows.map(function (r) { return num(r[k]); }).filter(function (v) { return v != null; }); return vs.length ? Math.round(vs.reduce(function (a, b) { return a + b; }, 0) / vs.length * 10) / 10 : null; }); }
   window.cupRvDetail = function (i) {
     var box = _$("cupRvDetail" + i); if (!box) return;
     if (box.getAttribute("data-open") === "1") { box.style.display = "none"; box.setAttribute("data-open", "0"); box.innerHTML = ""; var b0=_$("cupRvDBtn"+i); if(b0) b0.textContent="상세 보기 (레이더·CVA폼)"; return; }
@@ -3839,35 +3850,108 @@ window.hideCalibration = async function() {
     renderDetail(i);
   };
   window.cupRvDetailView = function (i, v) { _rvView[i] = v; renderDetail(i); };
-  /* ── 참가자 A/B 레이더 겹쳐보기 ── */
-  window.cupRvCmpRender = function (a, b) {
-    var A = _rvRows[a], B = _rvRows[b]; if (!A || !B) return '<div style="padding:16px 0;text-align:center;color:#b0b8c1;font-size:12.5px;">비교할 참가자를 두 명 선택하세요.</div>';
-    var meA = RV_KEYS.map(function (k) { return num(A[k]); });
-    var meB = RV_KEYS.map(function (k) { return num(B[k]); });
-    var refV = _rvRef ? RV_KEYS.map(function (k) { return num(_rvRef[k]); }) : null;
-    var nmA = _rvNames[A.participant_id] || "참가자", nmB = _rvNames[B.participant_id] || "참가자";
-    var radar = radarSVGLocal(meA, refV, meB, RV_LABS);
-    var legend = '<div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;font-size:11.5px;font-weight:700;color:#4e5968;margin-top:2px;">' +
-      '<span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#ff7900;margin-right:4px;vertical-align:middle;"></i>' + esc(nmA) + '</span>' +
-      '<span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#12b886;margin-right:4px;vertical-align:middle;"></i>' + esc(nmB) + '</span>' +
-      (refV ? '<span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#3182f6;margin-right:4px;vertical-align:middle;"></i>교육 매니저</span>' : '') + '</div>';
-    var tbl = '<table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px;margin-top:10px;border:1px solid #eef0f3;border-radius:10px;overflow:hidden;">' +
-      '<thead><tr style="background:#f9fafb;"><th style="text-align:left;padding:6px 8px;color:#8b95a1;font-weight:700;">항목</th><th style="text-align:center;padding:6px 8px;color:#ea6f00;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(nmA) + '</th><th style="text-align:center;padding:6px 8px;color:#0a9d74;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(nmB) + '</th><th style="text-align:center;padding:6px 8px;color:#8b95a1;font-weight:700;">차이</th></tr></thead><tbody>';
-    RV_LABS.forEach(function (lab, i) {
-      var va = meA[i], vb = meB[i], df = (va != null && vb != null) ? (va - vb) : null;
-      var dc = df == null ? "#b0b8c1" : (Math.abs(df) <= 1 ? "#00b386" : (Math.abs(df) <= 2.5 ? "#e08600" : "#e5484d"));
-      tbl += '<tr><td style="padding:6px 8px;font-weight:700;color:#191f28;">' + lab + '</td>' +
-        '<td style="text-align:center;padding:6px 8px;">' + fx(va) + '</td>' +
-        '<td style="text-align:center;padding:6px 8px;">' + fx(vb) + '</td>' +
-        '<td style="text-align:center;padding:6px 8px;font-weight:800;color:' + dc + ';">' + (df == null ? "—" : (df > 0 ? "+" : "") + (Number.isInteger(df) ? df : df.toFixed(1))) + '</td></tr>';
+  /* ── 다중 시리즈 레이더(겹쳐보기용) ── */
+  function radarMultiLocal(series, AX) {
+    AX = AX || []; var MAX = 15, cx = 170, cy = 150, R = 105, N = AX.length || 1;
+    function pt(i, val) { var ang = -Math.PI / 2 + i * (2 * Math.PI / N); var r = ((val == null ? 0 : val) / MAX) * R; return [cx + r * Math.cos(ang), cy + r * Math.sin(ang)]; }
+    function poly(vals) { return vals.map(function (v, i) { return pt(i, v).join(","); }).join(" "); }
+    var h = "";
+    [5, 10, 15].forEach(function (rv) { var p = AX.map(function (_, i) { return pt(i, rv).join(","); }).join(" "); h += '<polygon points="' + p + '" fill="none" stroke="#e5e8eb" stroke-width="1"/>'; });
+    AX.forEach(function (lab, i) { var e = pt(i, 15), lp = pt(i, 17.8); h += '<line x1="' + cx + '" y1="' + cy + '" x2="' + e[0] + '" y2="' + e[1] + '" stroke="#eceef1" stroke-width="1"/>'; var anc = Math.abs(lp[0] - cx) < 6 ? "middle" : (lp[0] < cx ? "end" : "start"); h += '<text x="' + lp[0] + '" y="' + (lp[1] + 4) + '" font-size="11" font-weight="700" fill="#8b95a1" text-anchor="' + anc + '">' + lab + '</text>'; });
+    (series || []).forEach(function (s) {
+      if (!s.vals.some(function (v) { return v != null; })) return;
+      var fo = s.fill == null ? 0.05 : s.fill;
+      h += '<polygon points="' + poly(s.vals) + '" fill="' + s.color + '" fill-opacity="' + fo + '" stroke="' + s.color + '" stroke-width="2"' + (s.dash ? ' stroke-dasharray="5 4"' : '') + '/>';
+      s.vals.forEach(function (v, i) { if (v == null) return; var p = pt(i, v); h += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="3" fill="' + s.color + '"/>'; });
     });
-    tbl += '</tbody></table>';
-    return '<div style="display:flex;justify-content:center;">' + radar + '</div>' + legend + tbl;
+    return '<svg width="340" height="300" viewBox="0 0 340 300" style="max-width:100%;height:auto;">' + h + '</svg>';
+  }
+  /* ── 겹쳐보기: 칩 토글 → 다중 레이더 ── */
+  function cupRvCmpChip(kind, on, color, label, dash) {
+    var sw = on
+      ? '<span style="width:12px;height:0;border-top:3px ' + (dash ? "dashed" : "solid") + ' #fff;display:inline-block;"></span>'
+      : '<span style="width:9px;height:9px;border-radius:50%;background:#c9cfd6;display:inline-block;"></span>';
+    return '<button type="button" onclick="window.cupRvCmpToggle(\'' + kind + '\')" style="border:1.5px solid ' + (on ? color : "#e5e8eb") + ';background:' + (on ? color : "#fff") + ';color:' + (on ? "#fff" : "#4e5968") + ';border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;line-height:1;">' + sw + esc(label) + '</button>';
+  }
+  function cupRvCmpInner() {
+    var refV = rvRefVals(), avgV = _rvRows.length ? rvAvgVals() : null;
+    var chips = '';
+    if (refV) chips += cupRvCmpChip("ref", _rvCmpRef, "#3182f6", "레퍼런스", true);
+    if (avgV) chips += cupRvCmpChip("avg", _rvCmpAvg, "#495057", "참가자 평균", true);
+    _rvRows.forEach(function (r, i) { chips += cupRvCmpChip(String(i), !!_rvCmpSel[i], rvColor(i), _rvNames[r.participant_id] || "참가자", false); });
+    var series = [], legend = [];
+    if (_rvCmpRef && refV) { series.push({ vals: refV, color: "#3182f6", dash: true, fill: 0.10 }); legend.push({ c: "#3182f6", t: "레퍼런스", dash: true }); }
+    if (_rvCmpAvg && avgV) { series.push({ vals: avgV, color: "#495057", dash: true, fill: 0.08 }); legend.push({ c: "#495057", t: "참가자 평균", dash: true }); }
+    _rvRows.forEach(function (r, i) { if (!_rvCmpSel[i]) return; series.push({ vals: rvVals(r), color: rvColor(i), fill: 0.05 }); legend.push({ c: rvColor(i), t: _rvNames[r.participant_id] || "참가자" }); });
+    var picked = Object.keys(_rvCmpSel).length;
+    var body;
+    if (!series.length) {
+      body = '<div style="padding:30px 12px;text-align:center;color:#b0b8c1;font-size:12.5px;line-height:1.6;">비교할 대상을 위에서 골라주세요.<br>참가자 칩을 누르면 레이더에 겹쳐집니다.</div>';
+    } else {
+      var lg = '<div style="display:flex;justify-content:center;gap:14px;flex-wrap:wrap;font-size:11.5px;font-weight:700;color:#4e5968;margin-top:2px;">' +
+        legend.map(function (l) { return '<span style="display:inline-flex;align-items:center;gap:5px;"><i style="display:inline-block;width:13px;height:0;border-top:3px ' + (l.dash ? "dashed" : "solid") + ' ' + l.c + ';"></i>' + esc(l.t) + '</span>'; }).join("") + '</div>';
+      body = '<div style="display:flex;justify-content:center;">' + radarMultiLocal(series, RV_LABS) + '</div>' + lg;
+    }
+    var hint = '<div style="font-size:11px;color:#b0b8c1;margin:0 0 8px;line-height:1.5;">칩을 눌러 원하는 만큼 겹쳐 보세요' + (picked > 5 ? ' · <span style="color:#e08600;">' + picked + '명 — 5명 이하가 보기 편해요</span>' : ' · 가독성 위해 4~5명 권장') + '</div>';
+    return '<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:8px;">' + chips + '</div>' + hint + body;
+  }
+  window.cupRvCmpToggle = function (kind) {
+    if (kind === "ref") { if (rvRefVals()) _rvCmpRef = !_rvCmpRef; }
+    else if (kind === "avg") _rvCmpAvg = !_rvCmpAvg;
+    else { var i = parseInt(kind, 10); if (_rvCmpSel[i]) delete _rvCmpSel[i]; else _rvCmpSel[i] = true; }
+    var wrap = _$("cupRvCmpWrap"); if (wrap) wrap.innerHTML = cupRvCmpInner();
   };
-  window.cupRvCmp = function () {
-    var sa = _$("cupRvCmpA"), sb = _$("cupRvCmpB"), box = _$("cupRvCmpBox");
-    if (!sa || !sb || !box) return;
-    box.innerHTML = window.cupRvCmpRender(parseInt(sa.value, 10) || 0, parseInt(sb.value, 10) || 0);
+  /* 하위호환: 예전 호출부가 남아 있어도 안전하게 새 UI로 */
+  window.cupRvCmpRender = function () { return cupRvCmpInner(); };
+  window.cupRvCmp = function () { var wrap = _$("cupRvCmpWrap"); if (wrap) wrap.innerHTML = cupRvCmpInner(); };
+  /* ── 전원 매트릭스: 모든 참가자 × 7항목 한눈에 ── */
+  function cupRvMatrix() {
+    var refV = rvRefVals(), avgV = _rvRows.length ? rvAvgVals() : null;
+    var devMode = _rvMxMode === "dev" && !!refV;
+    var head = '<tr><th style="position:sticky;left:0;z-index:1;background:#f9fafb;text-align:left;padding:8px 10px;font-size:11px;color:#8b95a1;font-weight:700;white-space:nowrap;">참가자</th>' +
+      RV_LABS.map(function (l) { return '<th style="padding:8px 6px;font-size:11px;color:#8b95a1;font-weight:700;white-space:nowrap;">' + l + '</th>'; }).join("") + '</tr>';
+    function nameCell(t, color, bg) { return '<td style="position:sticky;left:0;z-index:1;background:' + (bg || "#fff") + ';text-align:left;padding:8px 10px;font-weight:800;color:' + (color || "#191f28") + ';white-space:nowrap;">' + esc(t) + '</td>'; }
+    var body = "";
+    if (!devMode && refV) {
+      body += '<tr style="background:#eef4ff;">' + nameCell("레퍼런스", "#2b6fd6", "#eef4ff") +
+        refV.map(function (v) { return '<td style="text-align:center;padding:8px 6px;font-weight:700;color:#2b6fd6;">' + fx(v) + '</td>'; }).join("") + '</tr>';
+    }
+    if (avgV) {
+      body += '<tr style="background:#f7f8fa;">' + nameCell("참가자 평균", "#495057", "#f7f8fa") +
+        avgV.map(function (v, i) {
+          if (devMode) { var d = (v != null && refV[i] != null) ? v - refV[i] : null; return devCell(d); }
+          return '<td style="text-align:center;padding:8px 6px;font-weight:700;color:#495057;">' + fx(v) + '</td>';
+        }).join("") + '</tr>';
+    }
+    _rvRows.forEach(function (r, ri) {
+      var vals = rvVals(r);
+      body += '<tr>' + nameCell(_rvNames[r.participant_id] || "참가자", rvColor(ri)) +
+        vals.map(function (v, i) {
+          if (devMode) { var d = (v != null && refV[i] != null) ? v - refV[i] : null; return devCell(d); }
+          return '<td style="text-align:center;padding:8px 6px;font-weight:700;color:#191f28;">' + fx(v) + '</td>';
+        }).join("") + '</tr>';
+    });
+    function devCell(d) {
+      if (d == null) return '<td style="text-align:center;padding:8px 6px;color:#c9cfd6;">—</td>';
+      var ad = Math.abs(d), c = ad <= 1 ? "#00b386" : (ad <= 2.5 ? "#e08600" : "#e5484d");
+      var bg = ad <= 1 ? "#ecfdf3" : (ad <= 2.5 ? "#fff7ea" : "#fef1f1");
+      var s = (d > 0 ? "+" : "") + (Number.isInteger(d) ? d : d.toFixed(1));
+      return '<td style="text-align:center;padding:8px 6px;"><span style="display:inline-block;min-width:30px;padding:2px 4px;border-radius:6px;font-weight:800;color:' + c + ';background:' + bg + ';">' + s + '</span></td>';
+    }
+    var canDev = !!refV;
+    var toggle = '<div style="display:inline-flex;background:#f2f4f6;border-radius:9px;padding:3px;margin-bottom:10px;">' +
+      '<button type="button" onclick="window.cupRvMxMode(\'val\')" style="border:none;background:' + (!devMode ? "#fff" : "transparent") + ';color:' + (!devMode ? "#191f28" : "#8b95a1") + ';padding:6px 14px;font-size:12px;font-weight:800;border-radius:6px;cursor:pointer;' + (!devMode ? "box-shadow:0 1px 4px rgba(0,0,0,.06);" : "") + '">강도값</button>' +
+      '<button type="button" ' + (canDev ? '' : 'disabled ') + 'onclick="window.cupRvMxMode(\'dev\')" title="' + (canDev ? "" : "레퍼런스 미입력") + '" style="border:none;background:' + (devMode ? "#fff" : "transparent") + ';color:' + (canDev ? (devMode ? "#191f28" : "#8b95a1") : "#c9cfd6") + ';padding:6px 14px;font-size:12px;font-weight:800;border-radius:6px;cursor:' + (canDev ? "pointer" : "not-allowed") + ';' + (devMode ? "box-shadow:0 1px 4px rgba(0,0,0,.06);" : "") + '">레퍼런스 대비 편차</button>' +
+      '</div>';
+    var note = devMode
+      ? '<div style="font-size:11px;color:#b0b8c1;margin:2px 0 0;line-height:1.5;">숫자는 레퍼런스 대비 강도 차이(0~15). <span style="color:#00b386;font-weight:700;">±1 이내</span> · <span style="color:#e08600;font-weight:700;">2.5 이내</span> · <span style="color:#e5484d;font-weight:700;">그 이상</span></div>'
+      : '';
+    return toggle + '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid #eef0f3;border-radius:10px;">' +
+      '<table style="border-collapse:collapse;font-size:12px;min-width:100%;white-space:nowrap;"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>' + note;
+  }
+  window.cupRvMxMode = function (m) {
+    _rvMxMode = m;
+    var box = _$("cupRvMxBox"); if (box) box.innerHTML = cupRvMatrix();
   };
   function renderDetail(i){
     var box = _$("cupRvDetail" + i); if (!box) return;
@@ -4240,17 +4324,13 @@ window.hideCalibration = async function() {
     rows.sort(function (a, b) { return (num(b.cva_score) || 0) - (num(a.cva_score) || 0); });
     // 상세 토글·비교용 상태 저장
     _rvRows = rows; _rvRef = ref || null; _rvNames = names; _rvView = {}; _rvBeanName = beanName || "";
-    // ── 참가자 A/B 레이더 겹쳐보기 ──
+    _rvCmpSel = {}; _rvCmpRef = !!ref; _rvCmpAvg = false; _rvMxMode = "val";  // 비교 상태 초기화(참가자 전부 OFF, 레퍼런스만 ON)
+    // ── 참가자 겹쳐보기(다중 선택) ──
     if (n >= 2) {
-      var cmpOpts = rows.map(function (r, ri) { return '<option value="' + ri + '">' + esc(names[r.participant_id] || "참가자") + '</option>'; }).join("");
-      var cmpOptsB = rows.map(function (r, ri) { return '<option value="' + ri + '"' + (ri === 1 ? ' selected' : '') + '>' + esc(names[r.participant_id] || "참가자") + '</option>'; }).join("");
-      h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:14px 0 8px;">참가자 비교 <span style="font-weight:600;color:#8b95a1;">· 두 명 골라 레이더 겹쳐보기</span></div>' +
-        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">' +
-          '<select id="cupRvCmpA" onchange="window.cupRvCmp()" style="flex:1;height:32px;font-size:12.5px;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;min-width:0;">' + cmpOpts + '</select>' +
-          '<span style="color:#b0b8c1;font-weight:800;flex-shrink:0;">vs</span>' +
-          '<select id="cupRvCmpB" onchange="window.cupRvCmp()" style="flex:1;height:32px;font-size:12.5px;border:1px solid #e5e8eb;border-radius:8px;padding:0 8px;background:#fff;min-width:0;">' + cmpOptsB + '</select>' +
-        '</div>' +
-        '<div id="cupRvCmpBox">' + window.cupRvCmpRender(0, 1) + '</div>';
+      h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:14px 0 8px;">참가자 비교 <span style="font-weight:600;color:#8b95a1;">· 원하는 만큼 골라 레이더 겹쳐보기</span></div>' +
+        '<div id="cupRvCmpWrap">' + cupRvCmpInner() + '</div>' +
+        '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:18px 0 8px;">전원 비교 <span style="font-weight:600;color:#8b95a1;">· 모든 참가자 한 표에서</span></div>' +
+        '<div id="cupRvMxBox">' + cupRvMatrix() + '</div>';
     }
     h += '<div style="font-size:12px;font-weight:800;color:#4e5968;margin:18px 0 8px;">참가자별 상세 (' + n + '명)</div>';
     rows.forEach(function (r, ri) {
@@ -4310,7 +4390,6 @@ window.hideCalibration = async function() {
   }
 })();
 /* ═══ 커핑 7 끝 ═══ */
-
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 8 — 멤버 활동·성장 조회
    멤버 '내역' 모달 확장: 이용 통계, 센서리 성장 추이, 이력.
