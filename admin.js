@@ -288,7 +288,7 @@ window.closeCancelDetailModal=function(){let modal=document.getElementById('canc
 window.renderNoticeData=function(){let fNoti=[...gNotice];fNoti.sort((a,b)=>{if(a.is_pinned===b.is_pinned)return window.safeKST(b.created_at)-window.safeKST(a.created_at);return a.is_pinned?-1:1;});if($("noticeTableBody"))$("noticeTableBody").innerHTML=fNoti.length?fNoti.map(n=>{let pinBadge=n.is_pinned?`<span class="status-badge badge-orange" style="margin-right:8px;">필독</span>`:`<span class="status-badge badge-gray" style="margin-right:8px;">일반</span>`;let statBadge=n.status==='발행'?`<span class="status-badge badge-green">발행 중</span>`:`<span class="status-badge badge-gray">숨김</span>`;let targetBadge=n.target_batch?`<span class="status-badge badge-blue">${window.escapeHtml(n.target_batch)}</span>`:`<span class="status-badge badge-gray">전체</span>`;let mPreview=`<td class="m-preview" onclick="this.closest('tr').classList.toggle('expanded')"><div class="m-prev-top"><span class="m-prev-date">${formatDt(n.created_at)}</span>${statBadge}</div><div class="m-prev-title" style="font-size:16px;">${pinBadge}${window.escapeHtml(n.title)}</div><span class="m-toggle-hint">관리 메뉴 보기 ▼</span></td>`;return `<tr>${mPreview}<td data-label="구분" class="tc">${pinBadge}</td><td data-label="대상" class="tc">${targetBadge}</td><td data-label="제목"><strong style="color:var(--text-display);">${window.escapeHtml(n.title)}</strong></td><td data-label="상태" class="tc">${statBadge}</td><td data-label="작성일">${formatDt(n.created_at)}</td><td data-label="관리" class="tc"><div class="action-wrap-flex" style="justify-content:center;"><button class="btn-outline btn-sm" onclick="window.editNotice('${n.id}')">수정</button> <button class="btn-outline btn-sm" onclick="window.deleteNotice('${n.id}')" style="color:var(--error);border-color:var(--error)">삭제</button></div></td></tr>`;}).join(""):`<tr><td colspan="6" class="empty-state">등록된 공지사항이 없습니다.</td></tr>`;};
 window.updateDashSpaceFilter=function(){let filter=$("dashSpaceFilter");if(!filter)return;let currentVal=filter.value;let html=`<option value="전체">전체 공간</option>`;if(currentGlobalCenter==='마포 센터')html+=`<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디존">스터디존</option>`;else if(currentGlobalCenter==='광진 센터')html+=`<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디룸">스터디룸</option>`;else html+=`<option value="에스프레소존">에스프레소존</option><option value="로스팅존">로스팅존</option><option value="브루잉존">브루잉존</option><option value="커핑존">커핑존</option><option value="스터디">스터디존/룸</option>`;filter.innerHTML=html;if([...filter.options].some(o=>o.value===currentVal))filter.value=currentVal;else filter.value='전체';};
 window.currentSpaceOpts=[];
-window.updateSpaceOptions=function(){let center=$("blkCenter")?$("blkCenter").value:"마포 센터";window.currentSpaceOpts=['전체 (공간 전체)'];if(center==='마포 센터'){window.currentSpaceOpts.push('에스프레소존','아스토리아 스톰 1번 그룹 (좌)','아스토리아 스톰 2번 그룹 (우)','로스팅존','이지스터 800 1번 (좌)','이지스터 800 2번 (우)','이지스터 1.8','스트롱홀드 S7X','브루잉존','커핑존','스터디존');}else{window.currentSpaceOpts.push('에스프레소존','시네소 MVP 하이드라 1번 그룹 (좌)','시네소 MVP 하이드라 2번 그룹 (우)','페마 페미나 1그룹','산레모 You 1그룹','이글원 프리마 프로 1그룹','이글원 프리마 EXP 1그룹','로스팅존','이지스터 800 1번 (좌)','이지스터 800 2번 (우)','이지스터 1.8 1번 (좌)','스트롱홀드 S7X','브루잉존','커핑존','스터디룸');}let blkSpaceInput=$("blkSpace");if(!blkSpaceInput)return;blkSpaceInput.removeAttribute('list');let wrapper=document.getElementById('custom-space-dropdown');if(!wrapper){wrapper=document.createElement('div');wrapper.id='custom-space-dropdown';wrapper.style.cssText='position:absolute;background:#fff;border:1px solid var(--border-strong);border-radius:8px;max-height:200px;overflow-y:auto;width:100%;z-index:9999;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.15);margin-top:4px;';blkSpaceInput.parentNode.style.position='relative';blkSpaceInput.parentNode.appendChild(wrapper);blkSpaceInput.addEventListener('focus',()=>{wrapper.style.display='block';window.renderCustomOptions("");});blkSpaceInput.addEventListener('click',()=>{wrapper.style.display='block';window.renderCustomOptions("");});document.addEventListener('click',(e)=>{if(e.target!==blkSpaceInput&&!wrapper.contains(e.target))wrapper.style.display='none';});blkSpaceInput.addEventListener('input',function(){let parts=this.value.split(',');let lastTerm=parts[parts.length-1].trim();wrapper.style.display='block';window.renderCustomOptions(lastTerm);});}window.renderCustomOptions=(searchTerm="")=>{let currentArr=blkSpaceInput.value?blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean):[];let filteredOpts=searchTerm?window.currentSpaceOpts.filter(opt=>opt.toLowerCase().includes(searchTerm.toLowerCase())):window.currentSpaceOpts;if(filteredOpts.length===0){wrapper.innerHTML=`<div style="padding:10px 12px;font-size:13px;color:var(--text-secondary);">검색 결과가 없습니다.</div>`;}else{wrapper.innerHTML=filteredOpts.map(opt=>{let isSelected=currentArr.includes(opt);let bgStyle=isSelected?'background:#e8f0fe;color:var(--primary);font-weight:800;':'';return `<div class="space-opt-item" style="padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid #f2f4f6;transition:0.1s;${bgStyle}">${opt}</div>`;}).join('');}wrapper.querySelectorAll('.space-opt-item').forEach(item=>{item.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();let clickedVal=this.innerText.trim();let parts=blkSpaceInput.value.split(',').map(s=>s.trim());if(searchTerm)parts.pop();if(clickedVal==='전체 (공간 전체)'){blkSpaceInput.value='전체 (공간 전체)';}else{let arr=parts.filter(s=>s!=='전체 (공간 전체)'&&s!=='');if(!arr.includes(clickedVal))arr.push(clickedVal);else arr=arr.filter(v=>v!==clickedVal);blkSpaceInput.value=arr.join(', ');}blkSpaceInput.focus();window.renderCustomOptions("");});});};let currentVals=blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean);if(currentVals.some(v=>!window.currentSpaceOpts.includes(v)&&v!==""))blkSpaceInput.value='';window.renderCustomOptions("");};
+window.updateSpaceOptions=function(){let center=$("blkCenter")?$("blkCenter").value:"마포 센터";window.currentSpaceOpts=['전체 (공간 전체)'];if(center==='마포 센터'){window.currentSpaceOpts.push('에스프레소존','아스토리아 스톰 1번 그룹 (좌)','아스토리아 스톰 2번 그룹 (우)','로스팅존','이지스터 800 1번 (좌)','이지스터 800 2번 (우)','이지스터 1.8','스트롱홀드 S7X','브루잉존','커핑존','스터디존');}else{window.currentSpaceOpts.push('에스프레소존','시네소 MVP 하이드라 1번 그룹 (좌)','시네소 MVP 하이드라 2번 그룹 (우)','페마 페미나 1그룹','산레모 You 1그룹','이글원 프리마 프로 1그룹','이글원 프리마 EXP 1그룹','로스팅존','이지스터 800 1번 (좌)','이지스터 800 2번 (우)','이지스터 1.8','스트롱홀드 S7X','브루잉존','커핑존','스터디룸');}let blkSpaceInput=$("blkSpace");if(!blkSpaceInput)return;blkSpaceInput.removeAttribute('list');let wrapper=document.getElementById('custom-space-dropdown');if(!wrapper){wrapper=document.createElement('div');wrapper.id='custom-space-dropdown';wrapper.style.cssText='position:absolute;background:#fff;border:1px solid var(--border-strong);border-radius:8px;max-height:200px;overflow-y:auto;width:100%;z-index:9999;display:none;box-shadow:0 4px 12px rgba(0,0,0,0.15);margin-top:4px;';blkSpaceInput.parentNode.style.position='relative';blkSpaceInput.parentNode.appendChild(wrapper);blkSpaceInput.addEventListener('focus',()=>{wrapper.style.display='block';window.renderCustomOptions("");});blkSpaceInput.addEventListener('click',()=>{wrapper.style.display='block';window.renderCustomOptions("");});document.addEventListener('click',(e)=>{if(e.target!==blkSpaceInput&&!wrapper.contains(e.target))wrapper.style.display='none';});blkSpaceInput.addEventListener('input',function(){let parts=this.value.split(',');let lastTerm=parts[parts.length-1].trim();wrapper.style.display='block';window.renderCustomOptions(lastTerm);});}window.renderCustomOptions=(searchTerm="")=>{let currentArr=blkSpaceInput.value?blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean):[];let filteredOpts=searchTerm?window.currentSpaceOpts.filter(opt=>opt.toLowerCase().includes(searchTerm.toLowerCase())):window.currentSpaceOpts;if(filteredOpts.length===0){wrapper.innerHTML=`<div style="padding:10px 12px;font-size:13px;color:var(--text-secondary);">검색 결과가 없습니다.</div>`;}else{wrapper.innerHTML=filteredOpts.map(opt=>{let isSelected=currentArr.includes(opt);let bgStyle=isSelected?'background:#e8f0fe;color:var(--primary);font-weight:800;':'';return `<div class="space-opt-item" style="padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid #f2f4f6;transition:0.1s;${bgStyle}">${opt}</div>`;}).join('');}wrapper.querySelectorAll('.space-opt-item').forEach(item=>{item.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();let clickedVal=this.innerText.trim();let parts=blkSpaceInput.value.split(',').map(s=>s.trim());if(searchTerm)parts.pop();if(clickedVal==='전체 (공간 전체)'){blkSpaceInput.value='전체 (공간 전체)';}else{let arr=parts.filter(s=>s!=='전체 (공간 전체)'&&s!=='');if(!arr.includes(clickedVal))arr.push(clickedVal);else arr=arr.filter(v=>v!==clickedVal);blkSpaceInput.value=arr.join(', ');}blkSpaceInput.focus();window.renderCustomOptions("");});});};let currentVals=blkSpaceInput.value.split(',').map(s=>s.trim()).filter(Boolean);if(currentVals.some(v=>!window.currentSpaceOpts.includes(v)&&v!==""))blkSpaceInput.value='';window.renderCustomOptions("");};
 let fetchDebounceTimer = null;
 let pollingTimer = null;
 function hasActiveCheckboxSelection() {
@@ -607,7 +607,7 @@ window.renderTimeline=function(){
     ];
     let gwangjinSpaces=[
         {zone:'에스프레소존',equips:['공간 전체','시네소 MVP 하이드라 1번 그룹 (좌)','시네소 MVP 하이드라 2번 그룹 (우)','페마 페미나 1그룹','산레모 You 1그룹','이글원 프리마 프로 1그룹','이글원 프리마 EXP 1그룹']},
-        {zone:'로스팅존',equips:['공간 전체','이지스터 800 1번 (좌)','이지스터 800 2번 (우)','이지스터 1.8 1번 (좌)','스트롱홀드 S7X']},
+        {zone:'로스팅존',equips:['공간 전체','이지스터 800 1번 (좌)','이지스터 800 2번 (우)','이지스터 1.8','스트롱홀드 S7X']},
         {zone:'브루잉존',equips:['merged']},
         {zone:'커핑존',equips:['merged']},
         {zone:'스터디룸',equips:['merged']}
@@ -1982,6 +1982,153 @@ window.downloadExcel = function(type) {
     }catch(err){console.error("Excel Download Error: ",err);if(typeof showToast==='function')showToast('엑셀 다운로드 중 오류가 발생했습니다.');}
 };
 /* ═══ 파트 4 끝 ═══ */
+
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 파트 5 — 연락 담당(자동 기록) · 담당자별 이탈 분석
+   ※ admin.js 맨 끝(커핑 12 아래)에 그대로 붙여넣기 · 기존 파트 수정 없음
+   · 신청 카드 / 상담 기록(CRM)에 '연락 담당' 표시 (서버 자동 기록값 contact_owner_email)
+   · 인사이트 '상담자별 이탈 단계' → '담당자별 이탈 단계'
+       연락 후 미가입 · 연락 두절 = 연락 담당 기준 / 상담 후 미가입 = 상담 담당 기준
+   · 인사이트 '유입 경로 분석': 유입 경로가 비어 있는 신청(설문 전)을 '기타'로 합치던 문제 수정
+       → '미응답'으로 분리해 맨 아래 회색으로 표시 · 직접 입력한 기타 사유는 사유 그대로 표시
+   선행: 01_contact_owner.sql
+   의존: 파트 1(getAdminName) · 파트 3(renderAppTable, renderCrmInner) · 파트 4(renderStatistics)
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  function apps() { try { return (typeof globalApps !== "undefined" && globalApps) ? globalApps : []; } catch (e) { return []; } }
+  function findApp(id) { return apps().find(function (a) { return String(a.id) === String(id); }); }
+  function esc(t) { return window.escapeHtml ? window.escapeHtml(t) : String(t == null ? "" : t); }
+  function nameOf(email) { return email ? (window.getAdminName ? window.getAdminName(email) : email) : ""; }
+  function contactOf(a) { return a && a.contact_owner_email ? nameOf(a.contact_owner_email) : ""; }
+  function counselorOf(a) { var c = a && a.counselor_name; return (c && c !== "null" && String(c).trim()) ? String(c).trim() : ""; }
+
+  /* ── 신청 카드: 메타 줄에 '연락 담당' ── */
+  function paintCards() {
+    document.querySelectorAll("#appAccordionContainer .wc-app-card").forEach(function (card) {
+      if (card.querySelector(".wc-co-meta")) return;
+      var m = (card.getAttribute("onclick") || "").match(/openCrmModal\('([^']+)'/);
+      var app = m ? findApp(m[1]) : null;
+      var who = contactOf(app); if (!who) return;
+      var row = card.querySelector(".wc-meta-row"); if (!row) return;
+      var span = document.createElement("span");
+      span.className = "wc-co-meta";
+      span.innerHTML = '<span class="wc-meta-dot">·</span><span class="wc-meta-label">연락 담당</span> <span class="wc-meta-val" style="font-weight:700;">' + esc(who) + '</span>';
+      row.appendChild(span);
+    });
+  }
+  var _rat = window.renderAppTable;
+  if (typeof _rat === "function") {
+    window.renderAppTable = function () { var r = _rat.apply(this, arguments); try { paintCards(); } catch (e) { console.warn("[연락 담당] 카드 표시 실패", e); } return r; };
+  }
+
+  /* ── 상담 기록(CRM) 프로필: '연락 담당' 줄 ── */
+  var _rci = window.renderCrmInner;
+  if (typeof _rci === "function") {
+    window.renderCrmInner = function (id) {
+      var r = _rci.apply(this, arguments);
+      try {
+        var who = contactOf(findApp(id)); var box = document.getElementById("crmProfile");
+        var wrap = box && box.firstElementChild;
+        if (who && wrap && !wrap.querySelector(".wc-co-row")) {
+          var d = document.createElement("div");
+          d.className = "wc-co-row"; d.style.cssText = "display:table;width:100%;padding:4px 0;";
+          d.innerHTML = '<span style="display:table-cell;color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;padding-right:12px;vertical-align:top;white-space:nowrap;">연락 담당</span><span style="display:table-cell;vertical-align:top;font-weight:700;color:var(--text-display);font-size:14px;">' + esc(who) + '</span>';
+          wrap.appendChild(d);
+        }
+      } catch (e) { console.warn("[연락 담당] CRM 표시 실패", e); }
+      return r;
+    };
+  }
+
+  /* ── 인사이트: 담당자별 이탈 단계 재계산 ── */
+  function stageMap(data) {
+    var map = {};
+    function add(nm, k) { nm = nm || "미기록"; (map[nm] = map[nm] || { pre: 0, post: 0, ghost: 0 })[k]++; }
+    (data || []).forEach(function (d) {
+      if (d.join_status === "상담 후 미가입") add(counselorOf(d) || contactOf(d), "post");
+      else if (d.join_status === "연락 후 미가입") add(contactOf(d), "pre");
+      else if (d.join_status === "연락 두절" || d.status === "연락 두절") add(contactOf(d), "ghost");
+    });
+    return map;
+  }
+
+  /* ── 인사이트: 유입 경로 재계산 (빈 값 = 미응답, 기타 직접 입력 = 사유 그대로) ── */
+  function durRank(s) { var t = String(s || "").replace(/\s+/g, ""); if (/(일주일|1주|한주)/.test(t)) return 1; if (/(1개월|한달|1달)/.test(t)) return 2; if (/3개월/.test(t)) return 3; if (/6개월/.test(t)) return 4; if (/1년이내/.test(t)) return 5; if (/(1년이상|1년\+|1년넘)/.test(t)) return 6; return 99; }
+  function durLabel(s) { var m = { 1: "일주일 이내", 2: "1개월 이내", 3: "3개월 이내", 4: "6개월 이내", 5: "1년 이내", 6: "1년 이상" }; return m[durRank(s)] || String(s || "").trim(); }
+  function normCh(s) { return String(s || "").trim().replace(/\s+/g, " ").replace(/\s*·\s*/g, "·"); }
+  function rebuildChannels(data) {
+    var total = (data || []).length; if (!total) return;
+    var map = {}, noAns = 0;
+    data.forEach(function (d) {
+      var raw = String(d.survey_channel || d.acquisition_channel || "").trim();
+      if (!raw) { noAns++; return; }
+      var ch;
+      if (raw.indexOf("기타") === 0) {
+        var reason = raw.replace(/^기타\s*[:\-(（·]?\s*/, "").replace(/[)）]\s*$/, "").trim();
+        ch = reason || "기타";
+      } else ch = raw;
+      ch = normCh(ch);
+      (map[ch] = map[ch] || { total: 0, details: {} }).total++;
+      var dur = String(d.survey_duration || d.known_duration || (ch === "광고" ? d.ad_duration : "") || "");
+      var det = ch === "기타" ? "" : (ch === "인스타그램" && !d.survey_channel ? (d.follow_duration || d.is_follow || "") : durLabel(dur));
+      if (det) map[ch].details[det] = (map[ch].details[det] || 0) + 1;
+    });
+    if (window.currentInsightData) {
+      var cm = {}; Object.keys(map).forEach(function (k) { cm[k] = map[k]; });
+      if (noAns) cm["미응답 (설문 전)"] = { total: noAns, details: {} };
+      window.currentInsightData.channelMap = cm;
+    }
+    var title = Array.prototype.slice.call(document.querySelectorAll("#statsContainer .ins-section-title")).find(function (el) { return /유입 경로/.test(el.textContent || ""); });
+    var card = title && title.parentNode; if (!card) return;
+    var sorted = Object.keys(map).map(function (k) { return [k, map[k]]; }).sort(function (a, b) { return b[1].total - a[1].total; });
+    var html = sorted.map(function (item, i) {
+      var ct = item[1].total, pct = Math.round(ct / total * 100), op = i === 0 ? 1 : i === 1 ? 0.75 : 0.5;
+      var dets = Object.keys(item[1].details).map(function (k) { return [k, item[1].details[k]]; })
+        .sort(function (a, b) { var ra = durRank(a[0]), rb = durRank(b[0]); return ra !== rb ? ra - rb : b[1] - a[1]; });
+      return '<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">' + esc(item[0]) + '</span><span style="color:var(--text-secondary);">' + ct + '건 (' + pct + '%)</span></div>' +
+        '<div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:' + pct + '%;background:rgba(255,121,0,' + op + ');animation-delay:' + (0.3 + i * 0.07) + 's;"></div></div>' +
+        dets.slice(0, 5).map(function (dt) { return '<div class="ins-sub-item"><div class="ins-sub-label"><span>ㄴ ' + esc(dt[0]) + '</span><span>' + dt[1] + '건</span></div></div>'; }).join("") + '</div>';
+    }).join("");
+    if (noAns) {
+      var np = Math.round(noAns / total * 100);
+      html += '<div class="ins-row-item" style="margin-top:14px;padding-top:12px;border-top:1px solid #f2f4f6;"><div class="ins-row-label"><span style="color:var(--text-tertiary);font-weight:700;">미응답 <span style="font-weight:500;">· 설문 전</span></span><span style="color:var(--text-tertiary);">' + noAns + '건 (' + np + '%)</span></div>' +
+        '<div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:' + np + '%;background:#c4ccd4;"></div></div></div>';
+    }
+    card.innerHTML = '<div class="ins-section-title">유입 경로 분석</div>' + (html || '<div style="font-size:13px;color:var(--text-tertiary);text-align:center;padding:20px 0;">데이터 없음</div>');
+  }
+  function chip(t, c, bg) { return '<span class="ins-stage-chip" style="color:' + c + ';background:' + bg + ';">' + t + '</span>'; }
+  var _rs = window.renderStatistics;
+  if (typeof _rs === "function") {
+    window.renderStatistics = function (data) {
+      var r = _rs.apply(this, arguments);
+      try {
+        var map = stageMap(data);
+        if (window.currentInsightData) window.currentInsightData.counselorStageMap = map;   // CSV 내보내기도 같은 기준
+        var label = Array.prototype.slice.call(document.querySelectorAll("#statsContainer .ins-label")).find(function (el) { return /이탈 단계/.test(el.textContent || ""); });
+        var box = label && label.parentNode;
+        if (box) {
+          var rows = Object.keys(map).map(function (nm) { var s = map[nm]; return { nm: nm, s: s, t: s.pre + s.post + s.ghost }; })
+            .filter(function (x) { return x.t > 0; })
+            .sort(function (a, b) { return (a.nm === "미기록") - (b.nm === "미기록") || b.t - a.t; });
+          var html = '<div class="ins-label" style="margin-bottom:2px;">담당자별 이탈 단계 <span style="font-weight:500;color:var(--text-tertiary);">· 연락 단계는 연락 담당, 상담 후는 상담 담당 기준</span></div>';
+          html += rows.length ? rows.map(function (x) {
+            var c = [];
+            if (x.s.post) c.push(chip("상담 후 " + x.s.post, "#d63b40", "#fef1f1"));
+            if (x.s.pre) c.push(chip("연락 후 " + x.s.pre, "#c2410c", "#fff2e6"));
+            if (x.s.ghost) c.push(chip("연락 두절 " + x.s.ghost, "#8b95a1", "#f2f4f6"));
+            return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #f2f4f6;"><span style="font-size:13px;font-weight:700;color:' + (x.nm === "미기록" ? "var(--text-tertiary)" : "var(--text-display)") + ';flex-shrink:0;">' + esc(x.nm) + '</span><span class="ins-stage-row" style="justify-content:flex-end;margin-top:0;">' + c.join("") + '</span></div>';
+          }).join("") : '<div style="padding:12px 0;text-align:center;color:var(--text-tertiary);font-size:12.5px;">이탈 건이 없습니다.</div>';
+          box.innerHTML = html;
+        }
+      } catch (e) { console.warn("[연락 담당] 인사이트 재계산 실패", e); }
+      try { rebuildChannels(data); } catch (e) { console.warn("[유입 경로] 재계산 실패", e); }
+      return r;
+    };
+  }
+})();
+/* ═══ 파트 5 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 1 — 세션 + 라인업(원두) 관리
    커핑 세션 토글·생성, 라인업 CRUD, 라인업 복사/붙여넣기(교육매니저 레퍼런스 포함).
@@ -4414,7 +4561,7 @@ window.hideCalibration = async function() {
     ],
     "광진 센터": [
       { zone:"에스프레소존", equips:["시네소 MVP 하이드라 1번 그룹 (좌)","시네소 MVP 하이드라 2번 그룹 (우)","페마 페미나 1그룹","산레모 You 1그룹","이글원 프리마 프로 1그룹","이글원 프리마 EXP 1그룹"] },
-      { zone:"로스팅존", equips:["이지스터 800 1번 (좌)","이지스터 800 2번 (우)","이지스터 1.8 1번 (좌)","스트롱홀드 S7X"] },
+      { zone:"로스팅존", equips:["이지스터 800 1번 (좌)","이지스터 800 2번 (우)","이지스터 1.8","스트롱홀드 S7X"] },
       { zone:"브루잉존", equips:[] },
       { zone:"커핑존", equips:[] },
       { zone:"스터디룸", equips:[] }
