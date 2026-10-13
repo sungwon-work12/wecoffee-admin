@@ -1983,9 +1983,30 @@ window.downloadExcel = function(type) {
 };
 /* ═══ 파트 4 끝 ═══ */
 
-/* ── 신청 카드: 메타 줄에 '연락 담당' ──
-     · 상담 담당(counselor_name)과 같은 사람이면 표시 안 함(이름 중복 방지)
-     · 다르면 기존 '담당자' 라벨을 '상담 담당'으로 바꿔 두 역할을 구분 */
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 파트 5 — 연락 담당(자동 기록) · 담당자별 이탈 분석
+   ※ '파트 4 끝' 바로 아래(커핑 1 위)에 붙여넣기 · 기존 파트 수정 없음
+   · 신청 카드 / 상담 기록(CRM)에 '연락 담당' 표시 (서버 자동 기록값 contact_owner_email)
+       - 상담 담당과 같은 사람이면 표시 안 함 / 다르면 '담당자' 라벨을 '상담 담당'으로 바꿔 구분
+   · 인사이트 '상담자별 이탈 단계' → '담당자별 이탈 단계'
+       연락 후 미가입 · 연락 두절 = 연락 담당 기준 / 상담 후 미가입 = 상담 담당 기준
+   · 인사이트 '유입 경로 분석': 유입 경로가 비어 있는 신청(설문 전)을 '기타'로 합치던 문제 수정
+       → '미응답'으로 분리해 맨 아래 회색으로 표시 · 직접 입력한 기타 사유는 사유 그대로 표시
+   선행: 01_contact_owner.sql
+   의존: 파트 1(getAdminName) · 파트 3(renderAppTable, renderCrmInner) · 파트 4(renderStatistics)
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  function apps() { try { return (typeof globalApps !== "undefined" && globalApps) ? globalApps : []; } catch (e) { return []; } }
+  function findApp(id) { return apps().find(function (a) { return String(a.id) === String(id); }); }
+  function esc(t) { return window.escapeHtml ? window.escapeHtml(t) : String(t == null ? "" : t); }
+  function nameOf(email) { return email ? (window.getAdminName ? window.getAdminName(email) : email) : ""; }
+  function contactOf(a) { return a && a.contact_owner_email ? nameOf(a.contact_owner_email) : ""; }
+  function counselorOf(a) { var c = a && a.counselor_name; return (c && c !== "null" && String(c).trim()) ? String(c).trim() : ""; }
+
+  /* ── 신청 카드: 메타 줄에 '연락 담당' ──
+       · 상담 담당(counselor_name)과 같은 사람이면 표시 안 함(이름 중복 방지)
+       · 다르면 기존 '담당자' 라벨을 '상담 담당'으로 바꿔 두 역할을 구분 */
   function paintCards() {
     document.querySelectorAll("#appAccordionContainer .wc-app-card").forEach(function (card) {
       if (card.getAttribute("data-co")) return;
@@ -2003,6 +2024,250 @@ window.downloadExcel = function(type) {
       row.appendChild(span);
     });
   }
+  var _rat = window.renderAppTable;
+  if (typeof _rat === "function") {
+    window.renderAppTable = function () { var r = _rat.apply(this, arguments); try { paintCards(); } catch (e) { console.warn("[연락 담당] 카드 표시 실패", e); } return r; };
+  }
+
+  /* ── 상담 기록(CRM) 프로필: '연락 담당' 줄 ── */
+  var _rci = window.renderCrmInner;
+  if (typeof _rci === "function") {
+    window.renderCrmInner = function (id) {
+      var r = _rci.apply(this, arguments);
+      try {
+        var who = contactOf(findApp(id)); var box = document.getElementById("crmProfile");
+        var wrap = box && box.firstElementChild;
+        if (who && wrap && !wrap.querySelector(".wc-co-row")) {
+          var d = document.createElement("div");
+          d.className = "wc-co-row"; d.style.cssText = "display:table;width:100%;padding:4px 0;";
+          d.innerHTML = '<span style="display:table-cell;color:var(--text-tertiary);font-size:13px;font-weight:600;width:80px;padding-right:12px;vertical-align:top;white-space:nowrap;">연락 담당</span><span style="display:table-cell;vertical-align:top;font-weight:700;color:var(--text-display);font-size:14px;">' + esc(who) + '</span>';
+          wrap.appendChild(d);
+        }
+      } catch (e) { console.warn("[연락 담당] CRM 표시 실패", e); }
+      return r;
+    };
+  }
+
+  /* ── 인사이트: 담당자별 이탈 단계 재계산 ── */
+  function stageMap(data) {
+    var map = {};
+    function add(nm, k) { nm = nm || "미기록"; (map[nm] = map[nm] || { pre: 0, post: 0, ghost: 0 })[k]++; }
+    (data || []).forEach(function (d) {
+      if (d.join_status === "상담 후 미가입") add(counselorOf(d) || contactOf(d), "post");
+      else if (d.join_status === "연락 후 미가입") add(contactOf(d), "pre");
+      else if (d.join_status === "연락 두절" || d.status === "연락 두절") add(contactOf(d), "ghost");
+    });
+    return map;
+  }
+
+  /* ── 인사이트: 유입 경로 재계산 (빈 값 = 미응답, 기타 직접 입력 = 사유 그대로) ── */
+  function durRank(s) { var t = String(s || "").replace(/\s+/g, ""); if (/(일주일|1주|한주)/.test(t)) return 1; if (/(1개월|한달|1달)/.test(t)) return 2; if (/3개월/.test(t)) return 3; if (/6개월/.test(t)) return 4; if (/1년이내/.test(t)) return 5; if (/(1년이상|1년\+|1년넘)/.test(t)) return 6; return 99; }
+  function durLabel(s) { var m = { 1: "일주일 이내", 2: "1개월 이내", 3: "3개월 이내", 4: "6개월 이내", 5: "1년 이내", 6: "1년 이상" }; return m[durRank(s)] || String(s || "").trim(); }
+  function normCh(s) { return String(s || "").trim().replace(/\s+/g, " ").replace(/\s*·\s*/g, "·"); }
+  function rebuildChannels(data) {
+    var total = (data || []).length; if (!total) return;
+    var map = {}, noAns = 0;
+    data.forEach(function (d) {
+      var raw = String(d.survey_channel || d.acquisition_channel || "").trim();
+      if (!raw) { noAns++; return; }
+      var ch;
+      if (raw.indexOf("기타") === 0) {
+        var reason = raw.replace(/^기타\s*[:\-(（·]?\s*/, "").replace(/[)）]\s*$/, "").trim();
+        ch = reason || "기타";
+      } else ch = raw;
+      ch = normCh(ch);
+      (map[ch] = map[ch] || { total: 0, details: {} }).total++;
+      var dur = String(d.survey_duration || d.known_duration || (ch === "광고" ? d.ad_duration : "") || "");
+      var det = ch === "기타" ? "" : (ch === "인스타그램" && !d.survey_channel ? (d.follow_duration || d.is_follow || "") : durLabel(dur));
+      if (det) map[ch].details[det] = (map[ch].details[det] || 0) + 1;
+    });
+    if (window.currentInsightData) {
+      var cm = {}; Object.keys(map).forEach(function (k) { cm[k] = map[k]; });
+      if (noAns) cm["미응답 (설문 전)"] = { total: noAns, details: {} };
+      window.currentInsightData.channelMap = cm;
+    }
+    var title = Array.prototype.slice.call(document.querySelectorAll("#statsContainer .ins-section-title")).find(function (el) { return /유입 경로/.test(el.textContent || ""); });
+    var card = title && title.parentNode; if (!card) return;
+    var sorted = Object.keys(map).map(function (k) { return [k, map[k]]; }).sort(function (a, b) { return b[1].total - a[1].total; });
+    var html = sorted.map(function (item, i) {
+      var ct = item[1].total, pct = Math.round(ct / total * 100), op = i === 0 ? 1 : i === 1 ? 0.75 : 0.5;
+      var dets = Object.keys(item[1].details).map(function (k) { return [k, item[1].details[k]]; })
+        .sort(function (a, b) { var ra = durRank(a[0]), rb = durRank(b[0]); return ra !== rb ? ra - rb : b[1] - a[1]; });
+      return '<div class="ins-row-item"><div class="ins-row-label"><span style="color:var(--text-display);font-weight:700;">' + esc(item[0]) + '</span><span style="color:var(--text-secondary);">' + ct + '건 (' + pct + '%)</span></div>' +
+        '<div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:' + pct + '%;background:rgba(255,121,0,' + op + ');animation-delay:' + (0.3 + i * 0.07) + 's;"></div></div>' +
+        dets.slice(0, 5).map(function (dt) { return '<div class="ins-sub-item"><div class="ins-sub-label"><span>ㄴ ' + esc(dt[0]) + '</span><span>' + dt[1] + '건</span></div></div>'; }).join("") + '</div>';
+    }).join("");
+    if (noAns) {
+      var np = Math.round(noAns / total * 100);
+      html += '<div class="ins-row-item" style="margin-top:14px;padding-top:12px;border-top:1px solid #f2f4f6;"><div class="ins-row-label"><span style="color:var(--text-tertiary);font-weight:700;">미응답 <span style="font-weight:500;">· 설문 전</span></span><span style="color:var(--text-tertiary);">' + noAns + '건 (' + np + '%)</span></div>' +
+        '<div class="ins-bar-bg"><div class="ins-bar-fill wc-bar" style="width:' + np + '%;background:#c4ccd4;"></div></div></div>';
+    }
+    card.innerHTML = '<div class="ins-section-title">유입 경로 분석</div>' + (html || '<div style="font-size:13px;color:var(--text-tertiary);text-align:center;padding:20px 0;">데이터 없음</div>');
+  }
+  function chip(t, c, bg) { return '<span class="ins-stage-chip" style="color:' + c + ';background:' + bg + ';">' + t + '</span>'; }
+  var _rs = window.renderStatistics;
+  if (typeof _rs === "function") {
+    window.renderStatistics = function (data) {
+      var r = _rs.apply(this, arguments);
+      try {
+        var map = stageMap(data);
+        if (window.currentInsightData) window.currentInsightData.counselorStageMap = map;   // CSV 내보내기도 같은 기준
+        var label = Array.prototype.slice.call(document.querySelectorAll("#statsContainer .ins-label")).find(function (el) { return /이탈 단계/.test(el.textContent || ""); });
+        var box = label && label.parentNode;
+        if (box) {
+          var rows = Object.keys(map).map(function (nm) { var s = map[nm]; return { nm: nm, s: s, t: s.pre + s.post + s.ghost }; })
+            .filter(function (x) { return x.t > 0; })
+            .sort(function (a, b) { return (a.nm === "미기록") - (b.nm === "미기록") || b.t - a.t; });
+          var html = '<div class="ins-label" style="margin-bottom:2px;">담당자별 이탈 단계 <span style="font-weight:500;color:var(--text-tertiary);">· 연락 단계는 연락 담당, 상담 후는 상담 담당 기준</span></div>';
+          html += rows.length ? rows.map(function (x) {
+            var c = [];
+            if (x.s.post) c.push(chip("상담 후 " + x.s.post, "#d63b40", "#fef1f1"));
+            if (x.s.pre) c.push(chip("연락 후 " + x.s.pre, "#c2410c", "#fff2e6"));
+            if (x.s.ghost) c.push(chip("연락 두절 " + x.s.ghost, "#8b95a1", "#f2f4f6"));
+            return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #f2f4f6;"><span style="font-size:13px;font-weight:700;color:' + (x.nm === "미기록" ? "var(--text-tertiary)" : "var(--text-display)") + ';flex-shrink:0;">' + esc(x.nm) + '</span><span class="ins-stage-row" style="justify-content:flex-end;margin-top:0;">' + c.join("") + '</span></div>';
+          }).join("") : '<div style="padding:12px 0;text-align:center;color:var(--text-tertiary);font-size:12.5px;">이탈 건이 없습니다.</div>';
+          box.innerHTML = html;
+        }
+      } catch (e) { console.warn("[연락 담당] 인사이트 재계산 실패", e); }
+      try { rebuildChannels(data); } catch (e) { console.warn("[유입 경로] 재계산 실패", e); }
+      return r;
+    };
+  }
+})();
+/* ═══ 파트 5 끝 ═══ */
+
+/* ═══════════════════════════════════════════════════════════
+   WeCoffee Admin · 파트 6 — 가입신청 CSV 연락 담당 · 전역 데이터 노출
+   ※ 파트 5 끝 바로 아래(커핑 1 위)에 붙여넣기 · 기존 파트 수정 없음
+   · 가입신청 CSV: '연락 담당' 칸 추가 (기존 '담당자' → '상담 담당'으로 구분)
+   · 인사이트 CSV: '담당자별 이탈 단계'로 라벨 정정 (파트 5 재계산 기준과 일치)
+   · globalApps / globalMembers 를 window 에 실시간 연결
+       → 커핑 8(멤버 상세) · 커핑 12(성장 현황)가 DB 재조회 없이 바로 사용
+   선행: 01_contact_owner.sql
+   의존: 파트 1(globalApps, globalMembers, getAdminName, formatDt) · 파트 4(downloadExcel) · 파트 5
+   ═══════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+
+  /* ── 1. 전역 데이터 노출: let 변수를 window 프로퍼티로 실시간 연결(재할당돼도 항상 최신) ── */
+  try {
+    if (!Object.getOwnPropertyDescriptor(window, "globalApps")) {
+      Object.defineProperty(window, "globalApps", {
+        configurable: true,
+        get: function () { return globalApps; },
+        set: function (v) { globalApps = v; }
+      });
+    }
+    if (!Object.getOwnPropertyDescriptor(window, "globalMembers")) {
+      Object.defineProperty(window, "globalMembers", {
+        configurable: true,
+        get: function () { return globalMembers; },
+        set: function (v) { globalMembers = v; }
+      });
+    }
+  } catch (e) { console.warn("[파트 6] 전역 노출 실패", e); }
+
+  /* ── 2. 가입신청 CSV ── */
+  var _dl = window.downloadExcel;
+  if (typeof _dl !== "function") return;
+
+  function nameOf(email) { return email ? (window.getAdminName ? window.getAdminName(email) : email) : ""; }
+  function clean(v) { return (v == null || v === "null" || v === "undefined") ? "" : v; }
+  function cell(v) { return '"' + String(v == null ? "" : v).replace(/"/g, '""').replace(/\n/g, " ") + '"'; }
+  function today() { return new Date().toISOString().slice(0, 10); }
+  function save(csv, filename) {
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    var link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  }
+
+  function appsCsv() {
+    var data;
+    if (Array.isArray(window.currentFilteredApps)) data = window.currentFilteredApps;
+    else {
+      var sel = document.getElementById("batchFilterApp") ? document.getElementById("batchFilterApp").value : "all";
+      data = sel === "all" ? globalApps : globalApps.filter(function (d) { return d.desired_batch === sel; });
+    }
+    if (!data || !data.length) { showToast("다운로드할 데이터가 없습니다."); return; }
+    var headers = ["신청일", "기수", "성함", "연락처", "관심분야(니즈)", "관심도", "유입경로", "인지 기간", "진행상황", "가입여부", "상담일시", "상담 담당", "연락 담당"];
+    var csv = "﻿" + headers.join(",") + "\n";
+    data.forEach(function (d) {
+      var row = [
+        formatDt(d.created_at), d.desired_batch, d.name,
+        window.normalizePhone(d.phone) || d.phone || "",
+        d.survey_goal || d.interest_area || "",
+        window.mapInterestLevel(d.interest_level),
+        d.survey_channel || d.acquisition_channel || "",
+        d.survey_duration || d.known_duration || "",
+        d.status, d.join_status, clean(d.call_time),
+        clean(d.counselor_name),
+        nameOf(d.contact_owner_email)
+      ];
+      csv += row.map(cell).join(",") + "\n";
+    });
+    save(csv, "가입신청_" + today() + ".csv");
+  }
+
+  function insightCsv() {
+    var d = window.currentInsightData || {};
+    var csv = "﻿카테고리,세부 항목,수치,비고\n";
+    csv += "전체 요약,총 신청 건수," + (d.total || 0) + "건,-\n";
+    csv += "전체 요약,최종 가입 완료," + (d.joined || 0) + "건,(전환율 " + (d.total > 0 ? Math.round(d.joined / d.total * 100) : 0) + "%)\n";
+    csv += "전체 요약,실질 이탈률," + (d.realDropoutRate || 0) + "%,(이탈자 " + (d.dropoutCount || 0) + "명)\n";
+    csv += "유입 채널,인스타그램 총 유입," + (d.instaCount || 0) + "건,-\n";
+    csv += "인스타 상세,팔로워 유입," + (d.instaFollow || 0) + "건,-\n";
+    csv += "인스타 상세,비팔로워 유입," + (d.instaNonFollow || 0) + "건,-\n";
+    csv += "유입 채널,모집 광고/스폰서드 유입," + (d.adCount || 0) + "건,-\n";
+    csv += "광고 리드타임,단기 유입 (1개월 이내)," + (d.leadTime1M || 0) + "건,-\n";
+    csv += "광고 리드타임,장기 유입 (3개월 이상)," + (d.leadTime3M || 0) + "건,-\n";
+    if (d.knownDurData && d.knownDurData.length) {
+      csv += "\n인지 기간 분포,기간,건수,비고\n";
+      d.knownDurData.forEach(function (k) { csv += "인지 기간," + cell(k[0]) + "," + k[1] + "건,-\n"; });
+    }
+    if (d.counselorMap) {
+      csv += "\n상담자별 가입/이탈,상담자,건수,비고\n";
+      Object.keys(d.counselorMap).forEach(function (cn) {
+        if (cn === "미지정") return;
+        var c = d.counselorMap[cn], rate = c.total > 0 ? Math.round(c.joined / c.total * 100) : 0;
+        csv += cell("[" + cn + "]") + ",담당 총 " + c.total + "명," + c.joined + "명 가입 / " + c.dropout + "명 이탈,(가입률 " + rate + "%)\n";
+      });
+    }
+    if (d.counselorStageMap) {
+      csv += "\n담당자별 이탈 단계,담당자,단계,건수\n";
+      Object.keys(d.counselorStageMap).forEach(function (cn) {
+        var s = d.counselorStageMap[cn];
+        if ((s.pre + s.post + s.ghost) === 0) return;
+        var who = cell("[" + cn + "]");
+        if (s.post) csv += who + ",상담 후 미가입 (상담 담당 기준)," + s.post + "건,\n";
+        if (s.pre) csv += who + ",연락 후 미가입 (연락 담당 기준)," + s.pre + "건,\n";
+        if (s.ghost) csv += who + ",연락 두절 (연락 담당 기준)," + s.ghost + "건,\n";
+      });
+    }
+    if (d.channelMap) {
+      csv += "\n상세 채널별 트래킹,상세 내역,건수,비고\n";
+      Object.keys(d.channelMap).forEach(function (ch) {
+        var c = d.channelMap[ch];
+        csv += cell("[" + ch + "]") + ",(총 " + c.total + "건),-,-\n";
+        Object.keys(c.details || {}).forEach(function (det) { csv += "ㄴ," + cell(det) + "," + c.details[det] + "건,-\n"; });
+      });
+    }
+    save(csv, "위커피_인사이트_마케팅_보고서_" + today() + ".csv");
+  }
+
+  window.downloadExcel = function (type) {
+    if (type !== "applications") return _dl.apply(this, arguments);
+    try {
+      var insight = (typeof isInsightView !== "undefined" && isInsightView);
+      if (insight) insightCsv(); else appsCsv();
+    } catch (e) {
+      console.error("[파트 6] CSV 다운로드 실패", e);
+      showToast("엑셀 다운로드 중 오류가 발생했습니다.");
+    }
+  };
+})();
+/* ═══ 파트 6 끝 ═══ */
 
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 커핑 1 — 세션 + 라인업(원두) 관리
