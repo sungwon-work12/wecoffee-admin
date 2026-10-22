@@ -1574,9 +1574,11 @@ window.renderAppTable = function(data) {
 window.showGhostHistory=function(phoneDigits){let history=globalApps.filter(a=>(a.status==='연락 두절'||a.join_status==='연락 두절')&&String(a.phone||'').replace(/\D/g,'')===phoneDigits);if(history.length===0)return showToast('연락 두절 이력이 없습니다.');let html=history.map(a=>`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="font-weight:700;font-size:14px;color:var(--text-display);margin-bottom:4px;">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>상담 메모: ${window.escapeHtml((a.admin_memo||'없음').split('|||').pop())}</div></div>`).join('');window.openCustomConfirm('연락 두절 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');}
 window.showPrevAppHistory=function(phoneDigits){let history=globalApps.filter(a=>String(a.phone||'').replace(/\D/g,'')===phoneDigits).sort((a,b)=>{let aN=parseInt(String(a.desired_batch||'').replace(/[^0-9]/g,''))||0;let bN=parseInt(String(b.desired_batch||'').replace(/[^0-9]/g,''))||0;return aN-bN;});if(history.length===0)return showToast('신청 이력이 없습니다.');let html=history.map(a=>{let stBadge='';if(a.join_status==='가입 완료')stBadge='<span class="status-badge badge-green" style="font-size:11px;">가입 완료</span>';else if(a.join_status==='연락 두절')stBadge='<span class="status-badge badge-red" style="font-size:11px;">연락 두절</span>';else if(a.join_status)stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.join_status)}</span>`;else stBadge=`<span class="status-badge badge-gray" style="font-size:11px;">${window.escapeHtml(a.status||'대기')}</span>`;return`<div style="background:#f9fafb;padding:14px;border-radius:10px;border:1px solid var(--border-strong);margin-bottom:8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><span style="font-weight:700;font-size:14px;color:var(--text-display);">${a.desired_batch||'미정'} ${window.escapeHtml(a.name)}</span>${stBadge}</div><div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">신청일: ${formatDt(a.created_at)}<br>관심분야: ${window.escapeHtml(a.interest_area||'-')}<br>희망센터: ${window.escapeHtml(a.desired_center||'-')}</div></div>`;}).join('');window.openCustomConfirm('전체 신청 이력',null,`<div style="max-height:400px;overflow-y:auto;">${html}</div>`,()=>{},'확인');};
 /* ═══ 파트 3 끝 ═══ */
+
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 파트 4 — 멤버 관리 · 명세서 · 블록/공지 · 인사이트 · 엑셀
    멤버 연장/정지, 청구 명세서, 스케줄·공지 CRUD, 가입 인사이트, CSV 다운로드.
+   · 멤버 리스트 인원수: 테이블 위 한 줄(총 N명 · 상태별) — 검색·상태·기수 필터 결과 기준
    의존: 파트 1~3
    ═══════════════════════════════════════════════════════════ */
 window.changeMemberPerPage=function(val){memberItemsPerPage=val==='all'?999999:parseInt(val);currentMemberPage=1;renderMemberTablePage();};
@@ -1589,6 +1591,7 @@ window.renderMemberTablePage=function(){
     const _savedCheckboxes = (typeof window.preserveCheckboxState === 'function') ? window.preserveCheckboxState() : null;
     tbody.innerHTML='';
     let data=currentFilteredMembers;
+    try{renderMemberCount(data);}catch(e){console.warn("[wc] 인원수 표시 실패",e);}
     if(data.length===0){tbody.innerHTML=`<tr><td colspan="9" class="empty-state">내역이 없습니다.</td></tr>`;updatePaginationUI(0);try{if(_savedCheckboxes)window.restoreCheckboxState(_savedCheckboxes);}catch(e){ console.warn("[wc] 무시된 오류", e); }return;}
     let memTable=tbody.closest('table');if(memTable){let theadTr=memTable.querySelector('thead tr');if(theadTr){let firstTh=theadTr.querySelector('th');if(firstTh&&!firstTh.querySelector('input[type="checkbox"]')&&firstTh.innerText.includes('등록일')){let chkTh=document.createElement('th');chkTh.style.width='48px';chkTh.style.textAlign='center';chkTh.innerHTML='<input type="checkbox" onchange="window.toggleAll(this,\'chk-mem\')">';theadTr.insertBefore(chkTh,firstTh);}}}
     let startIndex=(currentMemberPage-1)*memberItemsPerPage;
@@ -1607,6 +1610,22 @@ let mPreview=`<td class="m-preview has-checkbox" onclick="this.closest('tr').cla
 const tr=document.createElement('tr');tr.innerHTML=`${mPreview}<td data-label="선택" class="tc"><input type="checkbox" class="chk-mem" value="${row.id}"></td><td data-label="등록일">${formatDt(row.created_at)}</td><td data-label="상태" class="tc">${statusBadge}</td><td data-label="기수"><strong>${row.batch||'-'}</strong></td><td data-label="성함">${nameHtml}</td><td data-label="연락처">${window.escapeHtml(displayPhone)}</td><td data-label="종료일 관리" class="col-action"><div class="date-select-group mem-action-wrap" data-id="${row.id}">${optionHtml}${dateActionHtml}</div></td>`;tbody.appendChild(tr);});
     updatePaginationUI(data.length);
     try{if(_savedCheckboxes && typeof window.restoreCheckboxState === 'function') window.restoreCheckboxState(_savedCheckboxes);}catch(e){console.warn('member checkbox restore failed',e);}
+}
+/* 멤버 리스트 인원수 — 테이블 바로 위 한 줄. 상태 판정은 searchMembers 와 같은 기준 */
+function renderMemberCount(data){
+    let tableWrap=document.querySelector('#page-members .table-wrap');if(!tableWrap)return;
+    let bar=document.getElementById('memberCountBar');
+    if(!bar){bar=document.createElement('div');bar.id='memberCountBar';bar.style.cssText='display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:0 0 10px;padding:0 2px;font-size:13px;color:var(--text-secondary);';tableWrap.parentNode.insertBefore(bar,tableWrap);}
+    const today=new Date();today.setHours(0,0,0,0);
+    let c={active:0,paused:0,penalty:0,ended:0};
+    (data||[]).forEach(m=>{
+        if(m.status==='패널티 정지'){c.penalty++;return;}
+        if(m.status==='활동 일시정지'){c.paused++;return;}
+        let expired=true;if(m.end_date&&m.end_date.length===10){let e=new Date(m.end_date);e.setHours(0,0,0,0);if(e>=today)expired=false;}
+        if(expired)c.ended++;else c.active++;
+    });
+    let parts=[['활동 중',c.active],['일시정지',c.paused],['패널티',c.penalty],['종료',c.ended]].filter(x=>x[1]>0).map(x=>`${x[0]} ${x[1]}`);
+    bar.innerHTML=`<span style="font-size:15px;font-weight:800;color:var(--text-display);">총 ${(data||[]).length}명</span>`+(parts.length?`<span>${parts.join('<span style="color:#cbd2d9;margin:0 6px;">·</span>')}</span>`:'');
 }
 function updatePaginationUI(totalItems){let paginationWrap=document.getElementById('memberPaginationWrap');if(!paginationWrap){let tableWrap=document.querySelector('#page-members .table-wrap');if(tableWrap){paginationWrap=document.createElement('div');paginationWrap.id='memberPaginationWrap';paginationWrap.style.cssText='display:flex;justify-content:center;align-items:center;gap:8px;padding:20px 0;';tableWrap.parentNode.insertBefore(paginationWrap,tableWrap.nextSibling);}}if(!paginationWrap)return;if(totalItems===0||memberItemsPerPage>totalItems){paginationWrap.innerHTML='';return;}let totalPages=Math.ceil(totalItems/memberItemsPerPage);let html='';let startPage=Math.max(1,currentMemberPage-2);let endPage=Math.min(totalPages,startPage+4);if(endPage-startPage<4)startPage=Math.max(1,endPage-4);if(currentMemberPage>1)html+=`<button class="pagination-btn" onclick="window.changeMemberPage(${currentMemberPage-1})">이전</button>`;for(let i=startPage;i<=endPage;i++){html+=`<button class="pagination-btn ${i===currentMemberPage?'active':''}" onclick="window.changeMemberPage(${i})">${i}</button>`;}if(currentMemberPage<totalPages)html+=`<button class="pagination-btn" onclick="window.changeMemberPage(${currentMemberPage+1})">다음</button>`;paginationWrap.innerHTML=html;}
 window.applyMemberDate=async function(id,btn){const group=btn.closest('.date-select-group');const y=group.querySelector('.year').value,m=group.querySelector('.month').value,d=group.querySelector('.day').value;if(y&&m&&d){let originalText=btn.innerText;btn.disabled=true;btn.innerText="...";let newDate=`${y}-${m}-${d}`;let member=globalMembers.find(x=>String(x.id)===String(id));let oldDate=member?member.end_date||'미설정':'미설정';await window.updateMemberEndDate(id,newDate);if(member){try{await supabaseClient.from('member_history').insert([{member_name:member.name||'',member_phone:member.phone||'',action_detail:`종료일 수동 변경 (${oldDate} → ${newDate})`,amount:'-',performed_by:currentAdminEmail||'unknown'}]);}catch(e){ console.warn("[wc] 무시된 오류", e); }}btn.disabled=false;btn.innerText=originalText;window.fetchMembers();}else{showToast("년/월/일을 모두 선택해주세요.");}};
@@ -1999,6 +2018,8 @@ window.downloadExcel = function(type) {
        연락 후 미가입 · 연락 두절 = 연락 담당 기준 / 상담 후 미가입 = 상담 담당 기준
    · 인사이트 '유입 경로 분석': 유입 경로가 비어 있는 신청(설문 전)을 '기타'로 합치던 문제 수정
        → '미응답'으로 분리해 맨 아래 회색으로 표시 · 직접 입력한 기타 사유는 사유 그대로 표시
+   · 인사이트 CSV용 데이터 보강: 관심 분야(가입 목적) · 연락 두절 · 상담 완료 · 진행 중 인원을
+       currentInsightData 에 함께 저장 (화면 계산과 같은 기준, 파트 6 insightCsv 가 사용)
    선행: 01_contact_owner.sql
    의존: 파트 1(getAdminName) · 파트 3(renderAppTable, renderCrmInner) · 파트 4(renderStatistics)
    ═══════════════════════════════════════════════════════════ */
@@ -2111,6 +2132,39 @@ window.downloadExcel = function(type) {
     }
     card.innerHTML = '<div class="ins-section-title">유입 경로 분석</div>' + (html || '<div style="font-size:13px;color:var(--text-tertiary);text-align:center;padding:20px 0;">데이터 없음</div>');
   }
+  /* ── 인사이트 CSV 보강: 화면에만 있던 값들을 currentInsightData 에 저장 ──
+       · 관심 분야(가입 목적): 파트 4 화면과 같은 파싱(쉼표 복수 선택 · 기타 직접 입력은 사유 그대로)
+       · 퍼널: 연락 두절 / 상담 완료 / 진행 중(가입·이탈 미확정) — 파트 4 화면 계산과 같은 기준 */
+  function storeCsvExtras(data) {
+    var d = window.currentInsightData; if (!d || !data) return;
+    var freq = {}, goalAns = 0;
+    data.forEach(function (a) {
+      var raw = a.survey_goal || a.interest_area || "";
+      var items = String(raw).split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      if (!items.length) return;
+      goalAns++;
+      items.forEach(function (v) {
+        if (v.indexOf("기타") === 0) v = v.replace(/^기타\s*[:\-(（·]?\s*/, "").replace(/[)）]\s*$/, "").trim() || "기타";
+        freq[v] = (freq[v] || 0) + 1;
+      });
+    });
+    d.interestData = Object.keys(freq).map(function (k) { return [k, freq[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
+    d.interestAnswered = goalAns;
+    d.interestNoAnswer = data.length - goalAns;
+
+    var ghost = 0, counseled = 0, pending = 0;
+    data.forEach(function (a) {
+      var isGhost = a.status === "연락 두절" || a.join_status === "연락 두절";
+      if (isGhost) ghost++;
+      if (a.status === "상담 완료" || (a.status === "미가입" && a.join_status === "상담 후 미가입")) counseled++;
+      var closed = isGhost || a.join_status === "가입 완료" || a.join_status === "연락 후 미가입" || a.join_status === "상담 후 미가입";
+      if (!closed) pending++;
+    });
+    d.ghostCount = ghost;
+    d.counseled = counseled;
+    d.contacted = data.length - ghost;
+    d.pendingCount = pending;
+  }
   function chip(t, c, bg) { return '<span class="ins-stage-chip" style="color:' + c + ';background:' + bg + ';">' + t + '</span>'; }
   var _rs = window.renderStatistics;
   if (typeof _rs === "function") {
@@ -2137,6 +2191,7 @@ window.downloadExcel = function(type) {
         }
       } catch (e) { console.warn("[연락 담당] 인사이트 재계산 실패", e); }
       try { rebuildChannels(data); } catch (e) { console.warn("[유입 경로] 재계산 실패", e); }
+      try { storeCsvExtras(data); } catch (e) { console.warn("[인사이트 CSV] 보강 데이터 계산 실패", e); }
       return r;
     };
   }
@@ -2148,6 +2203,8 @@ window.downloadExcel = function(type) {
    ※ 파트 5 끝 바로 아래(커핑 1 위)에 붙여넣기 · 기존 파트 수정 없음
    · 가입신청 CSV: '연락 담당' 칸 추가 (기존 '담당자' → '상담 담당'으로 구분)
    · 인사이트 CSV: '담당자별 이탈 단계'로 라벨 정정 (파트 5 재계산 기준과 일치)
+   · 인사이트 CSV 보강: 연락 두절 · 상담 완료 · 진행 중 / 관심 분야(가입 목적) 섹션 추가
+       상담자별에 '진행 중' 인원과 '미지정'(상담 담당 미입력) 포함 · 실질 이탈률 산식 명시
    · globalApps / globalMembers 를 window 에 실시간 연결
        → 커핑 8(멤버 상세) · 커핑 12(성장 현황)가 DB 재조회 없이 바로 사용
    선행: 01_contact_owner.sql
@@ -2222,7 +2279,10 @@ window.downloadExcel = function(type) {
     var csv = "﻿카테고리,세부 항목,수치,비고\n";
     csv += "전체 요약,총 신청 건수," + (d.total || 0) + "건,-\n";
     csv += "전체 요약,최종 가입 완료," + (d.joined || 0) + "건,(전환율 " + (d.total > 0 ? Math.round(d.joined / d.total * 100) : 0) + "%)\n";
-    csv += "전체 요약,실질 이탈률," + (d.realDropoutRate || 0) + "%,(이탈자 " + (d.dropoutCount || 0) + "명)\n";
+    csv += "전체 요약,실질 이탈률," + (d.realDropoutRate || 0) + "%," + cell("(이탈자 " + (d.dropoutCount || 0) + "명 · 연락 후+상담 후 미가입 ÷ 연락 두절 제외 전체)") + "\n";
+    csv += "전체 요약,연락 두절," + (d.ghostCount || 0) + "건,(실질 이탈률 미포함)\n";
+    csv += "전체 요약,상담 완료," + (d.counseled || 0) + "건,-\n";
+    csv += "전체 요약,진행 중," + (d.pendingCount || 0) + "건,(가입·이탈 미확정)\n";
     csv += "유입 채널,인스타그램 총 유입," + (d.instaCount || 0) + "건,-\n";
     csv += "인스타 상세,팔로워 유입," + (d.instaFollow || 0) + "건,-\n";
     csv += "인스타 상세,비팔로워 유입," + (d.instaNonFollow || 0) + "건,-\n";
@@ -2233,12 +2293,20 @@ window.downloadExcel = function(type) {
       csv += "\n인지 기간 분포,기간,건수,비고\n";
       d.knownDurData.forEach(function (k) { csv += "인지 기간," + cell(k[0]) + "," + k[1] + "건,-\n"; });
     }
+    if (d.interestData && d.interestData.length) {
+      var ans = d.interestAnswered || 0;
+      csv += "\n관심 분야 (가입 목적),항목,건수," + cell("비고 (복수 선택 · 응답 " + ans + "명 기준)") + "\n";
+      d.interestData.forEach(function (k) {
+        csv += "관심 분야," + cell(k[0]) + "," + k[1] + "건,(" + (ans > 0 ? Math.round(k[1] / ans * 100) : 0) + "%)\n";
+      });
+      if (d.interestNoAnswer) csv += "관심 분야,미응답," + d.interestNoAnswer + "건,-\n";
+    }
     if (d.counselorMap) {
       csv += "\n상담자별 가입/이탈,상담자,건수,비고\n";
-      Object.keys(d.counselorMap).forEach(function (cn) {
-        if (cn === "미지정") return;
+      Object.keys(d.counselorMap).sort(function (a, b) { return (a === "미지정") - (b === "미지정"); }).forEach(function (cn) {
         var c = d.counselorMap[cn], rate = c.total > 0 ? Math.round(c.joined / c.total * 100) : 0;
-        csv += cell("[" + cn + "]") + ",담당 총 " + c.total + "명," + c.joined + "명 가입 / " + c.dropout + "명 이탈,(가입률 " + rate + "%)\n";
+        var label = cn === "미지정" ? "[미지정 (상담 담당 미입력)]" : "[" + cn + "]";
+        csv += cell(label) + ",담당 총 " + c.total + "명," + c.joined + "명 가입 / " + c.dropout + "명 이탈 / " + (c.pending || 0) + "명 진행 중,(가입률 " + rate + "%)\n";
       });
     }
     if (d.counselorStageMap) {
@@ -6088,7 +6156,10 @@ window.hideCalibration = async function() {
    · 각 역량 최소 3포인트 있어야 반영(한 방 고득점 방지)
    · 진입: 멤버 리스트 툴바에 '성장 현황' 버튼 주입 → #page-members 안에서
      리스트↔성장 현황 인페이지 전환('← 멤버 리스트'로 복귀). window.wcGrowthRankOpen()도 가능
-   의존: supabaseClient. 서버: coach_notes(v7) + member_sensory_series RPC.
+   · 멤버 펼치면 역량 추이 아래에 '멤버 내역' 표시 — 멤버 상세(내역 모달)와 같은 데이터
+     (요약 · 코칭·활동 / 상담·설문 / 결제·연장). 커핑 8 openHistoryModal 을 안 보이게 렌더한 뒤
+     카드 안으로 옮겨옴 → 같은 화면을 중복 구현하지 않음. 한 번에 한 명만 펼침.
+   의존: supabaseClient · 커핑 8(openHistoryModal). 서버: coach_notes(v7) + member_sensory_series RPC.
    ═══════════════════════════════════════════════════════════ */
 (function () {
   "use strict";
@@ -6313,7 +6384,7 @@ window.hideCalibration = async function() {
     var deltaLine = DOMAINS.map(function (dom) { return domDelta(dom, doms[dom]); }).join('<span style="color:#cbd2d9;margin:0 7px;">·</span>');
     var ent = m.entries || {};
     var detail = DOMAINS.map(function (dom) { return domRow(dom, doms[dom], ent[dom]); }).join("");
-    return '<div class="wcgr-card" data-phone="' + esc(m.phone) + '" style="border-bottom:1px solid #f2f4f6;">' +
+    return '<div class="wcgr-card" data-phone="' + esc(m.phone) + '" data-name="' + esc(m.name) + '" style="border-bottom:1px solid #f2f4f6;">' +
       '<div class="wcgr-head" style="display:flex;align-items:center;gap:13px;padding:15px 4px;cursor:pointer;">' +
         rankHtml +
         '<div style="min-width:0;flex:1;">' +
@@ -6329,6 +6400,7 @@ window.hideCalibration = async function() {
       '<div class="wcgr-detail" style="display:none;padding:0 4px 16px;">' +
         detail +
         '<div style="margin-top:12px;font-size:11.5px;color:#8b95a1;line-height:1.6;">개선폭 = 최근 − 초기 구간 평균 · 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span> 커핑 편차 · <span style="color:#ff7900;font-weight:700;">매니저</span> 평가 점수</div>' +
+        '<div class="wcgr-hist"></div>' +
       '</div></div>';
   }
   function skillQualifies(m) { return _skillFilter === "all" ? m.enough : !!(m.doms && m.doms[_skillFilter]); }
@@ -6386,7 +6458,121 @@ window.hideCalibration = async function() {
     body.style.display = open ? "flex" : "none";
     if (chev) chev.style.transform = open ? "rotate(180deg)" : "";
   };
-  function repaint() { var body = _$("wcGrowthBody"); if (body) body.innerHTML = window.wcGrowthRankRender(); }
+  function repaint() { _histSeq++; var body = _$("wcGrowthBody"); if (body) body.innerHTML = window.wcGrowthRankRender(); }
+  /* ═══ 멤버 내역 — 펼친 카드의 역량 추이 아래 ═══
+     커핑 8의 openHistoryModal 로 내역 모달을 '안 보이게' 렌더 → 요약(레일)·3개 패널을 카드로 옮김.
+     · 패널은 노드째 옮겨서 코칭 로그 작성·커핑 상세 등 기존 동작 그대로 유지
+     · 모달은 하나뿐이라 로드는 순서대로(마지막 요청만 반영), 카드도 한 번에 하나만 펼침
+     · 카드 접기·다른 카드 펼치기·필터 변경·성장 현황 닫기 때 옮겨온 내역 제거(ID 중복 방지) */
+  var _histSeq = 0, _histQueue = Promise.resolve();
+  function histStyle() {
+    if (_$("wcGrowthHistStyle")) return;
+    var st = document.createElement("style");
+    st.id = "wcGrowthHistStyle";
+    st.textContent =
+      "#historyModal.wcgr-ghost{opacity:0!important;pointer-events:none!important;transition:none!important;}" +
+      ".wcgr-hist:empty{display:none;}" +
+      ".wcgr-hist{margin-top:18px;padding-top:16px;border-top:1px solid #eef0f3;}" +
+      ".wcgr-hist-grid{display:grid;grid-template-columns:300px minmax(0,1fr);}" +
+      ".wcgr-hist-rail{padding:2px 22px 2px 0;border-right:1px solid #f2f4f6;min-width:0;}" +
+      ".wcgr-hist-main{padding-left:22px;min-width:0;}" +
+      ".wcgr-hist .wcgr-seg{display:inline-flex;margin:0 0 16px;}" +
+      "@media(max-width:900px){.wcgr-hist-grid{grid-template-columns:1fr;}" +
+        ".wcgr-hist-rail{border-right:none;border-bottom:1px solid #f2f4f6;padding:0 0 18px;margin-bottom:16px;}" +
+        ".wcgr-hist-main{padding-left:0;}.wcgr-hist .wcgr-seg{display:flex;}.wcgr-hist .wcgr-seg a{flex:1;text-align:center;}}";
+    document.head.appendChild(st);
+  }
+  function histTitle() {
+    return '<div style="font-size:13px;font-weight:800;color:#191f28;margin-bottom:14px;">멤버 내역 <span style="font-size:11px;font-weight:600;color:#8b95a1;">· 멤버 상세와 같은 데이터</span></div>';
+  }
+  function histMsg(t) { return histTitle() + '<div style="padding:8px 0 4px;font-size:13px;color:#8b95a1;">' + t + '</div>'; }
+  function clearHist(card) {
+    var list = card ? [card.querySelector(".wcgr-hist")] : Array.prototype.slice.call(document.querySelectorAll("#wcGrowthPage .wcgr-hist"));
+    list.forEach(function (h) { if (h) h.innerHTML = ""; });
+  }
+  // 성장 데이터 키(숫자만) → members 원본 전화번호(결제·연장 내역이 원본 형식으로 매칭됨)
+  function rawPhone(key) {
+    var m = (window.globalMembers || []).find(function (x) { return digits(x.phone) === key; });
+    return (m && m.phone) ? m.phone : key;
+  }
+  var _ghostTok = 0;
+  function closeGhost(modal, tok) {
+    try { if (typeof window.closeHistoryModal === "function") window.closeHistoryModal(); else if (modal) modal.classList.remove("show"); } catch (e) {}
+    // 다음 멤버 렌더가 이미 시작됐으면 투명 처리 유지(모달 깜빡임 방지)
+    setTimeout(function () { if (modal && tok === _ghostTok) modal.classList.remove("wcgr-ghost"); }, 350);
+  }
+  function loadHist(card) {
+    var host = card.querySelector(".wcgr-hist"); if (!host) return;
+    var seq = ++_histSeq;
+    histStyle();
+    host.innerHTML = histMsg("멤버 내역 불러오는 중…");
+    _histQueue = _histQueue.then(function () { return renderHist(card, host, seq); }).catch(function (e) { console.warn("[growth] 멤버 내역 오류", e); });
+  }
+  function stale(card, host, seq) {
+    var det = card.querySelector(".wcgr-detail");
+    return seq !== _histSeq || !document.body.contains(host) || !det || det.style.display === "none";
+  }
+  async function renderHist(card, host, seq) {
+    if (stale(card, host, seq)) return;
+    if (typeof window.openHistoryModal !== "function") { host.innerHTML = histMsg("멤버 상세 모듈(커핑 8)이 없어 내역을 불러올 수 없어요."); return; }
+    var key = card.getAttribute("data-phone") || "", name = card.getAttribute("data-name") || "";
+    var modal = document.getElementById("historyModal");
+    var gtok = ++_ghostTok;
+    if (modal) modal.classList.add("wcgr-ghost");
+    var failed = false;
+    try { await window.openHistoryModal(rawPhone(key), name); }
+    catch (e) { failed = true; console.warn("[growth] 내역 렌더 실패", e); }
+    try {
+      if (stale(card, host, seq)) return;
+      var panes = [["activity", "wcPaneActivity", "코칭 · 활동"], ["survey", "wcPaneSurvey", "상담 · 설문"], ["payment", "wcPanePayment", "결제 · 연장"]]
+        .map(function (p) { return { tgt: p[0], el: document.getElementById(p[1]), label: p[2] }; })
+        .filter(function (p) { return p.el; });
+      if (failed || !panes.length) { host.innerHTML = histMsg("멤버 내역을 불러오지 못했어요."); return; }
+      var rail = document.getElementById("wcMDrail");
+      var wrap = document.createElement("div");
+      wrap.className = "wcMD";   // 내역 모달과 같은 등장 애니메이션(바·링) 규칙 적용
+      wrap.innerHTML = histTitle() +
+        '<div class="wcgr-hist-grid">' +
+          '<div class="wcgr-hist-rail">' + (rail ? rail.innerHTML : "") + '</div>' +
+          '<div class="wcgr-hist-main"><nav class="wcMD-seg wcgr-seg">' +
+            panes.map(function (p, i) { return '<a data-histtgt="' + p.tgt + '"' + (i === 0 ? ' class="on"' : '') + '>' + p.label + '</a>'; }).join("") +
+          '</nav><div class="wcgr-hist-panes"></div></div>' +
+        '</div>';
+      // 요약은 읽기 전용(직업 인라인 수정은 멤버 상세에서)
+      wrap.querySelectorAll(".wcMD-job.editable").forEach(function (j) { j.removeAttribute("onclick"); j.removeAttribute("title"); j.classList.remove("editable"); });
+      // 복사한 요약의 SVG id(방문율 링 그라디언트 등)가 모달 쪽과 겹치지 않게 바꿈
+      var railBox = wrap.querySelector(".wcgr-hist-rail");
+      railBox.querySelectorAll("[id]").forEach(function (el) {
+        var oid = el.id, nid = oid + "_gr" + seq, ref = "url(#" + oid + ")";
+        el.id = nid;
+        railBox.querySelectorAll("[fill],[stroke]").forEach(function (r) {
+          if (r.getAttribute("fill") === ref) r.setAttribute("fill", "url(#" + nid + ")");
+          if (r.getAttribute("stroke") === ref) r.setAttribute("stroke", "url(#" + nid + ")");
+        });
+      });
+      var box = wrap.querySelector(".wcgr-hist-panes");
+      panes.forEach(function (p, i) { p.el.setAttribute("data-histpane", p.tgt); p.el.style.display = i === 0 ? "" : "none"; box.appendChild(p.el); });
+      // 역량 성장은 바로 위 추이와 같은 내용이라 내역 쪽에선 숨김
+      var mg = wrap.querySelector("#wcMemGrowth");
+      if (mg) { var t = mg.previousElementSibling; if (t && /역량 성장/.test(t.textContent || "")) t.style.display = "none"; mg.style.display = "none"; }
+      host.innerHTML = "";
+      host.appendChild(wrap);
+    } finally {
+      closeGhost(modal, gtok);
+    }
+  }
+  function switchHistTab(a) {
+    var host = a.closest(".wcgr-hist"); if (!host) return;
+    var tgt = a.getAttribute("data-histtgt");
+    host.querySelectorAll("[data-histtgt]").forEach(function (x) { x.classList.toggle("on", x === a); });
+    host.querySelectorAll("[data-histpane]").forEach(function (p) { p.style.display = p.getAttribute("data-histpane") === tgt ? "" : "none"; });
+    // 상담·설문 진입 시 전체 설문·상담 기록 자동 펼침(멤버 상세와 동일)
+    if (tgt === "survey") {
+      var sp = host.querySelector('[data-histpane="survey"]');
+      var full = sp && sp.querySelector(".wcmg-full"), tgl = sp && sp.querySelector(".wcmg-toggle");
+      if (full && tgl && getComputedStyle(full).display === "none") tgl.click();
+    }
+  }
   /* ═══ 인페이지 뷰 — 멤버 페이지(#page-members) 안에서 리스트 ↔ 성장 현황 전환 ═══ */
   function ensureStyle() {
     if (_$("wcGrowthStyle")) return;
@@ -6421,12 +6607,27 @@ window.hideCalibration = async function() {
     p.addEventListener("click", function (e) {
       var seg = e.target.closest && e.target.closest("[data-skill]");
       if (seg) { _skillFilter = seg.getAttribute("data-skill"); repaint(); return; }
+      var htab = e.target.closest && e.target.closest("[data-histtgt]");
+      if (htab) { switchHistTab(htab); return; }
       var head = e.target.closest && e.target.closest(".wcgr-head"); if (!head) return;
       var card = head.closest(".wcgr-card"); if (!card) return;
       var det = card.querySelector(".wcgr-detail"); if (!det) return;
       var open = det.style.display === "none";
+      if (open) {
+        // 한 번에 한 명만 펼침 — 다른 카드는 접고 옮겨온 내역 제거
+        p.querySelectorAll(".wcgr-card").forEach(function (c) {
+          if (c === card) return;
+          var d2 = c.querySelector(".wcgr-detail");
+          if (d2 && d2.style.display !== "none") {
+            d2.style.display = "none";
+            var ch2 = c.querySelector(".wcgr-chev"); if (ch2) ch2.style.transform = "";
+            clearHist(c);
+          }
+        });
+      }
       det.style.display = open ? "block" : "none";
       var chev = card.querySelector(".wcgr-chev"); if (chev) chev.style.transform = open ? "rotate(180deg)" : "";
+      if (open) loadHist(card); else { _histSeq++; clearHist(card); }
     });
     // 기수 필터
     p.addEventListener("change", function (e) {
@@ -6435,6 +6636,7 @@ window.hideCalibration = async function() {
     return p;
   }
   window.wcGrowthRankClose = function () {
+    _histSeq++; clearHist();
     var host = document.getElementById("page-members");
     if (host) host.classList.remove("wc-gv");
   };
