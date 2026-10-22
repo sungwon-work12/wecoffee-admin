@@ -1578,7 +1578,7 @@ window.showPrevAppHistory=function(phoneDigits){let history=globalApps.filter(a=
 /* ═══════════════════════════════════════════════════════════
    WeCoffee Admin · 파트 4 — 멤버 관리 · 명세서 · 블록/공지 · 인사이트 · 엑셀
    멤버 연장/정지, 청구 명세서, 스케줄·공지 CRUD, 가입 인사이트, CSV 다운로드.
-   · 멤버 리스트 인원수: 테이블 위 한 줄(총 N명 · 상태별) — 검색·상태·기수 필터 결과 기준
+   · 멤버 리스트 인원수: '멤버 리스트' 제목 옆 숫자 — 검색·상태·기수 필터 결과 기준
    의존: 파트 1~3
    ═══════════════════════════════════════════════════════════ */
 window.changeMemberPerPage=function(val){memberItemsPerPage=val==='all'?999999:parseInt(val);currentMemberPage=1;renderMemberTablePage();};
@@ -1611,21 +1611,18 @@ const tr=document.createElement('tr');tr.innerHTML=`${mPreview}<td data-label="�
     updatePaginationUI(data.length);
     try{if(_savedCheckboxes && typeof window.restoreCheckboxState === 'function') window.restoreCheckboxState(_savedCheckboxes);}catch(e){console.warn('member checkbox restore failed',e);}
 }
-/* 멤버 리스트 인원수 — 테이블 바로 위 한 줄. 상태 판정은 searchMembers 와 같은 기준 */
+/* 멤버 리스트 인원수 — '멤버 리스트' 제목 옆 숫자(검색·상태·기수 필터 결과 기준) */
 function renderMemberCount(data){
-    let tableWrap=document.querySelector('#page-members .table-wrap');if(!tableWrap)return;
-    let bar=document.getElementById('memberCountBar');
-    if(!bar){bar=document.createElement('div');bar.id='memberCountBar';bar.style.cssText='display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin:0 0 10px;padding:0 2px;font-size:13px;color:var(--text-secondary);';tableWrap.parentNode.insertBefore(bar,tableWrap);}
-    const today=new Date();today.setHours(0,0,0,0);
-    let c={active:0,paused:0,penalty:0,ended:0};
-    (data||[]).forEach(m=>{
-        if(m.status==='패널티 정지'){c.penalty++;return;}
-        if(m.status==='활동 일시정지'){c.paused++;return;}
-        let expired=true;if(m.end_date&&m.end_date.length===10){let e=new Date(m.end_date);e.setHours(0,0,0,0);if(e>=today)expired=false;}
-        if(expired)c.ended++;else c.active++;
-    });
-    let parts=[['활동 중',c.active],['일시정지',c.paused],['패널티',c.penalty],['종료',c.ended]].filter(x=>x[1]>0).map(x=>`${x[0]} ${x[1]}`);
-    bar.innerHTML=`<span style="font-size:15px;font-weight:800;color:var(--text-display);">총 ${(data||[]).length}명</span>`+(parts.length?`<span>${parts.join('<span style="color:#cbd2d9;margin:0 6px;">·</span>')}</span>`:'');
+    let badge=document.getElementById('memberCountBadge');
+    if(!badge){
+        let host=document.getElementById('page-members');if(!host)return;
+        let title=Array.from(host.querySelectorAll('h1,h2,h3,h4,.page-title,div,span,p')).find(el=>el.childElementCount===0&&el.textContent.trim()==='멤버 리스트');
+        if(!title)return;
+        badge=document.createElement('span');badge.id='memberCountBadge';
+        badge.style.cssText='margin-left:8px;color:var(--text-tertiary,#8b95a1);font-weight:inherit;font-size:inherit;letter-spacing:inherit;';
+        title.appendChild(badge);
+    }
+    badge.textContent=`${(data||[]).length}명`;
 }
 function updatePaginationUI(totalItems){let paginationWrap=document.getElementById('memberPaginationWrap');if(!paginationWrap){let tableWrap=document.querySelector('#page-members .table-wrap');if(tableWrap){paginationWrap=document.createElement('div');paginationWrap.id='memberPaginationWrap';paginationWrap.style.cssText='display:flex;justify-content:center;align-items:center;gap:8px;padding:20px 0;';tableWrap.parentNode.insertBefore(paginationWrap,tableWrap.nextSibling);}}if(!paginationWrap)return;if(totalItems===0||memberItemsPerPage>totalItems){paginationWrap.innerHTML='';return;}let totalPages=Math.ceil(totalItems/memberItemsPerPage);let html='';let startPage=Math.max(1,currentMemberPage-2);let endPage=Math.min(totalPages,startPage+4);if(endPage-startPage<4)startPage=Math.max(1,endPage-4);if(currentMemberPage>1)html+=`<button class="pagination-btn" onclick="window.changeMemberPage(${currentMemberPage-1})">이전</button>`;for(let i=startPage;i<=endPage;i++){html+=`<button class="pagination-btn ${i===currentMemberPage?'active':''}" onclick="window.changeMemberPage(${i})">${i}</button>`;}if(currentMemberPage<totalPages)html+=`<button class="pagination-btn" onclick="window.changeMemberPage(${currentMemberPage+1})">다음</button>`;paginationWrap.innerHTML=html;}
 window.applyMemberDate=async function(id,btn){const group=btn.closest('.date-select-group');const y=group.querySelector('.year').value,m=group.querySelector('.month').value,d=group.querySelector('.day').value;if(y&&m&&d){let originalText=btn.innerText;btn.disabled=true;btn.innerText="...";let newDate=`${y}-${m}-${d}`;let member=globalMembers.find(x=>String(x.id)===String(id));let oldDate=member?member.end_date||'미설정':'미설정';await window.updateMemberEndDate(id,newDate);if(member){try{await supabaseClient.from('member_history').insert([{member_name:member.name||'',member_phone:member.phone||'',action_detail:`종료일 수동 변경 (${oldDate} → ${newDate})`,amount:'-',performed_by:currentAdminEmail||'unknown'}]);}catch(e){ console.warn("[wc] 무시된 오류", e); }}btn.disabled=false;btn.innerText=originalText;window.fetchMembers();}else{showToast("년/월/일을 모두 선택해주세요.");}};
@@ -6156,10 +6153,9 @@ window.hideCalibration = async function() {
    · 각 역량 최소 3포인트 있어야 반영(한 방 고득점 방지)
    · 진입: 멤버 리스트 툴바에 '성장 현황' 버튼 주입 → #page-members 안에서
      리스트↔성장 현황 인페이지 전환('← 멤버 리스트'로 복귀). window.wcGrowthRankOpen()도 가능
-   · 멤버 펼치면 역량 추이 아래에 '멤버 내역' 표시 — 멤버 상세(내역 모달)와 같은 데이터
-     (요약 · 코칭·활동 / 상담·설문 / 결제·연장). 커핑 8 openHistoryModal 을 안 보이게 렌더한 뒤
-     카드 안으로 옮겨옴 → 같은 화면을 중복 구현하지 않음. 한 번에 한 명만 펼침.
-   의존: supabaseClient · 커핑 8(openHistoryModal). 서버: coach_notes(v7) + member_sensory_series RPC.
+   · 멤버 펼치면 역량 추이 아래에 '멤버 내역'(플랫) — 기본 정보 · 활동 · 최근 이력 · 가입 배경.
+     멤버 상세(커핑 8)와 같은 출처·계산. 코칭 로그 작성 등은 '멤버 상세 열기'로 기존 모달 사용.
+   의존: supabaseClient · 커핑 8(openHistoryModal — '멤버 상세 열기'에만 사용). 서버: coach_notes(v7) + member_sensory_series RPC.
    ═══════════════════════════════════════════════════════════ */
 (function () {
   "use strict";
@@ -6458,120 +6454,215 @@ window.hideCalibration = async function() {
     body.style.display = open ? "flex" : "none";
     if (chev) chev.style.transform = open ? "rotate(180deg)" : "";
   };
-  function repaint() { _histSeq++; var body = _$("wcGrowthBody"); if (body) body.innerHTML = window.wcGrowthRankRender(); }
-  /* ═══ 멤버 내역 — 펼친 카드의 역량 추이 아래 ═══
-     커핑 8의 openHistoryModal 로 내역 모달을 '안 보이게' 렌더 → 요약(레일)·3개 패널을 카드로 옮김.
-     · 패널은 노드째 옮겨서 코칭 로그 작성·커핑 상세 등 기존 동작 그대로 유지
-     · 모달은 하나뿐이라 로드는 순서대로(마지막 요청만 반영), 카드도 한 번에 하나만 펼침
-     · 카드 접기·다른 카드 펼치기·필터 변경·성장 현황 닫기 때 옮겨온 내역 제거(ID 중복 방지) */
-  var _histSeq = 0, _histQueue = Promise.resolve();
+  function repaint() { var body = _$("wcGrowthBody"); if (body) body.innerHTML = window.wcGrowthRankRender(); }
+  /* ═══ 멤버 내역 — 펼친 카드의 역량 추이 아래 (플랫) ═══
+     멤버 상세(커핑 8)와 같은 출처·같은 계산으로 핵심만 직접 그림. 카드·타일·회색 박스·탭 없음, 얇은 구분선만.
+     · 기본 정보(2열 키-값) · 활동(한 줄) · 최근 이력(예약·수업/훈련·결제/연장 합쳐 최근순 5건 + 더 보기) · 가입 배경
+     · 이름·기수·상태·센서리 편차는 카드 위쪽에 이미 있어 제외
+     · 코칭 로그 작성·전체 설문·커핑 세션 상세는 맨 아래 '멤버 상세 열기'(기존 모달)로 */
+  var _histCache = {};
+  var DOW = ["일", "월", "화", "수", "목", "금", "토"];
   function histStyle() {
     if (_$("wcGrowthHistStyle")) return;
     var st = document.createElement("style");
     st.id = "wcGrowthHistStyle";
     st.textContent =
-      "#historyModal.wcgr-ghost{opacity:0!important;pointer-events:none!important;transition:none!important;}" +
       ".wcgr-hist:empty{display:none;}" +
       ".wcgr-hist{margin-top:18px;padding-top:16px;border-top:1px solid #eef0f3;}" +
-      ".wcgr-hist-grid{display:grid;grid-template-columns:300px minmax(0,1fr);}" +
-      ".wcgr-hist-rail{padding:2px 22px 2px 0;border-right:1px solid #f2f4f6;min-width:0;}" +
-      ".wcgr-hist-main{padding-left:22px;min-width:0;}" +
-      ".wcgr-hist .wcgr-seg{display:inline-flex;margin:0 0 16px;}" +
-      "@media(max-width:900px){.wcgr-hist-grid{grid-template-columns:1fr;}" +
-        ".wcgr-hist-rail{border-right:none;border-bottom:1px solid #f2f4f6;padding:0 0 18px;margin-bottom:16px;}" +
-        ".wcgr-hist-main{padding-left:0;}.wcgr-hist .wcgr-seg{display:flex;}.wcgr-hist .wcgr-seg a{flex:1;text-align:center;}}";
+      ".wcgr-kv{display:grid;grid-template-columns:1fr 1fr;column-gap:32px;}" +
+      ".wcgr-kv-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid #f2f4f6;font-size:13px;}" +
+      ".wcgr-kv-row .k{color:#8b95a1;font-weight:600;flex-shrink:0;}" +
+      ".wcgr-kv-row .v{color:#191f28;font-weight:700;text-align:right;min-width:0;word-break:keep-all;}" +
+      ".wcgr-sub{font-size:12.5px;font-weight:800;color:#4e5968;margin:22px 0 8px;}" +
+      ".wcgr-ev{display:flex;align-items:baseline;gap:12px;padding:9px 0;border-top:1px solid #f2f4f6;font-size:13px;}" +
+      ".wcgr-ev .d{flex-shrink:0;width:72px;color:#8b95a1;font-weight:600;font-size:12px;}" +
+      ".wcgr-ev .t{flex-shrink:0;width:40px;color:#6b7684;font-weight:800;font-size:12px;}" +
+      ".wcgr-ev .c{flex:1;min-width:0;color:#4e5968;line-height:1.5;word-break:break-word;}" +
+      ".wcgr-ev .a{flex-shrink:0;color:#191f28;font-weight:700;font-size:12.5px;}" +
+      ".wcgr-link{background:none;border:none;padding:0;font-family:inherit;cursor:pointer;font-size:13px;font-weight:700;}" +
+      "@media(max-width:768px){.wcgr-kv{grid-template-columns:1fr;}.wcgr-ev .d{width:58px;}}";
     document.head.appendChild(st);
   }
-  function histTitle() {
-    return '<div style="font-size:13px;font-weight:800;color:#191f28;margin-bottom:14px;">멤버 내역 <span style="font-size:11px;font-weight:600;color:#8b95a1;">· 멤버 상세와 같은 데이터</span></div>';
+  function histHead() {
+    return '<div style="font-size:13px;font-weight:800;color:#191f28;">멤버 내역</div>';
   }
-  function histMsg(t) { return histTitle() + '<div style="padding:8px 0 4px;font-size:13px;color:#8b95a1;">' + t + '</div>'; }
+  function histMsg(t) { return histHead() + '<div style="padding:10px 0 2px;font-size:13px;color:#8b95a1;">' + t + '</div>'; }
   function clearHist(card) {
     var list = card ? [card.querySelector(".wcgr-hist")] : Array.prototype.slice.call(document.querySelectorAll("#wcGrowthPage .wcgr-hist"));
     list.forEach(function (h) { if (h) h.innerHTML = ""; });
   }
-  // 성장 데이터 키(숫자만) → members 원본 전화번호(결제·연장 내역이 원본 형식으로 매칭됨)
-  function rawPhone(key) {
-    var m = (window.globalMembers || []).find(function (x) { return digits(x.phone) === key; });
-    return (m && m.phone) ? m.phone : key;
+  function sameP(a, b) { return digits(a) !== "" && digits(a) === digits(b); }
+  function findMember(key) { return (window.globalMembers || []).find(function (x) { return digits(x.phone) === key; }) || null; }
+  function md(s) {   // 10.16 (목)
+    if (!s) return ""; var t = String(s).slice(0, 10), d = new Date(t);
+    if (isNaN(d)) return ""; return t.slice(5).replace("-", ".") + " (" + DOW[d.getDay()] + ")";
   }
-  var _ghostTok = 0;
-  function closeGhost(modal, tok) {
-    try { if (typeof window.closeHistoryModal === "function") window.closeHistoryModal(); else if (modal) modal.classList.remove("show"); } catch (e) {}
-    // 다음 멤버 렌더가 이미 시작됐으면 투명 처리 유지(모달 깜빡임 방지)
-    setTimeout(function () { if (modal && tok === _ghostTok) modal.classList.remove("wcgr-ghost"); }, 350);
+  function ymd(s) { var t = String(s || "").slice(0, 10); return /\d{4}-\d{2}-\d{2}/.test(t) ? t : ""; }
+  function centerName(c) { c = String(c || "").trim(); if (c.indexOf("광진") >= 0) return "광진센터"; if (c.indexOf("마포") >= 0) return "마포센터"; return c; }
+  function won(n) { return Number(n || 0).toLocaleString("ko-KR") + "원"; }
+  function trnParts(t) { return String(t.content || "").split(" || "); }
+  function trnDateOf(t) { var c = trnParts(t); return (c[0] && /\d{4}-\d{2}-\d{2}/.test(c[0])) ? c[0].trim() : (t.created_at || ""); }
+  function trnCat(t) { var m = String(trnParts(t)[4] || "").match(/^\[(.*?)\]/); return m ? m[1] : ""; }
+  function trnTitleOf(t) {
+    var c = trnParts(t), raw = (c.length >= 5 ? c[4] : (t.content || "")) || "";
+    var m = raw.match(/^\[(.*?)\]\s*(.*)$/);
+    return String(m ? (m[2] || raw) : raw).trim() || "수업·훈련 참여";
   }
-  function loadHist(card) {
+  async function byLast4(table, cols, key) {
+    var last4 = key.slice(-4); if (last4.length < 4) return [];
+    var r = await supabaseClient.from(table).select(cols).ilike(table === "member_history" ? "member_phone" : "phone", "%" + last4);
+    return (r && r.data) || [];
+  }
+  async function loadHistData(key) {
+    if (_histCache[key]) return _histCache[key];
+    var mem = findMember(key);
+    var app = (window.globalApps || []).find(function (a) { return digits(a.phone) === key; }) || null;
+    var jobs = [
+      byLast4("reservations", "id,phone,status,res_date,res_time,space_equip,center", key),
+      byLast4("trainings", "id,phone,status,content,created_at", key),
+      byLast4("member_history", "member_phone,action_detail,amount,created_at", key),
+      app ? Promise.resolve(null) : byLast4("applications", "*", key)
+    ];
+    var res = await Promise.all(jobs.map(function (p) { return p.catch(function (e) { console.warn("[growth] 멤버 내역 조회 실패", e); return []; }); }));
+    var notCancel = function (r) { return String(r.status || "").indexOf("취소") < 0; };
+    var ress = res[0].filter(function (r) { return sameP(r.phone, key) && notCancel(r); });
+    var trns = res[1].filter(function (r) { return sameP(r.phone, key) && notCancel(r); });
+    var hist = res[2].filter(function (r) { return sameP(r.member_phone, key); });
+    if (!app && res[3]) app = res[3].filter(function (a) { return sameP(a.phone, key); }).sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); })[0] || null;
+    var d = { mem: mem, app: app, ress: ress, trns: trns, hist: hist };
+    _histCache[key] = d;
+    return d;
+  }
+  function histHTML(d, key, name) {
+    var mem = d.mem || {}, app = d.app || {};
+    // ── 활동 집계(멤버 상세와 같은 기준) ──
+    var classSet = {}, trainList = [], eventList = [];
+    d.trns.forEach(function (t) {
+      var cat = trnCat(t);
+      if (cat === "기본 수업") classSet[trnTitleOf(t)] = 1;
+      else if (cat === "세미나" || cat === "대회") eventList.push(t);
+      else trainList.push(t);
+    });
+    var resDates = d.ress.map(function (r) { return ymd(r.res_date); }).filter(Boolean);
+    var trainDates = trainList.map(function (t) { return ymd(trnParts(t)[0]); }).filter(Boolean);
+    function wk(s) { var t = new Date(s); if (isNaN(t)) return null; t.setHours(0, 0, 0, 0); return Math.floor(t.getTime() / 604800000); }
+    var times = resDates.concat(trainDates).map(function (x) { return new Date(x).getTime(); }).filter(function (x) { return !isNaN(x); });
+    var visit = null;
+    if (times.length) {
+      var weeks = Math.max(1, wk(new Date()) - wk(new Date(Math.min.apply(null, times))) + 1);
+      var rw = {}; resDates.forEach(function (x) { var b = wk(x); if (b != null) rw[b] = 1; });
+      var n = Object.keys(rw).length;
+      visit = { rate: Math.round(n / weeks * 100), weeks: weeks, visited: n };
+    }
+    var centerCnt = {};
+    function bump(c) { c = centerName(c); if (c) centerCnt[c] = (centerCnt[c] || 0) + 1; }
+    d.ress.forEach(function (r) { bump(r.center); });
+    d.trns.forEach(function (t) { bump(trnParts(t)[3]); });
+    var mainCenter = Object.keys(centerCnt).sort(function (a, b) { return centerCnt[b] - centerCnt[a]; })[0] || centerName(mem.center || mem.branch || app.desired_center || "");
+    var payTotal = 0, firstHist = "";
+    d.hist.forEach(function (h) {
+      payTotal += parseInt(String(h.amount || "").replace(/[^0-9]/g, ""), 10) || 0;
+      var t = ymd(h.created_at); if (t && (!firstHist || t < firstHist)) firstHist = t;
+    });
+    var lastVisit = resDates.slice().sort().slice(-1)[0] || "";
+    // ── 기본 정보 ──
+    var batch = mem.batch || app.desired_batch || "";
+    var join = ymd(mem.created_at) || firstHist || ymd(app.created_at);
+    var joinTxt = [batch ? esc(batchLabel(batch)) : "", join ? md(join) : ""].filter(Boolean).join(" · ") || "—";
+    var endTxt = "—", endRaw = ymd(mem.end_date);
+    if (endRaw) {
+      var ed = new Date(endRaw), td = new Date(); ed.setHours(0, 0, 0, 0); td.setHours(0, 0, 0, 0);
+      var dd = Math.round((ed - td) / 86400000);
+      endTxt = endRaw.replace(/-/g, ".") + ' <span style="margin-left:4px;font-weight:800;color:' + (dd < 0 || dd <= 30 ? "#e5484d" : "#00b386") + ';">' + (dd < 0 ? "만료" : "D-" + dd) + '</span>';
+    }
+    var counselor = (app.counselor_name && app.counselor_name !== "null") ? String(app.counselor_name).trim() : "";
+    var consult = "—";
+    if (app.call_time) { var cc = ymd(app.call_time); consult = [cc ? md(cc) : "완료", counselor ? esc(counselor) : ""].filter(Boolean).join(" · "); }
+    else if (counselor) consult = esc(counselor);
+    var rawPh = mem.phone || app.phone || key;
+    var phTxt = window.normalizePhone ? (window.normalizePhone(rawPh) || rawPh) : rawPh;
+    var kv = [
+      ["가입", joinTxt], ["이용 종료", endTxt],
+      ["주 이용 센터", mainCenter ? esc(mainCenter) : "—"], ["연락처", esc(phTxt)],
+      ["총 결제", payTotal ? won(payTotal) : "—"], ["최근 방문", lastVisit ? md(lastVisit) : "—"],
+      ["상담", consult]
+    ];
+    var h = histHead() + '<div class="wcgr-kv" style="margin-top:8px;">' + kv.map(function (r) {
+      return '<div class="wcgr-kv-row"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>';
+    }).join("") + '</div>';
+    // ── 활동(한 줄) ──
+    function stat(label, v) { return '<span style="white-space:nowrap;">' + label + ' <b style="color:#191f28;font-weight:800;">' + v + '</b></span>'; }
+    var stats = [];
+    stats.push(visit ? '<span style="white-space:nowrap;">방문율 <b style="color:#191f28;font-weight:800;">' + visit.rate + '%</b><span style="color:#8b95a1;margin-left:4px;">(' + visit.weeks + '주 중 ' + visit.visited + '주)</span></span>' : stat("방문율", "—"));
+    stats.push(stat("센터 예약", d.ress.length), stat("수업 이수", Object.keys(classSet).length), stat("훈련 참여", trainList.length));
+    if (eventList.length) stats.push(stat("세미나·대회", eventList.length));
+    h += '<div class="wcgr-sub">활동</div><div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 0;font-size:13px;color:#6b7684;padding:10px 0;border-top:1px solid #f2f4f6;">' +
+      stats.join('<span style="color:#cbd2d9;margin:0 10px;">·</span>') + '</div>';
+    // ── 최근 이력(예약 · 수업/훈련 · 결제/연장) ──
+    var ev = [];
+    d.ress.forEach(function (r) {
+      var c = [centerName(r.center), r.space_equip].filter(Boolean).join(" · ") || "센터 예약";
+      if (r.res_time) c += " · " + r.res_time;
+      ev.push({ at: ymd(r.res_date) || "", t: "예약", c: c });
+    });
+    d.trns.forEach(function (t) {
+      var cat = trnCat(t), ty = cat === "기본 수업" ? "수업" : ((cat === "세미나" || cat === "대회") ? cat : "훈련");
+      ev.push({ at: ymd(trnDateOf(t)) || "", t: ty, c: trnTitleOf(t) });
+    });
+    d.hist.forEach(function (x) {
+      var amt = String(x.amount || "").trim();
+      ev.push({ at: ymd(x.created_at) || "", t: "결제", c: x.action_detail || "", a: (amt && amt !== "-") ? amt : "" });
+    });
+    ev.sort(function (a, b) { return a.at < b.at ? 1 : (a.at > b.at ? -1 : 0); });
+    h += '<div class="wcgr-sub">최근 이력</div>';
+    if (!ev.length) h += '<div style="padding:10px 0;border-top:1px solid #f2f4f6;font-size:13px;color:#8b95a1;">이력이 없어요.</div>';
+    else {
+      var row = function (e, hidden) {
+        return '<div class="wcgr-ev"' + (hidden ? ' data-more="1" style="display:none;"' : '') + '>' +
+          '<span class="d">' + (e.at ? md(e.at) : "—") + '</span><span class="t">' + esc(e.t) + '</span>' +
+          '<span class="c">' + esc(e.c) + '</span>' + (e.a ? '<span class="a">' + esc(e.a) + '</span>' : '') + '</div>';
+      };
+      h += ev.map(function (e, i) { return row(e, i >= 5); }).join("");
+      if (ev.length > 5) h += '<button type="button" class="wcgr-link" data-histmore="1" style="color:#6b7684;margin-top:10px;">더 보기 <span style="color:#8b95a1;font-weight:600;">' + (ev.length - 5) + '건</span></button>';
+    }
+    // ── 가입 배경 ──
+    var goal = String(app.survey_goal || "").split(/[,·]/).map(function (s) { return s.trim(); }).filter(Boolean).join(" · ");
+    var interest = [app.interest_area, app.survey_curious].filter(Boolean).join(" · ");
+    h += '<div class="wcgr-sub">가입 배경</div>';
+    if (!d.app) h += '<div style="padding:10px 0;border-top:1px solid #f2f4f6;font-size:13px;color:#8b95a1;">연결된 가입 신청이 없어요.</div>';
+    else h += [["학습 목표", goal], ["관심 분야", interest]].map(function (r) {
+      return '<div class="wcgr-kv-row" style="justify-content:flex-start;"><span class="k" style="width:72px;">' + r[0] + '</span><span class="v" style="text-align:left;font-weight:600;color:' + (r[1] ? "#4e5968" : "#b0b8c1") + ';">' + (r[1] ? esc(r[1]) : "미작성") + '</span></div>';
+    }).join("");
+    // ── 멤버 상세 열기 ──
+    h += '<div style="margin-top:16px;"><button type="button" class="wcgr-link" data-histopen="1" style="color:#ff7900;">멤버 상세 열기 →</button>' +
+      '<span style="margin-left:8px;font-size:12px;color:#8b95a1;">코칭 로그 작성 · 전체 설문 · 커핑 세션 상세</span></div>';
+    return h;
+  }
+  async function loadHist(card) {
     var host = card.querySelector(".wcgr-hist"); if (!host) return;
-    var seq = ++_histSeq;
     histStyle();
-    host.innerHTML = histMsg("멤버 내역 불러오는 중…");
-    _histQueue = _histQueue.then(function () { return renderHist(card, host, seq); }).catch(function (e) { console.warn("[growth] 멤버 내역 오류", e); });
-  }
-  function stale(card, host, seq) {
-    var det = card.querySelector(".wcgr-detail");
-    return seq !== _histSeq || !document.body.contains(host) || !det || det.style.display === "none";
-  }
-  async function renderHist(card, host, seq) {
-    if (stale(card, host, seq)) return;
-    if (typeof window.openHistoryModal !== "function") { host.innerHTML = histMsg("멤버 상세 모듈(커핑 8)이 없어 내역을 불러올 수 없어요."); return; }
     var key = card.getAttribute("data-phone") || "", name = card.getAttribute("data-name") || "";
-    var modal = document.getElementById("historyModal");
-    var gtok = ++_ghostTok;
-    if (modal) modal.classList.add("wcgr-ghost");
-    var failed = false;
-    try { await window.openHistoryModal(rawPhone(key), name); }
-    catch (e) { failed = true; console.warn("[growth] 내역 렌더 실패", e); }
+    if (typeof supabaseClient === "undefined") { host.innerHTML = histMsg("데이터 연결이 없어 불러올 수 없어요."); return; }
+    host.innerHTML = histMsg("불러오는 중…");
     try {
-      if (stale(card, host, seq)) return;
-      var panes = [["activity", "wcPaneActivity", "코칭 · 활동"], ["survey", "wcPaneSurvey", "상담 · 설문"], ["payment", "wcPanePayment", "결제 · 연장"]]
-        .map(function (p) { return { tgt: p[0], el: document.getElementById(p[1]), label: p[2] }; })
-        .filter(function (p) { return p.el; });
-      if (failed || !panes.length) { host.innerHTML = histMsg("멤버 내역을 불러오지 못했어요."); return; }
-      var rail = document.getElementById("wcMDrail");
-      var wrap = document.createElement("div");
-      wrap.className = "wcMD";   // 내역 모달과 같은 등장 애니메이션(바·링) 규칙 적용
-      wrap.innerHTML = histTitle() +
-        '<div class="wcgr-hist-grid">' +
-          '<div class="wcgr-hist-rail">' + (rail ? rail.innerHTML : "") + '</div>' +
-          '<div class="wcgr-hist-main"><nav class="wcMD-seg wcgr-seg">' +
-            panes.map(function (p, i) { return '<a data-histtgt="' + p.tgt + '"' + (i === 0 ? ' class="on"' : '') + '>' + p.label + '</a>'; }).join("") +
-          '</nav><div class="wcgr-hist-panes"></div></div>' +
-        '</div>';
-      // 요약은 읽기 전용(직업 인라인 수정은 멤버 상세에서)
-      wrap.querySelectorAll(".wcMD-job.editable").forEach(function (j) { j.removeAttribute("onclick"); j.removeAttribute("title"); j.classList.remove("editable"); });
-      // 복사한 요약의 SVG id(방문율 링 그라디언트 등)가 모달 쪽과 겹치지 않게 바꿈
-      var railBox = wrap.querySelector(".wcgr-hist-rail");
-      railBox.querySelectorAll("[id]").forEach(function (el) {
-        var oid = el.id, nid = oid + "_gr" + seq, ref = "url(#" + oid + ")";
-        el.id = nid;
-        railBox.querySelectorAll("[fill],[stroke]").forEach(function (r) {
-          if (r.getAttribute("fill") === ref) r.setAttribute("fill", "url(#" + nid + ")");
-          if (r.getAttribute("stroke") === ref) r.setAttribute("stroke", "url(#" + nid + ")");
-        });
-      });
-      var box = wrap.querySelector(".wcgr-hist-panes");
-      panes.forEach(function (p, i) { p.el.setAttribute("data-histpane", p.tgt); p.el.style.display = i === 0 ? "" : "none"; box.appendChild(p.el); });
-      // 역량 성장은 바로 위 추이와 같은 내용이라 내역 쪽에선 숨김
-      var mg = wrap.querySelector("#wcMemGrowth");
-      if (mg) { var t = mg.previousElementSibling; if (t && /역량 성장/.test(t.textContent || "")) t.style.display = "none"; mg.style.display = "none"; }
-      host.innerHTML = "";
-      host.appendChild(wrap);
-    } finally {
-      closeGhost(modal, gtok);
+      var d = await loadHistData(key);
+      if (!document.body.contains(host)) return;
+      var det = card.querySelector(".wcgr-detail"); if (!det || det.style.display === "none") return;
+      host.innerHTML = histHTML(d, key, name);
+    } catch (e) {
+      console.warn("[growth] 멤버 내역 렌더 실패", e);
+      if (document.body.contains(host)) host.innerHTML = histMsg("멤버 내역을 불러오지 못했어요.");
     }
   }
-  function switchHistTab(a) {
-    var host = a.closest(".wcgr-hist"); if (!host) return;
-    var tgt = a.getAttribute("data-histtgt");
-    host.querySelectorAll("[data-histtgt]").forEach(function (x) { x.classList.toggle("on", x === a); });
-    host.querySelectorAll("[data-histpane]").forEach(function (p) { p.style.display = p.getAttribute("data-histpane") === tgt ? "" : "none"; });
-    // 상담·설문 진입 시 전체 설문·상담 기록 자동 펼침(멤버 상세와 동일)
-    if (tgt === "survey") {
-      var sp = host.querySelector('[data-histpane="survey"]');
-      var full = sp && sp.querySelector(".wcmg-full"), tgl = sp && sp.querySelector(".wcmg-toggle");
-      if (full && tgl && getComputedStyle(full).display === "none") tgl.click();
-    }
+  function histMore(btn) {
+    var host = btn.closest(".wcgr-hist"); if (!host) return;
+    host.querySelectorAll('[data-more="1"]').forEach(function (r) { r.style.display = ""; });
+    btn.remove();
+  }
+  function histOpen(btn) {
+    var card = btn.closest(".wcgr-card"); if (!card || typeof window.openHistoryModal !== "function") return;
+    var key = card.getAttribute("data-phone") || "", m = findMember(key);
+    window.openHistoryModal((m && m.phone) || key, card.getAttribute("data-name") || "");
   }
   /* ═══ 인페이지 뷰 — 멤버 페이지(#page-members) 안에서 리스트 ↔ 성장 현황 전환 ═══ */
   function ensureStyle() {
@@ -6607,27 +6698,17 @@ window.hideCalibration = async function() {
     p.addEventListener("click", function (e) {
       var seg = e.target.closest && e.target.closest("[data-skill]");
       if (seg) { _skillFilter = seg.getAttribute("data-skill"); repaint(); return; }
-      var htab = e.target.closest && e.target.closest("[data-histtgt]");
-      if (htab) { switchHistTab(htab); return; }
+      var more = e.target.closest && e.target.closest("[data-histmore]");
+      if (more) { histMore(more); return; }
+      var hop = e.target.closest && e.target.closest("[data-histopen]");
+      if (hop) { histOpen(hop); return; }
       var head = e.target.closest && e.target.closest(".wcgr-head"); if (!head) return;
       var card = head.closest(".wcgr-card"); if (!card) return;
       var det = card.querySelector(".wcgr-detail"); if (!det) return;
       var open = det.style.display === "none";
-      if (open) {
-        // 한 번에 한 명만 펼침 — 다른 카드는 접고 옮겨온 내역 제거
-        p.querySelectorAll(".wcgr-card").forEach(function (c) {
-          if (c === card) return;
-          var d2 = c.querySelector(".wcgr-detail");
-          if (d2 && d2.style.display !== "none") {
-            d2.style.display = "none";
-            var ch2 = c.querySelector(".wcgr-chev"); if (ch2) ch2.style.transform = "";
-            clearHist(c);
-          }
-        });
-      }
       det.style.display = open ? "block" : "none";
       var chev = card.querySelector(".wcgr-chev"); if (chev) chev.style.transform = open ? "rotate(180deg)" : "";
-      if (open) loadHist(card); else { _histSeq++; clearHist(card); }
+      if (open) loadHist(card); else clearHist(card);
     });
     // 기수 필터
     p.addEventListener("change", function (e) {
@@ -6636,11 +6717,12 @@ window.hideCalibration = async function() {
     return p;
   }
   window.wcGrowthRankClose = function () {
-    _histSeq++; clearHist();
+    clearHist();
     var host = document.getElementById("page-members");
     if (host) host.classList.remove("wc-gv");
   };
   window.wcGrowthRankOpen = async function () {
+    _histCache = {};   // 다시 열 때 최신 내역으로
     ensureStyle();
     var host = document.getElementById("page-members");
     var p = pageEl();
