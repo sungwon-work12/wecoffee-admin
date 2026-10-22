@@ -6149,19 +6149,22 @@ window.hideCalibration = async function() {
    WeCoffee Admin · 커핑 12 — 멤버 성장 현황 (②)   ※ 기존 커핑9(평가 모드 설정)와 별개 · 새 블록으로 추가
    coach_notes(역량+점수) + 센서리 객관 편차(member_sensory_series RPC)를
    멤버별로 모아 역량(센서리·로스팅·추출) 개선폭 → 종합 성장 스코어로 랭킹.
-   · 개선폭(주) + 현재수준(보조) + 활동 꾸준함(아주 작게)
+   · 종합 성장 = 반영 역량 개선폭 평균(실제 성장량). 현재 수준·활동 꾸준함은 점수에 섞지 않고 동점 정렬에만 사용
    · 각 역량 최소 3포인트 있어야 반영(한 방 고득점 방지)
    · 진입: 멤버 리스트 툴바에 '성장 현황' 버튼 주입 → #page-members 안에서
      리스트↔성장 현황 인페이지 전환('← 멤버 리스트'로 복귀). window.wcGrowthRankOpen()도 가능
-   · 멤버 펼치면 역량 추이 아래에 '멤버 내역'(플랫) — 기본 정보 · 활동 · 최근 이력 · 가입 배경.
-     멤버 상세(커핑 8)와 같은 출처·계산. 코칭 로그 작성 등은 '멤버 상세 열기'로 기존 모달 사용.
+   · 멤버 펼침 = 2단 (멤버 상세와 같은 부품·값):
+     왼쪽 = 역량 추이 · 가입 배경/학습 목표 카드 · 최근 이력(이력 행 + 더보기)
+     오른쪽 = 방문율 링 · KPI 3칸 · 정보 카드(D-day 배지) · 멤버 상세 열기
+     데이터는 멤버 상세(커핑 8)와 같은 출처. 오늘 이후 일정은 이력·집계에서 빼고 '예정 n건'으로만 표시.
+     코칭 로그 작성·전체 설문·커핑 세션 상세는 '멤버 상세 열기'(기존 모달).
+   · 종합 성장 계산(wcGrowthCompute)은 커핑 8 멤버 상세의 역량 성장 섹션도 같이 씀 → 두 화면 숫자 일치
    의존: supabaseClient · 커핑 8(openHistoryModal — '멤버 상세 열기'에만 사용). 서버: coach_notes(v7) + member_sensory_series RPC.
    ═══════════════════════════════════════════════════════════ */
 (function () {
   "use strict";
   var DOMAINS = ["센서리", "로스팅", "추출"];
   var MIN_PTS = 3;               // 역량별 최소 평가 포인트
-  var W_IMPROVE = 1.0, W_LEVEL = 0.2, W_CONSIST = 0.05;
   var _people = [], _batchFilter = "all", _skillFilter = "all", _batchList = [];
   function _$(id) { return document.getElementById(id); }
   function esc(t) { return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -6231,13 +6234,13 @@ window.hideCalibration = async function() {
       }
       var impAvg = avg(contrib.map(function (d) { return doms[d].improve; }));
       var lvlAvg = avg(contrib.map(function (d) { return doms[d].level; }));
-      var score = W_IMPROVE * impAvg + W_LEVEL * lvlAvg + W_CONSIST * Math.min(consistency, 6);
-      out.push({ phone: phone, name: names[phone] || phone, batch: batches[phone] || "", doms: doms, entries: ent, score: score, contrib: contrib.length, consistency: consistency, enough: true });
+      // 종합 성장 = 개선폭 평균. (이전: 개선폭 + 수준×0.2 + 꾸준함×0.05 → 수준이 개선폭보다 크게 작용해 '잘하는 순'이 됐음)
+      out.push({ phone: phone, name: names[phone] || phone, batch: batches[phone] || "", doms: doms, entries: ent, score: impAvg, level: lvlAvg, contrib: contrib.length, consistency: consistency, enough: true });
     });
-    // 정렬: 데이터충분 우선 → 종합 스코어 desc → 개선폭 큰 순
+    // 정렬: 데이터충분 우선 → 개선폭 평균 → (동점) 현재 수준 → 활동 꾸준함
     out.sort(function (a, b) {
       if (a.enough !== b.enough) return a.enough ? -1 : 1;
-      if (a.enough) return b.score - a.score;
+      if (a.enough) return (b.score - a.score) || ((b.level || 0) - (a.level || 0)) || (b.consistency - a.consistency);
       return b.contrib - a.contrib;
     });
     return out;
@@ -6297,7 +6300,7 @@ window.hideCalibration = async function() {
     if (v < -0.3) return '<svg width="9" height="9" viewBox="0 0 12 12" style="vertical-align:-1px;"><path d="M6 10 L10 4 L2 4 Z" fill="#e5484d"/></svg>';
     return '<span style="color:#c4ccd4;font-weight:800;">·</span>';
   }
-  function signed(v) { return (v > 0 ? "+" : "") + (Math.round(v * 10) / 10); }
+  function signed(v) { var r = Math.round(v * 10) / 10; return (r > 0 ? "+" : "") + r.toFixed(1); }   // 헤드·역량 모두 소수 1자리로 통일
   // 영역 채운 스파크라인
   function spark(series, w, h) {
     if (!series || series.length < 2) return "";
@@ -6334,36 +6337,33 @@ window.hideCalibration = async function() {
       (e.score != null ? scoreBadge(e.score) : '') +
       '<span style="flex:1;min-width:0;font-size:13px;color:#4e5968;line-height:1.55;word-break:break-word;">' + note + '</span></div>';
   }
-  // 펼침용 역량 추이 행 (추이 + 코멘트 타임라인)
+  // 펼침용 역량 추이 행 — 라벨 · 그래프 · 수치를 왼쪽에 한 묶음으로, 코멘트는 그래프 시작선에 맞춤
   function domRow(dom, d, entries) {
     entries = entries || [];
-    if (!d && !entries.length) return '<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid #f2f4f6;">' +
-      '<span style="width:48px;flex-shrink:0;font-size:13px;font-weight:700;color:#6b7684;">' + dom + '</span>' +
-      '<span style="font-size:12.5px;color:#8b95a1;font-weight:600;">평가 없음</span></div>';
+    var label = function (sub, subColor) {
+      return '<div class="wcgr-dom-l"><div style="font-size:13px;font-weight:800;color:#191f28;">' + dom + '</div>' +
+        (sub ? '<div style="font-size:10.5px;font-weight:800;color:' + subColor + ';margin-top:2px;">' + sub + '</div>' : '') + '</div>';
+    };
+    if (!d && !entries.length) return '<div class="wcgr-dom"><div class="wcgr-dom-h">' + label() +
+      '<span style="font-size:12.5px;color:#8b95a1;font-weight:600;">평가 없음</span></div></div>';
     var head;
     if (d) {
-      var srcColor = d.src === "객관" ? "#3182f6" : "#ff7900";
-      head = '<div style="display:flex;align-items:center;gap:12px;">' +
-        '<div style="width:48px;flex-shrink:0;"><div style="font-size:12.5px;font-weight:800;color:#191f28;">' + dom + '</div>' +
-          '<div style="font-size:10px;font-weight:800;color:' + srcColor + ';margin-top:2px;">' + d.src + '</div></div>' +
-        '<span style="flex-shrink:0;">' + spark(d.series, 120, 36) + '</span>' +
-        '<span style="flex:1;min-width:0;"></span>' +
-        '<span style="flex-shrink:0;text-align:right;">' +
-          '<div style="font-size:12.5px;color:#6b7684;font-weight:600;white-space:nowrap;">' + round1(d.early) + ' <span style="color:#b0b8c1;">→</span> <b style="color:#191f28;font-size:13.5px;">' + round1(d.recent) + '</b></div>' +
-          '<div style="font-size:12.5px;font-weight:800;color:' + impColor(d.improve) + ';margin-top:1px;">' + impArrow(d.improve) + ' ' + signed(d.improve) + ' <span style="font-size:11px;color:#8b95a1;font-weight:600;">· ' + d.n + '회</span></div>' +
+      head = '<div class="wcgr-dom-h">' + label(d.src, d.src === "객관" ? "#3182f6" : "#ff7900") +
+        '<span style="flex-shrink:0;">' + spark(d.series, 132, 36) + '</span>' +
+        '<span style="flex-shrink:0;">' +
+          '<div style="font-size:12.5px;color:#6b7684;font-weight:600;white-space:nowrap;">' + round1(d.early) + ' <span style="color:#b0b8c1;">→</span> <b style="color:#191f28;font-size:14px;">' + round1(d.recent) + '</b></div>' +
+          '<div style="font-size:12.5px;font-weight:800;color:' + impColor(d.improve) + ';margin-top:2px;white-space:nowrap;">' + impArrow(d.improve) + ' ' + signed(d.improve) + ' <span style="font-size:11px;color:#8b95a1;font-weight:600;">· ' + d.n + '회</span></div>' +
         '</span></div>';
     } else {
-      head = '<div style="display:flex;align-items:center;gap:10px;">' +
-        '<span style="width:48px;flex-shrink:0;font-size:12.5px;font-weight:800;color:#191f28;">' + dom + '</span>' +
-        '<span style="font-size:12px;color:#8b95a1;font-weight:600;">3회 미만 · 추이 미집계</span></div>';
+      head = '<div class="wcgr-dom-h">' + label() +
+        '<span style="font-size:12.5px;color:#8b95a1;font-weight:600;">3회 미만 · 추이 미집계</span></div>';
     }
     var comments = entries.length ? entries.map(cnLine).join("")
       : '<div style="padding:7px 0 0;font-size:12.5px;color:#8b95a1;font-weight:600;line-height:1.55;">' +
         ((dom === "센서리" && d && d.src === "객관")
           ? '점수는 커핑 정확도로 자동 집계돼요. 교육 매니저 코멘트는 아직 없어요.'
           : '아직 교육 매니저 코멘트가 없어요.') + '</div>';
-    return '<div style="padding:11px 0;border-top:1px solid #f2f4f6;">' + head +
-      '<div style="margin-top:6px;padding-left:0;">' + comments + '</div></div>';
+    return '<div class="wcgr-dom">' + head + '<div class="wcgr-cmts">' + comments + '</div></div>';
   }
   function memberCard(m, rank) {
     var doms = m.doms || {};
@@ -6371,7 +6371,7 @@ window.hideCalibration = async function() {
     var hv = bySkill ? (doms[_skillFilter] ? doms[_skillFilter].improve : null) : m.score;
     var headLabel = bySkill ? (_skillFilter + " 성장") : "종합 성장";
     var scoreCol = hv == null ? "#b0b8c1" : impColor(hv);
-    var scoreTxt = hv == null ? "—" : (hv > 0 ? "+" : "") + (Math.round(hv * 100) / 100);
+    var scoreTxt = hv == null ? "—" : signed(hv);
     var batchTag = m.batch ? '<span style="font-size:12px;font-weight:600;color:#8b95a1;margin-right:6px;">' + esc(batchLabel(m.batch)) + '</span>' : '';
     var rankCol = rank === 1 ? "#ff7900" : (rank <= 3 ? "#191f28" : "#c4ccd4");
     var rankHtml = m.enough
@@ -6393,14 +6393,20 @@ window.hideCalibration = async function() {
         '</div>' +
         '<svg class="wcgr-chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c4ccd4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;transition:transform .18s;"><polyline points="6 9 12 15 18 9"></polyline></svg>' +
       '</div>' +
-      '<div class="wcgr-detail" style="display:none;padding:0 4px 16px;">' +
-        detail +
-        '<div style="margin-top:12px;font-size:11.5px;color:#8b95a1;line-height:1.6;">개선폭 = 최근 − 초기 구간 평균 · 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span> 커핑 편차 · <span style="color:#ff7900;font-weight:700;">매니저</span> 평가 점수</div>' +
-        '<div class="wcgr-hist"></div>' +
+      '<div class="wcgr-detail" style="display:none;">' +
+        '<div class="wcgr-grid">' +
+          '<div class="wcgr-main">' +
+            '<div class="wcgr-sec"><div class="wcgr-sec-t">역량 추이</div>' + detail +
+              '<div style="margin-top:12px;font-size:11.5px;color:#8b95a1;line-height:1.6;">개선폭 = 최근 − 초기 구간 평균 · 3회↑만 반영 · <span style="color:#3182f6;font-weight:700;">객관</span> 커핑 편차 · <span style="color:#ff7900;font-weight:700;">매니저</span> 평가 점수</div></div>' +
+            '<div class="wcgr-hist-main"></div>' +
+          '</div>' +
+          '<div class="wcgr-side"></div>' +
+        '</div>' +
       '</div></div>';
   }
   function skillQualifies(m) { return _skillFilter === "all" ? m.enough : !!(m.doms && m.doms[_skillFilter]); }
   function sortVal(m) { return _skillFilter === "all" ? (m.score == null ? -1e9 : m.score) : (m.doms[_skillFilter] ? m.doms[_skillFilter].improve : -1e9); }
+  function levelVal(m) { return _skillFilter === "all" ? (m.level || 0) : (m.doms[_skillFilter] ? m.doms[_skillFilter].level : 0); }
   function batchLabel(b) { return /^\d+$/.test(b) ? b + "기" : b; }
   function filterBarHTML() {
     var opts = '<option value="all">전체 기수</option>' + _batchList.map(function (b) {
@@ -6420,7 +6426,7 @@ window.hideCalibration = async function() {
     var pool = _people.filter(function (m) { return _batchFilter === "all" || String(m.batch || "") === _batchFilter; });
     var qual = [], few = [];
     pool.forEach(function (m) { (skillQualifies(m) ? qual : few).push(m); });
-    qual.sort(function (a, b) { return sortVal(b) - sortVal(a); });
+    qual.sort(function (a, b) { return (sortVal(b) - sortVal(a)) || (levelVal(b) - levelVal(a)); });
     var intro = _skillFilter === "all"
       ? '개선폭이 큰 순으로 정렬했어요.'
       : ('<b style="color:#ff7900;">' + _skillFilter + '</b> 개선폭 순으로 정렬했어요.');
@@ -6455,59 +6461,116 @@ window.hideCalibration = async function() {
     if (chev) chev.style.transform = open ? "rotate(180deg)" : "";
   };
   function repaint() { var body = _$("wcGrowthBody"); if (body) body.innerHTML = window.wcGrowthRankRender(); }
-  /* ═══ 멤버 내역 — 펼친 카드의 역량 추이 아래 (플랫) ═══
-     멤버 상세(커핑 8)와 같은 출처·같은 계산으로 핵심만 직접 그림. 카드·타일·회색 박스·탭 없음, 얇은 구분선만.
-     · 기본 정보(2열 키-값) · 활동(한 줄) · 최근 이력(예약·수업/훈련·결제/연장 합쳐 최근순 5건 + 더 보기) · 가입 배경
-     · 이름·기수·상태·센서리 편차는 카드 위쪽에 이미 있어 제외
-     · 코칭 로그 작성·전체 설문·커핑 세션 상세는 맨 아래 '멤버 상세 열기'(기존 모달)로 */
+  /* ═══ 멤버 펼침 상세 — 2단 레이아웃 ═══
+     왼쪽: 역량 추이(카드 렌더 시 바로) + 최근 이력(비동기)
+     오른쪽: 활동 · 목표 · 멤버 정보 · 멤버 상세 열기(비동기)
+     · 데이터는 멤버 상세(커핑 8)와 같은 출처(reservations · trainings · member_history · applications)
+     · 오늘 이후 일정은 이력·집계에서 빼고 '예정 n건'으로만
+     · 카드·타일·회색 배경 없이 타이포 + 여백으로 위계, 구분선은 최소 */
   var _histCache = {};
   var DOW = ["일", "월", "화", "수", "목", "금", "토"];
-  function histStyle() {
-    if (_$("wcGrowthHistStyle")) return;
+  function detailStyle() {
+    if (_$("wcGrowthDetailStyle")) return;
     var st = document.createElement("style");
-    st.id = "wcGrowthHistStyle";
+    st.id = "wcGrowthDetailStyle";
+    // 오른쪽 링·KPI·정보 카드, 목표 카드, 이력 행은 멤버 상세(커핑 8)와 같은 값 — 두 화면이 같은 부품으로 보이게
     st.textContent =
-      ".wcgr-hist:empty{display:none;}" +
-      ".wcgr-hist{margin-top:18px;padding-top:16px;border-top:1px solid #eef0f3;}" +
-      ".wcgr-kv{display:grid;grid-template-columns:1fr 1fr;column-gap:32px;}" +
-      ".wcgr-kv-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid #f2f4f6;font-size:13px;}" +
-      ".wcgr-kv-row .k{color:#8b95a1;font-weight:600;flex-shrink:0;}" +
-      ".wcgr-kv-row .v{color:#191f28;font-weight:700;text-align:right;min-width:0;word-break:keep-all;}" +
-      ".wcgr-sub{font-size:12.5px;font-weight:800;color:#4e5968;margin:22px 0 8px;}" +
-      ".wcgr-ev{display:flex;align-items:baseline;gap:12px;padding:9px 0;border-top:1px solid #f2f4f6;font-size:13px;}" +
-      ".wcgr-ev .d{flex-shrink:0;width:72px;color:#8b95a1;font-weight:600;font-size:12px;}" +
-      ".wcgr-ev .t{flex-shrink:0;width:40px;color:#6b7684;font-weight:800;font-size:12px;}" +
-      ".wcgr-ev .c{flex:1;min-width:0;color:#4e5968;line-height:1.5;word-break:break-word;}" +
-      ".wcgr-ev .a{flex-shrink:0;color:#191f28;font-weight:700;font-size:12.5px;}" +
-      ".wcgr-link{background:none;border:none;padding:0;font-family:inherit;cursor:pointer;font-size:13px;font-weight:700;}" +
-      "@media(max-width:768px){.wcgr-kv{grid-template-columns:1fr;}.wcgr-ev .d{width:58px;}}";
+      "#wcGrowthPage{max-width:1120px;}" +
+      ".wcgr-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;column-gap:36px;padding:4px 4px 28px 37px;}" +
+      ".wcgr-main,.wcgr-side{min-width:0;}" +
+      ".wcgr-sec + .wcgr-sec{margin-top:26px;}" +
+      ".wcgr-sec-t{font-size:13px;font-weight:800;color:#191f28;margin:2px 0 12px;}" +
+      ".wcgr-sec-t .s{font-size:11px;font-weight:600;color:#8b95a1;}" +
+      ".wcgr-dom{padding:12px 0;border-top:1px solid #f2f4f6;}" +
+      ".wcgr-dom-h{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}" +
+      ".wcgr-dom-l{width:52px;flex-shrink:0;}" +
+      ".wcgr-cmts{padding-left:68px;margin-top:4px;}" +
+      // 방문율 링 + KPI (wcMD-hero / wcMD-kpi)
+      ".wcgr-hero{display:flex;align-items:center;gap:16px;margin-bottom:16px;}" +
+      ".wcgr-hero .ring{position:relative;width:82px;height:82px;flex:none;}" +
+      ".wcgr-hero .ring svg{display:block;width:82px;height:82px;}" +
+      ".wcgr-hero .cap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}" +
+      ".wcgr-hero .cap .v{font-size:20px;font-weight:800;letter-spacing:-.6px;line-height:1;color:#191f28;}" +
+      ".wcgr-hero .cap .l{font-size:10px;font-weight:600;color:#8b95a1;margin-top:2px;}" +
+      ".wcgr-hero .ht{font-size:13px;font-weight:700;letter-spacing:-.3px;color:#191f28;}" +
+      ".wcgr-hero .hs{margin-top:5px;font-size:11.5px;color:#8b95a1;font-weight:500;line-height:1.55;letter-spacing:-.2px;}" +
+      ".wcgr-kpi{display:flex;gap:9px;}" +
+      ".wcgr-kpi .k{flex:1;background:#fff;border:1px solid #e5e8eb;border-radius:13px;padding:13px 4px;text-align:center;box-shadow:0 1px 2px rgba(23,31,40,.05);}" +
+      ".wcgr-kpi .n{font-size:18px;font-weight:800;letter-spacing:-.5px;color:#191f28;}" +
+      ".wcgr-kpi .n.hl{color:#ff7900;}" +
+      ".wcgr-kpi .l{font-size:10.5px;font-weight:600;color:#8b95a1;margin-top:3px;white-space:nowrap;}" +
+      // 정보 카드 (wcMD-foot)
+      ".wcgr-foot{margin-top:18px;background:#fff;border:1px solid #e5e8eb;border-radius:14px;padding:6px 14px;box-shadow:0 1px 2px rgba(23,31,40,.05);}" +
+      ".wcgr-foot .fr{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;padding:8px 0;letter-spacing:-.2px;}" +
+      ".wcgr-foot .fr + .fr{border-top:1px solid #f0f2f5;}" +
+      ".wcgr-foot .fk{color:#8b95a1;font-weight:500;white-space:nowrap;}" +
+      ".wcgr-foot .fv{color:#191f28;font-weight:600;text-align:right;}" +
+      ".wcgr-dpill{font-size:11px;font-weight:800;border-radius:6px;padding:2px 7px;margin-left:4px;}" +
+      // 가입 배경 · 학습 목표 카드 (wcmg-sum)
+      ".wcgr-sum{background:#fff;border:1px solid #e5e8eb;border-radius:14px;padding:18px 20px;box-shadow:0 1px 2px rgba(23,31,40,.04);}" +
+      ".wcgr-sum .h{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:800;color:#191f28;letter-spacing:-.3px;margin-bottom:14px;}" +
+      ".wcgr-sum .badge{font-size:11px;font-weight:700;color:#4e5968;background:#f2f4f6;padding:4px 9px;border-radius:7px;}" +
+      ".wcgr-sum .row{display:flex;gap:14px;padding:9px 0;font-size:13.5px;letter-spacing:-.3px;}" +
+      ".wcgr-sum .row + .row{border-top:1px solid #f0f2f5;}" +
+      ".wcgr-sum .row .k{flex:0 0 74px;color:#8b95a1;font-weight:600;white-space:nowrap;}" +
+      ".wcgr-sum .row .v{flex:1;color:#191f28;font-weight:500;line-height:1.55;word-break:keep-all;}" +
+      ".wcgr-sum .tag{display:inline-block;font-size:12.5px;font-weight:600;color:#4e5968;background:#f9fafb;border:1px solid #e5e8eb;padding:5px 10px;border-radius:8px;margin:0 5px 5px 0;}" +
+      ".wcgr-sum .empty{color:#b0b8c1;font-style:italic;font-weight:400;}" +
+      // 이력 행 (listItem) + 더보기 버튼 (moreList)
+      ".wcgr-li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #eef0f3;border-radius:10px;margin-bottom:6px;}" +
+      ".wcgr-li .ti{min-width:0;font-size:13px;font-weight:600;color:#191f28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}" +
+      ".wcgr-li .ti .ty{color:#8b95a1;font-weight:700;margin-right:6px;}" +
+      ".wcgr-li .ti .a{color:#8b95a1;font-weight:500;}" +
+      ".wcgr-li .dt{font-size:12px;color:#8b95a1;flex-shrink:0;}" +
+      ".wcgr-btn{width:100%;height:34px;margin:2px 0 6px;border:1px solid #e5e8eb;background:#fff;border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;color:#4e5968;cursor:pointer;}" +
+      ".wcgr-empty{padding:14px;text-align:center;color:#8b95a1;font-size:13px;background:#f9fafb;border-radius:10px;margin-bottom:6px;}" +
+      "@keyframes wcgrRing{from{stroke-dashoffset:213.6}}" +
+      ".wcgr-ringdraw{animation:wcgrRing .9s cubic-bezier(.22,1,.36,1) forwards;}" +
+      "@media(prefers-reduced-motion:reduce){.wcgr-ringdraw{animation:none;}}" +
+      "@media(max-width:1024px){.wcgr-grid{grid-template-columns:1fr;padding-left:4px;}.wcgr-side{margin-top:26px;}}" +
+      ".wcgr-li .dt-s{display:none;}" +
+      "@media(max-width:640px){.wcgr-cmts{padding-left:0;}" +
+        ".wcgr-sum{padding:16px;}.wcgr-sum .h{flex-wrap:wrap;row-gap:6px;}" +
+        ".wcgr-sum .row{flex-direction:column;gap:6px;}.wcgr-sum .row .k{flex:none;}.wcgr-sum .tag{white-space:nowrap;}" +
+        ".wcgr-li .dt-l{display:none;}.wcgr-li .dt-s{display:inline;}}";
     document.head.appendChild(st);
   }
-  function histHead() {
-    return '<div style="font-size:13px;font-weight:800;color:#191f28;">멤버 내역</div>';
-  }
-  function histMsg(t) { return histHead() + '<div style="padding:10px 0 2px;font-size:13px;color:#8b95a1;">' + t + '</div>'; }
   function clearHist(card) {
-    var list = card ? [card.querySelector(".wcgr-hist")] : Array.prototype.slice.call(document.querySelectorAll("#wcGrowthPage .wcgr-hist"));
-    list.forEach(function (h) { if (h) h.innerHTML = ""; });
+    var cards = card ? [card] : Array.prototype.slice.call(document.querySelectorAll("#wcGrowthPage .wcgr-card"));
+    cards.forEach(function (c) {
+      var a = c.querySelector(".wcgr-hist-main"), b = c.querySelector(".wcgr-side");
+      if (a) a.innerHTML = ""; if (b) b.innerHTML = "";
+    });
   }
   function sameP(a, b) { return digits(a) !== "" && digits(a) === digits(b); }
   function findMember(key) { return (window.globalMembers || []).find(function (x) { return digits(x.phone) === key; }) || null; }
-  function md(s) {   // 10.16 (목)
-    if (!s) return ""; var t = String(s).slice(0, 10), d = new Date(t);
-    if (isNaN(d)) return ""; return t.slice(5).replace("-", ".") + " (" + DOW[d.getDay()] + ")";
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function todayStr() { var t = new Date(); return t.getFullYear() + "-" + pad2(t.getMonth() + 1) + "-" + pad2(t.getDate()); }
+  function md(s) {   // 10.16 (금)
+    var t = ymd(s), d = new Date(t);
+    if (!t || isNaN(d)) return ""; return t.slice(5).replace("-", ".") + " (" + DOW[d.getDay()] + ")";
   }
-  function ymd(s) { var t = String(s || "").slice(0, 10); return /\d{4}-\d{2}-\d{2}/.test(t) ? t : ""; }
+  function ymd(s) {
+    if (!s) return "";
+    var t = String(s);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    var d = new Date(t); if (isNaN(d)) { t = t.slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : ""; }
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());   // 타임스탬프는 로컬(KST) 날짜로
+  }
   function centerName(c) { c = String(c || "").trim(); if (c.indexOf("광진") >= 0) return "광진센터"; if (c.indexOf("마포") >= 0) return "마포센터"; return c; }
   function won(n) { return Number(n || 0).toLocaleString("ko-KR") + "원"; }
   function trnParts(t) { return String(t.content || "").split(" || "); }
-  function trnDateOf(t) { var c = trnParts(t); return (c[0] && /\d{4}-\d{2}-\d{2}/.test(c[0])) ? c[0].trim() : (t.created_at || ""); }
+  function trnDateOf(t) { var c = trnParts(t); return (c[0] && /\d{4}-\d{2}-\d{2}/.test(c[0])) ? c[0].trim() : ymd(t.created_at); }
   function trnCat(t) { var m = String(trnParts(t)[4] || "").match(/^\[(.*?)\]/); return m ? m[1] : ""; }
   function trnTitleOf(t) {
     var c = trnParts(t), raw = (c.length >= 5 ? c[4] : (t.content || "")) || "";
     var m = raw.match(/^\[(.*?)\]\s*(.*)$/);
     return String(m ? (m[2] || raw) : raw).trim() || "수업·훈련 참여";
   }
+  // 쉼표 목록 → "A, B, C" (항목 안의 '·'는 그대로 — '취업 · 이직 준비'가 두 개로 쪼개지지 않게)
+  function listItems(v) { return String(v || "").split(",").map(function (x) { return x.trim().replace(/\s*·\s*/g, "·"); }).filter(Boolean); }
+  // 항목 단위로 줄바꿈(항목 중간에서 안 끊기게)
+  function listHTML(v) { return listItems(v).map(function (x) { return '<span style="white-space:nowrap;">' + esc(x) + '</span>'; }).join(", "); }
   async function byLast4(table, cols, key) {
     var last4 = key.slice(-4); if (last4.length < 4) return [];
     var r = await supabaseClient.from(table).select(cols).ilike(table === "member_history" ? "member_phone" : "phone", "%" + last4);
@@ -6516,148 +6579,179 @@ window.hideCalibration = async function() {
   async function loadHistData(key) {
     if (_histCache[key]) return _histCache[key];
     var mem = findMember(key);
-    var app = (window.globalApps || []).find(function (a) { return digits(a.phone) === key; }) || null;
-    var jobs = [
+    var app = (window.globalApps || []).filter(function (a) { return digits(a.phone) === key; })
+      .sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); })[0] || null;
+    var res = await Promise.all([
       byLast4("reservations", "id,phone,status,res_date,res_time,space_equip,center", key),
       byLast4("trainings", "id,phone,status,content,created_at", key),
       byLast4("member_history", "member_phone,action_detail,amount,created_at", key),
-      app ? Promise.resolve(null) : byLast4("applications", "*", key)
-    ];
-    var res = await Promise.all(jobs.map(function (p) { return p.catch(function (e) { console.warn("[growth] 멤버 내역 조회 실패", e); return []; }); }));
+      app ? Promise.resolve([]) : byLast4("applications", "*", key)
+    ].map(function (p) { return p.catch(function (e) { console.warn("[growth] 멤버 내역 조회 실패", e); return []; }); }));
     var notCancel = function (r) { return String(r.status || "").indexOf("취소") < 0; };
-    var ress = res[0].filter(function (r) { return sameP(r.phone, key) && notCancel(r); });
-    var trns = res[1].filter(function (r) { return sameP(r.phone, key) && notCancel(r); });
+    var today = todayStr(), upcoming = 0;
+    var ress = res[0].filter(function (r) { return sameP(r.phone, key) && notCancel(r); }).filter(function (r) {
+      var d = ymd(r.res_date); if (d && d > today) { upcoming++; return false; } return true;
+    });
+    var trns = res[1].filter(function (r) { return sameP(r.phone, key) && notCancel(r); }).filter(function (t) {
+      var d = trnDateOf(t); if (d && d > today) { upcoming++; return false; } return true;
+    });
     var hist = res[2].filter(function (r) { return sameP(r.member_phone, key); });
-    if (!app && res[3]) app = res[3].filter(function (a) { return sameP(a.phone, key); }).sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); })[0] || null;
-    var d = { mem: mem, app: app, ress: ress, trns: trns, hist: hist };
+    if (!app) app = res[3].filter(function (a) { return sameP(a.phone, key); }).sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); })[0] || null;
+    var d = { mem: mem, app: app, ress: ress, trns: trns, hist: hist, upcoming: upcoming };
     _histCache[key] = d;
     return d;
   }
-  function histHTML(d, key, name) {
+  // 같은 날·같은 장비의 이어지는 예약(22:00~23:00, 23:00~24:00)은 한 줄로
+  function mergeRes(ress) {
+    var groups = {};
+    ress.forEach(function (r) {
+      var k = ymd(r.res_date) + "|" + centerName(r.center) + "|" + (r.space_equip || "");
+      (groups[k] = groups[k] || []).push(r);
+    });
+    var out = [];
+    Object.keys(groups).forEach(function (k) {
+      var g = groups[k], parts = k.split("|");
+      var segs = g.map(function (r) {
+        var m = String(r.res_time || "").match(/(\d{1,2}:\d{2})\s*~\s*(\d{1,2}:\d{2})/);
+        return m ? { s: m[1], e: m[2] } : { raw: String(r.res_time || "").trim() };
+      });
+      var ranged = segs.filter(function (x) { return x.s; }).sort(function (a, b) { return a.s.localeCompare(b.s, "en", { numeric: true }); });
+      var merged = [];
+      ranged.forEach(function (x) { var last = merged[merged.length - 1]; if (last && last.e === x.s) last.e = x.e; else merged.push({ s: x.s, e: x.e }); });
+      var times = merged.map(function (x) { return x.s + " ~ " + x.e; }).concat(segs.filter(function (x) { return x.raw; }).map(function (x) { return x.raw; }));
+      var place = [parts[1], parts[2]].filter(Boolean).join(" · ") || "센터 예약";
+      out.push({ at: parts[0], t: "예약", c: esc(place) + (times.length ? ' <span class="a">· ' + esc(times.join(", ")) + '</span>' : '') });
+    });
+    return out;
+  }
+  function dstrFull(s) { var t = ymd(s), d = new Date(t); if (!t || isNaN(d)) return ""; return t.replace(/-/g, ".") + " (" + DOW[d.getDay()] + ")"; }
+  function mainHTML(d) {
+    var app = d.app || {};
+    // 가입 배경 · 학습 목표 — 멤버 상세 '상담·설문' 요약 카드와 같은 부품. 설문 문항별로 분리(관심 분야 ≠ 궁금한 점)
+    var tags = listItems(app.survey_goal).map(function (x) { return '<span class="tag">' + esc(x) + '</span>'; }).join("");
+    var empty = '<span class="empty">미작성</span>';
+    var h = '<div class="wcgr-sec" style="margin-top:26px;">';
+    if (!d.app) h += '<div class="wcgr-empty">연결된 가입 신청·설문 내역이 없어요.</div>';
+    else h += '<div class="wcgr-sum"><div class="h">가입 배경 · 학습 목표 <span class="badge">설문 응답 기반</span></div>' +
+      '<div class="row"><span class="k">학습 목표</span><span class="v">' + (tags || empty) + '</span></div>' +
+      '<div class="row"><span class="k">관심 분야</span><span class="v">' + (listHTML(app.interest_area) || empty) + '</span></div>' +
+      '<div class="row"><span class="k">궁금한 점</span><span class="v">' + (String(app.survey_curious || "").trim() ? esc(String(app.survey_curious).trim()) : empty) + '</span></div>' +
+    '</div>';
+    h += '</div>';
+    // 최근 이력 — 예약·수업/훈련·결제를 최근순 한 목록으로(멤버 상세 이력 행 스타일)
+    var ev = mergeRes(d.ress);
+    d.trns.forEach(function (t) {
+      var cat = trnCat(t), ty = cat === "기본 수업" ? "수업" : ((cat === "세미나" || cat === "대회") ? cat : "훈련");
+      ev.push({ at: trnDateOf(t), t: ty, c: esc(trnTitleOf(t)) });
+    });
+    d.hist.forEach(function (x) {
+      var amt = String(x.amount || "").trim();
+      ev.push({ at: ymd(x.created_at), t: "결제", c: esc(x.action_detail || "") + ((amt && amt !== "-") ? ' <span class="a">· ' + esc(amt) + '</span>' : '') });
+    });
+    ev.sort(function (a, b) { return a.at < b.at ? 1 : (a.at > b.at ? -1 : 0); });
+    h += '<div class="wcgr-sec"><div class="wcgr-sec-t">최근 이력 <span class="s">· 예약 · 수업 · 훈련 · 결제</span></div>';
+    if (!ev.length) return h + '<div class="wcgr-empty">이력이 없어요.</div></div>';
+    var item = function (e) { return '<div class="wcgr-li"><div class="ti"><span class="ty">' + esc(e.t) + '</span>' + e.c + '</div><div class="dt"><span class="dt-l">' + (dstrFull(e.at) || "—") + '</span><span class="dt-s">' + (md(e.at) || "—") + '</span></div></div>'; };
+    h += ev.slice(0, 5).map(item).join("");
+    if (ev.length > 5) h += '<div data-more="1" style="display:none;">' + ev.slice(5).map(item).join("") + '</div>' +
+      '<button type="button" class="wcgr-btn" data-histmore="1" data-n="' + (ev.length - 5) + '">더보기 (' + (ev.length - 5) + '건)</button>';
+    return h + '</div>';
+  }
+  function ringSVG(rate, gid) {
+    rate = (rate == null ? 0 : Math.min(100, Math.max(0, rate))); var C = 213.6;
+    var off = (rate >= 100 ? 0 : C * (1 - rate / 100)), cap = (rate >= 100 || rate <= 0) ? '' : ' stroke-linecap="round"';
+    return '<svg width="82" height="82" viewBox="0 0 82 82" style="display:block;width:82px;height:82px;min-width:82px;flex:none;">' +
+      '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="82" y2="82" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#16c894"/><stop offset="1" stop-color="#00a678"/></linearGradient></defs>' +
+      '<circle cx="41" cy="41" r="34" fill="none" stroke="#e9edf1" stroke-width="6"/>' +
+      '<circle class="wcgr-ringdraw" cx="41" cy="41" r="34" fill="none" stroke="url(#' + gid + ')" stroke-width="6"' + cap + ' stroke-dasharray="' + C + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 41 41)"/></svg>';
+  }
+  function sideHTML(d, key) {
     var mem = d.mem || {}, app = d.app || {};
-    // ── 활동 집계(멤버 상세와 같은 기준) ──
-    var classSet = {}, trainList = [], eventList = [];
+    // ── 활동 (멤버 상세와 같은 기준) ──
+    var classSet = {}, trainList = [];
     d.trns.forEach(function (t) {
       var cat = trnCat(t);
       if (cat === "기본 수업") classSet[trnTitleOf(t)] = 1;
-      else if (cat === "세미나" || cat === "대회") eventList.push(t);
-      else trainList.push(t);
+      else if (cat !== "세미나" && cat !== "대회") trainList.push(t);
     });
     var resDates = d.ress.map(function (r) { return ymd(r.res_date); }).filter(Boolean);
-    var trainDates = trainList.map(function (t) { return ymd(trnParts(t)[0]); }).filter(Boolean);
+    var trainDates = trainList.map(function (t) { return trnDateOf(t); }).filter(Boolean);
     function wk(s) { var t = new Date(s); if (isNaN(t)) return null; t.setHours(0, 0, 0, 0); return Math.floor(t.getTime() / 604800000); }
     var times = resDates.concat(trainDates).map(function (x) { return new Date(x).getTime(); }).filter(function (x) { return !isNaN(x); });
-    var visit = null;
+    var h = "";
     if (times.length) {
       var weeks = Math.max(1, wk(new Date()) - wk(new Date(Math.min.apply(null, times))) + 1);
       var rw = {}; resDates.forEach(function (x) { var b = wk(x); if (b != null) rw[b] = 1; });
-      var n = Object.keys(rw).length;
-      visit = { rate: Math.round(n / weeks * 100), weeks: weeks, visited: n };
+      var vis = Object.keys(rw).length, rate = Math.round(vis / weeks * 100);
+      var sub = weeks + "주 중 " + vis + "주 방문 · 주 평균 " + (d.ress.length / weeks).toFixed(1) + "회" + (d.upcoming ? " · 예정 " + d.upcoming + "건" : "");
+      h += '<div class="wcgr-hero"><div class="ring">' + ringSVG(rate, "wcgrRing_" + key) + '<div class="cap"><div class="v">' + rate + '%</div><div class="l">방문율</div></div></div>' +
+        '<div><div class="ht">자발적 방문율</div><div class="hs">' + sub + '</div></div></div>';
     }
+    h += '<div class="wcgr-kpi"><div class="k"><div class="n">' + d.ress.length + '</div><div class="l">센터 예약</div></div>' +
+      '<div class="k"><div class="n">' + Object.keys(classSet).length + '</div><div class="l">수업 이수</div></div>' +
+      '<div class="k"><div class="n hl">' + trainList.length + '</div><div class="l">훈련 참여</div></div></div>';
+    // ── 정보 카드 (멤버 상세와 같은 항목·순서) ──
+    var payTotal = 0, firstHist = "";
+    d.hist.forEach(function (x) {
+      payTotal += parseInt(String(x.amount || "").replace(/[^0-9]/g, ""), 10) || 0;
+      var t = ymd(x.created_at); if (t && (!firstHist || t < firstHist)) firstHist = t;
+    });
     var centerCnt = {};
     function bump(c) { c = centerName(c); if (c) centerCnt[c] = (centerCnt[c] || 0) + 1; }
     d.ress.forEach(function (r) { bump(r.center); });
     d.trns.forEach(function (t) { bump(trnParts(t)[3]); });
     var mainCenter = Object.keys(centerCnt).sort(function (a, b) { return centerCnt[b] - centerCnt[a]; })[0] || centerName(mem.center || mem.branch || app.desired_center || "");
-    var payTotal = 0, firstHist = "";
-    d.hist.forEach(function (h) {
-      payTotal += parseInt(String(h.amount || "").replace(/[^0-9]/g, ""), 10) || 0;
-      var t = ymd(h.created_at); if (t && (!firstHist || t < firstHist)) firstHist = t;
-    });
-    var lastVisit = resDates.slice().sort().slice(-1)[0] || "";
-    // ── 기본 정보 ──
     var batch = mem.batch || app.desired_batch || "";
     var join = ymd(mem.created_at) || firstHist || ymd(app.created_at);
-    var joinTxt = [batch ? esc(batchLabel(batch)) : "", join ? md(join) : ""].filter(Boolean).join(" · ") || "—";
-    var endTxt = "—", endRaw = ymd(mem.end_date);
+    var endRow = "", endRaw = ymd(mem.end_date);
     if (endRaw) {
       var ed = new Date(endRaw), td = new Date(); ed.setHours(0, 0, 0, 0); td.setHours(0, 0, 0, 0);
-      var dd = Math.round((ed - td) / 86400000);
-      endTxt = endRaw.replace(/-/g, ".") + ' <span style="margin-left:4px;font-weight:800;color:' + (dd < 0 || dd <= 30 ? "#e5484d" : "#00b386") + ';">' + (dd < 0 ? "만료" : "D-" + dd) + '</span>';
+      var dd = Math.round((ed - td) / 86400000), red = dd < 0 || dd <= 30;
+      endRow = endRaw.replace(/-/g, ".") + '<span class="wcgr-dpill" style="color:' + (red ? "#f04452" : "#0ca678") + ';background:' + (red ? "rgba(240,68,82,.10)" : "rgba(18,184,134,.12)") + ';">' + (dd < 0 ? "만료" : "D-" + dd) + '</span>';
     }
     var counselor = (app.counselor_name && app.counselor_name !== "null") ? String(app.counselor_name).trim() : "";
     var consult = "—";
-    if (app.call_time) { var cc = ymd(app.call_time); consult = [cc ? md(cc) : "완료", counselor ? esc(counselor) : ""].filter(Boolean).join(" · "); }
+    if (app.call_time) consult = [md(app.call_time) || "완료", counselor ? esc(counselor) : ""].filter(Boolean).join(" · ");
     else if (counselor) consult = esc(counselor);
+    var lastVisit = resDates.slice().sort().slice(-1)[0] || "";
     var rawPh = mem.phone || app.phone || key;
     var phTxt = window.normalizePhone ? (window.normalizePhone(rawPh) || rawPh) : rawPh;
-    var kv = [
-      ["가입", joinTxt], ["이용 종료", endTxt],
-      ["주 이용 센터", mainCenter ? esc(mainCenter) : "—"], ["연락처", esc(phTxt)],
-      ["총 결제", payTotal ? won(payTotal) : "—"], ["최근 방문", lastVisit ? md(lastVisit) : "—"],
-      ["상담", consult]
-    ];
-    var h = histHead() + '<div class="wcgr-kv" style="margin-top:8px;">' + kv.map(function (r) {
-      return '<div class="wcgr-kv-row"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>';
-    }).join("") + '</div>';
-    // ── 활동(한 줄) ──
-    function stat(label, v) { return '<span style="white-space:nowrap;">' + label + ' <b style="color:#191f28;font-weight:800;">' + v + '</b></span>'; }
-    var stats = [];
-    stats.push(visit ? '<span style="white-space:nowrap;">방문율 <b style="color:#191f28;font-weight:800;">' + visit.rate + '%</b><span style="color:#8b95a1;margin-left:4px;">(' + visit.weeks + '주 중 ' + visit.visited + '주)</span></span>' : stat("방문율", "—"));
-    stats.push(stat("센터 예약", d.ress.length), stat("수업 이수", Object.keys(classSet).length), stat("훈련 참여", trainList.length));
-    if (eventList.length) stats.push(stat("세미나·대회", eventList.length));
-    h += '<div class="wcgr-sub">활동</div><div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 0;font-size:13px;color:#6b7684;padding:10px 0;border-top:1px solid #f2f4f6;">' +
-      stats.join('<span style="color:#cbd2d9;margin:0 10px;">·</span>') + '</div>';
-    // ── 최근 이력(예약 · 수업/훈련 · 결제/연장) ──
-    var ev = [];
-    d.ress.forEach(function (r) {
-      var c = [centerName(r.center), r.space_equip].filter(Boolean).join(" · ") || "센터 예약";
-      if (r.res_time) c += " · " + r.res_time;
-      ev.push({ at: ymd(r.res_date) || "", t: "예약", c: c });
-    });
-    d.trns.forEach(function (t) {
-      var cat = trnCat(t), ty = cat === "기본 수업" ? "수업" : ((cat === "세미나" || cat === "대회") ? cat : "훈련");
-      ev.push({ at: ymd(trnDateOf(t)) || "", t: ty, c: trnTitleOf(t) });
-    });
-    d.hist.forEach(function (x) {
-      var amt = String(x.amount || "").trim();
-      ev.push({ at: ymd(x.created_at) || "", t: "결제", c: x.action_detail || "", a: (amt && amt !== "-") ? amt : "" });
-    });
-    ev.sort(function (a, b) { return a.at < b.at ? 1 : (a.at > b.at ? -1 : 0); });
-    h += '<div class="wcgr-sub">최근 이력</div>';
-    if (!ev.length) h += '<div style="padding:10px 0;border-top:1px solid #f2f4f6;font-size:13px;color:#8b95a1;">이력이 없어요.</div>';
-    else {
-      var row = function (e, hidden) {
-        return '<div class="wcgr-ev"' + (hidden ? ' data-more="1" style="display:none;"' : '') + '>' +
-          '<span class="d">' + (e.at ? md(e.at) : "—") + '</span><span class="t">' + esc(e.t) + '</span>' +
-          '<span class="c">' + esc(e.c) + '</span>' + (e.a ? '<span class="a">' + esc(e.a) + '</span>' : '') + '</div>';
-      };
-      h += ev.map(function (e, i) { return row(e, i >= 5); }).join("");
-      if (ev.length > 5) h += '<button type="button" class="wcgr-link" data-histmore="1" style="color:#6b7684;margin-top:10px;">더 보기 <span style="color:#8b95a1;font-weight:600;">' + (ev.length - 5) + '건</span></button>';
-    }
-    // ── 가입 배경 ──
-    var goal = String(app.survey_goal || "").split(/[,·]/).map(function (s) { return s.trim(); }).filter(Boolean).join(" · ");
-    var interest = [app.interest_area, app.survey_curious].filter(Boolean).join(" · ");
-    h += '<div class="wcgr-sub">가입 배경</div>';
-    if (!d.app) h += '<div style="padding:10px 0;border-top:1px solid #f2f4f6;font-size:13px;color:#8b95a1;">연결된 가입 신청이 없어요.</div>';
-    else h += [["학습 목표", goal], ["관심 분야", interest]].map(function (r) {
-      return '<div class="wcgr-kv-row" style="justify-content:flex-start;"><span class="k" style="width:72px;">' + r[0] + '</span><span class="v" style="text-align:left;font-weight:600;color:' + (r[1] ? "#4e5968" : "#b0b8c1") + ';">' + (r[1] ? esc(r[1]) : "미작성") + '</span></div>';
-    }).join("");
-    // ── 멤버 상세 열기 ──
-    h += '<div style="margin-top:16px;"><button type="button" class="wcgr-link" data-histopen="1" style="color:#ff7900;">멤버 상세 열기 →</button>' +
-      '<span style="margin-left:8px;font-size:12px;color:#8b95a1;">코칭 로그 작성 · 전체 설문 · 커핑 세션 상세</span></div>';
+    var fr = function (k, v) { return '<div class="fr"><span class="fk">' + k + '</span><span class="fv">' + v + '</span></div>'; };
+    h += '<div class="wcgr-foot">' +
+      fr("가입", [batch ? esc(batchLabel(batch)) : "", join ? md(join) : ""].filter(Boolean).join(" · ") || "—") +
+      (endRow ? fr("이용 종료", endRow) : "") +
+      fr("주 이용 센터", mainCenter ? esc(mainCenter) : "—") +
+      fr("연락처", esc(phTxt)) +
+      fr("총 결제", payTotal ? '<b style="color:#ff7900;">' + won(payTotal) + '</b>' : "—") +
+      fr("최근 방문", lastVisit ? md(lastVisit) : "—") +
+      fr("상담", consult) + '</div>';
+    h += '<button type="button" class="wcgr-btn" data-histopen="1" style="margin-top:12px;height:38px;">멤버 상세 열기</button>' +
+      '<div style="font-size:11.5px;color:#8b95a1;text-align:center;line-height:1.5;">코칭 로그 작성 · 전체 설문 · 커핑 세션 상세</div>';
     return h;
   }
   async function loadHist(card) {
-    var host = card.querySelector(".wcgr-hist"); if (!host) return;
-    histStyle();
-    var key = card.getAttribute("data-phone") || "", name = card.getAttribute("data-name") || "";
-    if (typeof supabaseClient === "undefined") { host.innerHTML = histMsg("데이터 연결이 없어 불러올 수 없어요."); return; }
-    host.innerHTML = histMsg("불러오는 중…");
+    var mainBox = card.querySelector(".wcgr-hist-main"), side = card.querySelector(".wcgr-side");
+    if (!mainBox || !side) return;
+    detailStyle();
+    var key = card.getAttribute("data-phone") || "";
+    if (typeof supabaseClient === "undefined") { side.innerHTML = '<div class="wcgr-empty">데이터 연결이 없어 불러올 수 없어요.</div>'; return; }
+    side.innerHTML = '<div class="wcgr-empty">불러오는 중…</div>';
     try {
       var d = await loadHistData(key);
-      if (!document.body.contains(host)) return;
-      var det = card.querySelector(".wcgr-detail"); if (!det || det.style.display === "none") return;
-      host.innerHTML = histHTML(d, key, name);
+      var det = card.querySelector(".wcgr-detail");
+      if (!document.body.contains(side) || !det || det.style.display === "none") return;
+      mainBox.innerHTML = mainHTML(d);
+      side.innerHTML = sideHTML(d, key);
     } catch (e) {
       console.warn("[growth] 멤버 내역 렌더 실패", e);
-      if (document.body.contains(host)) host.innerHTML = histMsg("멤버 내역을 불러오지 못했어요.");
+      if (document.body.contains(side)) side.innerHTML = '<div class="wcgr-empty">멤버 정보를 불러오지 못했어요.</div>';
     }
   }
   function histMore(btn) {
-    var host = btn.closest(".wcgr-hist"); if (!host) return;
-    host.querySelectorAll('[data-more="1"]').forEach(function (r) { r.style.display = ""; });
-    btn.remove();
+    var box = btn.parentNode && btn.parentNode.querySelector('[data-more="1"]'); if (!box) return;
+    var open = box.style.display === "none";
+    box.style.display = open ? "block" : "none";
+    btn.textContent = open ? "접기" : "더보기 (" + btn.getAttribute("data-n") + "건)";
   }
   function histOpen(btn) {
     var card = btn.closest(".wcgr-card"); if (!card || typeof window.openHistoryModal !== "function") return;
@@ -6666,6 +6760,7 @@ window.hideCalibration = async function() {
   }
   /* ═══ 인페이지 뷰 — 멤버 페이지(#page-members) 안에서 리스트 ↔ 성장 현황 전환 ═══ */
   function ensureStyle() {
+    detailStyle();
     if (_$("wcGrowthStyle")) return;
     var st = document.createElement("style");
     st.id = "wcGrowthStyle";
